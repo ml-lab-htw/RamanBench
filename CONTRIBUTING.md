@@ -52,18 +52,14 @@ print(lb.rank())
 
 ### Option B: AutoGluon-integrated model (full benchmark registration)
 
-To include your model in the full benchmark pipeline (with Raman preprocessing as
-tunable hyperparameters), follow these steps:
+To include your model in the full benchmark pipeline, follow these steps:
 
 #### 1. Implement the model
 
-Create `src/raman_bench/models/custom/my_model.py`:
+Create `src/raman_bench/models/custom/my_model.py` by subclassing `BaseCustomModel`:
 
 ```python
-import numpy as np
-import torch
 import torch.nn as nn
-from autogluon.core.models import AbstractModel
 from raman_bench.models.custom.base import BaseCustomModel
 
 
@@ -71,75 +67,37 @@ class MyModel(BaseCustomModel):
     """My custom Raman spectroscopy model."""
 
     def _set_default_params(self):
-        default_params = {
-            "hidden_dim": 256,
-            "n_layers": 4,
-            "learning_rate": 1e-3,
-            "n_epochs": 200,
-            "patience": 20,
-            "batch_size": 32,
-        }
-        for k, v in default_params.items():
+        for k, v in {"hidden_dim": 256, "n_layers": 4, "learning_rate": 1e-3,
+                     "n_epochs": 200, "patience": 20, "batch_size": 32}.items():
             self._set_default_param_value(k, v)
-
-    def _get_default_searchspace(self):
-        from autogluon.common import space
-        return {
-            "hidden_dim": space.Categorical(128, 256, 512),
-            "n_layers": space.Int(2, 8),
-            "learning_rate": space.Real(1e-4, 1e-2, log=True),
-        }
 
     def _fit(self, X, y, **kwargs):
         params = self._get_model_params()
         self._setup_device()
         X_np, y_np, n_outputs, criterion = self._prepare_labels(X, y)
-        # Build your network
         self.model = nn.Sequential(
             nn.Linear(X_np.shape[1], params["hidden_dim"]),
             nn.ReLU(),
             nn.Linear(params["hidden_dim"], n_outputs),
         ).to(self._device)
-        X_train_t, X_val_t, y_train_t, y_val_t = self._train_val_split(X_np, y_np, val_fraction=0.1)
-        self._run_training_loop(
-            X_train_t, y_train_t, X_val_t, y_val_t,
+        X_tr, X_v, y_tr, y_v = self._train_val_split(X_np, y_np, val_fraction=0.1)
+        self._run_training_loop(X_tr, y_tr, X_v, y_v,
             n_epochs=params["n_epochs"], patience=params["patience"],
-            time_limit=kwargs.get("time_limit"),
-            criterion=criterion,
-            per_epoch_augmentation=kwargs.get("per_epoch_augmentation", False),
-            batch_size=params["batch_size"],
-            aug_noise_sigma=0.01, aug_mixup_alpha=0.0,
-            lr=params["learning_rate"], weight_decay=1e-4,
-            warmup_epochs=5, grad_clip_norm=1.0,
-        )
+            time_limit=kwargs.get("time_limit"), criterion=criterion,
+            batch_size=params["batch_size"], lr=params["learning_rate"])
 ```
 
-#### 2. Add a preprocessing wrapper
+#### 2. Register the model
 
-In `src/raman_bench/preprocessing/wrapped_models.py`, add:
+Add your model to `src/raman_bench/models/custom/__init__.py` and to
+`src/raman_bench/preprocessing/wrapped_models.py` following the existing pattern.
+Then add `"MYMODEL"` to `configs/models/raman.json` (and optionally `all.json`).
 
-```python
-from raman_bench.models.custom.my_model import MyModel
-
-class Prep_MYMODEL(_RamanDLBase, MyModel):
-    pass  # Inherits augmentation defaults from _RamanDLBase
-```
-
-And register it:
-
-```python
-PREPROCESSED_MODELS["MYMODEL"] = Prep_MYMODEL
-```
-
-#### 3. Add to the model list
-
-Add `"MYMODEL"` to `configs/models/raman.json` (and optionally `all.json`).
-
-#### 4. Add tests
+#### 3. Add tests
 
 Create `tests/models/test_my_model.py` (see `tests/models/test_deep_cnn.py` for an example).
 
-#### 5. Open a Pull Request
+#### 4. Open a Pull Request
 
 Include benchmark results on at least the debug config:
 
