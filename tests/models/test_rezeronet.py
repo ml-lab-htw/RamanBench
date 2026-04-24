@@ -3,10 +3,9 @@
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 
-torch = pytest.importorskip("torch")
-
-from raman_bench.models.custom.rezeronet import ReZeroNetModel, _ReZeroNetNetwork  # noqa: E402
+from raman_bench.models.custom.rezeronet import ReZeroNetModel, _ReZeroNetNetwork
 
 
 class TestReZeroNetNetwork:

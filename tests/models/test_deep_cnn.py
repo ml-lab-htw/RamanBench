@@ -2,11 +2,9 @@
 
 import numpy as np
 import pandas as pd
-import pytest
+import torch
 
-torch = pytest.importorskip("torch")
-
-from raman_bench.models.custom.deepcnn import DeepCNNModel, _DeepCNNNetwork  # noqa: E402
+from raman_bench.models.custom.deepcnn import DeepCNNModel, _DeepCNNNetwork
 
 # ---------------------------------------------------------------------------
 # Helpers

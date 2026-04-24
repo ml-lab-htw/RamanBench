@@ -3,10 +3,9 @@
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 
-torch = pytest.importorskip("torch")
-
-from raman_bench.models.custom.sanet import (  # noqa: E402
+from raman_bench.models.custom.sanet import (
     SANetModel,
     _MultiScaleBlock,
     _SANetNetwork,
