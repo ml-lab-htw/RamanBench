@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
+pytest.importorskip("sktime")
+
+from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers

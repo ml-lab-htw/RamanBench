@@ -3,8 +3,9 @@
 import numpy as np
 import pandas as pd
 import pytest
-pytest.importorskip("torch")
+import pytest
 import torch
+pytest.importorskip("torch")
 
 from raman_bench.models.custom.ramanformer import RamanFormerModel, _RamanFormerNetwork
 
