@@ -25,10 +25,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
 
       - name: Install package (core + dev)
         run: pip install -e ".[dev]"
+
+      - name: Install torch (CPU-only)
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Lint (ruff)
         run: ruff check src/
