@@ -20,7 +20,7 @@ keywords = [
     "autogluon", "tabular", "chemistry", "biology", "material-science",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
@@ -28,6 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Physics",
@@ -109,7 +110,7 @@ raman_bench = ["data/precomputed/*.csv", "data/precomputed/*.json"]
 
 [tool.black]
 line-length = 100
-target-version = ["py311", "py312"]
+target-version = ["py311", "py312", "py313"]
 
 [tool.isort]
 profile = "black"
@@ -119,8 +120,15 @@ known_first_party = ["raman_bench"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
-ignore = ["E501"]
+ignore = [
+    "E501",   # line too long — handled by black
+    "N803",   # argument name should be lowercase — X, y are standard ML conventions
+    "N806",   # variable in function should be lowercase — X_train, X_test etc.
+    "N812",   # lowercase imported as non-lowercase — torch.nn.functional as F is universal
+]
 
 [tool.mypy]
 python_version = "3.11"
