@@ -46,8 +46,10 @@ pip install raman-bench
 ```
 
 **For running the full benchmark** (AutoGluon + deep learning models), RamanBench
-requires a patched AutoGluon fork that adds support for the custom Raman model
-training loop.  Install it first:
+requires a patched AutoGluon fork.  The official AutoGluon release caps tabular
+foundation models (TabPFN v2, TabICL, TabDPT, MITRA, …) at 500 features and
+silently skips them on larger datasets; Raman spectra typically have 500–4000
+wavenumber points.  The fork removes this cap.  Install it first:
 
 ```bash
 # 1. Install the patched AutoGluon fork
