@@ -6,7 +6,6 @@ pytest.importorskip("autogluon.tabular")
 
 from raman_bench.models.custom.pls import PLSModel  # noqa: E402
 
-
 # ── Unit: _select_features ────────────────────────────────────────────────────
 
 

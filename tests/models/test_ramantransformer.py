@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 import pytest
 import torch
+
 pytest.importorskip("torch")
 
 from raman_bench.models.custom.ramantransformer import (
