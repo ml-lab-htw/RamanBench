@@ -1,0 +1,16 @@
+{
+    "datasets_regression": ["amino_acids_glycine"],
+    "datasets_classification": ["wheat_lines"],
+    "test_size": 0.2,
+    "n_repetitions": 1,
+    "preprocessing": false,
+    "cache_dir": ".cache",
+    "output_dir": "results/debug",
+    "models": ["PLS", "RF", "REZERONET"],
+    "autogluon_time_limit": 60,
+    "autogluon_presets": "medium_quality",
+    "optimize": false,
+    "ensemble": false,
+    "min_samples_per_class": 9,
+    "group_regression_splits": true
+}

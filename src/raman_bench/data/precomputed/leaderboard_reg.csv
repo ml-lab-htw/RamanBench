@@ -1,0 +1,27 @@
+model,Rank,Model,Category,R²,RMSE,MAE,Avg Rank,Score,Improvability %,# Datasets,Elo
+AUTOGLUON,1,"AutoGluon 1.5 (extreme, 4h)",AutoML,0.67,10.8,8.0,3.6,0.81,11.3,129,1607
+REALTABPFN-V2.5,2,TabPFN v2.5 (default),Tabular Foundation,0.67,10.4,7.6,3.9,0.77,15.7,129,1580
+TABICL,3,TabICL (default),Tabular Foundation,0.60,10.8,7.8,5.3,0.64,24.0,129,1465
+REALTABPFN-V2,4,TabPFN v2 (default),Tabular Foundation,0.60,10.9,7.8,5.7,0.67,25.4,129,1445
+MITRA,5,MITRA (default),Tabular Foundation,0.60,11.2,8.3,7.2,0.51,32.5,129,1338
+TABDPT,6,TabDPT (default),Tabular Foundation,-2.20,12.2,8.7,11.7,0.28,41.2,129,1122
+TABM,7,TabM (default),Tabular Foundation,-1.17,11.8,8.6,12.0,0.18,44.4,129,1142
+REZERONET,8,ReZeroNet (default),Raman-Specific,0.37,11.9,8.9,12.3,0.26,42.3,129,1092
+REALMLP,9,RealMLP (default),Deep Learning,-4.71,12.2,9.0,12.7,0.21,44.0,129,1115
+XT,10,Extra Trees (default),Tree-based,0.33,12.1,8.8,13.6,0.14,47.1,129,1069
+CAT,11,CatBoost (default),Gradient Boosting,0.34,12.0,8.7,13.6,0.11,47.6,129,1080
+NN_TORCH,12,NN (Torch) (default),Deep Learning,0.29,13.0,9.3,14.2,0.18,45.4,129,1038
+PLS,13,PLS (default),Traditional ML,-0.41,14.1,10.3,14.6,0.21,45.8,129,1040
+LR,14,Logistic Reg. (default),Traditional ML,-0.72,16.9,12.1,15.1,0.20,48.0,129,1016
+RF,15,Random Forest (default),Tree-based,0.41,12.3,8.9,15.2,0.10,49.1,129,1000
+RAMANNET,16,RamanNet (default),Raman-Specific,0.22,12.3,9.1,15.4,0.10,48.9,129,992
+KNN,17,KNN (default),Traditional ML,-1.94,12.9,9.2,15.4,0.16,47.2,129,1003
+DEEPCNN,18,DeepCNN (default),Raman-Specific,0.13,12.7,9.2,15.7,0.13,47.6,129,961
+COATNET,19,CoAtNet (default),Deep Learning,0.29,12.6,9.3,16.1,0.13,49.1,129,963
+FASTAI,20,FastAI (default),Deep Learning,-3.78,12.9,9.5,16.2,0.08,50.0,129,960
+RAMANFORMER,21,RamanFormer (default),Raman-Specific,-0.42,12.5,9.1,16.3,0.15,49.3,129,945
+GBM,22,LightGBM (default),Gradient Boosting,-3.06,12.6,9.2,16.8,0.04,51.9,129,931
+FCRESNEXT,23,FC-ResNeXt (default),Deep Learning,0.14,13.3,10.0,17.8,0.06,53.2,129,895
+XGB,24,XGBoost (default),Gradient Boosting,-0.05,13.0,9.4,17.9,0.04,52.7,129,891
+SANET,25,SANet (default),Raman-Specific,-2.57,14.2,10.8,21.1,0.04,60.6,129,729
+RAMANTRANSFORMER,26,RamanTransformer (default),Raman-Specific,-2.37,18.5,15.1,21.7,0.05,64.9,129,685

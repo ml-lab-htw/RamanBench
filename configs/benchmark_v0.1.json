@@ -1,0 +1,33 @@
+{
+    "datasets_regression": "datasets/regression_all.json",
+    "datasets_classification": "datasets/classification_all.json",
+    "test_size": 0.2,
+    "n_repetitions": 3,
+    "preprocessing": false,
+    "cache_dir": ".cache",
+    "output_dir": "results/benchmark_v0.1",
+    "models": "models/all.json",
+    "autogluon_time_limit": 3600,
+    "autogluon_presets": "best_quality",
+    "optimize": false,
+    "ensemble": false,
+    "min_samples_per_class": 9,
+    "exclude_targets": [
+        "time_h"
+    ],
+    "exclude_keys": [
+        "amino_acids_phenylalanine_0",
+        "amino_acids_leucine_0",
+        "sugar_mixtures_high_snr_4",
+        "sugar_mixtures_low_snr_4"
+    ],
+    "group_regression_splits": true,
+    "subsample": {
+        "max_samples": 10000,
+        "max_features": 2000,
+        "combinations": {
+            "REALTABPFN-V2": ["bacteria_identification_0", "mlrod_0"],
+            "REALTABPFN-V2.5": ["mlrod_0"]
+        }
+    }
+}

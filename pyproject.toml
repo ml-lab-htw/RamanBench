@@ -1,0 +1,136 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raman-bench"
+version = "0.1.0a1"
+description = "A large-scale benchmark for machine learning on Raman spectroscopy data"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Mario Koddenbrock", email = "mario.koddenbrock@htw-berlin.de" },
+    { name = "Christoph Lange", email = "christoph.lange@tu-berlin.de" },
+]
+maintainers = [
+    { name = "Mario Koddenbrock", email = "mario.koddenbrock@htw-berlin.de" },
+]
+keywords = [
+    "raman", "spectroscopy", "benchmark", "machine-learning", "deep-learning",
+    "autogluon", "tabular", "chemistry", "biology", "material-science",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.21,<2.0",
+    "pandas>=1.4,<3.0",
+    "scikit-learn>=1.0,<2.0",
+    "matplotlib>=3.5,<4.0",
+    "seaborn>=0.12",
+    "tqdm>=4.64,<5.0",
+    "raman-data>=0.1.0",
+]
+
+[project.optional-dependencies]
+autogluon = [
+    "autogluon.common>=1.5",
+    "autogluon.core>=1.5",
+    "autogluon.features>=1.5",
+    "autogluon.tabular>=1.5",
+]
+deep = [
+    "torch>=2.0,<3.0",
+    "ramanspy>=0.2.10,<0.3.0",
+    "imodels>=2.0.4",
+    "tabpfn>=6.3.2",
+    "pytabkit>=1.7.3",
+    "tabdpt>=1.1.12",
+    "sktime>=0.40.0",
+    "numba>=0.63.0",
+]
+full = [
+    "raman-bench[autogluon]",
+    "raman-bench[deep]",
+    "adjustText>=1.2.0",
+    "pynvml>=11.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "isort>=5.12",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0",
+]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "myst-parser>=2.0",
+    "nbsphinx>=0.9",
+    "sphinx-autodoc-typehints>=1.25",
+]
+notebooks = [
+    "jupyter>=1.0",
+    "ipykernel>=6.0",
+]
+
+[project.urls]
+Homepage        = "https://github.com/ml-lab-htw/RamanBench"
+Documentation   = "https://ramanbench.readthedocs.io"
+Repository      = "https://github.com/ml-lab-htw/RamanBench"
+"Bug Tracker"   = "https://github.com/ml-lab-htw/RamanBench/issues"
+Leaderboard     = "https://huggingface.co/spaces/ml-lab-htw/RamanBench"
+"raman-data"    = "https://github.com/ml-lab-htw/raman_data"
+Paper           = "https://arxiv.org/abs/TBD"
+
+[project.scripts]
+raman-bench = "raman_bench.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.package-data]
+raman_bench = ["data/precomputed/*.csv", "data/precomputed/*.json"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["raman_bench"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

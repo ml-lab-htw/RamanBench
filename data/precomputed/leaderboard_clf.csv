@@ -1,0 +1,29 @@
+model,Rank,Model,Category,F1,Bal. Acc.,Accuracy,MCC,Avg Rank,Score,Improvability %,# Datasets,Elo
+AUTOGLUON,1,"AutoGluon 1.5 (extreme, 4h)",AutoML,82.9%,83.7%,84.1%,70.5%,6.0,0.69,34.8,21,1454
+REALTABPFN-V2.5,2,TabPFN v2.5 (default),Tabular Foundation,82.4%,83.2%,83.5%,69.4%,7.0,0.66,38.9,21,1397
+TABICL,3,TabICL (default),Tabular Foundation,82.5%,83.3%,83.9%,70.3%,7.7,0.60,42.6,21,1360
+REZERONET,4,ReZeroNet (default),Raman-Specific,82.0%,83.0%,83.5%,69.8%,8.3,0.52,48.2,21,1338
+ROCKET,5,ROCKET (default),TS Classification,81.4%,81.5%,82.2%,68.0%,10.4,0.38,55.5,21,1257
+ARSENAL,6,ARSENAL (default),TS Classification,80.7%,81.6%,82.2%,67.7%,10.4,0.42,58.3,21,1236
+REALTABPFN-V2,7,TabPFN v2 (default),Tabular Foundation,80.9%,81.7%,82.8%,69.8%,10.5,0.41,62.6,21,1256
+DEEPCNN,8,DeepCNN (default),Raman-Specific,79.0%,79.5%,80.0%,63.6%,12.1,0.38,52.2,21,1181
+TABM,9,TabM (default),Tabular Foundation,76.8%,77.4%,78.5%,60.3%,13.1,0.31,64.7,21,1153
+RAMANNET,10,RamanNet (default),Raman-Specific,77.9%,77.9%,79.6%,62.8%,13.2,0.33,59.1,21,1167
+TABDPT,11,TabDPT (default),Tabular Foundation,79.4%,80.1%,80.5%,64.2%,13.3,0.32,64.7,21,1151
+MITRA,12,MITRA (default),Tabular Foundation,78.0%,79.3%,79.9%,64.0%,13.4,0.33,66.5,21,1140
+NN_TORCH,13,NN (Torch) (default),Deep Learning,76.7%,77.2%,78.1%,58.9%,13.4,0.24,68.7,21,1145
+LR,14,Logistic Reg. (default),Traditional ML,76.3%,77.7%,78.0%,60.7%,14.0,0.33,58.6,21,1131
+FCRESNEXT,15,FC-ResNeXt (default),Deep Learning,78.7%,79.1%,79.8%,65.3%,14.5,0.24,65.0,21,1107
+REALMLP,16,RealMLP (default),Deep Learning,77.0%,76.9%,77.9%,59.9%,14.6,0.20,68.8,21,1113
+SANET,17,SANet (default),Raman-Specific,57.0%,61.5%,63.4%,43.9%,17.1,0.24,68.5,21,1001
+CAT,18,CatBoost (default),Gradient Boosting,74.3%,74.1%,75.6%,56.2%,17.2,0.05,73.3,21,1021
+FASTAI,19,FastAI (default),Deep Learning,74.5%,75.1%,76.8%,58.6%,17.3,0.15,69.7,21,1010
+COATNET,20,CoAtNet (default),Deep Learning,70.6%,72.2%,73.1%,57.1%,17.9,0.12,74.9,21,1015
+XGB,21,XGBoost (default),Gradient Boosting,73.4%,73.6%,75.1%,56.1%,17.9,0.09,71.9,21,981
+RF,22,Random Forest (default),Tree-based,74.0%,74.1%,75.6%,58.3%,18.1,0.09,72.4,21,1000
+RAMANFORMER,23,RamanFormer (default),Raman-Specific,53.4%,54.7%,56.8%,31.2%,18.2,0.20,68.8,21,935
+GBM,24,LightGBM (default),Gradient Boosting,72.0%,74.2%,76.1%,59.4%,18.4,0.05,73.9,21,972
+XT,25,Extra Trees (default),Tree-based,72.7%,72.5%,74.2%,55.7%,19.0,0.09,73.6,21,951
+KNN,26,KNN (default),Traditional ML,71.7%,72.9%,73.8%,55.7%,19.1,0.04,77.7,21,957
+PLS,27,PLS (default),Traditional ML,65.8%,67.6%,69.3%,51.7%,19.5,0.20,75.7,21,914
+RAMANTRANSFORMER,28,RamanTransformer (default),Raman-Specific,24.4%,35.5%,36.0%,8.0%,24.4,0.03,83.0,21,688

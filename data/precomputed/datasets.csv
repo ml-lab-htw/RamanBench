@@ -1,0 +1,78 @@
+dataset_id,Dataset,Domain,Task,Samples,Features,Classes / Targets,License
+ht_raman_bio_catalysis_axp,Bio-Catalysis Monitoring of AXP,Biological,Regression,344,2048,4,CC BY 4.0
+bioprocess_analytes_anton_532,Bioprocess Analytes Anton 532,Biological,Regression,270,1601,3,CC BY 4.0
+bioprocess_analytes_anton_785,Bioprocess Analytes Anton 785,Biological,Regression,270,1001,3,CC BY 4.0
+ecoli_metabolites,Bioprocess Analytes E. Coli Metabolites,Biological,Regression,1920,594,2,CC BY 4.0
+bioprocess_analytes_kaiser,Bioprocess Analytes Kaiser,Biological,Regression,134,5472,3,CC BY 4.0
+bioprocess_analytes_metrohm,Bioprocess Analytes Metrohm,Biological,Regression,399,1875,3,CC BY 4.0
+bioprocess_analytes_mettler_toledo,Bioprocess Analytes Mettler Toledo,Biological,Regression,275,2901,3,CC BY 4.0
+bioprocess_analytes_tec5,Bioprocess Analytes Tec5,Biological,Regression,395,2911,3,CC BY 4.0
+bioprocess_analytes_timegate,Bioprocess Analytes Timegate,Biological,Regression,133,486,3,CC BY 4.0
+bioprocess_analytes_tornado,Bioprocess Analytes Tornado,Biological,Regression,385,3001,3,CC BY 4.0
+bioprocess_substrates,Bioprocess Monitoring,Biological,Regression,6960,1870,8,CC BY 4.0
+cancer_cell_(cooh)2,Cancer Cell Metabolite ((COOH)2),Biological,Classification,627,2090,12,CC BY-NC-SA 4.0
+cancer_cell_cooh,Cancer Cell Metabolite (COOH),Biological,Classification,633,2090,12,CC BY-NC-SA 4.0
+cancer_cell_nh2,Cancer Cell Metabolite (NH2),Biological,Classification,632,2090,12,CC BY-NC-SA 4.0
+ecoli_fermentation,E. Coli Fermentation,Biological,Regression,379,1870,2,CC BY 4.0
+ecoli_metabolites_dig4bio,E. Coli Metabolites Dig4Bio,Biological,Regression,384,1869,3,CC BY 4.0
+kaiser_ecoli_fermentation,Kaiser Raman E. coli Fermentation,Biological,Regression,14,1699,4,CC BY 4.0
+kaiser_ecoli_fermentation_supernatant,Kaiser Raman E. coli Fermentation Supernatant,Biological,Regression,14,1699,4,CC BY 4.0
+wheat_lines,Mutant Wheat,Biological,Classification,53134,1748,4,CC BY 4.0
+ralstonia_fermentations,R. eutropha Copolymer Fermentations,Biological,Regression,82,2776,6,CC BY 4.0
+streptococcus_thermophilus_fermentation_kaiser,Streptococcus thermophilus Fermentations Kaiser,Biological,Regression,14,1501,4,CC BY 4.0
+tg_ecoli_fermentation,Time-Gated Raman E. coli Fermentation,Biological,Regression,12,114,4,CC BY 4.0
+tg_ecoli_fermentation_supernatant,Time-Gated Raman E. coli Fermentation Supernatant,Biological,Regression,13,114,4,CC BY 4.0
+streptococcus_thermophilus_fermentation_timegate,Time-Gated Streptococcus thermophilus Fermentations,Biological,Regression,14,117,4,CC BY 4.0
+yeast_fermentation,Yeast Fermentation,Biological,Regression,58,1900,4,CC BY 4.0
+acetic_acid_species,Acetic Concentration,Chemical,Regression,42,11084,2,CC0 1.0
+adenine_colloidal_gold,Adenine (Colloidal Gold),Chemical,Regression,225,534,1,CC BY 4.0
+adenine_colloidal_silver,Adenine (Colloidal Silver),Chemical,Regression,630,534,1,CC BY 4.0
+adenine_solid_gold,Adenine (Solid Gold),Chemical,Regression,810,534,1,CC BY 4.0
+adenine_solid_silver,Adenine (Solid Silver),Chemical,Regression,1851,534,1,CC BY 4.0
+amino_acids_glycine,Amino Acid LC (Glycine),Chemical,Regression,90,1024,1,Requested from authors
+amino_acids_leucine,Amino Acid LC (Leucine),Chemical,Regression,90,1024,1,Requested from authors
+amino_acids_phenylalanine,Amino Acid LC (Phenylalanine),Chemical,Regression,90,1024,1,Requested from authors
+amino_acids_tryptophan,Amino Acid LC (Tryptophan),Chemical,Regression,90,1024,1,Requested from authors
+citric_acid_species,Citric Concentration,Chemical,Regression,45,11084,2,CC0 1.0
+formic_acid_species,Formic Concentration,Chemical,Regression,24,11084,3,CC0 1.0
+fuel_benchtop,Gasoline Properties (Benchtop),Chemical,Regression,179,961,12,CC BY 4.0
+fuel_handheld,Gasoline Properties (Handheld),Chemical,Regression,179,1901,12,CC BY 4.0
+hair_dyes_sers,Hair Dyes SERS,Chemical,Classification,1713,1340,4,CC BY 4.0
+itaconic_acid_species,Itaconic Concentration,Chemical,Regression,21,11689,3,CC0 1.0
+levulinic_acid_species,Levulinic Concentration,Chemical,Regression,36,11084,2,CC0 1.0
+microgel_size_lf_fingerprint,"Microgel Size (Linear Fit, FingerPrint)",Chemical,Regression,235,3500,1,CC BY-NC 3.0
+microgel_size_lf_global,"Microgel Size (Linear Fit, Global)",Chemical,Regression,235,11084,1,CC BY-NC 3.0
+microgel_size_mm_lf_fingerprint,"Microgel Size (MinMax + Linear Fit, FingerPrint)",Chemical,Regression,235,3166,1,CC BY-NC 3.0
+microgel_size_mm_lf_global,"Microgel Size (MinMax + Linear Fit, Global)",Chemical,Regression,235,11084,1,CC BY-NC 3.0
+microgel_size_mm_rb_fingerprint,"Microgel Size (MinMax + Rubber Band, FingerPrint)",Chemical,Regression,235,3500,1,CC BY-NC 3.0
+microgel_size_mm_rb_global,"Microgel Size (MinMax + Rubber Band, Global)",Chemical,Regression,235,11084,1,CC BY-NC 3.0
+microgel_size_raw_fingerprint,"Microgel Size (Raw, FingerPrint)",Chemical,Regression,235,3500,1,CC BY-NC 3.0
+microgel_size_raw_global,"Microgel Size (Raw, Global)",Chemical,Regression,235,11084,1,CC BY-NC 3.0
+microgel_size_rb_fingerprint,"Microgel Size (Rubber Band, FingerPrint)",Chemical,Regression,235,3500,1,CC BY-NC 3.0
+microgel_size_rb_global,"Microgel Size (Rubber Band, Global)",Chemical,Regression,235,11084,1,CC BY-NC 3.0
+microgel_size_snv_lf_fingerprint,"Microgel Size (SNV + Linear Fit, FingerPrint)",Chemical,Regression,235,3500,1,CC BY-NC 3.0
+microgel_size_snv_lf_global,"Microgel Size (SNV + Linear Fit, Global)",Chemical,Regression,235,11084,1,CC BY-NC 3.0
+microgel_size_snv_rb_fingerprint,"Microgel Size (SNV + Rubber Band, FingerPrint)",Chemical,Regression,235,3500,1,CC BY-NC 3.0
+microgel_size_snv_rb_global,"Microgel Size (SNV + Rubber Band, Global)",Chemical,Regression,235,11084,1,CC BY-NC 3.0
+microgel_synthesis,Microgel Synthesis Flow vs. Batch,Chemical,Regression,14,11084,1,CC BY 4.0
+flow_microgel_synthesis,Microgel Synthesis in Flow,Chemical,Regression,86,11084,1,CC BY 4.0
+succinic_acid_species,Succinic Concentration,Chemical,Regression,70,11567,2,CC0 1.0
+sugar_mixtures_high_snr,Sugar Mixtures (High SNR),Chemical,Regression,1960,2000,4,CC BY 4.0
+sugar_mixtures_low_snr,Sugar Mixtures (Low SNR),Chemical,Regression,7840,2000,4,CC BY 4.0
+mlrod,ML Raman Open Dataset (MLROD),MaterialScience,Classification,130061,1836,16,BY-NC
+rruff_mineral_raw,RRUFF Minerals (Raw),MaterialScience,Classification,1162,1142,79,Free access
+synthetic_organic_pigments_raw,Synthetic Organic Pigments (Raw),MaterialScience,Regression,325,561,1,research use only
+microplastics_weathered,Weathered Microplastics,MaterialScience,Classification,77,1144,3,CC BY 4.0
+serum_alzheimer_disease,Alzheimer's SERS Serum,Medical,Classification,3417,724,3,CC BY 4.0
+diabetes_skin_ear_lobe,Diabetes Skin (Ear Lobe),Medical,Classification,20,3160,2,Optica OAPA
+diabetes_skin_inner_arm,Diabetes Skin (Inner Arm),Medical,Classification,20,3160,2,Optica OAPA
+diabetes_skin_thumbnail,Diabetes Skin (Thumbnail),Medical,Classification,20,3160,2,Optica OAPA
+diabetes_skin_vein,Diabetes Skin (Vein),Medical,Classification,20,3160,2,Optica OAPA
+head_neck_cancer,Head & Neck Cancer,Medical,Classification,111,1004,4,CC BY 4.0
+bacteria_identification,Pathogenic Bacteria,Medical,Classification,78500,1000,30,MIT
+pharmaceutical_ingredients,Pharmaceutical Ingredients,Medical,Classification,3510,3276,32,CC BY 4.0
+serum_prostate_cancer,Prostate Cancer SERS Serum,Medical,Classification,12601,725,3,CC BY 4.0
+alzheimer,Saliva Alzheimer,Medical,Classification,1151,885,2,Authors contacted
+covid19_salvia,Saliva COVID-19,Medical,Classification,2501,885,3,Authors contacted
+parkinson,Saliva Parkinson,Medical,Classification,1476,885,2,Authors contacted
+comfile_stroke,Stroke SERS Serum,Medical,Classification,4020,724,2,CC BY 4.0
