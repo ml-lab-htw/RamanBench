@@ -151,18 +151,6 @@ w = dataset.raman_shifts     # wavenumber axis in cm⁻¹
 
 **AutoGluon ensemble** (AUTOGLUON)
 
-### Preprocessing
-
-All preprocessing steps are jointly optimised as hyperparameters:
-
-1. Cosmic-ray removal (Whitaker-Hayes)
-2. Baseline correction (asymmetric least squares)
-3. Multiplicative scatter correction (MSC)
-4. Denoising (Savitzky-Golay)
-5. Standard Normal Variate (SNV)
-6. Standard scaling
-7. Spectral augmentation (training only)
-
 ---
 
 ## Ranking Protocol
@@ -192,7 +180,7 @@ RamanBench/
 │   ├── predictions.py     # Prediction generation (Step 1)
 │   ├── leaderboard.py     # Leaderboard + model evaluation
 │   ├── config.py          # JSON config loader
-│   ├── preprocessing/     # Raman preprocessing + AutoGluon mixin
+│   ├── preprocessing/     # Raman preprocessing pipeline
 │   ├── metrics/           # Classification + regression metrics
 │   └── models/custom/     # 9 Raman-specific architectures
 ├── configs/               # Benchmark configuration files
@@ -219,9 +207,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-new-model).
 Quick summary:
 1. Implement your model as an AutoGluon `AbstractModel` subclass (or use the
    `BaseCustomModel` shared training loop).
-2. Add a `Prep_*` wrapper in `src/raman_bench/preprocessing/wrapped_models.py`.
-3. Register it in `PREPROCESSED_MODELS` and `configs/models/`.
-4. Add tests in `tests/models/`.
+2. Register it in `configs/models/`.
+3. Add tests in `tests/models/`.
 
 ### Adding a New Dataset
 
