@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+pytest.importorskip("torch")
 import torch
 
 from raman_bench.models.custom.deepcnn import _DeepCNNNetwork, DeepCNNModel

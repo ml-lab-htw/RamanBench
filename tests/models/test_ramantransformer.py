@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 import pytest
+pytest.importorskip("torch")
 import torch
 
 from raman_bench.models.custom.ramantransformer import (
