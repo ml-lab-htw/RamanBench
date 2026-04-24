@@ -41,14 +41,29 @@ PyPI / GitHub     PyPI / GitHub
 ### Installation
 
 ```bash
-# Core package (leaderboard + dataset loading, minimal dependencies)
+# Core package (leaderboard + dataset loading, no heavy dependencies)
 pip install raman-bench
+```
 
-# With AutoGluon (required for running the full benchmark)
-pip install "raman-bench[autogluon]"
+**For running the full benchmark** (AutoGluon + deep learning models), RamanBench
+requires a patched AutoGluon fork that adds support for the custom Raman model
+training loop.  Install it first:
 
-# With deep learning models (PyTorch + all custom Raman architectures)
-pip install "raman-bench[full]"
+```bash
+# 1. Install the patched AutoGluon fork
+pip install -r https://raw.githubusercontent.com/ml-lab-htw/RamanBench/main/requirements-autogluon-fork.txt
+
+# 2. Install raman-bench with deep learning extras
+pip install "raman-bench[deep]"
+```
+
+Or from a local clone:
+
+```bash
+git clone https://github.com/ml-lab-htw/RamanBench.git
+cd RamanBench
+pip install -r requirements-autogluon-fork.txt
+pip install -e ".[deep]"
 ```
 
 ### Explore the precomputed leaderboard
@@ -82,10 +97,11 @@ lb.plot()
 ### Run the full benchmark pipeline
 
 ```bash
-# 1. Clone and install in development mode
+# 1. Clone, install the AutoGluon fork, then install in development mode
 git clone https://github.com/ml-lab-htw/RamanBench.git
 cd RamanBench
-pip install -e ".[full]"
+pip install -r requirements-autogluon-fork.txt
+pip install -e ".[deep]"
 
 # 2. Pre-cache all dataset splits (optional, speeds up the run)
 python scripts/prepare_datasets.py --config configs/benchmark_v0.1.json
