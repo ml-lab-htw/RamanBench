@@ -101,8 +101,9 @@ class TestPLSTinyDataset:
         return df
 
     def test_tiny_regression_does_not_raise(self, tmp_path):
-        from raman_bench.model import AutoGluonModel
         from raman_data import TASK_TYPE
+
+        from raman_bench.model import AutoGluonModel
 
         model = AutoGluonModel(
             models=["PLS"],
@@ -123,8 +124,9 @@ class TestPLSTinyDataset:
         assert np.isfinite(preds).all()
 
     def test_tiny_classification_does_not_raise(self, tmp_path):
-        from raman_bench.model import AutoGluonModel
         from raman_data import TASK_TYPE
+
+        from raman_bench.model import AutoGluonModel
 
         model = AutoGluonModel(
             models=["PLS"],

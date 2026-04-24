@@ -1,11 +1,10 @@
 """Tests for config loading and normalisation."""
 
 import json
-import os
 
 import pytest
 
-from raman_bench.config import load_config, _normalize_preprocessing_config
+from raman_bench.config import _normalize_preprocessing_config, load_config
 
 
 def test_normalize_preprocessing_false():

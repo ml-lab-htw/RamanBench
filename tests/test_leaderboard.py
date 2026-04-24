@@ -1,10 +1,9 @@
 """Tests for the Leaderboard class."""
 
-import numpy as np
 import pandas as pd
 import pytest
 
-from raman_bench.leaderboard import Leaderboard, _summarise_model_metrics
+from raman_bench.leaderboard import Leaderboard
 
 
 def _make_leaderboard():

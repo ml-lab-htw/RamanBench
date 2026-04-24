@@ -3,12 +3,14 @@
 import numpy as np
 import pandas as pd
 import pytest
-import pytest
-import torch
 
-pytest.importorskip("torch")
+torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.sanet import SANetModel, _MultiScaleBlock, _SANetNetwork
+from raman_bench.models.custom.sanet import (  # noqa: E402
+    SANetModel,
+    _MultiScaleBlock,
+    _SANetNetwork,
+)
 
 
 class TestMultiScaleBlock:
