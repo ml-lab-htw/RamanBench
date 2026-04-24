@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as F  # noqa: N812
 from autogluon.common import space
 
 from raman_bench.models.custom.base import BaseCustomModel

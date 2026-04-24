@@ -34,7 +34,7 @@ import warnings
 
 warnings.filterwarnings("ignore", message="'force_all_finite' was renamed")
 
-from raman_bench.logging_utils import LOG_FORMAT
+from raman_bench.logging_utils import LOG_FORMAT  # noqa: E402
 
 
 def _default_config() -> str:

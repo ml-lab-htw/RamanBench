@@ -62,24 +62,67 @@ class _NoAugBase(RamanPreprocessingMixin):
 # Built-in AutoGluon models
 # ---------------------------------------------------------------------------
 
-class Prep_GBM(_NoAugBase, LGBModel): pass
-class Prep_XGB(_NoAugBase, XGBoostModel): pass
-class Prep_CAT(_NoAugBase, CatBoostModel): pass
-class Prep_RF(_NoAugBase, RFModel): pass
-class Prep_XT(_NoAugBase, XTModel): pass
-class Prep_NN_TORCH(_NoAugBase, TabularNeuralNetTorchModel): pass
-class Prep_FASTAI(_NoAugBase, NNFastAiTabularModel): pass
-class Prep_DUMMY(_NoAugBase, DummyModel): pass
-class Prep_REALMLP(_NoAugBase, RealMLPModel): pass
-class Prep_MITRA(_NoAugBase, MitraModel): pass
-class Prep_TABM(_NoAugBase, TabMModel): pass
-class Prep_TABDPT(_NoAugBase, TabDPTModel): pass
-class Prep_TABICL(_NoAugBase, TabICLModel): pass
-class Prep_REALTABPFN_V2(_NoAugBase, RealTabPFNv2Model): pass
-class Prep_REALTABPFN_V25(_NoAugBase, RealTabPFNv25Model): pass
+class Prep_GBM(_NoAugBase, LGBModel):  # noqa: N801
+    pass
 
 
-class Prep_KNN(_NoAugBase, KNNModel):
+class Prep_XGB(_NoAugBase, XGBoostModel):  # noqa: N801
+    pass
+
+
+class Prep_CAT(_NoAugBase, CatBoostModel):  # noqa: N801
+    pass
+
+
+class Prep_RF(_NoAugBase, RFModel):  # noqa: N801
+    pass
+
+
+class Prep_XT(_NoAugBase, XTModel):  # noqa: N801
+    pass
+
+
+class Prep_NN_TORCH(_NoAugBase, TabularNeuralNetTorchModel):  # noqa: N801
+    pass
+
+
+class Prep_FASTAI(_NoAugBase, NNFastAiTabularModel):  # noqa: N801
+    pass
+
+
+class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
+    pass
+
+
+class Prep_REALMLP(_NoAugBase, RealMLPModel):  # noqa: N801
+    pass
+
+
+class Prep_MITRA(_NoAugBase, MitraModel):  # noqa: N801
+    pass
+
+
+class Prep_TABM(_NoAugBase, TabMModel):  # noqa: N801
+    pass
+
+
+class Prep_TABDPT(_NoAugBase, TabDPTModel):  # noqa: N801
+    pass
+
+
+class Prep_TABICL(_NoAugBase, TabICLModel):  # noqa: N801
+    pass
+
+
+class Prep_REALTABPFN_V2(_NoAugBase, RealTabPFNv2Model):  # noqa: N801
+    pass
+
+
+class Prep_REALTABPFN_V25(_NoAugBase, RealTabPFNv25Model):  # noqa: N801
+    pass
+
+
+class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
     """SNV normalises intensity scale so Euclidean distances reflect spectral shape."""
 
     def _set_default_params(self):
@@ -87,7 +130,7 @@ class Prep_KNN(_NoAugBase, KNNModel):
         super()._set_default_params()
 
 
-class Prep_LR(_NoAugBase, LinearModel):
+class Prep_LR(_NoAugBase, LinearModel):  # noqa: N801
     """Baseline correction + SNV are standard practice before linear regression."""
 
     def _set_default_params(self):
@@ -100,7 +143,7 @@ class Prep_LR(_NoAugBase, LinearModel):
 # Custom spectroscopy models
 # ---------------------------------------------------------------------------
 
-class Prep_PLS(_NoAugBase, PLSModel):
+class Prep_PLS(_NoAugBase, PLSModel):  # noqa: N801
     """Baseline correction + denoising + SNV — standard PLS pre-processing in spectroscopy."""
 
     def _set_default_params(self):
@@ -123,16 +166,44 @@ class _RamanDLBase(RamanPreprocessingMixin):
         super()._set_default_params()
 
 
-class Prep_DEEPCNN(_RamanDLBase, DeepCNNModel): pass
-class Prep_RAMANNET(_RamanDLBase, RamanNetModel): pass
-class Prep_SANET(_RamanDLBase, SANetModel): pass
-class Prep_RAMANFORMER(_RamanDLBase, RamanFormerModel): pass
-class Prep_RAMANTRANSFORMER(_RamanDLBase, RamanTransformerModel): pass
-class Prep_REZERONET(_RamanDLBase, ReZeroNetModel): pass
-class Prep_FCRESNEXT(_RamanDLBase, FCResNeXtModel): pass
-class Prep_COATNET(_RamanDLBase, CoAtNetModel): pass
-class Prep_ROCKET(_NoAugBase, RocketModel): pass
-class Prep_ARSENAL(_NoAugBase, ArsenalModel): pass
+class Prep_DEEPCNN(_RamanDLBase, DeepCNNModel):  # noqa: N801
+    pass
+
+
+class Prep_RAMANNET(_RamanDLBase, RamanNetModel):  # noqa: N801
+    pass
+
+
+class Prep_SANET(_RamanDLBase, SANetModel):  # noqa: N801
+    pass
+
+
+class Prep_RAMANFORMER(_RamanDLBase, RamanFormerModel):  # noqa: N801
+    pass
+
+
+class Prep_RAMANTRANSFORMER(_RamanDLBase, RamanTransformerModel):  # noqa: N801
+    pass
+
+
+class Prep_REZERONET(_RamanDLBase, ReZeroNetModel):  # noqa: N801
+    pass
+
+
+class Prep_FCRESNEXT(_RamanDLBase, FCResNeXtModel):  # noqa: N801
+    pass
+
+
+class Prep_COATNET(_RamanDLBase, CoAtNetModel):  # noqa: N801
+    pass
+
+
+class Prep_ROCKET(_NoAugBase, RocketModel):  # noqa: N801
+    pass
+
+
+class Prep_ARSENAL(_NoAugBase, ArsenalModel):  # noqa: N801
+    pass
 
 
 # ---------------------------------------------------------------------------

@@ -29,14 +29,14 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
+from raman_data import TASK_TYPE
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from raman_bench.benchmark import configure_benchmark
-from raman_bench.logging_utils import run_file_logger, LOG_FORMAT
+from raman_bench.logging_utils import LOG_FORMAT, run_file_logger
 from raman_bench.model import AutoGluonModel
 from raman_bench.seeds import get_seeds
-from raman_data import TASK_TYPE
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")

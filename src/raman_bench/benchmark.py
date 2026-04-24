@@ -32,15 +32,13 @@ Example
 import json
 import logging
 import os
-from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
+from raman_data import TASK_TYPE, raman_data
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
 from tqdm import tqdm
-
-from raman_data import raman_data, TASK_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +161,7 @@ class RamanBenchmark:
         self._key_list: list[str] = []
         self._task_type_list: list[TASK_TYPE] = []
         self._index_file = os.path.join(self.cache_dir_processed, "index.json")
-        self._index: Dict[str, int] = self._load_index()
+        self._index: dict[str, int] = self._load_index()
         self.is_initialized = False
 
     # ------------------------------------------------------------------
@@ -179,7 +177,7 @@ class RamanBenchmark:
         for i in range(len(self)):
             yield self[i]
 
-    def __getitem__(self, idx: int) -> Tuple[DataFrame, DataFrame, str, TASK_TYPE]:
+    def __getitem__(self, idx: int) -> tuple[DataFrame, DataFrame, str, TASK_TYPE]:
         """Return ``(train_df, test_df, key, task_type)`` for index *idx*."""
         if not self.is_initialized:
             self.init_datasets()
@@ -231,7 +229,7 @@ class RamanBenchmark:
         return f"{dataset_name}_{target_idx}"
 
     @staticmethod
-    def split_key(key: str) -> Tuple[str, int]:
+    def split_key(key: str) -> tuple[str, int]:
         """Reverse :meth:`get_key` → ``(dataset_name, target_idx)``."""
         parts = key.split("_")
         return "_".join(parts[:-1]), int(parts[-1])
@@ -240,7 +238,7 @@ class RamanBenchmark:
     # Cache helpers
     # ------------------------------------------------------------------
 
-    def _get_cache_paths(self, key: str) -> Tuple[str, str]:
+    def _get_cache_paths(self, key: str) -> tuple[str, str]:
         train = f"{self.cache_dir_processed}/{key}_train.pkl"
         test = f"{self.cache_dir_processed}/{key}_test.pkl"
         return train, test
@@ -256,7 +254,7 @@ class RamanBenchmark:
 
     def _load_dataset_from_cache(
         self, key: str
-    ) -> Tuple[DataFrame | None, DataFrame | None]:
+    ) -> tuple[DataFrame | None, DataFrame | None]:
         train_path, test_path = self._get_cache_paths(key)
         try:
             data_train = pd.read_pickle(train_path)
@@ -278,10 +276,10 @@ class RamanBenchmark:
         data_test = self._drop_classes(data_test, key, rare)
         return data_train, data_test
 
-    def _load_index(self) -> Dict[str, int]:
+    def _load_index(self) -> dict[str, int]:
         if not os.path.exists(self._index_file):
             return {}
-        with open(self._index_file, "r") as f:
+        with open(self._index_file) as f:
             return json.load(f)
 
     def _save_index(self):
@@ -292,7 +290,7 @@ class RamanBenchmark:
     # Dataset loading
     # ------------------------------------------------------------------
 
-    def _load_datasets(self, dataset_names: List[str]):
+    def _load_datasets(self, dataset_names: list[str]):
         for dataset_name in tqdm(dataset_names, desc="Loading datasets"):
             if dataset_name in self._index:
                 num_targets = self._index[dataset_name]
@@ -316,7 +314,7 @@ class RamanBenchmark:
 
     def _load_dataset_from_key(
         self, key: str
-    ) -> Tuple[DataFrame | None, DataFrame | None]:
+    ) -> tuple[DataFrame | None, DataFrame | None]:
         dataset_name, target_idx = self.split_key(key)
         dataset = raman_data(dataset_name, cache_dir=self.cache_dir_raw)
 
@@ -369,7 +367,7 @@ class RamanBenchmark:
 
     def _filter_rare_classes(
         self, data_df: DataFrame, key: str
-    ) -> Tuple[DataFrame | None, list | None]:
+    ) -> tuple[DataFrame | None, list | None]:
         dataset_name, _ = self.split_key(key)
         if dataset_name not in self.dataset_names_classification:
             return data_df, []
@@ -412,7 +410,7 @@ class RamanBenchmark:
 
     def _grouped_train_test_split(
         self, data_df: DataFrame, group_by_df: DataFrame | None = None
-    ) -> Tuple[DataFrame, DataFrame]:
+    ) -> tuple[DataFrame, DataFrame]:
         """Split while keeping co-measured samples in the same partition.
 
         Two rows are considered the same physical measurement when their

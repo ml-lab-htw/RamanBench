@@ -2,12 +2,11 @@ import logging
 
 import numpy as np
 from autogluon.common import space
+from scipy.signal import savgol_filter
 from sklearn import clone
 from sklearn.cross_decomposition import PLSRegression
-from scipy.signal import savgol_filter
 
 from raman_bench.models.custom.base import BaseCustomModel
-
 
 logger = logging.getLogger(__name__)
 

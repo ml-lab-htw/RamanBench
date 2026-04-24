@@ -35,7 +35,6 @@ Quick Start
 """
 
 import importlib
-from typing import List
 
 __version__ = "0.1.0a1"
 __author__ = "Mario Koddenbrock (HTW Berlin), Christoph Lange (TU Berlin)"
@@ -61,7 +60,7 @@ _public_map = {
     "load_config": ("raman_bench.config", "load_config"),
 }
 
-__all__: List[str] = sorted(list(_public_map.keys()))
+__all__: list[str] = sorted(list(_public_map.keys()))
 
 
 def __getattr__(name: str):

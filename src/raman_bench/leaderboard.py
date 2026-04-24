@@ -102,7 +102,7 @@ class Leaderboard:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_precomputed(cls) -> "Leaderboard":
+    def from_precomputed(cls) -> Leaderboard:
         """Load the bundled v0.1 precomputed results.
 
         Returns the leaderboard as published alongside the NeurIPS paper,
@@ -135,7 +135,7 @@ class Leaderboard:
         return cls(overall, clf, reg, dataset_stats)
 
     @classmethod
-    def from_results_dir(cls, results_dir: str) -> "Leaderboard":
+    def from_results_dir(cls, results_dir: str) -> Leaderboard:
         """Load leaderboard from a local results directory.
 
         Expects ``metrics/classification_metrics.csv`` and
@@ -269,10 +269,10 @@ class Leaderboard:
         pd.DataFrame
             Per-(key, seed) metrics for the newly evaluated model.
         """
+
         from raman_bench.benchmark import configure_benchmark
         from raman_bench.config import load_config
         from raman_bench.metrics import compute_metrics
-        from raman_data import TASK_TYPE
 
         if config_path is None:
             pkg_root = os.path.dirname(os.path.abspath(__file__))
@@ -345,7 +345,7 @@ class Leaderboard:
         ]
 
         fig, ax = plt.subplots(figsize=figsize)
-        bars = ax.barh(range(len(models)), scores[::-1], color=colors[::-1])
+        ax.barh(range(len(models)), scores[::-1], color=colors[::-1])
         ax.set_yticks(range(len(models)))
         ax.set_yticklabels(models[::-1])
         ax.set_xlabel("Score")

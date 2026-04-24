@@ -18,18 +18,18 @@ import logging
 import os
 import shutil
 import uuid
-from typing import Any, List
+from typing import Any
 
 import torch
 from autogluon.common import TabularDataset
 from autogluon.common.space import Space
 from autogluon.tabular import TabularPredictor
 from pandas import DataFrame
+from raman_data import TASK_TYPE
 
 from raman_bench.models.custom.base import BaseCustomModel
-from raman_bench.preprocessing.mixin import build_restricted_searchspace, RamanPreprocessingMixin
+from raman_bench.preprocessing.mixin import RamanPreprocessingMixin, build_restricted_searchspace
 from raman_bench.preprocessing.wrapped_models import create_preprocessed_hyperparameters
-from raman_data import TASK_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class AutoGluonModel:
 
     def __init__(
         self,
-        models: List[str],
+        models: list[str],
         ensemble: bool = True,
         optimize: bool = True,
         num_hpo_trials: int = 0,

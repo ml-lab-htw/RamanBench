@@ -1,6 +1,5 @@
 """Regression metrics for RamanBench."""
 
-from typing import Dict
 
 import numpy as np
 from sklearn.metrics import (
@@ -16,7 +15,7 @@ from sklearn.metrics import (
 class RegressionMetrics:
     """Compute regression evaluation metrics."""
 
-    def compute_all(self, y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+    def compute_all(self, y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
         """Return a dict of all standard regression metrics.
 
         Parameters

@@ -27,13 +27,13 @@ import os
 
 import numpy as np
 import pandas as pd
+from raman_data import TASK_TYPE
+from raman_data.datasets import pretty_name
 from tqdm import tqdm
 
 from raman_bench.benchmark import configure_benchmark
 from raman_bench.metrics import compute_metrics
 from raman_bench.seeds import get_seeds
-from raman_data import TASK_TYPE
-from raman_data.datasets import pretty_name
 
 logger = logging.getLogger(__name__)
 

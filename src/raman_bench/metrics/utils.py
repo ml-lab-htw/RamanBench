@@ -1,21 +1,21 @@
 """Utility functions for metrics computation."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
+from raman_data import TASK_TYPE
 
 from raman_bench.metrics.classification import ClassificationMetrics
 from raman_bench.metrics.regression import RegressionMetrics
-from raman_data import TASK_TYPE
 
 
 def compute_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     task_type: TASK_TYPE = TASK_TYPE.Classification,
-    y_proba: Optional[np.ndarray] = None,
+    y_proba: np.ndarray | None = None,
     **kwargs,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Compute all metrics for the given task type.
 
     Parameters
@@ -44,10 +44,10 @@ def compute_metrics(
 
 
 def compare_metrics(
-    results: Dict[str, Dict[str, float]],
+    results: dict[str, dict[str, float]],
     metric: str,
     higher_is_better: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Compare a single metric across multiple models.
 
     Parameters

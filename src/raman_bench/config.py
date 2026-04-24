@@ -2,7 +2,6 @@
 import json
 import os
 
-
 _ALL_PREPROCESSING_STEPS = {
     "baseline_correction": True,
     "cosmic_ray_removal": True,
@@ -62,7 +61,7 @@ def _resolve_list_config(value, config_dir):
     if value == "all":
         return None
     path = os.path.join(config_dir, value) if not os.path.isabs(value) else value
-    with open(path, "r") as f:
+    with open(path) as f:
         items = json.load(f)
     if not isinstance(items, list):
         raise ValueError(f"List config file {path} must contain a JSON array")
@@ -88,7 +87,7 @@ def load_config(config_path=None):
         If *config_path* does not exist.
     """
     if config_path and os.path.exists(config_path):
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = json.load(f)
     else:
         raise FileNotFoundError(f"Config file not found: {config_path}")

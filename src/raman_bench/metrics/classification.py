@@ -1,6 +1,5 @@
 """Classification metrics for RamanBench."""
 
-from typing import Dict, Optional, Union
 
 import numpy as np
 from sklearn.metrics import (
@@ -34,8 +33,8 @@ class ClassificationMetrics:
         self,
         y_true: np.ndarray,
         y_pred: np.ndarray,
-        y_proba: Optional[np.ndarray] = None,
-    ) -> Dict[str, float]:
+        y_proba: np.ndarray | None = None,
+    ) -> dict[str, float]:
         """Return a dict of all standard classification metrics.
 
         Parameters
@@ -99,5 +98,5 @@ class ClassificationMetrics:
     def confusion_matrix(self, y_true, y_pred, normalize=None) -> np.ndarray:
         return confusion_matrix(y_true, y_pred, normalize=normalize)
 
-    def classification_report(self, y_true, y_pred, output_dict=True) -> Union[str, Dict]:
+    def classification_report(self, y_true, y_pred, output_dict=True) -> str | dict:
         return classification_report(y_true, y_pred, output_dict=output_dict, zero_division=0)
