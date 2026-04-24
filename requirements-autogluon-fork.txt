@@ -1,8 +1,10 @@
 # AutoGluon fork required for RamanBench reproducibility
 #
-# RamanBench relies on a patched AutoGluon fork that adds support for the
-# custom Raman-specific model classes (BaseCustomModel, per-epoch augmentation,
-# cosine LR schedule with warm restarts, and classification head handling).
+# Raman spectra typically have 500–4000 wavenumber features. The official
+# AutoGluon release caps tabular foundation models (TabPFN v2, TabICL, TabDPT,
+# MITRA, …) at 500 features and silently skips them on larger datasets.
+# This fork removes that cap so all foundation models run on the full spectral
+# resolution used in the benchmark.
 #
 # Install this BEFORE installing raman-bench:
 #
