@@ -15,9 +15,14 @@ class TestRamanTransformerNetwork:
 
     def test_forward_shape_multiclass(self):
         net = _RamanTransformerNetwork(
-            n_features=256, n_outputs=3,
-            patch_size=64, d_model=64, nhead=4,
-            dim_feedforward=128, n_layers=1, dropout=0.0,
+            n_features=256,
+            n_outputs=3,
+            patch_size=64,
+            d_model=64,
+            nhead=4,
+            dim_feedforward=128,
+            n_layers=1,
+            dropout=0.0,
         )
         x = torch.randn(4, 256)
         out = net(x)
@@ -25,9 +30,14 @@ class TestRamanTransformerNetwork:
 
     def test_forward_shape_regression(self):
         net = _RamanTransformerNetwork(
-            n_features=256, n_outputs=1,
-            patch_size=64, d_model=64, nhead=4,
-            dim_feedforward=128, n_layers=1, dropout=0.0,
+            n_features=256,
+            n_outputs=1,
+            patch_size=64,
+            d_model=64,
+            nhead=4,
+            dim_feedforward=128,
+            n_layers=1,
+            dropout=0.0,
         )
         x = torch.randn(4, 256)
         out = net(x)
@@ -36,18 +46,27 @@ class TestRamanTransformerNetwork:
     def test_n_patches_calculated_correctly(self):
         for n_features, patch_size, expected in [(128, 32, 4), (100, 32, 4), (256, 64, 4)]:
             net = _RamanTransformerNetwork(
-                n_features=n_features, n_outputs=1,
-                patch_size=patch_size, d_model=32, nhead=4,
-                dim_feedforward=64, n_layers=1,
+                n_features=n_features,
+                n_outputs=1,
+                patch_size=patch_size,
+                d_model=32,
+                nhead=4,
+                dim_feedforward=64,
+                n_layers=1,
             )
             assert net.n_patches == expected
 
     def test_padding_when_not_divisible(self):
         """Spectrum length not divisible by patch_size should be padded."""
         net = _RamanTransformerNetwork(
-            n_features=100, n_outputs=2,
-            patch_size=32, d_model=32, nhead=4,
-            dim_feedforward=64, n_layers=1, dropout=0.0,
+            n_features=100,
+            n_outputs=2,
+            patch_size=32,
+            d_model=32,
+            nhead=4,
+            dim_feedforward=64,
+            n_layers=1,
+            dropout=0.0,
         )
         assert net.padded_len == 128  # ceil(100/32)*32
         x = torch.randn(2, 100)

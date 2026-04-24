@@ -1,4 +1,5 @@
 """Shared test fixtures for RamanBench."""
+
 import numpy as np
 import pandas as pd
 import pytest

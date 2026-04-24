@@ -62,6 +62,7 @@ class _NoAugBase(RamanPreprocessingMixin):
 # Built-in AutoGluon models
 # ---------------------------------------------------------------------------
 
+
 class Prep_GBM(_NoAugBase, LGBModel):  # noqa: N801
     pass
 
@@ -142,6 +143,7 @@ class Prep_LR(_NoAugBase, LinearModel):  # noqa: N801
 # ---------------------------------------------------------------------------
 # Custom spectroscopy models
 # ---------------------------------------------------------------------------
+
 
 class Prep_PLS(_NoAugBase, PLSModel):  # noqa: N801
     """Baseline correction + denoising + SNV — standard PLS pre-processing in spectroscopy."""

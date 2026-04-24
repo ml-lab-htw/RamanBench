@@ -12,9 +12,14 @@ class TestRamanFormerNetwork:
 
     def test_forward_shape_multiclass(self):
         net = _RamanFormerNetwork(
-            n_features=256, n_outputs=3,
-            patch_size=64, d_model=64, nhead=4,
-            dim_feedforward=128, n_layers=1, dropout=0.0,
+            n_features=256,
+            n_outputs=3,
+            patch_size=64,
+            d_model=64,
+            nhead=4,
+            dim_feedforward=128,
+            n_layers=1,
+            dropout=0.0,
             post_processing_dim=64,
         )
         x = torch.randn(4, 256)
@@ -23,9 +28,14 @@ class TestRamanFormerNetwork:
 
     def test_forward_shape_regression(self):
         net = _RamanFormerNetwork(
-            n_features=256, n_outputs=1,
-            patch_size=64, d_model=64, nhead=4,
-            dim_feedforward=128, n_layers=1, dropout=0.0,
+            n_features=256,
+            n_outputs=1,
+            patch_size=64,
+            d_model=64,
+            nhead=4,
+            dim_feedforward=128,
+            n_layers=1,
+            dropout=0.0,
             post_processing_dim=64,
         )
         x = torch.randn(4, 256)
@@ -35,9 +45,13 @@ class TestRamanFormerNetwork:
     def test_n_patches_calculated_correctly(self):
         for n_features, patch_size, expected in [(128, 32, 4), (100, 32, 4), (256, 64, 4)]:
             net = _RamanFormerNetwork(
-                n_features=n_features, n_outputs=1,
-                patch_size=patch_size, d_model=32, nhead=4,
-                dim_feedforward=64, n_layers=1,
+                n_features=n_features,
+                n_outputs=1,
+                patch_size=patch_size,
+                d_model=32,
+                nhead=4,
+                dim_feedforward=64,
+                n_layers=1,
             )
             assert net.n_patches == expected
 

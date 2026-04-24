@@ -54,7 +54,8 @@ _public_map = {
     # Pipeline steps
     "compute_predictions": ("raman_bench.predictions", "compute_predictions"),
     "compute_metrics_from_predictions": (
-        "raman_bench.evaluation", "compute_metrics_from_predictions"
+        "raman_bench.evaluation",
+        "compute_metrics_from_predictions",
     ),
     # Config
     "load_config": ("raman_bench.config", "load_config"),

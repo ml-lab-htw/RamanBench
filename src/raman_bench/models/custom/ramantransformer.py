@@ -18,9 +18,15 @@ class _RamanTransformerNetwork(nn.Module):
     """
 
     def __init__(
-        self, n_features, n_outputs,
-        patch_size=16, d_model=768, nhead=12,
-        dim_feedforward=3072, n_layers=12, dropout=0.1,
+        self,
+        n_features,
+        n_outputs,
+        patch_size=16,
+        d_model=768,
+        nhead=12,
+        dim_feedforward=3072,
+        n_layers=12,
+        dropout=0.1,
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -44,7 +50,8 @@ class _RamanTransformerNetwork(nn.Module):
 
         # Transformer encoder
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=nhead,
+            d_model=d_model,
+            nhead=nhead,
             dim_feedforward=dim_feedforward,
             activation="gelu",
             dropout=dropout,

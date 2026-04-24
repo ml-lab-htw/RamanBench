@@ -24,7 +24,9 @@ class _SktimeMixin:
             if missing:
                 logger.warning(
                     "%s predict: %d training column(s) missing — filling with 0: %s",
-                    self.__class__.__name__, len(missing), missing[:5],
+                    self.__class__.__name__,
+                    len(missing),
+                    missing[:5],
                 )
             X = X.reindex(columns=self._feature_names, fill_value=0.0)
         return X
@@ -82,9 +84,7 @@ class RocketModel(_SktimeMixin, BaseCustomModel):
         try:
             from sktime.classification.kernel_based import RocketClassifier
         except ImportError:
-            raise ImportError(
-                "RocketModel requires sktime. Install with: pip install sktime"
-            )
+            raise ImportError("RocketModel requires sktime. Install with: pip install sktime")
 
         params = self._get_model_params()
         self._log_params(params)
@@ -143,9 +143,7 @@ class ArsenalModel(_SktimeMixin, BaseCustomModel):
         try:
             from sktime.classification.kernel_based import Arsenal
         except ImportError:
-            raise ImportError(
-                "ArsenalModel requires sktime. Install with: pip install sktime"
-            )
+            raise ImportError("ArsenalModel requires sktime. Install with: pip install sktime")
 
         params = self._get_model_params()
         self._log_params(params)

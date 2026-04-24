@@ -32,8 +32,7 @@ def _despike_single(spectrum: np.ndarray, threshold: float, kernel_size: int) ->
         for i in range(len(spikes)):
             if spikes[i]:
                 neighbours = np.arange(
-                    max(0, i - kernel_size),
-                    min(len(Y) - 1, i + 1 + kernel_size)
+                    max(0, i - kernel_size), min(len(Y) - 1, i + 1 + kernel_size)
                 )
                 non_spike_neighbours = neighbours[spikes[neighbours] == 0]
                 fixed_value = np.mean(Y[non_spike_neighbours])
@@ -88,9 +87,7 @@ def cosmic_ray_removal(X, threshold=6, kernel_size=3):
     """
     # Use the Whitaker-Hayes algorithm
 
-    return np.array([
-        _despike_single(spectrum, threshold, kernel_size) for spectrum in X
-    ])
+    return np.array([_despike_single(spectrum, threshold, kernel_size) for spectrum in X])
 
 
 def baseline_correction_asls(X, lam=1e5, p=0.01, n_iter=10):
@@ -243,8 +240,13 @@ def snv(X):
 
 
 def augment_spectra(
-    X, y, noise_sigma=0.01, shift_max=0,
-    n_augments=1, mixup_alpha=0.0, label_type="classification",
+    X,
+    y,
+    noise_sigma=0.01,
+    shift_max=0,
+    n_augments=1,
+    mixup_alpha=0.0,
+    label_type="classification",
 ):
     """Augment spectra with noise, shifts, and linear combinations.
 
@@ -297,7 +299,9 @@ def augment_spectra(
         # Gaussian noise
         if noise_sigma > 0:
             noise = np.random.normal(
-                0, noise_sigma * x_std, size=X_copy.shape,
+                0,
+                noise_sigma * x_std,
+                size=X_copy.shape,
             )
             X_copy = X_copy + noise
 
@@ -305,7 +309,8 @@ def augment_spectra(
         if shift_max > 0:
             for i in range(n_samples):
                 shift = np.random.randint(
-                    -shift_max, shift_max + 1,
+                    -shift_max,
+                    shift_max + 1,
                 )
                 if shift != 0:
                     X_copy[i] = np.roll(X_copy[i], shift)
@@ -336,12 +341,12 @@ def augment_spectra(
         first_idxs = np.random.randint(n_samples, size=n_samples)
         second_idxs = np.random.randint(n_samples, size=n_samples)
         aug_X_list.append(
-            X[first_idxs] * lambdas[:, None] + X[second_idxs] * (1. - lambdas[:, None])
+            X[first_idxs] * lambdas[:, None] + X[second_idxs] * (1.0 - lambdas[:, None])
         )
         # Broadcast lambdas to match y's shape (works for 1-D and multi-output)
         lam_shape = (n_samples,) + (1,) * (y.ndim - 1)
         lam_broadcast = lambdas.reshape(lam_shape)
-        mixed_y = y[first_idxs] * lam_broadcast + y[second_idxs] * (1. - lam_broadcast)
+        mixed_y = y[first_idxs] * lam_broadcast + y[second_idxs] * (1.0 - lam_broadcast)
         aug_y_list.append(mixed_y)
 
     X_out = np.vstack(aug_X_list)
@@ -395,7 +400,7 @@ def augment_spectra_torch(
 
     # --- 1. Tile the data n_augments times --------------------------------
     # Each row is an independent augmented sample.
-    X_aug = X.repeat(n_augments, 1).clone()          # (n_augments * n_samples, n_features)
+    X_aug = X.repeat(n_augments, 1).clone()  # (n_augments * n_samples, n_features)
     y_aug = y.repeat(n_augments, *([1] * (y.dim() - 1))).clone()
 
     total = X_aug.shape[0]

@@ -203,9 +203,7 @@ class RamanBenchmark:
         self._load_datasets(self.dataset_names_regression)
         self._load_datasets(self.dataset_names_classification)
 
-        for dataset_name in (
-            self.dataset_names_classification + self.dataset_names_regression
-        ):
+        for dataset_name in self.dataset_names_classification + self.dataset_names_regression:
             for target_idx in range(self._index.get(dataset_name, 0)):
                 self._key_list.append(self.get_key(dataset_name, target_idx))
                 task = (
@@ -252,9 +250,7 @@ class RamanBenchmark:
         train.to_pickle(train_path)
         test.to_pickle(test_path)
 
-    def _load_dataset_from_cache(
-        self, key: str
-    ) -> tuple[DataFrame | None, DataFrame | None]:
+    def _load_dataset_from_cache(self, key: str) -> tuple[DataFrame | None, DataFrame | None]:
         train_path, test_path = self._get_cache_paths(key)
         try:
             data_train = pd.read_pickle(train_path)
@@ -312,9 +308,7 @@ class RamanBenchmark:
                     if data_train is not None:
                         self._save_dataset(key, data_train, data_test)
 
-    def _load_dataset_from_key(
-        self, key: str
-    ) -> tuple[DataFrame | None, DataFrame | None]:
+    def _load_dataset_from_key(self, key: str) -> tuple[DataFrame | None, DataFrame | None]:
         dataset_name, target_idx = self.split_key(key)
         dataset = raman_data(dataset_name, cache_dir=self.cache_dir_raw)
 
@@ -326,9 +320,7 @@ class RamanBenchmark:
             num_targets = dataset.targets.shape[1]
 
         if target_idx >= num_targets:
-            raise ValueError(
-                f"Target index {target_idx} out of range for dataset {dataset_name}"
-            )
+            raise ValueError(f"Target index {target_idx} out of range for dataset {dataset_name}")
 
         data_df = dataset.to_dataframe(target_idx)
         data_df = data_df.dropna()
@@ -344,12 +336,10 @@ class RamanBenchmark:
         is_regression = dataset_name in self.dataset_names_regression
         if is_regression and self.group_regression_splits:
             if num_targets > 1:
-                all_targets_df = pd.DataFrame(
-                    dataset.targets, columns=dataset.target_names
-                ).loc[data_df.index]
-                return self._grouped_train_test_split(
-                    data_df, group_by_df=all_targets_df
-                )
+                all_targets_df = pd.DataFrame(dataset.targets, columns=dataset.target_names).loc[
+                    data_df.index
+                ]
+                return self._grouped_train_test_split(data_df, group_by_df=all_targets_df)
             return self._grouped_train_test_split(data_df)
 
         label_col = data_df.columns[-1]
@@ -380,7 +370,10 @@ class RamanBenchmark:
         if rare:
             logger.warning(
                 "Dataset %s: removing %d class(es) with < %d samples: %s",
-                key, len(rare), self.min_samples_per_class, rare,
+                key,
+                len(rare),
+                self.min_samples_per_class,
+                rare,
             )
             data_df = data_df[~data_df[label_col].isin(rare)]
 
@@ -390,9 +383,7 @@ class RamanBenchmark:
 
         return data_df, rare
 
-    def _drop_classes(
-        self, data_df: DataFrame, key: str, classes: list
-    ) -> DataFrame | None:
+    def _drop_classes(self, data_df: DataFrame, key: str, classes: list) -> DataFrame | None:
         if not classes:
             return data_df
         dataset_name, _ = self.split_key(key)

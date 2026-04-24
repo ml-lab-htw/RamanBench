@@ -6,8 +6,8 @@ from raman_bench.custom_models import PreprocessingPLS, FlexiblePipelinePLS
 from raman_bench.models.custom.pls import PLSModel
 from raman_bench.pre_pipeline import get_preprocessing_config
 
-
 # ── Unit: _select_features ────────────────────────────────────────────────────
+
 
 class TestPLSSelectFeatures:
     """PLSModel._select_features handles column count mismatches at predict time.
@@ -35,11 +35,13 @@ class TestPLSSelectFeatures:
     def test_extra_nan_column_is_dropped(self):
         """NaN-only extra column (the AutoGluon injected column) is dropped."""
         m = self._make_model_with_feature_names(["f0", "f1"])
-        X = pd.DataFrame({
-            "f0": [0.5, 1.0],
-            "f1": [0.3, 0.8],
-            "autogluon_nan_injection": [np.nan, np.nan],
-        })
+        X = pd.DataFrame(
+            {
+                "f0": [0.5, 1.0],
+                "f1": [0.3, 0.8],
+                "autogluon_nan_injection": [np.nan, np.nan],
+            }
+        )
         result = m._select_features(X)
         assert list(result.columns) == ["f0", "f1"]
         assert not result.isna().any().any()
@@ -78,6 +80,7 @@ class TestPLSSelectFeatures:
 
 # ── Integration: tiny dataset triggers AutoGluon tuning_data path ─────────────
 
+
 class TestPLSTinyDataset:
     """PLSModel survives AutoGluon's post-fit validation when n_samples < 20.
 
@@ -91,13 +94,16 @@ class TestPLSTinyDataset:
         rng = np.random.RandomState(0)
         n_features = 30
         wavenumbers = np.linspace(400, 1800, n_features)
-        X = np.array([
-            sum(
-                rng.uniform(0.5, 2.0) * np.exp(-0.5 * ((wavenumbers - c) / 30) ** 2)
-                for c in rng.choice(wavenumbers, size=3, replace=False)
-            ) + rng.normal(0, 0.02, n_features)
-            for _ in range(n_samples)
-        ])
+        X = np.array(
+            [
+                sum(
+                    rng.uniform(0.5, 2.0) * np.exp(-0.5 * ((wavenumbers - c) / 30) ** 2)
+                    for c in rng.choice(wavenumbers, size=3, replace=False)
+                )
+                + rng.normal(0, 0.02, n_features)
+                for _ in range(n_samples)
+            ]
+        )
         X = np.clip(X, 0.01, None)
         df = pd.DataFrame(X, columns=[f"f{i}" for i in range(n_features)])
         df["target"] = rng.rand(n_samples) * 10
@@ -166,12 +172,12 @@ def generate_synthetic_raman(n_samples=50, n_features=100):
     for _ in range(n_samples):
         intensity = rng.uniform(0.5, 2.0)
         peak_pos = rng.uniform(4, 6)
-        spectrum = intensity * np.exp(-(x - peak_pos) ** 2) + rng.normal(0, 0.05, n_features)
+        spectrum = intensity * np.exp(-((x - peak_pos) ** 2)) + rng.normal(0, 0.05, n_features)
         spectra.append(spectrum)
         targets.append(intensity * 10)  # Target is directly proportional to intensity
 
     df = pd.DataFrame(spectra, columns=[f"w_{i}" for i in range(n_features)])
-    df['target'] = targets
+    df["target"] = targets
     return df
 
 
@@ -199,7 +205,7 @@ def test_pls_preprocessing_hpo_pipeline(tmp_path):
     save_path = str(tmp_path / "ag_test")
     predictor = TabularPredictor(
         path=save_path,
-        problem_type='regression',
+        problem_type="regression",
         label="target",
         verbosity=4,
     ).fit(
@@ -251,7 +257,7 @@ def test_pipeline_pls(tmp_path):
     save_path = str(tmp_path / "ag_test")
     predictor = TabularPredictor(
         path=save_path,
-        problem_type='regression',
+        problem_type="regression",
         label="target",
     ).fit(
         train_data=train,
@@ -261,7 +267,7 @@ def test_pipeline_pls(tmp_path):
             "scheduler": "local",
             "searcher": "random",
         },
-        time_limit=3
+        time_limit=3,
     )
 
     # 5. Check if the model actually trained

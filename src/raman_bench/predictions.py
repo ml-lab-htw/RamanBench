@@ -46,11 +46,13 @@ logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:
 # Reproducibility
 # ---------------------------------------------------------------------------
 
+
 def _set_global_seeds(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     try:
         import torch
+
         torch.manual_seed(seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
@@ -62,8 +64,10 @@ def _set_global_seeds(seed: int) -> None:
 # Data hash (staleness detection)
 # ---------------------------------------------------------------------------
 
+
 def _data_hash(df: pd.DataFrame) -> str:
     import hashlib
+
     label_col = df.columns[-1]
     h = hashlib.md5()
     h.update(str(len(df)).encode())
@@ -77,6 +81,7 @@ def _data_hash(df: pd.DataFrame) -> str:
 
 try:
     import psutil as _psutil
+
     _HAS_PSUTIL = True
 except ImportError:
     _psutil = None
@@ -95,7 +100,7 @@ class _PsutilMemoryTracker:
         proc = _psutil.Process()
         while not self._stop.is_set():
             try:
-                rss = proc.memory_info().rss / (1024 ** 2)
+                rss = proc.memory_info().rss / (1024**2)
                 if rss > self._peak_mb:
                     self._peak_mb = rss
             except Exception:
@@ -104,7 +109,7 @@ class _PsutilMemoryTracker:
 
     def __enter__(self):
         self._stop.clear()
-        self._peak_mb = _psutil.Process().memory_info().rss / (1024 ** 2)
+        self._peak_mb = _psutil.Process().memory_info().rss / (1024**2)
         self._thread = threading.Thread(target=self._poll, daemon=True)
         self._thread.start()
         return self
@@ -127,7 +132,7 @@ class _TracemallocMemoryTracker:
     def __exit__(self, *_):
         _, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
-        self._peak_mb = peak / (1024 ** 2)
+        self._peak_mb = peak / (1024**2)
 
     @property
     def peak_mb(self) -> float:
@@ -144,6 +149,7 @@ def _memory_tracker():
 
 try:
     import pynvml as _pynvml
+
     _pynvml.nvmlInit()
     _HAS_PYNVML = True
 except Exception:
@@ -216,7 +222,9 @@ class _PowerTracker:
 
     @property
     def gpu_mean_power_w(self):
-        return round(sum(self._gpu_samples) / len(self._gpu_samples), 2) if self._gpu_samples else None
+        return (
+            round(sum(self._gpu_samples) / len(self._gpu_samples), 2) if self._gpu_samples else None
+        )
 
     @property
     def gpu_energy_j(self):
@@ -232,6 +240,7 @@ class _PowerTracker:
 # ---------------------------------------------------------------------------
 # Subsampling (OOM guard for specific model/dataset combinations)
 # ---------------------------------------------------------------------------
+
 
 def _maybe_subsample(
     data_train: pd.DataFrame,
@@ -280,6 +289,7 @@ def _maybe_subsample(
 # Timing
 # ---------------------------------------------------------------------------
 
+
 @contextmanager
 def _timed():
     t = [0.0]
@@ -293,6 +303,7 @@ def _timed():
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def compute_predictions(
     config,
@@ -320,8 +331,7 @@ def compute_predictions(
 
     cache_dir = config.get("cache_dir") or None
     autogluon_path = (
-        os.path.join(cache_dir, "autogluon") if cache_dir
-        else os.path.join(".cache", "autogluon")
+        os.path.join(cache_dir, "autogluon") if cache_dir else os.path.join(".cache", "autogluon")
     )
     os.makedirs(autogluon_path, exist_ok=True)
 
@@ -377,8 +387,11 @@ def compute_predictions(
                     label_col = data_train.columns[-1]
                     if data_train[label_col].std() == 0:
                         _write_skip_record(
-                            stats_dir, key, model_name,
-                            len(data_train), len(data_test),
+                            stats_dir,
+                            key,
+                            model_name,
+                            len(data_train),
+                            len(data_test),
                             "constant_target: all training target values are equal",
                         )
                         pbar.update(1)
@@ -405,19 +418,29 @@ def compute_predictions(
                     )
 
                     record = {
-                        "dataset": key, "model": model_name,
-                        "n_train_samples": len(data_train), "n_test_samples": len(data_test),
-                        "status": "pass", "error": "",
+                        "dataset": key,
+                        "model": model_name,
+                        "n_train_samples": len(data_train),
+                        "n_test_samples": len(data_test),
+                        "status": "pass",
+                        "error": "",
                         "timestamp": datetime.now().isoformat(),
-                        "train_time_s": None, "inference_time_s": None,
+                        "train_time_s": None,
+                        "inference_time_s": None,
                         "inference_time_per_sample_ms": None,
-                        "train_peak_memory_mb": None, "inference_peak_memory_mb": None,
+                        "train_peak_memory_mb": None,
+                        "inference_peak_memory_mb": None,
                         "memory_backend": mem_backend,
-                        "n_models_trained": None, "n_base_models": None,
-                        "ag_total_fit_time_s": None, "ag_time_per_model_s": None,
-                        "train_gpu_power_w": None, "train_gpu_energy_j": None,
-                        "train_cpu_energy_j": None, "inference_gpu_power_w": None,
-                        "inference_gpu_energy_j": None, "inference_cpu_energy_j": None,
+                        "n_models_trained": None,
+                        "n_base_models": None,
+                        "ag_total_fit_time_s": None,
+                        "ag_time_per_model_s": None,
+                        "train_gpu_power_w": None,
+                        "train_gpu_energy_j": None,
+                        "train_cpu_energy_j": None,
+                        "inference_gpu_power_w": None,
+                        "inference_gpu_energy_j": None,
+                        "inference_cpu_energy_j": None,
                     }
 
                     try:
@@ -466,6 +489,7 @@ def compute_predictions(
                 gc.collect()
                 try:
                     import torch
+
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                         torch.cuda.empty_cache()
@@ -495,9 +519,12 @@ def _cleanup_model(model):
 
 def _write_skip_record(stats_dir, key, model_name, n_train, n_test, error):
     record = {
-        "dataset": key, "model": model_name,
-        "n_train_samples": n_train, "n_test_samples": n_test,
-        "status": "fail", "error": error,
+        "dataset": key,
+        "model": model_name,
+        "n_train_samples": n_train,
+        "n_test_samples": n_test,
+        "status": "fail",
+        "error": error,
         "timestamp": datetime.now().isoformat(),
     }
     with open(os.path.join(stats_dir, f"{key}_{model_name}.json"), "w") as f:
@@ -522,6 +549,11 @@ def _log_seed_summary(seed, results, stats_dir):
     if n_total:
         logger.info(
             "Seed %s: %d this run (%d passed, %d failed) | %d pre-existing (%d failed). Stats: %s",
-            seed, n_this, n_this - n_this_failed, n_this_failed,
-            n_total - n_this, n_failed - n_this_failed, stats_dir,
+            seed,
+            n_this,
+            n_this - n_this_failed,
+            n_this_failed,
+            n_total - n_this,
+            n_failed - n_this_failed,
+            stats_dir,
         )

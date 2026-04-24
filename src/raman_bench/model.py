@@ -126,7 +126,8 @@ class AutoGluonModel:
             raise ValueError(f"Unsupported task type: {task_type}")
 
         self.custom_models = (
-            {} if self._autogluon_native
+            {}
+            if self._autogluon_native
             else create_preprocessed_hyperparameters(models, prep_restriction=preprocessing_config)
         )
         self.builtin_models: list = []
@@ -157,7 +158,9 @@ class AutoGluonModel:
             path=self.autogluon_path,
         )
 
-    def fit(self, data_train: DataFrame, raise_on_no_models_fitted: bool = True) -> TabularPredictor:
+    def fit(
+        self, data_train: DataFrame, raise_on_no_models_fitted: bool = True
+    ) -> TabularPredictor:
         """Fit the predictor on *data_train*.
 
         Parameters
@@ -197,9 +200,7 @@ class AutoGluonModel:
                 merged = {**merged, **search_space}
                 hyperparameters[cls] = merged if merged else "default"
             else:
-                hyperparameters[cls] = {
-                    k: v for k, v in merged.items() if not isinstance(v, Space)
-                }
+                hyperparameters[cls] = {k: v for k, v in merged.items() if not isinstance(v, Space)}
 
         num_cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count()))
         num_gpus = min(1, torch.cuda.device_count())
@@ -255,9 +256,7 @@ class AutoGluonModel:
             elif self.problem_type in ("binary", "multiclass"):
                 min_class = int(tabular_data[self.label].value_counts().min())
                 if min_class < n_bag_folds:
-                    disable_reason = (
-                        f"min class count {min_class} < {n_bag_folds} folds"
-                    )
+                    disable_reason = f"min class count {min_class} < {n_bag_folds} folds"
             if disable_reason:
                 fit_args["num_bag_folds"] = 0
                 fit_args["num_stack_levels"] = 0
@@ -288,8 +287,7 @@ class AutoGluonModel:
         original target scale.
         """
         test_input = (
-            data_test if isinstance(data_test, TabularDataset)
-            else TabularDataset(data_test)
+            data_test if isinstance(data_test, TabularDataset) else TabularDataset(data_test)
         )
         predictions = self.predictor.predict(test_input)
 

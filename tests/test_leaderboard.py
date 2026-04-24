@@ -1,4 +1,5 @@
 """Tests for the Leaderboard class."""
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -7,11 +8,13 @@ from raman_bench.leaderboard import Leaderboard, _summarise_model_metrics
 
 
 def _make_leaderboard():
-    overall = pd.DataFrame({
-        "Model": ["RF", "GBM", "PLS"],
-        "Score": [0.5, 0.6, 0.4],
-        "Elo": [1000, 1050, 950],
-    })
+    overall = pd.DataFrame(
+        {
+            "Model": ["RF", "GBM", "PLS"],
+            "Score": [0.5, 0.6, 0.4],
+            "Elo": [1000, 1050, 950],
+        }
+    )
     clf = overall.copy()
     reg = overall.copy()
     return Leaderboard(overall, clf, reg)
@@ -33,12 +36,14 @@ def test_rank_has_rank_column():
 
 def test_add_results():
     lb = _make_leaderboard()
-    metrics_df = pd.DataFrame({
-        "seed": [0, 1],
-        "key": ["ds_0", "ds_0"],
-        "rmse": [0.1, 0.12],
-        "r2": [0.9, 0.88],
-    })
+    metrics_df = pd.DataFrame(
+        {
+            "seed": [0, 1],
+            "key": ["ds_0", "ds_0"],
+            "rmse": [0.1, 0.12],
+            "r2": [0.9, 0.88],
+        }
+    )
     lb.add_results("MyModel", metrics_df, task="overall")
     ranked = lb.rank()
     assert "MyModel" in ranked["Model"].tolist()

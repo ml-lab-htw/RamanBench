@@ -61,8 +61,10 @@ class TestCoAtNetModel:
             **kwargs,
         }
         return CoAtNetModel(
-            path="test_coatnet", name="CoAtNet",
-            problem_type=problem_type, hyperparameters=hp,
+            path="test_coatnet",
+            name="CoAtNet",
+            problem_type=problem_type,
+            hyperparameters=hp,
         )
 
     def test_predict_multiclass(self, classification_data):

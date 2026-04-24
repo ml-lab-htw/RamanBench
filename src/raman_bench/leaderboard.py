@@ -119,6 +119,7 @@ class Leaderboard:
         dataset_stats: dict = {}
         try:
             import json
+
             pkg_root = os.path.dirname(os.path.abspath(__file__))
             stats_path = os.path.join(pkg_root, "data", "precomputed", "dataset_stats.json")
             if os.path.exists(stats_path):
@@ -193,7 +194,9 @@ class Leaderboard:
             model = row.get("Model", row.get("model", "?"))
             score = row.get(_PRIMARY_SCORE, float("nan"))
             elo = row.get(_ELO_COL, float("nan"))
-            lines.append(f"  #{int(row[_RANK_COL]):2d}  {model:<28}  Score={score:.3f}  Elo={elo:.0f}")
+            lines.append(
+                f"  #{int(row[_RANK_COL]):2d}  {model:<28}  Score={score:.3f}  Elo={elo:.0f}"
+            )
         if self._added_models:
             lines.append(f"\nAdded models: {', '.join(self._added_models)}")
         return "\n".join(lines)
@@ -276,9 +279,7 @@ class Leaderboard:
 
         if config_path is None:
             pkg_root = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(
-                pkg_root, "..", "..", "configs", "benchmark_v0.1.json"
-            )
+            config_path = os.path.join(pkg_root, "..", "..", "configs", "benchmark_v0.1.json")
 
         config = load_config(config_path)
         records = []
@@ -339,10 +340,7 @@ class Leaderboard:
         model_col = "Model" if "Model" in df.columns else "model"
         models = df[model_col].tolist()
         scores = df[_PRIMARY_SCORE].tolist() if _PRIMARY_SCORE in df.columns else [0] * len(df)
-        colors = [
-            "#e74c3c" if m in self._added_models else "#3498db"
-            for m in models
-        ]
+        colors = ["#e74c3c" if m in self._added_models else "#3498db" for m in models]
 
         fig, ax = plt.subplots(figsize=figsize)
         ax.barh(range(len(models)), scores[::-1], color=colors[::-1])
@@ -354,6 +352,7 @@ class Leaderboard:
 
         if self._added_models:
             from matplotlib.patches import Patch
+
             legend = [
                 Patch(color="#3498db", label="Baseline (v0.1)"),
                 Patch(color="#e74c3c", label="New model"),
@@ -374,7 +373,9 @@ class Leaderboard:
             return self._clf
         if task == "regression":
             return self._reg
-        raise ValueError(f"Unknown task {task!r}. Use 'overall', 'classification', or 'regression'.")
+        raise ValueError(
+            f"Unknown task {task!r}. Use 'overall', 'classification', or 'regression'."
+        )
 
     def _set_leaderboard(self, task: str, df: pd.DataFrame):
         if task == "overall":
@@ -388,6 +389,7 @@ class Leaderboard:
 # ------------------------------------------------------------------
 # Helpers for building leaderboard from raw metrics
 # ------------------------------------------------------------------
+
 
 def _summarise_model_metrics(
     model_name: str,
@@ -410,6 +412,7 @@ def _build_leaderboard_from_metrics(
     reg_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Build overall/clf/reg leaderboard DataFrames from raw metrics CSVs."""
+
     def _agg(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame()

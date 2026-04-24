@@ -88,25 +88,25 @@ class BaseCustomModel(AbstractModel):
         return X_train_t, X_val_t, y_train_t, y_val_t
 
     def _run_training_loop(
-            self,
-            X_train_t: torch.Tensor,
-            y_train_t: torch.Tensor,
-            X_val_t: torch.Tensor,
-            y_val_t: torch.Tensor,
-            n_epochs: int,
-            patience: int,
-            time_limit: float | None,
-            criterion: nn.Module,
-            per_epoch_augmentation: bool,
-            batch_size: int,
-            aug_noise_sigma: float,
-            aug_mixup_alpha: float,
-            lr: float,
-            weight_decay: float,
-            warmup_epochs: int,
-            grad_clip_norm: float | None = None,
-            aug_max_train_samples: int | None = None,
-            aug_n_per_epoch: int = 1,
+        self,
+        X_train_t: torch.Tensor,
+        y_train_t: torch.Tensor,
+        X_val_t: torch.Tensor,
+        y_val_t: torch.Tensor,
+        n_epochs: int,
+        patience: int,
+        time_limit: float | None,
+        criterion: nn.Module,
+        per_epoch_augmentation: bool,
+        batch_size: int,
+        aug_noise_sigma: float,
+        aug_mixup_alpha: float,
+        lr: float,
+        weight_decay: float,
+        warmup_epochs: int,
+        grad_clip_norm: float | None = None,
+        aug_max_train_samples: int | None = None,
+        aug_n_per_epoch: int = 1,
     ) -> None:
         """Run the full training loop with validation and early stopping.
 
@@ -178,7 +178,9 @@ class BaseCustomModel(AbstractModel):
                 logger.info(
                     "%s: disabling per-epoch augmentation — train set (%d) "
                     "exceeds aug_max_train_samples (%d).",
-                    self.__class__.__name__, len(X_train_t), aug_max_train_samples,
+                    self.__class__.__name__,
+                    len(X_train_t),
+                    aug_max_train_samples,
                 )
             per_epoch_augmentation = False
 
@@ -186,13 +188,18 @@ class BaseCustomModel(AbstractModel):
             logger.info(
                 "%s: per-epoch augmentation ENABLED — noise_sigma=%.4g, "
                 "mixup_alpha=%.4g, n_per_epoch=%d, train_samples=%d (→ %d per epoch).",
-                self.__class__.__name__, aug_noise_sigma, aug_mixup_alpha,
-                aug_n_per_epoch, len(X_train_t), aug_n_per_epoch * len(X_train_t),
+                self.__class__.__name__,
+                aug_noise_sigma,
+                aug_mixup_alpha,
+                aug_n_per_epoch,
+                len(X_train_t),
+                aug_n_per_epoch * len(X_train_t),
             )
         else:
             logger.info(
                 "%s: per-epoch augmentation DISABLED — train_samples=%d.",
-                self.__class__.__name__, len(X_train_t),
+                self.__class__.__name__,
+                len(X_train_t),
             )
 
         best_val_loss = float("inf")
@@ -220,25 +227,34 @@ class BaseCustomModel(AbstractModel):
             if time_limit is not None and (time.time() - start_time) > time_limit * 0.9:
                 logger.info(
                     "%s: time limit approaching, stopping at epoch %d",
-                    self.__class__.__name__, epoch,
+                    self.__class__.__name__,
+                    epoch,
                 )
                 break
 
             if per_epoch_augmentation:
                 from raman_bench.preprocessing.raman_preprocessing import augment_spectra_torch
+
                 aug_X, aug_y = augment_spectra_torch(
-                    X=X_train_t, y=y_train_t,
-                    noise_sigma=aug_noise_sigma, shift_max=0,
-                    mixup_alpha=aug_mixup_alpha, label_type=self.problem_type,
+                    X=X_train_t,
+                    y=y_train_t,
+                    noise_sigma=aug_noise_sigma,
+                    shift_max=0,
+                    mixup_alpha=aug_mixup_alpha,
+                    label_type=self.problem_type,
                     n_augments=aug_n_per_epoch,
                 )
                 train_loader = DataLoader(
-                    TensorDataset(aug_X, aug_y), batch_size=batch_size, shuffle=True,
+                    TensorDataset(aug_X, aug_y),
+                    batch_size=batch_size,
+                    shuffle=True,
                     drop_last=(len(aug_X) % batch_size == 1),
                 )
             else:
                 train_loader = DataLoader(
-                    TensorDataset(X_train_t, y_train_t), batch_size=batch_size, shuffle=True,
+                    TensorDataset(X_train_t, y_train_t),
+                    batch_size=batch_size,
+                    shuffle=True,
                     drop_last=(len(X_train_t) % batch_size == 1),
                 )
 
@@ -251,7 +267,8 @@ class BaseCustomModel(AbstractModel):
                 if torch.isnan(loss):
                     logger.debug(
                         "%s: NaN batch loss at epoch %d — skipping batch.",
-                        self.__class__.__name__, epoch,
+                        self.__class__.__name__,
+                        epoch,
                     )
                     continue
                 loss.backward()
@@ -270,7 +287,8 @@ class BaseCustomModel(AbstractModel):
             if math.isnan(val_loss):
                 logger.debug(
                     "%s: NaN validation loss at epoch %d — skipping state update.",
-                    self.__class__.__name__, epoch,
+                    self.__class__.__name__,
+                    epoch,
                 )
                 epochs_no_improve += 1
             elif val_loss < best_val_loss:
@@ -283,7 +301,8 @@ class BaseCustomModel(AbstractModel):
             if epochs_no_improve >= patience:
                 logger.info(
                     "%s: early stopping at epoch %d",
-                    self.__class__.__name__, epoch,
+                    self.__class__.__name__,
+                    epoch,
                 )
                 break
 
@@ -304,7 +323,8 @@ class BaseCustomModel(AbstractModel):
         self.model.eval()
         with torch.no_grad():
             check_out = self._batched_forward(
-                X_val_t, device=torch.device("cpu"), batch_size=batch_size)
+                X_val_t, device=torch.device("cpu"), batch_size=batch_size
+            )
 
         if torch.isnan(check_out).any():
             raise ValueError(
@@ -315,12 +335,12 @@ class BaseCustomModel(AbstractModel):
             )
 
     def _batched_forward(
-            self, X_t: torch.Tensor, device: torch.device, batch_size: int = 128
+        self, X_t: torch.Tensor, device: torch.device, batch_size: int = 128
     ) -> torch.Tensor:
         """Run model forward pass in batches to avoid OOM on large datasets."""
         chunks = []
         for i in range(0, len(X_t), batch_size):
-            chunk = X_t[i: i + batch_size].to(device)
+            chunk = X_t[i : i + batch_size].to(device)
             chunks.append(self.model(chunk).cpu())
         return torch.cat(chunks, dim=0)
 

@@ -12,8 +12,11 @@ class TestRamanNetNetwork:
 
     def test_forward_shape_multiclass(self):
         net = _RamanNetNetwork(
-            n_features=256, n_outputs=3,
-            window_size=50, fc_dim=512, fc_dropout=0.5,
+            n_features=256,
+            n_outputs=3,
+            window_size=50,
+            fc_dim=512,
+            fc_dropout=0.5,
         )
         x = torch.randn(4, 256)
         net.eval()
@@ -22,8 +25,11 @@ class TestRamanNetNetwork:
 
     def test_forward_shape_regression(self):
         net = _RamanNetNetwork(
-            n_features=256, n_outputs=1,
-            window_size=50, fc_dim=512, fc_dropout=0.5,
+            n_features=256,
+            n_outputs=1,
+            window_size=50,
+            fc_dim=512,
+            fc_dropout=0.5,
         )
         x = torch.randn(4, 256)
         net.eval()
@@ -38,15 +44,21 @@ class TestRamanNetNetwork:
             (128, 32, 7),  # dw=16, (128-32)//16 + 1 = 7
         ]:
             net = _RamanNetNetwork(
-                n_features=n_features, n_outputs=1,
-                window_size=window_size, fc_dim=64, fc_dropout=0.5,
+                n_features=n_features,
+                n_outputs=1,
+                window_size=window_size,
+                fc_dim=64,
+                fc_dropout=0.5,
             )
             assert net.n_windows == expected
 
     def test_custom_fc_dim(self):
         net = _RamanNetNetwork(
-            n_features=256, n_outputs=5,
-            window_size=50, fc_dim=128, fc_dropout=0.3,
+            n_features=256,
+            n_outputs=5,
+            window_size=50,
+            fc_dim=128,
+            fc_dropout=0.3,
         )
         # head: Dropout, Linear(concat_dim, 128), BN, LeakyReLU,
         #        Dropout, Linear(128, 64), BN, LeakyReLU,

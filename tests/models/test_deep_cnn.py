@@ -6,10 +6,10 @@ import torch
 
 from raman_bench.models.custom.deepcnn import _DeepCNNNetwork, DeepCNNModel
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_classification_data(n_samples=50, n_features=128, n_classes=3, seed=0):
     rng = np.random.RandomState(seed)
@@ -57,6 +57,7 @@ def _make_fitted_model(problem_type="multiclass", n_features=128, n_epochs=2):
 # 1. Network output shape (classification)
 # ---------------------------------------------------------------------------
 
+
 def test_network_output_shape_classification():
     """Forward pass should produce (batch, n_outputs) tensor."""
     n_features, n_outputs, batch = 128, 5, 8
@@ -70,6 +71,7 @@ def test_network_output_shape_classification():
 # 2. _fit sets expected attributes
 # ---------------------------------------------------------------------------
 
+
 def test_fit_multiclass_sets_classes():
     """After fitting a multiclass model _classes and _n_classes are set."""
     model, _ = _make_fitted_model(problem_type="multiclass")
@@ -80,6 +82,7 @@ def test_fit_multiclass_sets_classes():
 # ---------------------------------------------------------------------------
 # 3. _predict returns correct shape and valid classes
 # ---------------------------------------------------------------------------
+
 
 def test_predict_multiclass_returns_known_labels():
     """Every predicted label must be one of the training classes."""
@@ -92,6 +95,7 @@ def test_predict_multiclass_returns_known_labels():
 # ---------------------------------------------------------------------------
 # 4. _predict_proba returns valid probability array
 # ---------------------------------------------------------------------------
+
 
 def test_proba_multiclass_shape_and_sums():
     """Multiclass probabilities: shape (n, k), rows sum to ~1."""

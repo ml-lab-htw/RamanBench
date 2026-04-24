@@ -1,8 +1,9 @@
 """Logging utilities for the benchmark pipeline."""
+
 import logging
 from contextlib import contextmanager
 
-LOG_FORMAT = '%(asctime)s %(levelname)s %(name)s:%(funcName)s:%(lineno)d: %(message)s'
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s:%(funcName)s:%(lineno)d: %(message)s"
 
 _RUN_FORMAT = logging.Formatter(fmt=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 

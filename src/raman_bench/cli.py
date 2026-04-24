@@ -58,6 +58,7 @@ def cmd_run(args):
 
     if step in ("all", "predictions"):
         from raman_bench.predictions import compute_predictions
+
         compute_predictions(
             config,
             seed_index=args.seed_index,
@@ -67,14 +68,18 @@ def cmd_run(args):
 
     if step in ("all", "metrics"):
         from raman_bench.evaluation import compute_metrics_from_predictions
+
         compute_metrics_from_predictions(config)
 
     if step in ("all", "plots"):
         try:
             from raman_bench.plotting import PlotPipeline
+
             PlotPipeline(config).run_all()
         except ImportError:
-            logging.warning("Plotting requires additional dependencies. Run: pip install raman-bench[full]")
+            logging.warning(
+                "Plotting requires additional dependencies. Run: pip install raman-bench[full]"
+            )
 
 
 def cmd_leaderboard(args):
@@ -94,6 +99,7 @@ def cmd_leaderboard(args):
 def cmd_info(_args):
     """Print package and ecosystem info."""
     import raman_bench
+
     print(f"raman-bench {raman_bench.__version__}")
     print()
     print("Ecosystem:")

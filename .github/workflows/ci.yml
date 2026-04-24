@@ -34,7 +34,7 @@ jobs:
         run: ruff check src/
 
       - name: Format check (black)
-        run: black --check src/ tests/
+        run: black --check --fast src/ tests/
 
       - name: Run tests
         run: pytest tests/ -v --tb=short -x

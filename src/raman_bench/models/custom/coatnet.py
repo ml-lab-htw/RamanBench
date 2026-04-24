@@ -14,6 +14,7 @@ from raman_bench.models.custom.rezeronet import (  # noqa: F401
 # Self-attention module
 # ---------------------------------------------------------------------------
 
+
 class _SelfAttention1d(nn.Module):
     """Multi-head self-attention for 1D sequences with learnable CLS tokens."""
 
@@ -26,7 +27,10 @@ class _SelfAttention1d(nn.Module):
 
         self.norm = nn.LayerNorm(d_model)
         self.attn = nn.MultiheadAttention(
-            d_model, nhead, dropout=dropout, batch_first=True,
+            d_model,
+            nhead,
+            dropout=dropout,
+            batch_first=True,
         )
         self.dropout = nn.Dropout(dropout)
 
@@ -41,12 +45,13 @@ class _SelfAttention1d(nn.Module):
         x, _ = self.attn(x, x, x)
         x = residual + self.dropout(x)
         # Return only CLS token outputs: (B, num_cls_tokens, C)
-        return x[:, :self.num_cls_tokens, :]
+        return x[:, : self.num_cls_tokens, :]
 
 
 # ---------------------------------------------------------------------------
 # Hybrid network: ReZero encoder + self-attention head
 # ---------------------------------------------------------------------------
+
 
 class _CoAtNetNetwork(nn.Module):
     """ReZero CNN encoder followed by multi-head self-attention.
@@ -93,8 +98,10 @@ class _CoAtNetNetwork(nn.Module):
             stride = 2 if i > 0 and i % 2 == 0 else 1
             out_channels = int(current_channels * channel_factor)
             block = _ReZeroBlock(
-                current_channels, out_channels,
-                kernel_size=kernel_size, stride=stride,
+                current_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
             )
             blocks.append(block)
             current_channels = out_channels
@@ -111,7 +118,9 @@ class _CoAtNetNetwork(nn.Module):
 
         # -- Self-attention with CLS tokens --
         self.attention = _SelfAttention1d(
-            current_channels, nhead=nhead, dropout=attn_dropout,
+            current_channels,
+            nhead=nhead,
+            dropout=attn_dropout,
             num_cls_tokens=num_cls_tokens,
         )
 
@@ -127,18 +136,19 @@ class _CoAtNetNetwork(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x.unsqueeze(1)           # (B, 1, L)
-        x = self.stem(x)             # (B, C, L')
-        x = self.blocks(x)           # (B, C', L'')
-        x = self.proj(x)             # (B, C'', L'') — align to nhead multiple
+        x = x.unsqueeze(1)  # (B, 1, L)
+        x = self.stem(x)  # (B, C, L')
+        x = self.blocks(x)  # (B, C', L'')
+        x = self.proj(x)  # (B, C'', L'') — align to nhead multiple
         cls_out = self.attention(x)  # (B, num_cls_tokens, C'')
         cls_out = cls_out.flatten(1)  # (B, num_cls_tokens * C')
-        return self.head(cls_out)    # (B, n_outputs)
+        return self.head(cls_out)  # (B, n_outputs)
 
 
 # ---------------------------------------------------------------------------
 # AutoGluon model wrapper
 # ---------------------------------------------------------------------------
+
 
 class CoAtNetModel(BaseCustomModel):
     """AutoGluon-compatible CoAtNet model for spectral data.
@@ -192,7 +202,10 @@ class CoAtNetModel(BaseCustomModel):
     def _get_base_hp_searchspace():
         return {
             # Architecture
-            "n_blocks": space.Categorical(4, 6,),
+            "n_blocks": space.Categorical(
+                4,
+                6,
+            ),
             "channel_factor": space.Real(1.0, 1.6),
             "nhead": space.Categorical(2, 4, 8),
             "num_cls_tokens": space.Categorical(1, 2),

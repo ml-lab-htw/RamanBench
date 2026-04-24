@@ -47,14 +47,20 @@ class TestFCResNeXtModel:
 
     def _make_model(self, problem_type, **kwargs):
         hp = {
-            "n_epochs": 2, "n_blocks": 2, "hidden_dim": 16,
-            "patience": 100, "val_fraction": 0.2, "warmup_epochs": 1,
+            "n_epochs": 2,
+            "n_blocks": 2,
+            "hidden_dim": 16,
+            "patience": 100,
+            "val_fraction": 0.2,
+            "warmup_epochs": 1,
             "pool_size": 5,
             **kwargs,
         }
         return FCResNeXtModel(
-            path="test_fcresnext", name="FCResNeXt",
-            problem_type=problem_type, hyperparameters=hp,
+            path="test_fcresnext",
+            name="FCResNeXt",
+            problem_type=problem_type,
+            hyperparameters=hp,
         )
 
     def test_predict_multiclass(self, classification_data):
@@ -113,8 +119,12 @@ class TestFCResNeXtModel:
         """Custom HP values propagate to the network architecture."""
         X, y = classification_data
         custom_hp = {
-            "n_blocks": 3, "hidden_dim": 32, "cardinality": 2,
-            "pool_size": 10, "fc_dropout": 0.4, "weight_decay": 1e-3,
+            "n_blocks": 3,
+            "hidden_dim": 32,
+            "cardinality": 2,
+            "pool_size": 10,
+            "fc_dropout": 0.4,
+            "weight_decay": 1e-3,
         }
         model = self._make_model("multiclass", **custom_hp)
         model.fit(X=X, y=y)

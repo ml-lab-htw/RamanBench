@@ -12,7 +12,11 @@ class TestReZeroNetNetwork:
 
     def test_forward_shape_multiclass(self):
         net = _ReZeroNetNetwork(
-            n_outputs=3, input_dim=100, n_blocks=2, base_channels=16, kernel_size=3,
+            n_outputs=3,
+            input_dim=100,
+            n_blocks=2,
+            base_channels=16,
+            kernel_size=3,
         )
         x = torch.randn(4, 100)
         out = net(x)
@@ -20,7 +24,11 @@ class TestReZeroNetNetwork:
 
     def test_forward_shape_regression(self):
         net = _ReZeroNetNetwork(
-            n_outputs=1, input_dim=100, n_blocks=2, base_channels=16, kernel_size=3,
+            n_outputs=1,
+            input_dim=100,
+            n_blocks=2,
+            base_channels=16,
+            kernel_size=3,
         )
         x = torch.randn(4, 100)
         out = net(x)

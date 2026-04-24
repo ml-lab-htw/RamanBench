@@ -130,21 +130,24 @@ def compute_metrics_from_predictions(config):
         predictions_dir = os.path.join(output_dir, f"seed_{seed}", "predictions")
 
         # Build (key → task_type) lookup from ground-truth files
-        gt_keys = [
-            f[: -len("_ground_truth.csv")]
-            for f in os.listdir(predictions_dir)
-            if f.endswith("_ground_truth.csv")
-        ] if os.path.isdir(predictions_dir) else []
+        gt_keys = (
+            [
+                f[: -len("_ground_truth.csv")]
+                for f in os.listdir(predictions_dir)
+                if f.endswith("_ground_truth.csv")
+            ]
+            if os.path.isdir(predictions_dir)
+            else []
+        )
 
         config["random_state"] = seed
         benchmark = configure_benchmark(config, init_benchmark=not bool(gt_keys))
 
         if gt_keys:
             task_type_lookup = {}
-            for ds, task in (
-                [(d, TASK_TYPE.Regression) for d in benchmark.dataset_names_regression]
-                + [(d, TASK_TYPE.Classification) for d in benchmark.dataset_names_classification]
-            ):
+            for ds, task in [
+                (d, TASK_TYPE.Regression) for d in benchmark.dataset_names_regression
+            ] + [(d, TASK_TYPE.Classification) for d in benchmark.dataset_names_classification]:
                 for idx in range(benchmark._index.get(ds, 0)):
                     task_type_lookup[benchmark.get_key(ds, idx)] = task
 
@@ -176,7 +179,9 @@ def compute_metrics_from_predictions(config):
                 if not np.array_equal(data_test_.index, y_pred.index):
                     logger.warning(
                         "Index mismatch for %s / %s seed %s — deleting stale prediction.",
-                        key, model_name, seed,
+                        key,
+                        model_name,
+                        seed,
                     )
                     os.remove(pred_path)
                     pbar.update(1)
@@ -195,7 +200,9 @@ def compute_metrics_from_predictions(config):
                     ):
                         logger.warning(
                             "Skipping %s / %s seed %s: continuous floats for Classification.",
-                            key, model_name, seed,
+                            key,
+                            model_name,
+                            seed,
                         )
                         pbar.update(1)
                         continue
@@ -234,8 +241,12 @@ def compute_metrics_from_predictions(config):
 
 def _write_summary(df: pd.DataFrame, path: str):
     """Write mean ± std per (key, model) across seeds."""
-    group_cols = [c for c in ["key", "dataset", "task_type", "target_idx", "model"] if c in df.columns]
-    numeric = [c for c in df.select_dtypes(include=[np.number]).columns if c not in ("seed", "target_idx")]
+    group_cols = [
+        c for c in ["key", "dataset", "task_type", "target_idx", "model"] if c in df.columns
+    ]
+    numeric = [
+        c for c in df.select_dtypes(include=[np.number]).columns if c not in ("seed", "target_idx")
+    ]
     agg = {col: ["mean", "std"] for col in numeric}
     summary = df.groupby(group_cols).agg(agg)
     summary.columns = [f"{c}_{s}" for c, s in summary.columns]

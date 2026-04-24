@@ -12,12 +12,14 @@ class _ResNeXtBlock(nn.Module):
         bottleneck_dim = max(1, dim // bottleneck_ratio)
         self.branches = nn.ModuleList()
         for _ in range(cardinality):
-            self.branches.append(nn.Sequential(
-                nn.Linear(dim, bottleneck_dim),
-                nn.BatchNorm1d(bottleneck_dim),
-                nn.ELU(inplace=True),
-                nn.Linear(bottleneck_dim, dim),
-            ))
+            self.branches.append(
+                nn.Sequential(
+                    nn.Linear(dim, bottleneck_dim),
+                    nn.BatchNorm1d(bottleneck_dim),
+                    nn.ELU(inplace=True),
+                    nn.Linear(bottleneck_dim, dim),
+                )
+            )
         self.bn = nn.BatchNorm1d(dim)
         self.activation = nn.ELU(inplace=True)
 
@@ -35,8 +37,16 @@ class _FCResNeXtNetwork(nn.Module):
     connections.
     """
 
-    def __init__(self, n_features, n_outputs, hidden_dim=256,
-                 n_blocks=4, cardinality=4, pool_size=4, fc_dropout=0.2):
+    def __init__(
+        self,
+        n_features,
+        n_outputs,
+        hidden_dim=256,
+        n_blocks=4,
+        cardinality=4,
+        pool_size=4,
+        fc_dropout=0.2,
+    ):
         super().__init__()
         pooled_dim = max(1, n_features // pool_size)
         self.pool = nn.AdaptiveAvgPool1d(pooled_dim)

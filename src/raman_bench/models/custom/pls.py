@@ -67,9 +67,7 @@ class PLSModel(BaseCustomModel):
             y_encoded = np.zeros((len(y), self._n_classes))
             for i, val in enumerate(y):
                 y_encoded[i, self._class_to_idx[val]] = 1.0
-            self.model = PLSRegression(
-                n_components=n_components, max_iter=max_iter, scale=scale
-            )
+            self.model = PLSRegression(n_components=n_components, max_iter=max_iter, scale=scale)
             self.model.fit(X.values, y_encoded)
         else:
             self.model = PLSRegression(
@@ -90,7 +88,9 @@ class PLSModel(BaseCustomModel):
             if missing:
                 logger.warning(
                     "PLSModel predict: %d training column(s) missing from X — "
-                    "filling with 0: %s", len(missing), missing[:5]
+                    "filling with 0: %s",
+                    len(missing),
+                    missing[:5],
                 )
             X = X.reindex(columns=self._feature_names, fill_value=0.0)
         return X
@@ -182,8 +182,12 @@ class PreprocessingPLS(BaseCustomModel):
             # Apply filter row-wise (axis=1 is the spectral dimension)
             # mode='interp' handles the edges
             filtered_data = savgol_filter(
-                data_values, window_length, polyorder,
-                deriv=deriv, axis=1, mode='interp',
+                data_values,
+                window_length,
+                polyorder,
+                deriv=deriv,
+                axis=1,
+                mode="interp",
             )
 
             if hasattr(X_out, "values"):
@@ -216,7 +220,7 @@ class PreprocessingPLS(BaseCustomModel):
             name=model_name,
             problem_type=self.problem_type,
             eval_metric=self.eval_metric,
-            hyperparameters=base_model_params  # Pass stripped params to PLS
+            hyperparameters=base_model_params,  # Pass stripped params to PLS
         )
 
         self.pls_model.fit(X=X_transformed, y=y, **kwargs)
@@ -266,11 +270,7 @@ class FlexiblePipelinePLS(BaseCustomModel):
 
         # Separate Pipeline params (contain '__') from PLS params
         pipeline_params = {}
-        pls_params = {
-            "n_components": 10,
-            "max_iter": 500,
-            "scale": True
-        }
+        pls_params = {"n_components": 10, "max_iter": 500, "scale": True}
 
         for key, val in params.items():
             if key == "proc_pipeline":
@@ -313,14 +313,14 @@ class FlexiblePipelinePLS(BaseCustomModel):
             self.model = PLSRegression(
                 n_components=n_components,
                 max_iter=pls_params.get("max_iter"),
-                scale=pls_params.get("scale")
+                scale=pls_params.get("scale"),
             )
             self.model.fit(X_transformed, y_encoded)
         else:
             self.model = PLSRegression(
                 n_components=n_components,
                 max_iter=pls_params.get("max_iter"),
-                scale=pls_params.get("scale")
+                scale=pls_params.get("scale"),
             )
             self.model.fit(X_transformed, y)
 

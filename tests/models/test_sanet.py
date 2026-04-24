@@ -12,7 +12,11 @@ class TestMultiScaleBlock:
 
     def test_forward_shape(self):
         block = _MultiScaleBlock(
-            in_channels=1, out_channels=16, reduction=4, num_branches=4, stride=2,
+            in_channels=1,
+            out_channels=16,
+            reduction=4,
+            num_branches=4,
+            stride=2,
         )
         x = torch.randn(4, 1, 128)
         out = block(x)
@@ -21,7 +25,11 @@ class TestMultiScaleBlock:
     def test_branch_count_matches_num_branches(self):
         for n in [3, 4, 6]:
             block = _MultiScaleBlock(
-                in_channels=1, out_channels=8, reduction=4, num_branches=n, stride=1,
+                in_channels=1,
+                out_channels=8,
+                reduction=4,
+                num_branches=n,
+                stride=1,
             )
             assert len(block.branches) == n
 
@@ -30,8 +38,12 @@ class TestSANetNetwork:
 
     def test_forward_shape_multiclass(self):
         net = _SANetNetwork(
-            n_outputs=3, num_blocks=2, channel_factor=2.0,
-            initial_channels=8, num_branches=3, reduction=4,
+            n_outputs=3,
+            num_blocks=2,
+            channel_factor=2.0,
+            initial_channels=8,
+            num_branches=3,
+            reduction=4,
         )
         x = torch.randn(4, 100)
         out = net(x)
@@ -39,8 +51,12 @@ class TestSANetNetwork:
 
     def test_forward_shape_regression(self):
         net = _SANetNetwork(
-            n_outputs=1, num_blocks=2, channel_factor=2.0,
-            initial_channels=8, num_branches=3, reduction=4,
+            n_outputs=1,
+            num_blocks=2,
+            channel_factor=2.0,
+            initial_channels=8,
+            num_branches=3,
+            reduction=4,
         )
         x = torch.randn(4, 100)
         out = net(x)
@@ -49,15 +65,23 @@ class TestSANetNetwork:
     def test_num_blocks_creates_correct_layers(self):
         for n_blocks in [2, 3, 5]:
             net = _SANetNetwork(
-                n_outputs=2, num_blocks=n_blocks, channel_factor=2.0,
-                initial_channels=8, num_branches=3, reduction=4,
+                n_outputs=2,
+                num_blocks=n_blocks,
+                channel_factor=2.0,
+                initial_channels=8,
+                num_branches=3,
+                reduction=4,
             )
             assert len(net.blocks) == n_blocks
 
     def test_channel_sequence(self):
         net = _SANetNetwork(
-            n_outputs=2, num_blocks=3, channel_factor=2.0,
-            initial_channels=8, num_branches=3, reduction=4,
+            n_outputs=2,
+            num_blocks=3,
+            channel_factor=2.0,
+            initial_channels=8,
+            num_branches=3,
+            reduction=4,
         )
         # Expected channel_seq: [1, 8, 16, 32]
         # First block: in=1, out=8
@@ -213,9 +237,7 @@ class TestSANetModel:
         # Check architecture: second block output channels == initial_channels * channel_factor
         second_block = net.blocks[1]
         second_branch_conv = second_block.branches[0][0]
-        expected_second_channels = int(
-            custom_hp["initial_channels"] * custom_hp["channel_factor"]
-        )
+        expected_second_channels = int(custom_hp["initial_channels"] * custom_hp["channel_factor"])
         assert second_branch_conv.out_channels == expected_second_channels
 
         # Check architecture: all blocks have the requested number of branches

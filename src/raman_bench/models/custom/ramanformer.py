@@ -21,7 +21,7 @@ class _PositionalEncoding(nn.Module):
 
     def forward(self, x):
         # x: (batch, seq_len, d_model)
-        return x + self.pe[:, :x.size(1)]
+        return x + self.pe[:, : x.size(1)]
 
 
 class _RamanFormerNetwork(nn.Module):
@@ -34,9 +34,15 @@ class _RamanFormerNetwork(nn.Module):
     """
 
     def __init__(
-        self, n_features, n_outputs,
-        patch_size=128, d_model=256, nhead=8,
-        dim_feedforward=1024, n_layers=3, dropout=0.1,
+        self,
+        n_features,
+        n_outputs,
+        patch_size=128,
+        d_model=256,
+        nhead=8,
+        dim_feedforward=1024,
+        n_layers=3,
+        dropout=0.1,
         post_processing_dim=512,
     ):
         super().__init__()
@@ -52,7 +58,8 @@ class _RamanFormerNetwork(nn.Module):
 
         # Transformer encoder
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=nhead,
+            d_model=d_model,
+            nhead=nhead,
             dim_feedforward=dim_feedforward,
             activation="gelu",
             dropout=dropout,

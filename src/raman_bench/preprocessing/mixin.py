@@ -123,8 +123,12 @@ _PREP_STEP_DEFINITIONS = {
 
 # Params that control transform-path steps (not augmentation)
 _TRANSFORM_ENABLED_PARAMS = [
-    "prep_crr_enabled", "prep_bl_enabled", "prep_msc_enabled",
-    "prep_denoise_enabled", "prep_snv_enabled", "prep_scaling_enabled",
+    "prep_crr_enabled",
+    "prep_bl_enabled",
+    "prep_msc_enabled",
+    "prep_denoise_enabled",
+    "prep_snv_enabled",
+    "prep_scaling_enabled",
 ]
 _ALL_ENABLED_PARAMS = _TRANSFORM_ENABLED_PARAMS + ["prep_aug_enabled"]
 
@@ -199,7 +203,8 @@ class RamanPreprocessingMixin:
             kernel_size = params.get("prep_crr_kernel_size", 3)
             logger.debug(
                 "Fit — cosmic ray removal: threshold=%s, kernel_size=%s",
-                threshold, kernel_size,
+                threshold,
+                kernel_size,
             )
             X = cosmic_ray_removal(X, threshold=threshold, kernel_size=kernel_size)
 
@@ -208,7 +213,8 @@ class RamanPreprocessingMixin:
             polyorder = params.get("prep_denoise_po", 3)
             logger.debug(
                 "Fit — denoising (Savitzky-Golay): window_length=%s, polyorder=%s",
-                window_length, polyorder,
+                window_length,
+                polyorder,
             )
             X = denoise_savgol(X, window_length=window_length, polyorder=polyorder)
 
@@ -217,7 +223,9 @@ class RamanPreprocessingMixin:
             p = params.get("prep_bl_p", 0.01)
             if lam > 0 and 0 < p < 1:
                 logger.debug(
-                    "Fit — baseline correction (ASLS): lam=%s, p=%s", lam, p,
+                    "Fit — baseline correction (ASLS): lam=%s, p=%s",
+                    lam,
+                    p,
                 )
                 X = baseline_correction_asls(X, lam=lam, p=p)
 
@@ -225,7 +233,10 @@ class RamanPreprocessingMixin:
             logger.debug("Fit — MSC: fitting reference spectrum and transforming")
             self._msc_reference = multiplicative_scatter_correction_fit(X)
             X = multiplicative_scatter_correction_transform(
-                X, self._msc_reference, start=0.0, end=1.0,
+                X,
+                self._msc_reference,
+                start=0.0,
+                end=1.0,
             )
 
         if params.get("prep_snv_enabled", False):
@@ -234,6 +245,7 @@ class RamanPreprocessingMixin:
 
         if params.get("prep_scaling_enabled", False):
             from sklearn.preprocessing import StandardScaler
+
             logger.debug("Fit — standard scaling: fitting StandardScaler")
             self.scaler = StandardScaler()
             X = self.scaler.fit_transform(X)
@@ -267,7 +279,8 @@ class RamanPreprocessingMixin:
             kernel_size = params.get("prep_crr_kernel_size", 3)
             logger.debug(
                 "Transform — cosmic ray removal: threshold=%s, kernel_size=%s",
-                threshold, kernel_size,
+                threshold,
+                kernel_size,
             )
             X = cosmic_ray_removal(X, threshold=threshold, kernel_size=kernel_size)
 
@@ -276,7 +289,8 @@ class RamanPreprocessingMixin:
             polyorder = params.get("prep_denoise_po", 3)
             logger.debug(
                 "Transform — denoising (Savitzky-Golay): window_length=%s, polyorder=%s",
-                window_length, polyorder,
+                window_length,
+                polyorder,
             )
             X = denoise_savgol(X, window_length=window_length, polyorder=polyorder)
 
@@ -285,14 +299,19 @@ class RamanPreprocessingMixin:
             p = params.get("prep_bl_p", 0.01)
             if lam > 0 and 0 < p < 1:
                 logger.debug(
-                    "Transform — baseline correction (ASLS): lam=%s, p=%s", lam, p,
+                    "Transform — baseline correction (ASLS): lam=%s, p=%s",
+                    lam,
+                    p,
                 )
                 X = baseline_correction_asls(X, lam=lam, p=p)
 
         if params.get("prep_msc_enabled", False) and hasattr(self, "_msc_reference"):
             logger.debug("Transform — MSC: applying transform with fitted reference spectrum")
             X = multiplicative_scatter_correction_transform(
-                X, self._msc_reference, start=0.0, end=1.0,
+                X,
+                self._msc_reference,
+                start=0.0,
+                end=1.0,
             )
 
         if params.get("prep_snv_enabled", False):
@@ -341,7 +360,9 @@ class RamanPreprocessingMixin:
                     logger.info(
                         "%s: skipping preprocessing augmentation — train set (%d) "
                         "exceeds prep_aug_max_train_samples (%d).",
-                        self.__class__.__name__, len(X_np), max_train_samples,
+                        self.__class__.__name__,
+                        len(X_np),
+                        max_train_samples,
                     )
                 else:
                     y_np = y.values if hasattr(y, "values") else np.array(y)
@@ -350,10 +371,15 @@ class RamanPreprocessingMixin:
                     logger.debug(
                         "Fit — augmentation: noise_sigma=%s, shift_max=%s, "
                         "n_augments=%s, mixup_alpha=%s, label_type=%s",
-                        noise_sigma, shift_max, n_augments, mixup_alpha, label_type,
+                        noise_sigma,
+                        shift_max,
+                        n_augments,
+                        mixup_alpha,
+                        label_type,
                     )
                     X_np, y_np = augment_spectra(
-                        X_np, y_np,
+                        X_np,
+                        y_np,
                         noise_sigma=noise_sigma,
                         shift_max=shift_max,
                         n_augments=n_augments,

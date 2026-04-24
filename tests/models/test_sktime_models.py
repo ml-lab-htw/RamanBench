@@ -6,10 +6,10 @@ import pytest
 
 from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_clf_data(n_samples=60, n_features=100, n_classes=3, seed=0):
     rng = np.random.RandomState(seed)
@@ -45,6 +45,7 @@ def _fit_arsenal(problem_type="multiclass"):
 # supported_problem_types
 # ---------------------------------------------------------------------------
 
+
 def test_rocket_supported_problem_types():
     assert "multiclass" in RocketModel.supported_problem_types()
     assert "binary" in RocketModel.supported_problem_types()
@@ -60,6 +61,7 @@ def test_arsenal_supported_problem_types():
 # ---------------------------------------------------------------------------
 # RocketModel: fit + predict (multiclass)
 # ---------------------------------------------------------------------------
+
 
 def test_rocket_fit_sets_feature_names():
     model, X, _ = _fit_rocket("multiclass")
@@ -85,6 +87,7 @@ def test_rocket_predict_proba_multiclass_shape_and_sums():
 # RocketModel: binary
 # ---------------------------------------------------------------------------
 
+
 def test_rocket_predict_binary_returns_known_labels():
     model, X, y = _fit_rocket("binary")
     preds = model._predict(X)
@@ -103,6 +106,7 @@ def test_rocket_predict_proba_binary_is_1d():
 # RocketModel: regression raises
 # ---------------------------------------------------------------------------
 
+
 def test_rocket_fit_raises_on_regression():
     model = RocketModel(problem_type="regression")
     model.params = {"rocket_transform": "minirocket", "num_kernels": 100}
@@ -115,6 +119,7 @@ def test_rocket_fit_raises_on_regression():
 # RocketModel: _select_features handles extra columns
 # ---------------------------------------------------------------------------
 
+
 def test_rocket_select_features_drops_extra_column():
     model, X, _ = _fit_rocket("multiclass")
     X_extra = X.copy()
@@ -126,6 +131,7 @@ def test_rocket_select_features_drops_extra_column():
 # ---------------------------------------------------------------------------
 # ArsenalModel: fit + predict (multiclass)
 # ---------------------------------------------------------------------------
+
 
 def test_arsenal_fit_sets_feature_names():
     model, X, _ = _fit_arsenal("multiclass")
@@ -151,6 +157,7 @@ def test_arsenal_predict_proba_multiclass_shape_and_sums():
 # ArsenalModel: binary
 # ---------------------------------------------------------------------------
 
+
 def test_arsenal_predict_proba_binary_is_1d():
     model, X, _ = _fit_arsenal("binary")
     proba = model._predict_proba(X)
@@ -162,6 +169,7 @@ def test_arsenal_predict_proba_binary_is_1d():
 # ---------------------------------------------------------------------------
 # ArsenalModel: regression raises
 # ---------------------------------------------------------------------------
+
 
 def test_arsenal_fit_raises_on_regression():
     model = ArsenalModel(problem_type="regression")

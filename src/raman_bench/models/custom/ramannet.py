@@ -36,14 +36,16 @@ class _RamanNetNetwork(nn.Module):
         window_out = window_size // 2
 
         # Independent feature extractor per window (no weight sharing)
-        self.feature_extractors = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(window_size, window_out),
-                nn.BatchNorm1d(window_out),
-                nn.LeakyReLU(inplace=True),
-            )
-            for _ in range(self.n_windows)
-        ])
+        self.feature_extractors = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(window_size, window_out),
+                    nn.BatchNorm1d(window_out),
+                    nn.LeakyReLU(inplace=True),
+                )
+                for _ in range(self.n_windows)
+            ]
+        )
 
         concat_dim = self.n_windows * window_out
         fc_dim2 = fc_dim // 2
@@ -68,10 +70,7 @@ class _RamanNetNetwork(nn.Module):
         # Extract overlapping windows
         windows = x.unfold(1, self.window_size, self.dw)  # (batch, n_windows, window_size)
         # Apply each window's own feature extractor
-        features = [
-            self.feature_extractors[i](windows[:, i, :])
-            for i in range(self.n_windows)
-        ]
+        features = [self.feature_extractors[i](windows[:, i, :]) for i in range(self.n_windows)]
         x = torch.cat(features, dim=1)  # (batch, n_windows * window_size//2)
         return self.head(x)
 

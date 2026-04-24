@@ -1,4 +1,5 @@
 """Tests for config loading and normalisation."""
+
 import json
 import os
 

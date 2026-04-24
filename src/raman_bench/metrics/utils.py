@@ -65,11 +65,7 @@ def compare_metrics(
         Keys: ``best_model``, ``worst_model``, ``ranking``, ``values``,
         ``mean``, ``std``.
     """
-    values = {
-        name: m[metric]
-        for name, m in results.items()
-        if metric in m
-    }
+    values = {name: m[metric] for name, m in results.items() if metric in m}
     if not values:
         return {"error": f"Metric '{metric}' not found in any results"}
 

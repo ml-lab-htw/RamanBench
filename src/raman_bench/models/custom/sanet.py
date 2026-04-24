@@ -47,14 +47,19 @@ class _MultiScaleBlock(nn.Module):
             # same-padding: pad = (ks - 1) // 2 ensures consistent output
             # lengths across all branches for any stride.
             pad = (ks - 1) // 2
-            self.branches.append(nn.Sequential(
-                nn.Conv1d(
-                    in_channels, out_channels,
-                    kernel_size=ks, stride=stride, padding=pad,
-                    bias=False,
-                ),
-                nn.BatchNorm1d(out_channels, eps=0.001, momentum=0.01),
-            ))
+            self.branches.append(
+                nn.Sequential(
+                    nn.Conv1d(
+                        in_channels,
+                        out_channels,
+                        kernel_size=ks,
+                        stride=stride,
+                        padding=pad,
+                        bias=False,
+                    ),
+                    nn.BatchNorm1d(out_channels, eps=0.001, momentum=0.01),
+                )
+            )
 
         concat_channels = out_channels * num_branches
         self.pool = nn.AdaptiveAvgPool1d(1)
@@ -74,9 +79,9 @@ class _MultiScaleBlock(nn.Module):
         branch_outs = [branch(x) for branch in self.branches]
         min_len = min(b.size(2) for b in branch_outs)
         branch_outs = [b[:, :, :min_len] for b in branch_outs]
-        cat = torch.cat(branch_outs, dim=1)            # (B, n_branches*C, L)
-        mask = self.fc(self.pool(cat).squeeze(-1))     # (B, C)
-        fused = self.fusion(cat)                       # (B, C, L)
+        cat = torch.cat(branch_outs, dim=1)  # (B, n_branches*C, L)
+        mask = self.fc(self.pool(cat).squeeze(-1))  # (B, C)
+        fused = self.fusion(cat)  # (B, C, L)
         return F.relu(mask.unsqueeze(-1) * fused)
 
 
@@ -117,7 +122,7 @@ class _SANetNetwork(nn.Module):
     ) -> None:
         super().__init__()
         channel_seq: list[int] = [1] + [
-            int(initial_channels * (channel_factor ** i)) for i in range(num_blocks)
+            int(initial_channels * (channel_factor**i)) for i in range(num_blocks)
         ]
         blocks: list[nn.Module] = []
         for i in range(len(channel_seq) - 1):

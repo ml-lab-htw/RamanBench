@@ -19,12 +19,10 @@ class _DeepCNNNetwork(nn.Module):
             nn.BatchNorm1d(initial_channels),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(kernel_size=2),
-
             nn.Conv1d(initial_channels, 2 * initial_channels, kernel_size=11, padding=5),
             nn.BatchNorm1d(2 * initial_channels),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(kernel_size=2),
-
             nn.Conv1d(2 * initial_channels, 4 * initial_channels, kernel_size=5, padding=2),
             nn.BatchNorm1d(4 * initial_channels),
             nn.LeakyReLU(inplace=True),
@@ -98,7 +96,7 @@ class DeepCNNModel(BaseCustomModel):
             # Training
             "lr": space.Real(lower=1e-4, upper=1e-2, log=True),
             # Regularization
-            "dropout": space.Real(0., 0.5),
+            "dropout": space.Real(0.0, 0.5),
             "weight_decay": space.Real(1e-6, 1e-1, log=True),
             # Augmentation
             "aug_noise_sigma": space.Real(1e-3, 0.1, log=True),

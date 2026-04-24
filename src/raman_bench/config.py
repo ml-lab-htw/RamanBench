@@ -1,4 +1,5 @@
 """Configuration loading and validation for the benchmark pipeline."""
+
 import json
 import os
 
@@ -29,9 +30,7 @@ def _normalize_preprocessing_config(config):
         else:
             config["preprocessing_config"] = None
     elif isinstance(raw, dict):
-        config["preprocessing_config"] = {
-            k: raw.get(k, False) for k in _ALL_PREPROCESSING_STEPS
-        }
+        config["preprocessing_config"] = {k: raw.get(k, False) for k in _ALL_PREPROCESSING_STEPS}
     else:
         config["preprocessing_config"] = None
 

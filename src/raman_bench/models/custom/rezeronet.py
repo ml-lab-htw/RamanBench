@@ -13,8 +13,12 @@ class _DepthwiseSeparableConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
         super().__init__()
         self.depthwise = nn.Conv1d(
-            in_channels, in_channels, kernel_size,
-            stride=stride, padding=padding, groups=in_channels,
+            in_channels,
+            in_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            groups=in_channels,
         )
         self.pointwise = nn.Conv1d(in_channels, out_channels, kernel_size=1)
 
@@ -39,14 +43,20 @@ class _ReZeroBlock(nn.Module):
 
         self.conv = nn.Sequential(
             _DepthwiseSeparableConv1d(
-                in_channels, out_channels, kernel_size,
-                stride=stride, padding=self.padding,
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride=stride,
+                padding=self.padding,
             ),
             nn.BatchNorm1d(out_channels),
             nn.ELU(inplace=True),
             _DepthwiseSeparableConv1d(
-                out_channels, out_channels, kernel_size,
-                stride=1, padding=self.padding,
+                out_channels,
+                out_channels,
+                kernel_size,
+                stride=1,
+                padding=self.padding,
             ),
             nn.BatchNorm1d(out_channels),
         )
@@ -55,9 +65,7 @@ class _ReZeroBlock(nn.Module):
 
     def next_spatial_dim(self, spatial_dim: int) -> int:
         """Compute output spatial dimension given input spatial dimension."""
-        return math.floor(
-            (spatial_dim + 2 * self.padding - self.kernel_size) / self.stride + 1
-        )
+        return math.floor((spatial_dim + 2 * self.padding - self.kernel_size) / self.stride + 1)
 
     def forward(self, x):
         out = self.conv(x)
@@ -75,8 +83,14 @@ class _ReZeroNetNetwork(nn.Module):
     """
 
     def __init__(
-        self, n_outputs, input_dim, n_blocks=8, base_channels=64,
-        kernel_size=3, fc_dropout=0.2, channel_factor=1.0,
+        self,
+        n_outputs,
+        input_dim,
+        n_blocks=8,
+        base_channels=64,
+        kernel_size=3,
+        fc_dropout=0.2,
+        channel_factor=1.0,
     ):
         super().__init__()
 
@@ -121,7 +135,7 @@ class _ReZeroNetNetwork(nn.Module):
         x = x.unsqueeze(1)
         x = self.stem(x)
         x = self.blocks(x)
-        x = x.flatten(1)          # (batch, channels * spatial_dim)
+        x = x.flatten(1)  # (batch, channels * spatial_dim)
         return self.fc(x)
 
 
@@ -161,7 +175,7 @@ class ReZeroNetModel(BaseCustomModel):
     def _get_base_hp_searchspace():
         return {
             # Architecture
-            "n_blocks": space.Categorical(6, 8,  10),
+            "n_blocks": space.Categorical(6, 8, 10),
             "channel_factor": space.Real(1.0, 1.6, log=True),
             # Training
             "lr": space.Real(lower=1e-4, upper=1e-2, log=True),
