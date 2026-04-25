@@ -52,20 +52,10 @@ silently skips them on larger datasets; Raman spectra typically have 500–4000
 wavenumber points.  The fork removes this cap.  Install it first:
 
 ```bash
-# 1. Install the patched AutoGluon fork
-pip install -r https://raw.githubusercontent.com/ml-lab-htw/RamanBench/main/requirements-autogluon-fork.txt
-
-# 2. Install raman-bench with deep learning extras
-pip install "raman-bench[deep]"
-```
-
-Or from a local clone:
-
-```bash
 git clone https://github.com/ml-lab-htw/RamanBench.git
 cd RamanBench
 pip install -r requirements-autogluon-fork.txt
-pip install -e ".[deep]"
+pip install "raman-bench[deep]"
 ```
 
 ### Explore the precomputed leaderboard
@@ -115,6 +105,15 @@ raman-bench run --config configs/benchmark_v0.1.json
 raman-bench run --config configs/benchmark_v0.1.json --step predictions
 raman-bench run --config configs/benchmark_v0.1.json --step metrics
 ```
+
+### Notebooks
+
+| Notebook | Description |
+|---|---|
+| [`01_quick_start.ipynb`](notebooks/01_quick_start.ipynb) | Load a dataset, explore the precomputed leaderboard, plot rankings |
+| [`02_benchmark_new_model.ipynb`](notebooks/02_benchmark_new_model.ipynb) | Evaluate your own model and add it to the leaderboard |
+| [`03_explore_results.ipynb`](notebooks/03_explore_results.ipynb) | Deep dive into per-dataset and per-domain results |
+| [`04_contribute_dataset.ipynb`](notebooks/04_contribute_dataset.ipynb) | Step-by-step guide to contributing a new dataset |
 
 ---
 
