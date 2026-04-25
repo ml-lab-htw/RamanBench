@@ -90,11 +90,13 @@ class Leaderboard:
         clf: pd.DataFrame,
         reg: pd.DataFrame,
         dataset_stats: dict | None = None,
+        score_params: dict | None = None,
     ):
         self._overall = overall.copy()
         self._clf = clf.copy()
         self._reg = reg.copy()
         self._dataset_stats = dataset_stats or {}
+        self._score_params = score_params or {}
         self._added_models: list[str] = []
 
     # ------------------------------------------------------------------
@@ -116,15 +118,21 @@ class Leaderboard:
         clf = _load_bundled_csv("leaderboard_clf.csv")
         reg = _load_bundled_csv("leaderboard_reg.csv")
 
-        dataset_stats: dict = {}
-        try:
-            import json
+        import json
 
+        dataset_stats: dict = {}
+        score_params: dict = {}
+        try:
             pkg_root = os.path.dirname(os.path.abspath(__file__))
-            stats_path = os.path.join(pkg_root, "data", "precomputed", "dataset_stats.json")
+            precomputed = os.path.join(pkg_root, "data", "precomputed")
+            stats_path = os.path.join(precomputed, "dataset_stats.json")
             if os.path.exists(stats_path):
                 with open(stats_path) as f:
                     dataset_stats = json.load(f)
+            params_path = os.path.join(precomputed, "score_params.json")
+            if os.path.exists(params_path):
+                with open(params_path) as f:
+                    score_params = json.load(f)
         except Exception:
             pass
 
@@ -133,7 +141,7 @@ class Leaderboard:
             len(overall),
             len(dataset_stats),
         )
-        return cls(overall, clf, reg, dataset_stats)
+        return cls(overall, clf, reg, dataset_stats, score_params)
 
     @classmethod
     def from_results_dir(cls, results_dir: str) -> Leaderboard:
@@ -226,7 +234,7 @@ class Leaderboard:
             Which leaderboard to update.
         """
         lb = self._select_leaderboard(task)
-        new_row = _summarise_model_metrics(model_name, metrics_df, task)
+        new_row = _summarise_model_metrics(model_name, metrics_df, task, self._score_params)
         updated = pd.concat([lb, pd.DataFrame([new_row])], ignore_index=True)
         self._set_leaderboard(task, updated)
         if model_name not in self._added_models:
@@ -273,6 +281,8 @@ class Leaderboard:
             Per-(key, seed) metrics for the newly evaluated model.
         """
 
+        from raman_data import TASK_TYPE
+
         from raman_bench.benchmark import configure_benchmark
         from raman_bench.config import load_config
         from raman_bench.metrics import compute_metrics
@@ -289,6 +299,10 @@ class Leaderboard:
             bench = configure_benchmark(config)
             for train_df, test_df, key, task_type in bench:
                 if train_df is None:
+                    continue
+                if task == "regression" and task_type != TASK_TYPE.Regression:
+                    continue
+                if task == "classification" and task_type != TASK_TYPE.Classification:
                     continue
                 label_col = train_df.columns[-1]
                 X_train = train_df.drop(columns=[label_col]).values
@@ -395,6 +409,7 @@ def _summarise_model_metrics(
     model_name: str,
     metrics_df: pd.DataFrame,
     task: str,
+    score_params: dict | None = None,
 ) -> dict:
     """Aggregate per-(key, seed) metrics into a single leaderboard row."""
     row: dict = {"Model": model_name}
@@ -404,7 +419,46 @@ def _summarise_model_metrics(
         if col not in ("seed",):
             row[col] = float(numeric[col].mean())
 
+    if "Score" not in row:
+        row["Score"] = _compute_normalized_score(metrics_df, task, score_params or {})
+
     return row
+
+
+def _compute_normalized_score(
+    metrics_df: pd.DataFrame,
+    task: str,
+    score_params: dict,
+) -> float:
+    """Compute the normalized benchmark Score for a new model.
+
+    Mirrors the per-dataset normalization used for precomputed baselines:
+    best model → 1, median model → 0, clipped at 0.  Uses RMSE for regression
+    and F1 for classification.
+    """
+    if task == "regression":
+        cfg = score_params.get("regression", {})
+        metric, higher_is_better = "rmse", False
+    elif task == "classification":
+        cfg = score_params.get("classification", {})
+        metric, higher_is_better = "f1_score", True
+    else:
+        return float("nan")
+
+    ds_params = cfg.get("datasets", {})
+    if not ds_params or metric not in metrics_df.columns or "key" not in metrics_df.columns:
+        return float("nan")
+
+    per_dataset = metrics_df.groupby("key")[metric].mean()
+    scores = []
+    for key, val in per_dataset.items():
+        p = ds_params.get(key)
+        if p is None or p.get("denom") is None:
+            continue
+        e = val if higher_is_better else -val
+        scores.append(float(max(0.0, (e - p["median"]) / p["denom"])))
+
+    return float(np.mean(scores)) if scores else float("nan")
 
 
 def _build_leaderboard_from_metrics(

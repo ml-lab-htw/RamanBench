@@ -1,0 +1,614 @@
+{
+  "regression": {
+    "metric": "rmse",
+    "higher_is_better": false,
+    "datasets": {
+      "acetic_acid_species_0": {
+        "median": -0.0006057639967424,
+        "denom": 0.0005759267657227743
+      },
+      "acetic_acid_species_1": {
+        "median": -0.0006297091213224333,
+        "denom": 0.000616030244915637
+      },
+      "adenine_colloidal_gold_0": {
+        "median": -0.1506262858494303,
+        "denom": 0.07891059641498313
+      },
+      "adenine_colloidal_silver_0": {
+        "median": -0.3380649062095634,
+        "denom": 0.12108824931186071
+      },
+      "adenine_solid_gold_0": {
+        "median": -0.911307865708932,
+        "denom": 0.2292900464910682
+      },
+      "adenine_solid_silver_0": {
+        "median": -1.5840665511020964,
+        "denom": 0.5101324744666573
+      },
+      "amino_acids_glycine_0": {
+        "median": -0.8825862296484676,
+        "denom": 0.07953706476480071
+      },
+      "amino_acids_tryptophan_0": {
+        "median": -0.903340337415131,
+        "denom": 0.07137764197350227
+      },
+      "bioprocess_analytes_anton_532_0": {
+        "median": -2.6924254828925966,
+        "denom": 1.0024301232963089
+      },
+      "bioprocess_analytes_anton_532_1": {
+        "median": -0.4554859198232039,
+        "denom": 0.12775087074104996
+      },
+      "bioprocess_analytes_anton_532_2": {
+        "median": -0.5918092682912435,
+        "denom": 0.32111873105265626
+      },
+      "bioprocess_analytes_anton_785_0": {
+        "median": -2.973359153968501,
+        "denom": 1.7677076315829794
+      },
+      "bioprocess_analytes_anton_785_1": {
+        "median": -0.3655241521226745,
+        "denom": 0.16429053155853515
+      },
+      "bioprocess_analytes_anton_785_2": {
+        "median": -0.33886979491803176,
+        "denom": 0.15661346726716557
+      },
+      "bioprocess_analytes_kaiser_0": {
+        "median": -2.823071326502564,
+        "denom": 1.340241287624124
+      },
+      "bioprocess_analytes_kaiser_1": {
+        "median": -0.6275711073201969,
+        "denom": 0.32501414008653223
+      },
+      "bioprocess_analytes_kaiser_2": {
+        "median": -0.6556860119965017,
+        "denom": 0.22525114853092593
+      },
+      "bioprocess_analytes_metrohm_0": {
+        "median": -2.203136867729913,
+        "denom": 1.2577875609230365
+      },
+      "bioprocess_analytes_metrohm_1": {
+        "median": -0.39812818346893114,
+        "denom": 0.25200728717003235
+      },
+      "bioprocess_analytes_metrohm_2": {
+        "median": -0.4025098308911663,
+        "denom": 0.29725866805821016
+      },
+      "bioprocess_analytes_mettler_toledo_0": {
+        "median": -2.313148548619379,
+        "denom": 1.4532990101750367
+      },
+      "bioprocess_analytes_mettler_toledo_1": {
+        "median": -0.3471778133572268,
+        "denom": 0.19507681509496946
+      },
+      "bioprocess_analytes_mettler_toledo_2": {
+        "median": -0.49790187842038763,
+        "denom": 0.3246009652545044
+      },
+      "bioprocess_analytes_tec5_0": {
+        "median": -1.5961886528989648,
+        "denom": 0.9872727435300502
+      },
+      "bioprocess_analytes_tec5_1": {
+        "median": -0.3617147435375159,
+        "denom": 0.13901101152368392
+      },
+      "bioprocess_analytes_tec5_2": {
+        "median": -0.46339320942825274,
+        "denom": 0.17580941334012068
+      },
+      "bioprocess_analytes_timegate_0": {
+        "median": -3.933445668198329,
+        "denom": 2.2714954105993295
+      },
+      "bioprocess_analytes_timegate_1": {
+        "median": -0.5060574974228133,
+        "denom": 0.3190892777805685
+      },
+      "bioprocess_analytes_timegate_2": {
+        "median": -0.44906044567994874,
+        "denom": 0.3144195380251287
+      },
+      "bioprocess_analytes_tornado_0": {
+        "median": -2.167855467379924,
+        "denom": 1.5583962967574014
+      },
+      "bioprocess_analytes_tornado_1": {
+        "median": -0.35774546042575245,
+        "denom": 0.14969310111286702
+      },
+      "bioprocess_analytes_tornado_2": {
+        "median": -0.5920900612389778,
+        "denom": 0.440580099522364
+      },
+      "bioprocess_substrates_0": {
+        "median": -1.9451460197701964,
+        "denom": 0.6440493064201309
+      },
+      "bioprocess_substrates_1": {
+        "median": -1.8631921296479899,
+        "denom": 0.8520366148998861
+      },
+      "bioprocess_substrates_2": {
+        "median": -0.2907228703527987,
+        "denom": 0.11243708296636509
+      },
+      "bioprocess_substrates_3": {
+        "median": -0.907846706746386,
+        "denom": 0.45521388017417247
+      },
+      "bioprocess_substrates_4": {
+        "median": -0.05901035964668366,
+        "denom": 0.03138494231023729
+      },
+      "bioprocess_substrates_5": {
+        "median": -0.272226450555032,
+        "denom": 0.05050379506714217
+      },
+      "bioprocess_substrates_6": {
+        "median": -0.8101777730808809,
+        "denom": 0.3921979385820418
+      },
+      "bioprocess_substrates_7": {
+        "median": -0.4993533949627332,
+        "denom": 0.14615380617301754
+      },
+      "citric_acid_species_0": {
+        "median": -0.0012315047484222667,
+        "denom": 0.0010673356152493788
+      },
+      "citric_acid_species_1": {
+        "median": -0.001743889225871,
+        "denom": 0.0016511980407804383
+      },
+      "ecoli_fermentation_0": {
+        "median": -0.5822116500355549,
+        "denom": 0.3646542186387117
+      },
+      "ecoli_fermentation_1": {
+        "median": -0.30350099356248905,
+        "denom": 0.08407999163375834
+      },
+      "ecoli_metabolites_0": {
+        "median": -0.9026414515928872,
+        "denom": 0.2734116658344329
+      },
+      "ecoli_metabolites_1": {
+        "median": -0.20052328112017412,
+        "denom": 0.06260918093889872
+      },
+      "ecoli_metabolites_dig4bio_0": {
+        "median": -1.1923196975562038,
+        "denom": 0.5107844650839887
+      },
+      "ecoli_metabolites_dig4bio_1": {
+        "median": -0.38513259767491953,
+        "denom": 0.2022659325078811
+      },
+      "ecoli_metabolites_dig4bio_2": {
+        "median": -0.416315364013154,
+        "denom": 0.18560564598502133
+      },
+      "flow_microgel_synthesis_0": {
+        "median": -4.149306210500468,
+        "denom": 2.5494420586435407
+      },
+      "formic_acid_species_0": {
+        "median": -0.00280294695851335,
+        "denom": 0.0026288760056162835
+      },
+      "formic_acid_species_1": {
+        "median": -0.0019476736449627668,
+        "denom": 0.001332955157004667
+      },
+      "formic_acid_species_2": {
+        "median": -0.002603032031565217,
+        "denom": 0.0015402176153068868
+      },
+      "fuel_benchtop_0": {
+        "median": -0.9075994338935353,
+        "denom": 0.2513858023399913
+      },
+      "fuel_benchtop_1": {
+        "median": -1.033510123115206,
+        "denom": 0.7157555451241926
+      },
+      "fuel_benchtop_10": {
+        "median": -1.3706469140536204,
+        "denom": 0.4601593761492879
+      },
+      "fuel_benchtop_11": {
+        "median": -0.1038484707596589,
+        "denom": 0.06562946347059984
+      },
+      "fuel_benchtop_2": {
+        "median": -0.8791867359587565,
+        "denom": 0.4134937599545105
+      },
+      "fuel_benchtop_3": {
+        "median": -1.6363075514366339,
+        "denom": 0.7066177444524225
+      },
+      "fuel_benchtop_4": {
+        "median": -1.3617357681973068,
+        "denom": 0.7418279753985476
+      },
+      "fuel_benchtop_5": {
+        "median": -3.4062707569118387,
+        "denom": 1.2767000255758054
+      },
+      "fuel_benchtop_6": {
+        "median": -225.40448280079318,
+        "denom": 32.73153361070604
+      },
+      "fuel_benchtop_7": {
+        "median": -3.317321659740262,
+        "denom": 1.3176435889381928
+      },
+      "fuel_benchtop_8": {
+        "median": -0.36076068913464754,
+        "denom": 0.10866427990249644
+      },
+      "fuel_benchtop_9": {
+        "median": -1.3612547797681867,
+        "denom": 0.7321611024699957
+      },
+      "fuel_handheld_0": {
+        "median": -0.9937969637845034,
+        "denom": 0.26236725197767186
+      },
+      "fuel_handheld_1": {
+        "median": -1.009040947649554,
+        "denom": 0.6740242231614078
+      },
+      "fuel_handheld_10": {
+        "median": -1.886296595779621,
+        "denom": 0.7294905541431818
+      },
+      "fuel_handheld_11": {
+        "median": -0.12012580524673662,
+        "denom": 0.04261622357840479
+      },
+      "fuel_handheld_2": {
+        "median": -1.0978359373936637,
+        "denom": 0.32453463529095117
+      },
+      "fuel_handheld_3": {
+        "median": -1.6708638241559777,
+        "denom": 0.6749038517190182
+      },
+      "fuel_handheld_4": {
+        "median": -1.739496049926465,
+        "denom": 0.8488545113869347
+      },
+      "fuel_handheld_5": {
+        "median": -3.8898757058883295,
+        "denom": 1.053415370143152
+      },
+      "fuel_handheld_6": {
+        "median": -242.10507995978287,
+        "denom": 34.097217019747404
+      },
+      "fuel_handheld_7": {
+        "median": -3.295995133801064,
+        "denom": 1.0316928118822188
+      },
+      "fuel_handheld_8": {
+        "median": -0.41218111953468256,
+        "denom": 0.07713246963850018
+      },
+      "fuel_handheld_9": {
+        "median": -1.7688924002093076,
+        "denom": 0.7535803556118472
+      },
+      "ht_raman_bio_catalysis_axp_0": {
+        "median": -1.4405529798257302,
+        "denom": 0.5837465645856702
+      },
+      "ht_raman_bio_catalysis_axp_1": {
+        "median": -1.3503907191570301,
+        "denom": 0.6246613884313577
+      },
+      "ht_raman_bio_catalysis_axp_2": {
+        "median": -1.3750416268092485,
+        "denom": 0.7087669181237773
+      },
+      "ht_raman_bio_catalysis_axp_3": {
+        "median": -1.1853147013386107,
+        "denom": 0.7341362898657449
+      },
+      "itaconic_acid_species_0": {
+        "median": -0.002312287733791083,
+        "denom": 0.002200923563103989
+      },
+      "itaconic_acid_species_1": {
+        "median": -0.0013781269673940836,
+        "denom": 0.0011966011784990567
+      },
+      "itaconic_acid_species_2": {
+        "median": -0.0007385793242914834,
+        "denom": 0.0007151701633784073
+      },
+      "kaiser_ecoli_fermentation_2": {
+        "median": -1.4840826568486722,
+        "denom": 0.7000444349217001
+      },
+      "kaiser_ecoli_fermentation_supernatant_1": {
+        "median": -12.241461100711632,
+        "denom": 8.180334494914906
+      },
+      "kaiser_ecoli_fermentation_supernatant_2": {
+        "median": -1.609094600152056,
+        "denom": 0.5003058015381774
+      },
+      "levulinic_acid_species_0": {
+        "median": -2.123160424128753,
+        "denom": 1.2050657643411764
+      },
+      "levulinic_acid_species_1": {
+        "median": -2.8598978082551305,
+        "denom": 2.626588157557175
+      },
+      "microgel_size_lf_fingerprint_0": {
+        "median": -58.85073907492055,
+        "denom": 4.8297781760959
+      },
+      "microgel_size_lf_global_0": {
+        "median": -59.04487372487791,
+        "denom": 7.878296639134945
+      },
+      "microgel_size_mm_lf_fingerprint_0": {
+        "median": -60.35032067007319,
+        "denom": 3.862999394472837
+      },
+      "microgel_size_mm_lf_global_0": {
+        "median": -59.04013405735467,
+        "denom": 9.001570762407212
+      },
+      "microgel_size_mm_rb_fingerprint_0": {
+        "median": -59.969572497894205,
+        "denom": 3.8421018355308547
+      },
+      "microgel_size_mm_rb_global_0": {
+        "median": -59.64292061849349,
+        "denom": 9.164607809531056
+      },
+      "microgel_size_raw_fingerprint_0": {
+        "median": -59.101508076794744,
+        "denom": 6.890892902283895
+      },
+      "microgel_size_raw_global_0": {
+        "median": -58.32186099891888,
+        "denom": 8.043141009178846
+      },
+      "microgel_size_rb_fingerprint_0": {
+        "median": -59.985409788236076,
+        "denom": 6.175662020801084
+      },
+      "microgel_size_rb_global_0": {
+        "median": -59.75208816195844,
+        "denom": 8.020984388801295
+      },
+      "microgel_size_snv_lf_fingerprint_0": {
+        "median": -59.5501017352615,
+        "denom": 5.242655110126741
+      },
+      "microgel_size_snv_lf_global_0": {
+        "median": -59.26064644854773,
+        "denom": 11.123404857606126
+      },
+      "microgel_size_snv_rb_fingerprint_0": {
+        "median": -59.683714484771166,
+        "denom": 4.552081585387803
+      },
+      "microgel_size_snv_rb_global_0": {
+        "median": -59.05051349787837,
+        "denom": 10.279061554226438
+      },
+      "microgel_synthesis_0": {
+        "median": -1.716908657698095,
+        "denom": 0.8296255405430444
+      },
+      "ralstonia_fermentations_0": {
+        "median": -2.0213285279040143,
+        "denom": 1.3861451163270435
+      },
+      "ralstonia_fermentations_1": {
+        "median": -4.041641802899563,
+        "denom": 3.4399335011741368
+      },
+      "ralstonia_fermentations_2": {
+        "median": -0.30438465901211265,
+        "denom": 0.21711715888558014
+      },
+      "ralstonia_fermentations_3": {
+        "median": -1.3293883714066148,
+        "denom": 0.8412607575360447
+      },
+      "ralstonia_fermentations_4": {
+        "median": -0.9021164776940186,
+        "denom": 0.6483051411225732
+      },
+      "ralstonia_fermentations_5": {
+        "median": -0.29686131853079556,
+        "denom": 0.14771492556946508
+      },
+      "streptococcus_thermophilus_fermentation_kaiser_1": {
+        "median": -0.9924792309086322,
+        "denom": 0.7732521166142812
+      },
+      "succinic_acid_species_0": {
+        "median": -1.0404025004883624,
+        "denom": 0.6925211240890607
+      },
+      "succinic_acid_species_1": {
+        "median": -1.7906766260529405,
+        "denom": 1.631876309035324
+      },
+      "sugar_mixtures_high_snr_0": {
+        "median": -5.983461142413766,
+        "denom": 5.674809978582827
+      },
+      "sugar_mixtures_high_snr_1": {
+        "median": -6.760266171457675,
+        "denom": 6.460281139968028
+      },
+      "sugar_mixtures_high_snr_2": {
+        "median": -9.420069802532373,
+        "denom": 8.70782798030655
+      },
+      "sugar_mixtures_high_snr_3": {
+        "median": -9.745002164687572,
+        "denom": 8.545968140783259
+      },
+      "sugar_mixtures_low_snr_0": {
+        "median": -9.957429498058746,
+        "denom": 8.136900815587738
+      },
+      "sugar_mixtures_low_snr_1": {
+        "median": -8.200530113762627,
+        "denom": 6.327164120369188
+      },
+      "sugar_mixtures_low_snr_2": {
+        "median": -11.677881144164965,
+        "denom": 7.004677848877985
+      },
+      "sugar_mixtures_low_snr_3": {
+        "median": -12.805102168627549,
+        "denom": 6.189582439283394
+      },
+      "synthetic_organic_pigments_raw_0": {
+        "median": -85.11701394926709,
+        "denom": 8.165106008487982
+      },
+      "tg_ecoli_fermentation_2": {
+        "median": -1.682225329182683,
+        "denom": 0.6369849377566399
+      },
+      "tg_ecoli_fermentation_3": {
+        "median": -0.16304959081884163,
+        "denom": 0.04066890289722365
+      },
+      "tg_ecoli_fermentation_supernatant_2": {
+        "median": -1.2876442356881073,
+        "denom": 0.723203973843226
+      },
+      "yeast_fermentation_0": {
+        "median": -0.03158556632552937,
+        "denom": 0.0071801731467776055
+      },
+      "yeast_fermentation_1": {
+        "median": -0.04170287184597963,
+        "denom": 0.011380766563998227
+      },
+      "yeast_fermentation_2": {
+        "median": -0.007405643807523965,
+        "denom": 0.002035093581204299
+      },
+      "yeast_fermentation_3": {
+        "median": -0.16941026871723,
+        "denom": 0.07011227183716794
+      }
+    }
+  },
+  "classification": {
+    "metric": "f1_score",
+    "higher_is_better": true,
+    "datasets": {
+      "alzheimer_0": {
+        "median": 0.866103283300567,
+        "denom": 0.10906559684173733
+      },
+      "bacteria_identification_0": {
+        "median": 0.8709906910591546,
+        "denom": 0.07604840907499777
+      },
+      "cancer_cell_(cooh)2_0": {
+        "median": 0.9733595710176655,
+        "denom": 0.02664042898233454
+      },
+      "cancer_cell_cooh_0": {
+        "median": 0.9635163297535593,
+        "denom": 0.031228892311073952
+      },
+      "cancer_cell_nh2_0": {
+        "median": 0.9790502863516791,
+        "denom": 0.01831846360720757
+      },
+      "comfile_stroke_0": {
+        "median": 0.991293502193617,
+        "denom": 0.007462699394546579
+      },
+      "covid19_salvia_0": {
+        "median": 0.70793937343098,
+        "denom": 0.25056980909512283
+      },
+      "diabetes_skin_ear_lobe_0": {
+        "median": 0.3444444444444444,
+        "denom": 0.3444444444444446
+      },
+      "diabetes_skin_inner_arm_0": {
+        "median": 0.3333333333333333,
+        "denom": 0.32222222222222224
+      },
+      "diabetes_skin_thumbnail_0": {
+        "median": 0.2333333333333333,
+        "denom": 0.17777777777777784
+      },
+      "diabetes_skin_vein_0": {
+        "median": 0.37777777777777777,
+        "denom": 0.1444444444444445
+      },
+      "hair_dyes_sers_0": {
+        "median": 0.9970845481049563,
+        "denom": 0.002915451895043719
+      },
+      "head_neck_cancer_0": {
+        "median": 0.5160890639151509,
+        "denom": 0.18742394566193188
+      },
+      "microplastics_weathered_0": {
+        "median": 0.759366953852248,
+        "denom": 0.24063304614775205
+      },
+      "mlrod_0": {
+        "median": 0.9710636206158813,
+        "denom": 0.019375330100675048
+      },
+      "parkinson_0": {
+        "median": 0.7847331822053084,
+        "denom": 0.17032874119913632
+      },
+      "pharmaceutical_ingredients_0": {
+        "median": 0.9882930227482309,
+        "denom": 0.011706977251769057
+      },
+      "rruff_mineral_raw_0": {
+        "median": 0.8103121961491061,
+        "denom": 0.14220216607240077
+      },
+      "serum_alzheimer_disease_0": {
+        "median": 0.8916785508336521,
+        "denom": 0.09906097221601384
+      },
+      "serum_prostate_cancer_0": {
+        "median": 0.9814429854783041,
+        "denom": 0.016441272015856434
+      },
+      "wheat_lines_0": {
+        "median": 0.891680403119345,
+        "denom": 0.028860562789441713
+      }
+    }
+  }
+}
