@@ -14,12 +14,12 @@ For bug reports and feature requests, please open an issue on
 
 Before you start, here are the key resources:
 
-| Resource | Link |
-|---|---|
-| **raman-data** (dataset loader) | [GitHub](https://github.com/ml-lab-htw/raman_data) · [PyPI](https://pypi.org/project/raman-data/) |
-| **raman-bench** (this repo) | [GitHub](https://github.com/ml-lab-htw/RamanBench) · [PyPI](https://pypi.org/project/raman-bench/) |
-| **Live Leaderboard** | [huggingface.co/spaces/ml-lab-htw/RamanBench](https://huggingface.co/spaces/ml-lab-htw/RamanBench) |
-| **Paper** (NeurIPS 2026) | [arXiv TBD](https://arxiv.org/abs/TBD) |
+| Resource                        | Link                                                                                               |
+|---------------------------------|----------------------------------------------------------------------------------------------------|
+| **raman-data** (dataset loader) | [GitHub](https://github.com/ml-lab-htw/raman_data) · [PyPI](https://pypi.org/project/raman-data/)  |
+| **raman-bench** (this repo)     | [GitHub](https://github.com/ml-lab-htw/RamanBench) · [PyPI](https://pypi.org/project/raman-bench/) |
+| **Live Leaderboard**            | [huggingface.co/spaces/ml-lab-htw/RamanBench](https://huggingface.co/spaces/ml-lab-htw/RamanBench) |
+| **Paper**                       | [arXiv TBD](https://arxiv.org/abs/TBD)                                                             |
 
 ---
 
@@ -149,16 +149,17 @@ See the existing entries in raman-data for examples.
 Once the raman-data PR is merged and a new raman-data release is published, open an issue
 in this repository requesting the dataset be added to `configs/datasets/`.
 
-### Dataset requirements
+### Dataset inclusion criteria
 
-| Requirement | Details |
+| Criterion | Details |
 |---|---|
-| **Min samples** | ≥ 20 total (≥ 9 per class for classification) |
-| **Format** | Spectra as rows, wavenumbers as columns (one sample = one row) |
-| **Targets** | Named columns, continuous or categorical |
-| **License** | CC BY 4.0 or more permissive |
+| **Freely accessible** | Publicly available (HuggingFace, Zenodo, Kaggle, etc.) under an open license (CC BY 4.0 or more permissive) |
+| **Experimentally acquired** | Real instrument measurements — no simulated or synthetic spectra |
+| **Supervised labels** | At least one regression target or classification label per spectrum |
+| **Minimum size** | ≥ 10 labeled spectra total; for classification ≥ 9 spectra per class (rare classes removed; excluded if < 2 classes remain) |
+| **Learnability** | Regression: R² > 0.05 with at least one model; Classification: ΔF1 > 0.05 above majority-class baseline (checked automatically during integration) |
 | **Citation** | Published paper or preprint with DOI |
-| **Instrument** | Document excitation wavelength, instrument model, and spectral range |
+| **Format** | Spectra as rows, wavenumbers as columns; targets as named columns (continuous or categorical) |
 
 ### What to document
 
