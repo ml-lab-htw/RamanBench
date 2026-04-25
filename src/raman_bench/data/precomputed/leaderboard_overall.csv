@@ -1,29 +1,29 @@
 model_id,Rank,Model,Category,Elo,Score,Avg Rank,Improvability,Train Time s,Infer. s/1K
 AUTOGLUON,1,"AutoGluon 1.5 (extreme, 4h)",AutoML,1558,0.75,4.8,23.0,1776.3,220.7
-REALTABPFN-V2.5,2,TabPFN v2.5 (default),Tabular Foundation,1529,0.71,5.5,27.3,89.6,100.8
-TABICL,3,TabICL (default),Tabular Foundation,1443,0.62,6.5,33.3,39.9,130.3
-REALTABPFN-V2,4,TabPFN v2 (default),Tabular Foundation,1402,0.54,8.1,44.0,77.6,146.4
-MITRA,5,MITRA (default),Tabular Foundation,1312,0.42,10.3,49.5,827.4,626.5
-ROCKET,6,ROCKET (default),TS Classification,1244,0.38,10.4,55.5,1270.3,140.5
-ARSENAL,7,ARSENAL (default),TS Classification,1240,0.42,10.4,58.3,2876.0,2790.3
-TABM,8,TabM (default),Tabular Foundation,1156,0.24,12.5,54.6,52.1,114.2
-TABDPT,9,TabDPT (default),Tabular Foundation,1136,0.3,12.5,52.9,12.3,80.2
-REZERONET,10,ReZeroNet (default),Raman-Specific,1133,0.39,10.3,45.2,44.6,23.1
-REALMLP,11,RealMLP (default),Deep Learning,1111,0.21,13.7,56.4,1935.5,71.1
-CAT,12,CatBoost (default),Gradient Boosting,1069,0.08,15.4,60.5,537.5,22.4
-NN_TORCH,13,NN (Torch) (default),Deep Learning,1066,0.21,13.8,57.0,1378.2,53.8
-XT,14,Extra Trees (default),Tree-based,1057,0.11,16.3,60.4,22.2,7.2
-RAMANNET,15,RamanNet (default),Raman-Specific,1028,0.22,14.3,54.0,73.9,13.3
-DEEPCNN,16,DeepCNN (default),Raman-Specific,1006,0.25,13.9,49.9,1280.1,63.5
-PLS,17,PLS (default),Traditional ML,1004,0.21,17.1,60.8,29.7,19.2
-LR,18,Logistic Reg. (default),Traditional ML,1002,0.27,14.6,53.3,37.2,41.2
-RF,19,Random Forest (default),Tree-based,1000,0.1,16.6,60.8,53.9,13.3
-KNN,20,KNN (default),Traditional ML,986,0.1,17.3,62.4,8.2,10.1
-RAMANFORMER,21,RamanFormer (default),Raman-Specific,979,0.18,17.2,59.1,501.2,102.7
-FASTAI,22,FastAI (default),Deep Learning,970,0.12,16.8,59.8,255.5,19.0
-COATNET,23,CoAtNet (default),Deep Learning,963,0.12,17.0,62.0,61.5,16.2
-GBM,24,LightGBM (default),Gradient Boosting,950,0.04,17.6,62.9,1453.5,7.3
-FCRESNEXT,25,FC-ResNeXt (default),Deep Learning,933,0.15,16.2,59.1,16.2,5.4
-XGB,26,XGBoost (default),Gradient Boosting,923,0.06,17.9,62.3,57.9,3.7
-SANET,27,SANet (default),Raman-Specific,798,0.14,19.1,64.6,37.9,39.7
-RAMANTRANSFORMER,28,RamanTransformer (default),Raman-Specific,710,0.04,23.1,74.0,429.8,134.8
+REALTABPFN-V2.5,2,TabPFN v2.5,Tabular Foundation,1529,0.71,5.5,27.3,89.6,100.8
+TABICL,3,TabICL,Tabular Foundation,1443,0.62,6.5,33.3,39.9,130.3
+REALTABPFN-V2,4,TabPFN v2,Tabular Foundation,1402,0.54,8.1,44.0,77.6,146.4
+MITRA,5,MITRA,Tabular Foundation,1312,0.42,10.3,49.5,827.4,626.5
+ROCKET,6,ROCKET,TS Classification,1244,0.38,10.4,55.5,1270.3,140.5
+ARSENAL,7,ARSENAL,TS Classification,1240,0.42,10.4,58.3,2876.0,2790.3
+TABM,8,TabM,Tabular Foundation,1156,0.24,12.5,54.6,52.1,114.2
+TABDPT,9,TabDPT,Tabular Foundation,1136,0.3,12.5,52.9,12.3,80.2
+REZERONET,10,ReZeroNet,Raman-Specific,1133,0.39,10.3,45.2,44.6,23.1
+REALMLP,11,RealMLP,Deep Learning,1111,0.21,13.7,56.4,1935.5,71.1
+CAT,12,CatBoost,Gradient Boosting,1069,0.08,15.4,60.5,537.5,22.4
+NN_TORCH,13,NN (Torch),Deep Learning,1066,0.21,13.8,57.0,1378.2,53.8
+XT,14,Extra Trees,Tree-based,1057,0.11,16.3,60.4,22.2,7.2
+RAMANNET,15,RamanNet,Raman-Specific,1028,0.22,14.3,54.0,73.9,13.3
+DEEPCNN,16,DeepCNN,Raman-Specific,1006,0.25,13.9,49.9,1280.1,63.5
+PLS,17,PLS,Traditional ML,1004,0.21,17.1,60.8,29.7,19.2
+LR,18,Logistic Reg.,Traditional ML,1002,0.27,14.6,53.3,37.2,41.2
+RF,19,Random Forest,Tree-based,1000,0.1,16.6,60.8,53.9,13.3
+KNN,20,KNN,Traditional ML,986,0.1,17.3,62.4,8.2,10.1
+RAMANFORMER,21,RamanFormer,Raman-Specific,979,0.18,17.2,59.1,501.2,102.7
+FASTAI,22,FastAI,Deep Learning,970,0.12,16.8,59.8,255.5,19.0
+COATNET,23,CoAtNet,Deep Learning,963,0.12,17.0,62.0,61.5,16.2
+GBM,24,LightGBM,Gradient Boosting,950,0.04,17.6,62.9,1453.5,7.3
+FCRESNEXT,25,FC-ResNeXt,Deep Learning,933,0.15,16.2,59.1,16.2,5.4
+XGB,26,XGBoost,Gradient Boosting,923,0.06,17.9,62.3,57.9,3.7
+SANET,27,SANet,Raman-Specific,798,0.14,19.1,64.6,37.9,39.7
+RAMANTRANSFORMER,28,RamanTransformer,Raman-Specific,710,0.04,23.1,74.0,429.8,134.8
