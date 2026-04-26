@@ -21,13 +21,19 @@ import uuid
 from typing import Any
 
 import torch
-from autogluon.common import TabularDataset
-from autogluon.common.space import Space
-from autogluon.tabular import TabularPredictor
 from pandas import DataFrame
 from raman_data import TASK_TYPE
 
-from raman_bench.models.custom.base import BaseCustomModel
+try:
+    from autogluon.common import TabularDataset
+    from autogluon.common.space import Space
+    from autogluon.tabular import TabularPredictor
+except ImportError as _ag_err:
+    raise ImportError(
+        "raman_bench.model requires autogluon. "
+        "Install with: pip install -r requirements-autogluon-fork.txt && pip install 'raman-bench[autogluon]'"
+    ) from _ag_err
+from raman_bench.models.custom.base import BaseRamanEstimator as BaseCustomModel
 from raman_bench.preprocessing.mixin import RamanPreprocessingMixin, build_restricted_searchspace
 from raman_bench.preprocessing.wrapped_models import create_preprocessed_hyperparameters
 
@@ -176,7 +182,11 @@ class AutoGluonModel:
         """
         hyperparameters = {}
         for cls, cfg in self.custom_models.items():
-            extra = self.model_extra_params if issubclass(cls, BaseCustomModel) else {}
+            sklearn_cls = getattr(cls, "_sklearn_cls", None)
+            is_custom = issubclass(cls, BaseCustomModel) or (
+                sklearn_cls is not None and issubclass(sklearn_cls, BaseCustomModel)
+            )
+            extra = self.model_extra_params if is_custom else {}
             merged = {**cfg, **extra}
             restriction = merged.pop("_prep_restriction", None)
 
