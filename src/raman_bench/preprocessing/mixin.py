@@ -24,7 +24,14 @@ import logging
 
 import numpy as np
 import pandas as pd
-from autogluon.common import space
+
+try:
+    from autogluon.common import space
+except ImportError as _ag_err:
+    raise ImportError(
+        "RamanPreprocessingMixin requires autogluon. "
+        "Install with: pip install 'raman-bench[autogluon]'"
+    ) from _ag_err
 
 from raman_bench.preprocessing.raman_preprocessing import (
     augment_spectra,
