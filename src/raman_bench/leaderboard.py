@@ -434,29 +434,32 @@ def _compute_normalized_score(
 
     Mirrors the per-dataset normalization used for precomputed baselines:
     best model → 1, median model → 0, clipped at 0.  Uses RMSE for regression
-    and F1 for classification.
+    and F1 for classification.  For task="overall" both sub-tasks are combined.
     """
-    if task == "regression":
-        cfg = score_params.get("regression", {})
-        metric, higher_is_better = "rmse", False
-    elif task == "classification":
-        cfg = score_params.get("classification", {})
-        metric, higher_is_better = "f1_score", True
-    else:
+    if "key" not in metrics_df.columns:
         return float("nan")
 
-    ds_params = cfg.get("datasets", {})
-    if not ds_params or metric not in metrics_df.columns or "key" not in metrics_df.columns:
-        return float("nan")
+    task_cfgs: list[tuple[str, str, bool]] = []
+    if task in ("regression", "overall"):
+        task_cfgs.append(("regression", "rmse", False))
+    if task in ("classification", "overall"):
+        task_cfgs.append(("classification", "f1_score", True))
 
-    per_dataset = metrics_df.groupby("key")[metric].mean()
     scores = []
-    for key, val in per_dataset.items():
-        p = ds_params.get(key)
-        if p is None or p.get("denom") is None:
+    for task_key, metric, higher_is_better in task_cfgs:
+        cfg = score_params.get(task_key, {})
+        ds_params = cfg.get("datasets", {})
+        if not ds_params or metric not in metrics_df.columns:
             continue
-        e = val if higher_is_better else -val
-        scores.append(float(max(0.0, (e - p["median"]) / p["denom"])))
+        per_dataset = metrics_df.groupby("key")[metric].mean()
+        for key, val in per_dataset.items():
+            if np.isnan(val):
+                continue
+            p = ds_params.get(key)
+            if p is None or p.get("denom") is None:
+                continue
+            e = val if higher_is_better else -val
+            scores.append(float(min(1.0, max(0.0, (e - p["median"]) / p["denom"]))))
 
     return float(np.mean(scores)) if scores else float("nan")
 
