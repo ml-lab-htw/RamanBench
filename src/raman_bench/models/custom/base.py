@@ -5,72 +5,72 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
-from autogluon.core.models import AbstractModel
+from sklearn.base import BaseEstimator
 from torch.utils.data import DataLoader, TensorDataset
 
 logger = logging.getLogger(__name__)
 
 
-class BaseCustomModel(AbstractModel):
-    """Shared base for all PyTorch-based AutoGluon model wrappers.
+class BaseRamanEstimator(BaseEstimator):
+    """Sklearn-compatible base for all PyTorch-based Raman models.
 
-    Provides common helpers for device setup, label encoding, train/val
-    splitting, the training loop with early stopping, and prediction.
-    Concrete subclasses only need to implement ``_set_default_params``,
-    ``_get_default_searchspace``, and ``_fit``.
+    Provides helpers for device setup, label encoding, train/val splitting,
+    the training loop with early stopping, and prediction.  Concrete
+    subclasses implement ``fit(self, X, y)`` by calling these helpers and
+    building their network architecture.
+
+    After ``fit`` the fitted attributes ``problem_type_``, ``classes_``
+    (classification only), and ``model`` are available.
     """
 
-    def set_fixed_params(self, fixed_params: dict) -> None:
-        self._fixed_params = fixed_params
-        for param, val in fixed_params.items():
-            self._set_default_param_value(param, val)
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
-    def _get_default_auxiliary_params(self):
-        default_auxiliary_params = super()._get_default_auxiliary_params()
-        default_auxiliary_params.update(
-            {"get_features_kwargs": {"valid_raw_types": ["int", "float"]}}
-        )
-        return default_auxiliary_params
+    def _infer_problem_type(self, y) -> str:
+        y_arr = np.asarray(y)
+        if np.issubdtype(y_arr.dtype, np.floating):
+            return "regression"
+        unique = np.unique(y_arr)
+        return "binary" if len(unique) == 2 else "multiclass"
 
-    def _log_params(self, params: dict) -> None:
-        logger.info("%s: training with params: %s", self.__class__.__name__, params)
+    def _to_numpy_X(self, X) -> np.ndarray:  # noqa: N802
+        if hasattr(X, "values"):
+            return X.values.astype(np.float32)
+        return np.asarray(X, dtype=np.float32)
 
     def _setup_device(self) -> None:
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def _prepare_labels(self, X, y):
-        """Convert X/y to numpy, set label encoding attrs, return tensors + criterion.
+        """Convert X/y to numpy arrays and build the loss criterion.
 
         Returns
         -------
-        X_np : np.ndarray of shape (n, features), dtype float32
-        y_np : np.ndarray of shape (n,), dtype int64 (classification) or float32 (regression)
+        X_np : np.ndarray, shape (n, features), dtype float32
+        y_np : np.ndarray, shape (n,)
         n_outputs : int
         criterion : nn.Module
         """
-        X_np = X.values.astype(np.float32)
+        X_np = self._to_numpy_X(X)
 
-        if self.problem_type in ("multiclass", "binary"):
-            self._classes = np.unique(y)
-            self._n_classes = len(self._classes)
-            self._class_to_idx = {c: i for i, c in enumerate(self._classes)}
-            y_np = np.array([self._class_to_idx[v] for v in y], dtype=np.int64)
-            n_outputs = self._n_classes
+        if self.problem_type_ in ("multiclass", "binary"):
+            self.classes_ = np.unique(y)
+            self.n_classes_ = len(self.classes_)
+            self._class_to_idx = {c: i for i, c in enumerate(self.classes_)}
+            y_arr = np.asarray(y)
+            y_np = np.array([self._class_to_idx[v] for v in y_arr], dtype=np.int64)
+            n_outputs = self.n_classes_
             criterion = nn.CrossEntropyLoss()
         else:
-            y_np = y.values.astype(np.float32)
+            y_np = np.asarray(y, dtype=np.float32)
             n_outputs = 1
             criterion = nn.MSELoss()
 
         return X_np, y_np, n_outputs, criterion
 
     def _train_val_split(self, X_np: np.ndarray, y_np: np.ndarray, val_fraction: float):
-        """Split arrays into train/val tensors using a fixed random seed.
-
-        Returns
-        -------
-        X_train_t, X_val_t, y_train_t, y_val_t : torch.Tensor
-        """
+        """Split arrays into train/val tensors using a fixed random seed."""
         n_val = max(1, int(len(X_np) * val_fraction))
         indices = np.random.RandomState(0).permutation(len(X_np))
         val_idx, train_idx = indices[:n_val], indices[n_val:]
@@ -78,7 +78,7 @@ class BaseCustomModel(AbstractModel):
         X_train_t = torch.tensor(X_np[train_idx], dtype=torch.float32)
         X_val_t = torch.tensor(X_np[val_idx], dtype=torch.float32)
 
-        if self.problem_type in ("multiclass", "binary"):
+        if self.problem_type_ in ("multiclass", "binary"):
             y_train_t = torch.tensor(y_np[train_idx], dtype=torch.long)
             y_val_t = torch.tensor(y_np[val_idx], dtype=torch.long)
         else:
@@ -110,62 +110,8 @@ class BaseCustomModel(AbstractModel):
     ) -> None:
         """Run the full training loop with validation and early stopping.
 
-        Uses a cosine annealing schedule with a linear warmup. If
-        ``per_epoch_augmentation`` is enabled, a fresh augmented DataLoader
-        (noise + mixup) is built at the start of each epoch. The best model
-        state (lowest validation loss) is restored after training.
-
-        Parameters
-        ----------
-        X_train_t:
-            Training features as a float32 tensor of shape (n_train, n_features).
-        y_train_t:
-            Training labels as a tensor of shape (n_train,) or (n_train, 1).
-        X_val_t:
-            Validation features as a float32 tensor of shape (n_val, n_features).
-        y_val_t:
-            Validation labels as a tensor of shape (n_val,) or (n_val, 1).
-        n_epochs:
-            Maximum number of training epochs.
-        patience:
-            Number of epochs without validation improvement before early stopping.
-        time_limit:
-            Optional wall-clock time budget in seconds. Training stops early
-            when 90 % of the budget is consumed. Pass ``None`` for no limit.
-        criterion:
-            Loss function (e.g. ``nn.CrossEntropyLoss`` or ``nn.MSELoss``).
-        per_epoch_augmentation:
-            If ``True``, apply noise and mixup augmentation at each epoch.
-        batch_size:
-            Mini-batch size for the training DataLoader.
-        aug_noise_sigma:
-            Standard deviation of Gaussian noise applied during augmentation.
-        aug_mixup_alpha:
-            Alpha parameter for the Beta distribution used in mixup augmentation.
-        lr:
-            Initial learning rate for the Adam optimiser.
-        weight_decay:
-            L2 regularisation coefficient for the Adam optimiser.
-        warmup_epochs:
-            Number of epochs over which the learning rate is linearly warmed up
-            before cosine annealing begins.
-        grad_clip_norm:
-            If set, gradient norms are clipped to this value via
-            ``torch.nn.utils.clip_grad_norm_`` before each optimiser step.
-            Prevents exploding gradients / NaN weights on small datasets.
-            ``None`` disables clipping (default).
-        aug_max_train_samples:
-            If set and the training split has more samples than this threshold,
-            ``per_epoch_augmentation`` is forced off.  Augmentation is most
-            valuable on small datasets; for large ones it adds overhead without
-            much benefit.  ``None`` disables the threshold (default).
-        aug_n_per_epoch:
-            Number of augmented copies produced per epoch (passed to
-            ``augment_spectra_torch`` as ``n_augments``).  Each copy is tiled
-            from the training set with fresh noise, so the effective training
-            set size per epoch is ``aug_n_per_epoch × n_train``.  Increasing
-            this on very small datasets (< batch_size) ensures at least one
-            full mini-batch and stabilises BatchNorm statistics.  Default 1.
+        Uses a cosine annealing schedule with linear warmup.  The best
+        model state (lowest validation loss) is restored after training.
         """
         if y_train_t.float().std() == 0:
             raise ValueError(
@@ -174,33 +120,7 @@ class BaseCustomModel(AbstractModel):
             )
 
         if aug_max_train_samples is not None and len(X_train_t) > aug_max_train_samples:
-            if per_epoch_augmentation:
-                logger.info(
-                    "%s: disabling per-epoch augmentation — train set (%d) "
-                    "exceeds aug_max_train_samples (%d).",
-                    self.__class__.__name__,
-                    len(X_train_t),
-                    aug_max_train_samples,
-                )
             per_epoch_augmentation = False
-
-        if per_epoch_augmentation:
-            logger.info(
-                "%s: per-epoch augmentation ENABLED — noise_sigma=%.4g, "
-                "mixup_alpha=%.4g, n_per_epoch=%d, train_samples=%d (→ %d per epoch).",
-                self.__class__.__name__,
-                aug_noise_sigma,
-                aug_mixup_alpha,
-                aug_n_per_epoch,
-                len(X_train_t),
-                aug_n_per_epoch * len(X_train_t),
-            )
-        else:
-            logger.info(
-                "%s: per-epoch augmentation DISABLED — train_samples=%d.",
-                self.__class__.__name__,
-                len(X_train_t),
-            )
 
         best_val_loss = float("inf")
         best_state = None
@@ -241,7 +161,7 @@ class BaseCustomModel(AbstractModel):
                     noise_sigma=aug_noise_sigma,
                     shift_max=0,
                     mixup_alpha=aug_mixup_alpha,
-                    label_type=self.problem_type,
+                    label_type=self.problem_type_,
                     n_augments=aug_n_per_epoch,
                 )
                 train_loader = DataLoader(
@@ -265,19 +185,13 @@ class BaseCustomModel(AbstractModel):
                 out = self.model(X_batch)
                 loss = criterion(out, y_batch)
                 if torch.isnan(loss):
-                    logger.debug(
-                        "%s: NaN batch loss at epoch %d — skipping batch.",
-                        self.__class__.__name__,
-                        epoch,
-                    )
                     continue
                 loss.backward()
                 if grad_clip_norm is not None:
                     nn.utils.clip_grad_norm_(self.model.parameters(), grad_clip_norm)
                 optimizer.step()
 
-            if scheduler is not None:
-                scheduler.step()
+            scheduler.step()
 
             self.model.eval()
             with torch.no_grad():
@@ -285,11 +199,6 @@ class BaseCustomModel(AbstractModel):
                 val_loss = criterion(val_out.to(self._device), y_val_t.to(self._device)).item()
 
             if math.isnan(val_loss):
-                logger.debug(
-                    "%s: NaN validation loss at epoch %d — skipping state update.",
-                    self.__class__.__name__,
-                    epoch,
-                )
                 epochs_no_improve += 1
             elif val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -300,37 +209,26 @@ class BaseCustomModel(AbstractModel):
 
             if epochs_no_improve >= patience:
                 logger.info(
-                    "%s: early stopping at epoch %d",
-                    self.__class__.__name__,
-                    epoch,
+                    "%s: early stopping at epoch %d", self.__class__.__name__, epoch
                 )
                 break
 
         if best_state is None:
             raise ValueError(
                 f"{self.__class__.__name__}: training produced NaN validation loss on every "
-                f"epoch — model cannot be saved.  This is usually caused by numerical "
-                f"instability in the network (e.g. exploding gradients, fp16 overflow, or "
-                f"a very deep architecture on this dataset; n_train={len(X_train_t)})."
+                f"epoch — cannot save model (n_train={len(X_train_t)})."
             )
         self.model.load_state_dict(best_state)
         self.model = self.model.cpu()
 
-        # Sanity-check: verify the restored best model does not produce NaN
-        # predictions on the validation set.  Internal val loss being non-NaN
-        # does not guarantee this — BatchNorm running statistics trained on the
-        # augmented distribution can overflow on the original data.
         self.model.eval()
         with torch.no_grad():
             check_out = self._batched_forward(
                 X_val_t, device=torch.device("cpu"), batch_size=batch_size
             )
-
         if torch.isnan(check_out).any():
             raise ValueError(
-                f"{self.__class__.__name__}: best model produces NaN predictions "
-                f"after training — BatchNorm running statistics likely diverged "
-                f"due to augmented vs. original data mismatch "
+                f"{self.__class__.__name__}: best model produces NaN predictions after training "
                 f"(n_train={len(X_train_t)}, n_val={len(X_val_t)})."
             )
 
@@ -344,36 +242,52 @@ class BaseCustomModel(AbstractModel):
             chunks.append(self.model(chunk).cpu())
         return torch.cat(chunks, dim=0)
 
-    def _predict(self, X, **kwargs):
+    # ------------------------------------------------------------------
+    # Sklearn API
+    # ------------------------------------------------------------------
+
+    def predict(self, X):
+        """Predict labels or regression targets for X.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+
+        Returns
+        -------
+        np.ndarray of shape (n_samples,)
+        """
         self.model.eval()
-        X_t = torch.tensor(X.values.astype(np.float32), dtype=torch.float32)
+        X_np = self._to_numpy_X(X)
+        X_t = torch.tensor(X_np, dtype=torch.float32)
         device = next(self.model.parameters()).device
         batch_size = getattr(self, "_pred_batch_size", 128)
         with torch.no_grad():
             out = self._batched_forward(X_t, device=device, batch_size=batch_size)
-        if self.problem_type in ("multiclass", "binary"):
+        if self.problem_type_ in ("multiclass", "binary"):
             indices = torch.argmax(out, dim=1).numpy()
-            return self._classes[indices]
+            return self.classes_[indices]
         return out.squeeze(1).numpy()
 
-    def _predict_proba(self, X, **kwargs):
-        if self.problem_type == "regression":
-            # Inline rather than self._predict() to avoid re-entering
-            # RamanPreprocessingMixin._predict and applying preprocessing twice.
-            self.model.eval()
-            X_t = torch.tensor(X.values.astype(np.float32), dtype=torch.float32)
-            device = next(self.model.parameters()).device
-            batch_size = getattr(self, "_pred_batch_size", 128)
-            with torch.no_grad():
-                out = self._batched_forward(X_t, device=device, batch_size=batch_size)
-            return out.squeeze(1).numpy()
+    def predict_proba(self, X):
+        """Predict class probabilities for X (classification only).
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+
+        Returns
+        -------
+        np.ndarray of shape (n_samples, n_classes)
+        """
         self.model.eval()
-        X_t = torch.tensor(X.values.astype(np.float32), dtype=torch.float32)
+        X_np = self._to_numpy_X(X)
+        X_t = torch.tensor(X_np, dtype=torch.float32)
         device = next(self.model.parameters()).device
         batch_size = getattr(self, "_pred_batch_size", 128)
         with torch.no_grad():
             out = self._batched_forward(X_t, device=device, batch_size=batch_size)
         proba = torch.softmax(out, dim=1).numpy()
-        if self.problem_type == "binary":
+        if self.problem_type_ == "binary":
             return proba[:, 1]
         return proba

@@ -6,7 +6,7 @@ binary or multiclass classification.
 
 Required extras::
 
-    pip install 'raman-bench[deep]'
+    pip install 'raman-bench[models]'
 
 which installs ``tabpfn``, ``pytabkit``, and ``tabdpt``.
 """
@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 from sklearn.base import BaseEstimator
 
-_DEEP_INSTALL = "pip install 'raman-bench[deep]'"
+_DEEP_INSTALL = "pip install 'raman-bench[models]'"
 
 
 def _to_numpy(X) -> np.ndarray:
@@ -32,7 +32,7 @@ def _infer_problem_type(y) -> str:
 class TabPFNModel(BaseEstimator):
     """TabPFN v2 for Raman spectra — sklearn-compatible (classification + regression).
 
-    Requires the ``tabpfn`` package (``pip install 'raman-bench[deep]'``).
+    Requires the ``tabpfn`` package (``pip install 'raman-bench[models]'``).
     Works on datasets with any number of features.
 
     Reference:
@@ -78,7 +78,7 @@ class TabPFNModel(BaseEstimator):
 class RealMLPModel(BaseEstimator):
     """RealMLP (pytabkit) for Raman spectra — sklearn-compatible (classification + regression).
 
-    Requires the ``pytabkit`` package (``pip install 'raman-bench[deep]'``).
+    Requires the ``pytabkit`` package (``pip install 'raman-bench[models]'``).
 
     Reference:
         Gorishniy Y, et al. RealMLP-TD: A Powerful Simple Tabular Deep Learning
@@ -121,7 +121,7 @@ class RealMLPModel(BaseEstimator):
 class TabMModel(BaseEstimator):
     """TabM (pytabkit) for Raman spectra — sklearn-compatible (classification + regression).
 
-    Requires the ``pytabkit`` package (``pip install 'raman-bench[deep]'``).
+    Requires the ``pytabkit`` package (``pip install 'raman-bench[models]'``).
 
     Reference:
         Gorishniy Y, et al. TabM: Advancing Tabular Deep Learning with
@@ -164,7 +164,7 @@ class TabMModel(BaseEstimator):
 class TabDPTModel(BaseEstimator):
     """TabDPT for Raman spectra — sklearn-compatible (classification + regression).
 
-    Requires the ``tabdpt`` package (``pip install 'raman-bench[deep]'``).
+    Requires the ``tabdpt`` package (``pip install 'raman-bench[models]'``).
 
     Reference:
         Ma J, et al. TabDPT: Scaling Tabular Foundation Models.

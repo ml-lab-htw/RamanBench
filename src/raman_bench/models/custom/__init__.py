@@ -1,22 +1,28 @@
-"""Raman-specific neural network models.
+"""Raman-specific models with a scikit-learn-compatible API.
 
-All models are AutoGluon-compatible (inherit from
-:class:`~autogluon.core.models.AbstractModel`) and implement the
-:class:`~raman_bench.models.custom.base.BaseCustomModel` training loop with
-early stopping and optional per-epoch augmentation.
+All models expose ``fit(X, y)`` and ``predict(X)`` and require only
+``torch`` (PyTorch-based models), ``sktime`` (ROCKET/Arsenal), or the
+respective foundation-model package (TabPFN, RealMLP, TabM, TabDPT).
+AutoGluon is **not** required.
 """
 
-from raman_bench.models.custom.base import BaseCustomModel
+from raman_bench.models.custom.base import BaseRamanEstimator
 from raman_bench.models.custom.coatnet import CoAtNetModel
 from raman_bench.models.custom.deepcnn import DeepCNNModel
 from raman_bench.models.custom.fcresnext import FCResNeXtModel
-from raman_bench.models.custom.pls import FlexiblePipelinePLS, PLSModel, PreprocessingPLS
+from raman_bench.models.custom.pls import PLSModel
 from raman_bench.models.custom.ramanformer import RamanFormerModel
 from raman_bench.models.custom.ramannet import RamanNetModel
 from raman_bench.models.custom.ramantransformer import RamanTransformerModel
 from raman_bench.models.custom.rezeronet import ReZeroNetModel
 from raman_bench.models.custom.sanet import SANetModel
 from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
+from raman_bench.models.custom.tabular_foundation import (
+    RealMLPModel,
+    TabDPTModel,
+    TabMModel,
+    TabPFNModel,
+)
 
 CUSTOM_MODELS = {
     "PLS": PLSModel,
@@ -25,23 +31,23 @@ CUSTOM_MODELS = {
     "SANET": SANetModel,
     "RAMANFORMER": RamanFormerModel,
     "RAMANTRANSFORMER": RamanTransformerModel,
-    "PREPROCESSINGPLS": PreprocessingPLS,
-    "PipelinePLS": FlexiblePipelinePLS,
     "REZERONET": ReZeroNetModel,
     "FCRESNEXT": FCResNeXtModel,
     "COATNET": CoAtNetModel,
     "ROCKET": RocketModel,
     "ARSENAL": ArsenalModel,
+    "TABPFN": TabPFNModel,
+    "REALMLP": RealMLPModel,
+    "TABM": TabMModel,
+    "TABDPT": TabDPTModel,
 }
 
 __all__ = [
-    "BaseCustomModel",
+    "BaseRamanEstimator",
     "CoAtNetModel",
     "DeepCNNModel",
     "FCResNeXtModel",
-    "FlexiblePipelinePLS",
     "PLSModel",
-    "PreprocessingPLS",
     "RamanFormerModel",
     "RamanNetModel",
     "RamanTransformerModel",
@@ -49,5 +55,9 @@ __all__ = [
     "SANetModel",
     "ArsenalModel",
     "RocketModel",
+    "TabPFNModel",
+    "RealMLPModel",
+    "TabMModel",
+    "TabDPTModel",
     "CUSTOM_MODELS",
 ]
