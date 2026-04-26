@@ -27,10 +27,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'requirements-autogluon-fork.txt') }}
-
-      - name: Install AutoGluon fork
-        run: pip install -r requirements-autogluon-fork.txt
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
 
       - name: Install package (core + dev)
         run: pip install -e ".[dev]"
