@@ -9,7 +9,7 @@
 # Install this BEFORE installing raman-bench:
 #
 #   pip install -r requirements-autogluon-fork.txt
-#   pip install raman-bench[deep]
+#   pip install raman-bench[models]
 #
 # Fork: https://github.com/mario-koddenbrock/autogluon
 
