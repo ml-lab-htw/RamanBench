@@ -15,9 +15,23 @@ are applied for specific model families:
 - Raman DL models (:class:`Prep_DEEPCNN`, :class:`Prep_RAMANNET`, etc.) enable
   spectral augmentation (noise + shift) which is the standard regularisation
   strategy for small spectral datasets.
+
+Custom sklearn-compatible models (``DeepCNNModel``, ``PLSModel``, etc.) are
+connected to AutoGluon via :class:`SklearnAutoGluonBridge`, which adapts
+sklearn's ``fit(X, y)`` / ``predict(X)`` API to AutoGluon's internal
+``_fit`` / ``_predict_proba`` interface.  This keeps the custom model classes
+themselves free of any AutoGluon dependency.
 """
 
-from autogluon.core.models import DummyModel
+import numpy as np
+
+try:
+    from autogluon.core.models import AbstractModel, DummyModel
+except ImportError as _ag_err:
+    raise ImportError(
+        "raman_bench.preprocessing.wrapped_models requires autogluon. "
+        "Install with: pip install 'raman-bench[autogluon]'"
+    ) from _ag_err
 from autogluon.tabular.models import (
     CatBoostModel,
     KNNModel,
@@ -48,6 +62,100 @@ from raman_bench.models.custom.rezeronet import ReZeroNetModel
 from raman_bench.models.custom.sanet import SANetModel
 from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
 from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
+
+# ---------------------------------------------------------------------------
+# Bridge: sklearn fit()/predict() ↔ AutoGluon _fit()/_predict_proba()
+# ---------------------------------------------------------------------------
+
+
+class SklearnAutoGluonBridge(AbstractModel):
+    """Adapter that connects sklearn-compatible estimators to AutoGluon.
+
+    Concrete subclasses set ``_sklearn_cls`` to a sklearn ``BaseEstimator``
+    subclass.  AutoGluon hyperparameters (excluding ``ag.*`` and ``prep_*``
+    prefixes) are forwarded verbatim to the sklearn constructor.
+
+    This keeps all custom model classes free of AutoGluon imports while still
+    allowing them to participate in the full AutoGluon benchmark pipeline.
+    """
+
+    _sklearn_cls = None  # override in subclass
+
+    def _fit(self, X, y, **kwargs):
+        X_np = X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
+        y_arr = y.values if hasattr(y, "values") else np.asarray(y)
+
+        # _get_model_params() at this point no longer contains prep_* keys —
+        # RamanPreprocessingMixin._fit() strips them before calling super().
+        params = {
+            k: v for k, v in self._get_model_params().items()
+            if not k.startswith("ag.") and not k.startswith("_")
+        }
+        self._estimator = self._sklearn_cls(**params)
+        self._estimator.fit(X_np, y_arr)
+
+    def _predict_proba(self, X, **kwargs):
+        X_np = X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
+        if self.problem_type == "regression":
+            return self._estimator.predict(X_np)
+        proba = self._estimator.predict_proba(X_np)
+        # AutoGluon expects (n, n_classes); our binary wrappers may return 1-D
+        if proba.ndim == 1:
+            return np.column_stack([1.0 - proba, proba])
+        return proba
+
+    def _get_default_searchspace(self):
+        return {}
+
+
+# Per-model bridge subclasses (one line each — just set _sklearn_cls)
+class _PLSBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = PLSModel
+
+
+class _DeepCNNBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = DeepCNNModel
+
+
+class _RamanNetBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = RamanNetModel
+
+
+class _SANetBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = SANetModel
+
+
+class _RamanFormerBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = RamanFormerModel
+
+
+class _RamanTransformerBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = RamanTransformerModel
+
+
+class _ReZeroNetBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = ReZeroNetModel
+
+
+class _FCResNeXtBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = FCResNeXtModel
+
+
+class _CoAtNetBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = CoAtNetModel
+
+
+class _RocketBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = RocketModel
+
+
+class _ArsenalBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = ArsenalModel
+
+
+# ---------------------------------------------------------------------------
+# Shared mixin bases
+# ---------------------------------------------------------------------------
 
 
 class _NoAugBase(RamanPreprocessingMixin):
@@ -145,7 +253,7 @@ class Prep_LR(_NoAugBase, LinearModel):  # noqa: N801
 # ---------------------------------------------------------------------------
 
 
-class Prep_PLS(_NoAugBase, PLSModel):  # noqa: N801
+class Prep_PLS(_NoAugBase, _PLSBridge):  # noqa: N801
     """Baseline correction + denoising + SNV — standard PLS pre-processing in spectroscopy."""
 
     def _set_default_params(self):
@@ -168,43 +276,43 @@ class _RamanDLBase(RamanPreprocessingMixin):
         super()._set_default_params()
 
 
-class Prep_DEEPCNN(_RamanDLBase, DeepCNNModel):  # noqa: N801
+class Prep_DEEPCNN(_RamanDLBase, _DeepCNNBridge):  # noqa: N801
     pass
 
 
-class Prep_RAMANNET(_RamanDLBase, RamanNetModel):  # noqa: N801
+class Prep_RAMANNET(_RamanDLBase, _RamanNetBridge):  # noqa: N801
     pass
 
 
-class Prep_SANET(_RamanDLBase, SANetModel):  # noqa: N801
+class Prep_SANET(_RamanDLBase, _SANetBridge):  # noqa: N801
     pass
 
 
-class Prep_RAMANFORMER(_RamanDLBase, RamanFormerModel):  # noqa: N801
+class Prep_RAMANFORMER(_RamanDLBase, _RamanFormerBridge):  # noqa: N801
     pass
 
 
-class Prep_RAMANTRANSFORMER(_RamanDLBase, RamanTransformerModel):  # noqa: N801
+class Prep_RAMANTRANSFORMER(_RamanDLBase, _RamanTransformerBridge):  # noqa: N801
     pass
 
 
-class Prep_REZERONET(_RamanDLBase, ReZeroNetModel):  # noqa: N801
+class Prep_REZERONET(_RamanDLBase, _ReZeroNetBridge):  # noqa: N801
     pass
 
 
-class Prep_FCRESNEXT(_RamanDLBase, FCResNeXtModel):  # noqa: N801
+class Prep_FCRESNEXT(_RamanDLBase, _FCResNeXtBridge):  # noqa: N801
     pass
 
 
-class Prep_COATNET(_RamanDLBase, CoAtNetModel):  # noqa: N801
+class Prep_COATNET(_RamanDLBase, _CoAtNetBridge):  # noqa: N801
     pass
 
 
-class Prep_ROCKET(_NoAugBase, RocketModel):  # noqa: N801
+class Prep_ROCKET(_NoAugBase, _RocketBridge):  # noqa: N801
     pass
 
 
-class Prep_ARSENAL(_NoAugBase, ArsenalModel):  # noqa: N801
+class Prep_ARSENAL(_NoAugBase, _ArsenalBridge):  # noqa: N801
     pass
 
 
