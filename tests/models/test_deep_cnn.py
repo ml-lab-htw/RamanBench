@@ -1,105 +1,85 @@
-"""Unit tests for raman_bench.custom_models.deepcnn"""
+"""Unit tests for DeepCNNModel."""
 
 import numpy as np
-import pandas as pd
-import torch
+import pytest
 
-from raman_bench.models.custom.deepcnn import DeepCNNModel, _DeepCNNNetwork
+torch = pytest.importorskip("torch")
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+from raman_bench.models.custom.deepcnn import DeepCNNModel, _DeepCNNNetwork  # noqa: E402
 
 
-def _make_classification_data(n_samples=50, n_features=128, n_classes=3, seed=0):
+def _clf(n=60, f=128, n_classes=3, seed=0):
     rng = np.random.RandomState(seed)
-    X = pd.DataFrame(rng.randn(n_samples, n_features).astype(np.float32))
-    y = pd.Series(rng.choice(n_classes, size=n_samples))
-    return X, y
+    return rng.randn(n, f).astype(np.float32), rng.choice(n_classes, size=n)
 
 
-def _make_regression_data(n_samples=50, n_features=128, seed=0):
+def _bin(n=60, f=128, seed=0):
     rng = np.random.RandomState(seed)
-    X = pd.DataFrame(rng.randn(n_samples, n_features).astype(np.float32))
-    y = pd.Series(rng.randn(n_samples).astype(np.float32))
-    return X, y
+    return rng.randn(n, f).astype(np.float32), rng.choice([0, 1], size=n)
 
 
-def _make_fitted_model(problem_type="multiclass", n_features=128, n_epochs=2):
-    model = DeepCNNModel(problem_type=problem_type)
-    model.params = {
-        "n_epochs": n_epochs,
-        "lr": 1e-3,
-        "batch_size": 16,
-        "initial_channels": 16,
-        "dropout": 0.0,
-        "patience": 5,
-        "val_fraction": 0.1,
-        "dense_dim": 128,
-        "warmup_epochs": 0,
-        "weight_decay": 0.0,
-        "aug_noise_sigma": 0.0,
-        "aug_mixup_alpha": 0.0,
-        "per_epoch_augmentation": True,
-    }
-    if problem_type in ("multiclass", "binary"):
-        X, y = _make_classification_data(
-            n_features=n_features,
-            n_classes=3 if problem_type == "multiclass" else 2,
-        )
-    else:
-        X, y = _make_regression_data(n_features=n_features)
-    model._fit(X, y)
-    return model, X
+def _reg(n=60, f=128, seed=0):
+    rng = np.random.RandomState(seed)
+    return rng.randn(n, f).astype(np.float32), rng.randn(n).astype(np.float32)
 
 
-# ---------------------------------------------------------------------------
-# 1. Network output shape (classification)
-# ---------------------------------------------------------------------------
+def _model(**kwargs):
+    defaults = dict(
+        n_epochs=2, initial_channels=8, dense_dim=32,
+        batch_size=16, patience=100, val_fraction=0.2, warmup_epochs=0,
+    )
+    return DeepCNNModel(**{**defaults, **kwargs})
 
 
-def test_network_output_shape_classification():
-    """Forward pass should produce (batch, n_outputs) tensor."""
-    n_features, n_outputs, batch = 128, 5, 8
-    net = _DeepCNNNetwork(n_features, n_outputs)
-    x = torch.randn(batch, n_features)
-    out = net(x)
-    assert out.shape == (batch, n_outputs)
+def test_network_output_shape():
+    net = _DeepCNNNetwork(128, 5, initial_channels=8, dense_dim=32)
+    out = torch.randn(8, 128)
+    assert net(out).shape == (8, 5)
 
 
-# ---------------------------------------------------------------------------
-# 2. _fit sets expected attributes
-# ---------------------------------------------------------------------------
-
-
-def test_fit_multiclass_sets_classes():
-    """After fitting a multiclass model _classes and _n_classes are set."""
-    model, _ = _make_fitted_model(problem_type="multiclass")
-    assert hasattr(model, "_classes")
-    assert model._n_classes == 3
-
-
-# ---------------------------------------------------------------------------
-# 3. _predict returns correct shape and valid classes
-# ---------------------------------------------------------------------------
-
-
-def test_predict_multiclass_returns_known_labels():
-    """Every predicted label must be one of the training classes."""
-    model, X = _make_fitted_model(problem_type="multiclass")
-    preds = model._predict(X)
+def test_predict_multiclass():
+    X, y = _clf()
+    m = _model().fit(X, y)
+    preds = m.predict(X)
     assert len(preds) == len(X)
-    assert set(preds).issubset(set(model._classes))
+    assert set(preds).issubset(set(m.classes_))
 
 
-# ---------------------------------------------------------------------------
-# 4. _predict_proba returns valid probability array
-# ---------------------------------------------------------------------------
+def test_predict_proba_multiclass():
+    X, y = _clf()
+    m = _model().fit(X, y)
+    proba = m.predict_proba(X)
+    assert proba.shape == (len(X), m.n_classes_)
+    np.testing.assert_allclose(proba.sum(axis=1), 1.0, atol=1e-5)
 
 
-def test_proba_multiclass_shape_and_sums():
-    """Multiclass probabilities: shape (n, k), rows sum to ~1."""
-    model, X = _make_fitted_model(problem_type="multiclass")
-    proba = model._predict_proba(X)
-    assert proba.shape == (len(X), model._n_classes)
-    np.testing.assert_allclose(proba.sum(axis=1), np.ones(len(X)), atol=1e-5)
+def test_predict_binary():
+    X, y = _bin()
+    m = _model().fit(X, y)
+    assert set(m.predict(X)).issubset({0, 1})
+
+
+def test_predict_proba_binary():
+    X, y = _bin()
+    proba = _model().fit(X, y).predict_proba(X)
+    assert proba.ndim == 1
+    assert np.all((proba >= 0) & (proba <= 1))
+
+
+def test_predict_regression():
+    X, y = _reg()
+    preds = _model().fit(X, y).predict(X)
+    assert len(preds) == len(X)
+    assert np.issubdtype(preds.dtype, np.floating)
+
+
+def test_inferred_problem_type():
+    X, y = _clf()
+    assert _model().fit(X, y).problem_type_ == "multiclass"
+    X, y = _reg()
+    assert _model().fit(X, y).problem_type_ == "regression"
+
+
+def test_early_stopping():
+    X, y = _reg()
+    assert _model(n_epochs=500, patience=1).fit(X, y).model is not None
