@@ -51,7 +51,7 @@ autogluon = [
     "autogluon.features>=1.5",
     "autogluon.tabular>=1.5",
 ]
-deep = [
+models = [
     "torch>=2.0,<3.0",
     "ramanspy>=0.2.10,<0.3.0",
     "imodels>=2.0.4",
@@ -63,7 +63,7 @@ deep = [
 ]
 full = [
     "raman-bench[autogluon]",
-    "raman-bench[deep]",
+    "raman-bench[models]",
     "adjustText>=1.2.0",
     "pynvml>=11.0",
 ]
