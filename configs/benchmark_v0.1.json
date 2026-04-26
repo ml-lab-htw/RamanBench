@@ -7,7 +7,7 @@
     "cache_dir": ".cache",
     "output_dir": "results/benchmark_v0.1",
     "models": "models/all.json",
-    "autogluon_time_limit": 3600,
+    "autogluon_time_limit": 14400,
     "autogluon_presets": "best_quality",
     "optimize": false,
     "ensemble": false,
