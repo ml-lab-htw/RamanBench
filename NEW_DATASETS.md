@@ -45,6 +45,7 @@ df = dataset.to_dataframe()
 | [Gasoline Properties (Handheld)](#gasoline-properties-handheld)                      | Chemical | Regression | 1 | 12 | 179 | 1,901 | 400–2300 |
 | [Adenine SERS (Colloidal)](#adenine-sers-colloidal)                                  | Chemical | Regression | 2 | 2 | 855 | 534 | 400–1999 |
 | [Adenine SERS (Solid)](#adenine-sers-solid)                                          | Chemical | Regression | 2 | 2 | 2,661 | 534 | 400–1999 |
+| **Total**                                                                            | | | **17** | **71** | **6,743** | | |
 
 ---
 
