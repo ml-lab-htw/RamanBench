@@ -31,7 +31,7 @@ df = dataset.to_dataframe()
 
 ## Overview
 
-| Group                                                                                | Domain | Task | Datasets | Targets | Samples | Features | Range (cm⁻¹) |
+|                                                                                      | Domain | Task | Datasets | Targets | Samples | Features | Range (cm⁻¹) |
 |--------------------------------------------------------------------------------------|---|---|---|---|---|---|---|
 | [E. coli Fermentation (Kaiser)](#e-coli-fermentation-kaiser)                         | Biological | Regression | 2 | 8 | 28 | 1,699 | 301–1999 |
 | [E. coli Fermentation (Time-Gated)](#e-coli-fermentation-time-gated)                 | Biological | Regression | 2 | 8 | 25 | 114 | 604–1508 |
