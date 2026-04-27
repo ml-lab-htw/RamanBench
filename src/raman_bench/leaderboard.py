@@ -411,18 +411,16 @@ def _summarise_model_metrics(
     task: str,
     score_params: dict | None = None,
 ) -> dict:
-    """Aggregate per-(key, seed) metrics into a single leaderboard row."""
-    row: dict = {"Model": model_name}
+    """Aggregate per-(key, seed) metrics into a single leaderboard row.
 
-    numeric = metrics_df.select_dtypes(include=[np.number])
-    for col in numeric.columns:
-        if col not in ("seed",):
-            row[col] = float(numeric[col].mean())
-
-    if "Score" not in row:
-        row["Score"] = _compute_normalized_score(metrics_df, task, score_params or {})
-
-    return row
+    Only ``Model`` and ``Score`` are returned — raw per-dataset metrics
+    (rmse, r2, f1_score, …) are kept in the metrics DataFrame that
+    ``evaluate_and_add`` returns, not in the leaderboard display columns.
+    """
+    return {
+        "Model": model_name,
+        "Score": _compute_normalized_score(metrics_df, task, score_params or {}),
+    }
 
 
 def _compute_normalized_score(
