@@ -25,8 +25,18 @@ class _PositionalEncoding(nn.Module):
 class _RamanFormerNetwork(nn.Module):
     """Transformer encoder for spectral data (Koyun et al., 2024)."""
 
-    def __init__(self, n_features, n_outputs, patch_size=128, d_model=256, nhead=8,
-                 dim_feedforward=1024, n_layers=3, dropout=0.1, post_processing_dim=512):
+    def __init__(
+        self,
+        n_features,
+        n_outputs,
+        patch_size=128,
+        d_model=256,
+        nhead=8,
+        dim_feedforward=1024,
+        n_layers=3,
+        dropout=0.1,
+        post_processing_dim=512,
+    ):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = math.ceil(n_features / patch_size)
@@ -36,8 +46,12 @@ class _RamanFormerNetwork(nn.Module):
         self.pos_enc = _PositionalEncoding(d_model, max_len=self.n_patches)
 
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward,
-            activation="gelu", dropout=dropout, batch_first=True,
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            activation="gelu",
+            dropout=dropout,
+            batch_first=True,
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
 

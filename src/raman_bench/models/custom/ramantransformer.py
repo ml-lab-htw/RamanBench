@@ -9,8 +9,17 @@ from raman_bench.models.custom.base import BaseRamanEstimator
 class _RamanTransformerNetwork(nn.Module):
     """ViT-style transformer adapted for 1D Raman spectra (Liu et al., 2023)."""
 
-    def __init__(self, n_features, n_outputs, patch_size=16, d_model=768,
-                 nhead=12, dim_feedforward=3072, n_layers=12, dropout=0.1):
+    def __init__(
+        self,
+        n_features,
+        n_outputs,
+        patch_size=16,
+        d_model=768,
+        nhead=12,
+        dim_feedforward=3072,
+        n_layers=12,
+        dropout=0.1,
+    ):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = math.ceil(n_features / patch_size)
@@ -25,8 +34,12 @@ class _RamanTransformerNetwork(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward,
-            activation="gelu", dropout=dropout, batch_first=True,
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            activation="gelu",
+            dropout=dropout,
+            batch_first=True,
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
         self.norm = nn.LayerNorm(d_model)

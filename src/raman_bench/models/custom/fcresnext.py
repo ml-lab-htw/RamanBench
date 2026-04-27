@@ -29,8 +29,16 @@ class _ResNeXtBlock(nn.Module):
 class _FCResNeXtNetwork(nn.Module):
     """Fully Connected Residual Network with ResNeXt-style parallel MLPs."""
 
-    def __init__(self, n_features, n_outputs, hidden_dim=256, n_blocks=4,
-                 cardinality=4, pool_size=4, fc_dropout=0.2):
+    def __init__(
+        self,
+        n_features,
+        n_outputs,
+        hidden_dim=256,
+        n_blocks=4,
+        cardinality=4,
+        pool_size=4,
+        fc_dropout=0.2,
+    ):
         super().__init__()
         pooled_dim = max(1, n_features // pool_size)
         self.pool = nn.AdaptiveAvgPool1d(pooled_dim)

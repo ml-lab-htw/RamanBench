@@ -208,9 +208,7 @@ class BaseRamanEstimator(BaseEstimator):
                 epochs_no_improve += 1
 
             if epochs_no_improve >= patience:
-                logger.info(
-                    "%s: early stopping at epoch %d", self.__class__.__name__, epoch
-                )
+                logger.info("%s: early stopping at epoch %d", self.__class__.__name__, epoch)
                 break
 
         if best_state is None:

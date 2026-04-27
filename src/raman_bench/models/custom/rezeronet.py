@@ -12,8 +12,12 @@ class _DepthwiseSeparableConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
         super().__init__()
         self.depthwise = nn.Conv1d(
-            in_channels, in_channels, kernel_size,
-            stride=stride, padding=padding, groups=in_channels,
+            in_channels,
+            in_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            groups=in_channels,
         )
         self.pointwise = nn.Conv1d(in_channels, out_channels, kernel_size=1)
 
@@ -37,12 +41,20 @@ class _ReZeroBlock(nn.Module):
 
         self.conv = nn.Sequential(
             _DepthwiseSeparableConv1d(
-                in_channels, out_channels, kernel_size, stride=stride, padding=self.padding,
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride=stride,
+                padding=self.padding,
             ),
             nn.BatchNorm1d(out_channels),
             nn.ELU(inplace=True),
             _DepthwiseSeparableConv1d(
-                out_channels, out_channels, kernel_size, stride=1, padding=self.padding,
+                out_channels,
+                out_channels,
+                kernel_size,
+                stride=1,
+                padding=self.padding,
             ),
             nn.BatchNorm1d(out_channels),
         )
@@ -61,8 +73,16 @@ class _ReZeroBlock(nn.Module):
 class _ReZeroNetNetwork(nn.Module):
     """CNN with ReZero blocks, increasing channels, and MLP head."""
 
-    def __init__(self, n_outputs, input_dim, n_blocks=8, base_channels=64,
-                 kernel_size=3, fc_dropout=0.2, channel_factor=1.0):
+    def __init__(
+        self,
+        n_outputs,
+        input_dim,
+        n_blocks=8,
+        base_channels=64,
+        kernel_size=3,
+        fc_dropout=0.2,
+        channel_factor=1.0,
+    ):
         super().__init__()
         stem_kernel, stem_stride = 7, 2
         self.stem = nn.Sequential(
@@ -77,7 +97,9 @@ class _ReZeroNetNetwork(nn.Module):
         for i in range(n_blocks):
             stride = 2 if i > 0 and i % 2 == 0 else 1
             out_channels = int(current_channels * channel_factor)
-            block = _ReZeroBlock(current_channels, out_channels, kernel_size=kernel_size, stride=stride)
+            block = _ReZeroBlock(
+                current_channels, out_channels, kernel_size=kernel_size, stride=stride
+            )
             spatial_dim = block.next_spatial_dim(spatial_dim)
             blocks.append(block)
             current_channels = out_channels

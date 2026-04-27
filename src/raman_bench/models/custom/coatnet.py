@@ -38,9 +38,19 @@ class _SelfAttention1d(nn.Module):
 class _CoAtNetNetwork(nn.Module):
     """ReZero CNN encoder followed by multi-head self-attention."""
 
-    def __init__(self, n_outputs, *, n_blocks=6, base_channels=64, kernel_size=3,
-                 channel_factor=1.0, nhead=4, num_cls_tokens=1, attn_dropout=0.1,
-                 fc_dropout=0.2):
+    def __init__(
+        self,
+        n_outputs,
+        *,
+        n_blocks=6,
+        base_channels=64,
+        kernel_size=3,
+        channel_factor=1.0,
+        nhead=4,
+        num_cls_tokens=1,
+        attn_dropout=0.1,
+        fc_dropout=0.2,
+    ):
         super().__init__()
         stem_kernel, stem_stride = 7, 2
         self.stem = nn.Sequential(
@@ -53,7 +63,9 @@ class _CoAtNetNetwork(nn.Module):
         for i in range(n_blocks):
             stride = 2 if i > 0 and i % 2 == 0 else 1
             out_channels = int(current_channels * channel_factor)
-            blocks.append(_ReZeroBlock(current_channels, out_channels, kernel_size=kernel_size, stride=stride))
+            blocks.append(
+                _ReZeroBlock(current_channels, out_channels, kernel_size=kernel_size, stride=stride)
+            )
             current_channels = out_channels
         self.blocks = nn.Sequential(*blocks)
 
@@ -66,7 +78,10 @@ class _CoAtNetNetwork(nn.Module):
         current_channels = aligned_channels
 
         self.attention = _SelfAttention1d(
-            current_channels, nhead=nhead, dropout=attn_dropout, num_cls_tokens=num_cls_tokens,
+            current_channels,
+            nhead=nhead,
+            dropout=attn_dropout,
+            num_cls_tokens=num_cls_tokens,
         )
         flat_dim = current_channels * num_cls_tokens
         self.head = nn.Sequential(

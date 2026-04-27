@@ -19,8 +19,12 @@ class _MultiScaleBlock(nn.Module):
             self.branches.append(
                 nn.Sequential(
                     nn.Conv1d(
-                        in_channels, out_channels, kernel_size=ks,
-                        stride=stride, padding=pad, bias=False,
+                        in_channels,
+                        out_channels,
+                        kernel_size=ks,
+                        stride=stride,
+                        padding=pad,
+                        bias=False,
                     ),
                     nn.BatchNorm1d(out_channels, eps=0.001, momentum=0.01),
                 )
@@ -51,8 +55,15 @@ class _MultiScaleBlock(nn.Module):
 class _SANetNetwork(nn.Module):
     """Multi-scale 1D CNN with SE attention (Deng et al., 2021)."""
 
-    def __init__(self, n_outputs, num_blocks=5, channel_factor=2.0,
-                 initial_channels=16, num_branches=6, reduction=16):
+    def __init__(
+        self,
+        n_outputs,
+        num_blocks=5,
+        channel_factor=2.0,
+        initial_channels=16,
+        num_branches=6,
+        reduction=16,
+    ):
         super().__init__()
         channel_seq = [1]
         ch = initial_channels

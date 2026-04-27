@@ -10,6 +10,7 @@ Required extras::
 
 which installs ``tabpfn``, ``pytabkit``, and ``tabdpt``.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -48,9 +49,7 @@ class TabPFNModel(BaseEstimator):
         try:
             from tabpfn import TabPFNClassifier, TabPFNRegressor
         except ImportError as e:
-            raise ImportError(
-                f"TabPFNModel requires tabpfn. Install with: {_DEEP_INSTALL}"
-            ) from e
+            raise ImportError(f"TabPFNModel requires tabpfn. Install with: {_DEEP_INSTALL}") from e
 
         X_arr, y_arr = _to_numpy(X), np.asarray(y)
         self.problem_type_ = _infer_problem_type(y)
@@ -135,9 +134,7 @@ class TabMModel(BaseEstimator):
         try:
             from pytabkit import TabM_D_Classifier, TabM_D_Regressor
         except ImportError as e:
-            raise ImportError(
-                f"TabMModel requires pytabkit. Install with: {_DEEP_INSTALL}"
-            ) from e
+            raise ImportError(f"TabMModel requires pytabkit. Install with: {_DEEP_INSTALL}") from e
 
         X_arr, y_arr = _to_numpy(X), np.asarray(y)
         self.problem_type_ = _infer_problem_type(y)
@@ -178,9 +175,7 @@ class TabDPTModel(BaseEstimator):
         try:
             from tabdpt import TabDPTClassifier, TabDPTRegressor
         except ImportError as e:
-            raise ImportError(
-                f"TabDPTModel requires tabdpt. Install with: {_DEEP_INSTALL}"
-            ) from e
+            raise ImportError(f"TabDPTModel requires tabdpt. Install with: {_DEEP_INSTALL}") from e
 
         X_arr, y_arr = _to_numpy(X), np.asarray(y)
         self.problem_type_ = _infer_problem_type(y)
