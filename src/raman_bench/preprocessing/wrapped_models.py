@@ -247,6 +247,8 @@ class Prep_REALTABPFN_V25(_NoAugBase, RealTabPFNv25Model):  # noqa: N801
 class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
     """SNV normalises intensity scale so Euclidean distances reflect spectral shape."""
 
+    _optimize_preprocessing = True
+
     def _set_default_params(self):
         self._set_default_param_value("prep_snv_enabled", True)
         super()._set_default_params()
@@ -254,6 +256,8 @@ class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
 
 class Prep_LR(_NoAugBase, LinearModel):  # noqa: N801
     """Baseline correction + SNV are standard practice before linear regression."""
+
+    _optimize_preprocessing = True
 
     def _set_default_params(self):
         self._set_default_param_value("prep_bl_enabled", True)
@@ -268,6 +272,8 @@ class Prep_LR(_NoAugBase, LinearModel):  # noqa: N801
 
 class Prep_PLS(_NoAugBase, _PLSBridge):  # noqa: N801
     """Baseline correction + denoising + SNV — standard PLS pre-processing in spectroscopy."""
+
+    _optimize_preprocessing = True
 
     def _set_default_params(self):
         self._set_default_param_value("prep_bl_enabled", True)
