@@ -5,8 +5,4 @@ Old import path preserved for backwards compatibility. New code should use
 """
 
 from raman_bench.models.custom import *  # noqa: F401, F403
-from raman_bench.models.custom import (  # noqa: F401
-    CUSTOM_MODELS,
-    FlexiblePipelinePLS,
-    PreprocessingPLS,
-)
+from raman_bench.models.custom import CUSTOM_MODELS  # noqa: F401
