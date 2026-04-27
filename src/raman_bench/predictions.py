@@ -37,6 +37,11 @@ from raman_bench.benchmark import configure_benchmark
 from raman_bench.logging_utils import LOG_FORMAT, run_file_logger
 from raman_bench.seeds import get_seeds
 
+try:
+    from raman_bench.model import AutoGluonModel
+except ImportError:
+    AutoGluonModel = None  # type: ignore[assignment,misc]
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 
@@ -403,8 +408,6 @@ def compute_predictions(
 
                 log_path = os.path.join(logs_dir, f"{key}_{model_name}.log")
                 with run_file_logger(log_path):
-                    from raman_bench.model import AutoGluonModel
-
                     model = AutoGluonModel(
                         ensemble=ensemble,
                         optimize=optimize,
