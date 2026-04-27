@@ -194,7 +194,8 @@ class AutoGluonModel:
                 merged["prep_scaling_enabled"] = True
 
             if self.optimize:
-                search_space = build_restricted_searchspace(restriction)
+                optimize_prep = getattr(cls, "_optimize_preprocessing", False)
+                search_space = build_restricted_searchspace(restriction) if optimize_prep else {}
                 for base_cls in cls.__mro__[1:]:
                     if issubclass(base_cls, RamanPreprocessingMixin):
                         continue
@@ -235,9 +236,6 @@ class AutoGluonModel:
             if not self.ensemble:
                 fit_args["num_bag_folds"] = 0
                 fit_args["num_stack_levels"] = 0
-            elif self.optimize:
-                fit_args["num_bag_folds"] = 0
-                fit_args["num_stack_levels"] = 0
 
         if self.optimize:
             fit_args["hyperparameter_tune_kwargs"] = {
@@ -253,20 +251,27 @@ class AutoGluonModel:
         else:
             fit_args["hyperparameter_tune_kwargs"] = None
 
+        # Augment small datasets so bagging has enough samples per class/total.
+        # Only runs when ensemble=True (bagging intended); skipped otherwise because
+        # fit_args already has num_bag_folds=0.
+        n_bag_folds = 8
+        if "num_bag_folds" not in fit_args:
+            data_train = self._augment_for_bagging(
+                data_train, self.label, self.problem_type, n_bag_folds
+            )
+
         tabular_data = TabularDataset(data_train)
         n_samples = len(tabular_data)
 
-        # Disable bagging for tiny datasets or singleton-class datasets to avoid
-        # empty OOF folds.  best_quality uses 8-fold stratified bagging by default.
-        n_bag_folds = 8
+        # Final safety check: if augmentation still wasn't enough, disable bagging.
         if "num_bag_folds" not in fit_args:
             disable_reason = None
             if n_samples < 20:
-                disable_reason = f"only {n_samples} training samples (threshold 20)"
+                disable_reason = f"only {n_samples} training samples even after augmentation"
             elif self.problem_type in ("binary", "multiclass"):
                 min_class = int(tabular_data[self.label].value_counts().min())
                 if min_class < n_bag_folds:
-                    disable_reason = f"min class count {min_class} < {n_bag_folds} folds"
+                    disable_reason = f"min class count {min_class} < {n_bag_folds} folds even after augmentation"
             if disable_reason:
                 fit_args["num_bag_folds"] = 0
                 fit_args["num_stack_levels"] = 0
@@ -336,3 +341,70 @@ class AutoGluonModel:
             "ag_total_fit_time_s": round(ag_total, 3) if ag_total is not None else None,
             "ag_time_per_model_s": round(ag_per, 3) if ag_per is not None else None,
         }
+
+    @staticmethod
+    def _augment_for_bagging(
+        df: DataFrame,
+        label: str,
+        problem_type: str,
+        n_bag_folds: int = 8,
+    ) -> DataFrame:
+        """Augment training data so every class has >= n_bag_folds samples.
+
+        Uses the existing Raman augmentation pipeline (Gaussian noise + optional
+        shift/mixup) to generate extra samples only for under-populated classes
+        (classification) or tiny datasets (regression).  The noise level is kept
+        very small (0.5 % of global std) so augmented samples are nearly identical
+        to their originals — the goal is to prevent empty bagging folds, not to
+        artificially enrich the distribution.
+        """
+        import numpy as np
+        import pandas as pd
+        from raman_bench.preprocessing.raman_preprocessing import augment_spectra
+
+        feature_cols = [c for c in df.columns if c != label]
+        X = df[feature_cols].to_numpy(dtype=float)
+        y = df[label].to_numpy()
+        extra_frames = []
+
+        if problem_type in ("binary", "multiclass"):
+            classes, counts = np.unique(y, return_counts=True)
+            if counts.min() >= n_bag_folds:
+                return df
+            for cls, n_cls in zip(classes, counts):
+                if n_cls >= n_bag_folds:
+                    continue
+                n_needed = n_bag_folds - int(n_cls)
+                X_cls = X[y == cls]
+                y_cls = y[y == cls]
+                n_aug = int(np.ceil(n_needed / n_cls))
+                X_aug, y_aug = augment_spectra(
+                    X_cls, y_cls, noise_sigma=0.005, n_augments=n_aug, label_type="classification"
+                )
+                # augment_spectra prepends originals; slice out exactly what we need
+                frame = pd.DataFrame(X_aug[n_cls: n_cls + n_needed], columns=feature_cols)
+                frame[label] = y_aug[n_cls: n_cls + n_needed]
+                extra_frames.append(frame)
+        else:
+            min_needed = max(20, 2 * n_bag_folds)
+            n_samples = len(df)
+            if n_samples >= min_needed:
+                return df
+            n_needed = min_needed - n_samples
+            n_aug = int(np.ceil(n_needed / n_samples))
+            X_aug, y_aug = augment_spectra(
+                X, y, noise_sigma=0.005, n_augments=n_aug, label_type="regression"
+            )
+            frame = pd.DataFrame(X_aug[n_samples: n_samples + n_needed], columns=feature_cols)
+            frame[label] = y_aug[n_samples: n_samples + n_needed]
+            extra_frames.append(frame)
+
+        if not extra_frames:
+            return df
+
+        result = pd.concat([df, *extra_frames], ignore_index=True)
+        logger.info(
+            "Augmented training set for bagging: %d → %d rows (need %d/class).",
+            len(df), len(result), n_bag_folds,
+        )
+        return result
