@@ -176,7 +176,13 @@ class RamanPreprocessingMixin:
     bool, injected via ``_prep_restriction`` in hyperparameters) restricts
     which steps appear in the HPO search space.  Without it, all steps are
     available for HPO to explore.
+
+    Set ``_optimize_preprocessing = True`` on subclasses where preprocessing
+    is an integral part of the model (e.g. PLS, KNN, LR) and should therefore
+    be included in HPO.  All other models only tune model-specific parameters.
     """
+
+    _optimize_preprocessing: bool = False
 
     def _set_default_params(self):
         super()._set_default_params()
