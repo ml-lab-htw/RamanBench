@@ -82,20 +82,25 @@ class SklearnAutoGluonBridge(AbstractModel):
     _sklearn_cls = None  # override in subclass
 
     def _fit(self, X, y, **kwargs):
-        X_np = X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
+        X_np = (
+            X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
+        )
         y_arr = y.values if hasattr(y, "values") else np.asarray(y)
 
         # _get_model_params() at this point no longer contains prep_* keys —
         # RamanPreprocessingMixin._fit() strips them before calling super().
         params = {
-            k: v for k, v in self._get_model_params().items()
+            k: v
+            for k, v in self._get_model_params().items()
             if not k.startswith("ag.") and not k.startswith("_")
         }
         self._estimator = self._sklearn_cls(**params)
         self._estimator.fit(X_np, y_arr)
 
     def _predict_proba(self, X, **kwargs):
-        X_np = X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
+        X_np = (
+            X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
+        )
         if self.problem_type == "regression":
             return self._estimator.predict(X_np)
         proba = self._estimator.predict_proba(X_np)
