@@ -117,6 +117,14 @@ class SklearnAutoGluonBridge(AbstractModel):
 class _PLSBridge(SklearnAutoGluonBridge):
     _sklearn_cls = PLSModel
 
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        return {
+            "n_components": space.Int(lower=2, upper=50),
+            "scale": space.Categorical(True, False),
+        }
+
 
 class _DeepCNNBridge(SklearnAutoGluonBridge):
     _sklearn_cls = DeepCNNModel
