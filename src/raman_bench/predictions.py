@@ -404,6 +404,7 @@ def compute_predictions(
                 log_path = os.path.join(logs_dir, f"{key}_{model_name}.log")
                 with run_file_logger(log_path):
                     from raman_bench.model import AutoGluonModel
+
                     model = AutoGluonModel(
                         ensemble=ensemble,
                         optimize=optimize,
