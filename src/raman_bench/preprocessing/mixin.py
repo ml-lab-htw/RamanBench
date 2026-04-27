@@ -349,7 +349,7 @@ class RamanPreprocessingMixin:
         params = self._get_model_params()
         has_preprocessing = any(params.get(k, False) for k in _ALL_ENABLED_PARAMS)
 
-        logger.info("Has preprocessing: %s", has_preprocessing)
+        logger.debug("Has preprocessing: %s", has_preprocessing)
 
         if has_preprocessing:
             feature_cols = X.columns.tolist()
