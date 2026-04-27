@@ -369,11 +369,10 @@ class RamanBenchmark:
         rare = counts[counts < self.min_samples_per_class].index.tolist()
         if rare:
             logger.warning(
-                "Dataset %s: removing %d class(es) with < %d samples: %s",
+                "Dataset %s: removing %d class(es) with < %d samples",
                 key,
                 len(rare),
                 self.min_samples_per_class,
-                rare,
             )
             data_df = data_df[~data_df[label_col].isin(rare)]
 
