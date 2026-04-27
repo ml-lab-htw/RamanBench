@@ -44,21 +44,19 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# Column used as the primary ranking score (higher is better)
-_PRIMARY_SCORE = "Score"
-_ELO_COL = "Elo"
 _RANK_COL = "Rank"
+
+# Columns from display metadata kept verbatim (not recomputed from raw metrics)
+_META_COLS = ["Model", "Category", "Elo", "Train Time s", "Infer. s/1K"]
 
 
 def _load_bundled_csv(filename: str) -> pd.DataFrame:
     """Load a CSV bundled in ``data/precomputed/`` inside this package."""
     try:
-        # Python 3.9+ path
         ref = importlib.resources.files("raman_bench") / "data" / "precomputed" / filename
         with importlib.resources.as_file(ref) as path:
             return pd.read_csv(path)
     except Exception:
-        # Fallback: walk up from __file__ to find the data directory
         pkg_root = os.path.dirname(os.path.abspath(__file__))
         csv_path = os.path.join(pkg_root, "data", "precomputed", filename)
         return pd.read_csv(csv_path)
@@ -69,14 +67,19 @@ class Leaderboard:
 
     Parameters
     ----------
-    overall : pd.DataFrame
-        Combined leaderboard (all task types).
-    clf : pd.DataFrame
-        Classification-only leaderboard.
-    reg : pd.DataFrame
-        Regression-only leaderboard.
-    dataset_stats : dict
-        Dataset metadata loaded from ``dataset_stats.json``.
+    reg_metrics : pd.DataFrame
+        Raw per-(seed, key, model) regression metrics.  Must contain columns
+        ``seed``, ``key``, ``model``, ``rmse`` (and optionally ``mse``,
+        ``mae``, ``r2``, …).
+    clf_metrics : pd.DataFrame
+        Raw per-(seed, key, model) classification metrics.  Must contain
+        columns ``seed``, ``key``, ``model``, ``f1_score`` (and optionally
+        ``accuracy``, ``precision``, ``recall``, …).
+    display_meta : pd.DataFrame
+        Per-model display metadata indexed by ``model_id``.  Columns:
+        ``model_id``, ``Model``, ``Category``, ``Elo``,
+        ``Train Time s``, ``Infer. s/1K``.  Missing models (e.g. newly
+        added) are filled with sensible defaults.
 
     Notes
     -----
@@ -86,18 +89,20 @@ class Leaderboard:
 
     def __init__(
         self,
-        overall: pd.DataFrame,
-        clf: pd.DataFrame,
-        reg: pd.DataFrame,
-        dataset_stats: dict | None = None,
-        score_params: dict | None = None,
+        reg_metrics: pd.DataFrame,
+        clf_metrics: pd.DataFrame,
+        display_meta: pd.DataFrame | None = None,
     ):
-        self._overall = overall.copy()
-        self._clf = clf.copy()
-        self._reg = reg.copy()
-        self._dataset_stats = dataset_stats or {}
-        self._score_params = score_params or {}
+        self._reg_metrics = reg_metrics.copy()
+        self._clf_metrics = clf_metrics.copy()
+        self._display_meta = display_meta.copy() if display_meta is not None else pd.DataFrame()
         self._added_models: list[str] = []
+
+        # Populated by _rebuild()
+        self._overall: pd.DataFrame = pd.DataFrame()
+        self._clf: pd.DataFrame = pd.DataFrame()
+        self._reg: pd.DataFrame = pd.DataFrame()
+        self._rebuild()
 
     # ------------------------------------------------------------------
     # Constructors
@@ -107,41 +112,33 @@ class Leaderboard:
     def from_precomputed(cls) -> Leaderboard:
         """Load the bundled v0.1 precomputed results.
 
-        Returns the leaderboard as published alongside the NeurIPS paper,
-        containing 28 baseline models evaluated on 74 datasets (163 targets).
+        Returns the leaderboard as published alongside the paper, containing
+        28 baseline models evaluated on 74 datasets (163 targets).
 
         Returns
         -------
         Leaderboard
         """
-        overall = _load_bundled_csv("leaderboard_overall.csv")
-        clf = _load_bundled_csv("leaderboard_clf.csv")
-        reg = _load_bundled_csv("leaderboard_reg.csv")
+        reg_metrics = _load_bundled_csv("regression_metrics.csv")
+        clf_metrics = _load_bundled_csv("classification_metrics.csv")
 
-        import json
-
-        dataset_stats: dict = {}
-        score_params: dict = {}
+        # Load display metadata (Model name, Category, Elo, timing) from the
+        # pre-built overall leaderboard CSV — these columns are not derivable
+        # from raw metrics alone.
+        meta_df: pd.DataFrame = pd.DataFrame()
         try:
-            pkg_root = os.path.dirname(os.path.abspath(__file__))
-            precomputed = os.path.join(pkg_root, "data", "precomputed")
-            stats_path = os.path.join(precomputed, "dataset_stats.json")
-            if os.path.exists(stats_path):
-                with open(stats_path) as f:
-                    dataset_stats = json.load(f)
-            params_path = os.path.join(precomputed, "score_params.json")
-            if os.path.exists(params_path):
-                with open(params_path) as f:
-                    score_params = json.load(f)
+            raw_lb = _load_bundled_csv("leaderboard_overall.csv")
+            meta_cols = ["model_id"] + [c for c in _META_COLS if c in raw_lb.columns]
+            meta_df = raw_lb[meta_cols].copy()
         except Exception:
             pass
 
         logger.info(
-            "Loaded precomputed leaderboard: %d models, %d datasets",
-            len(overall),
-            len(dataset_stats),
+            "Loaded precomputed leaderboard: %d regression rows, %d classification rows",
+            len(reg_metrics),
+            len(clf_metrics),
         )
-        return cls(overall, clf, reg, dataset_stats, score_params)
+        return cls(reg_metrics, clf_metrics, meta_df)
 
     @classmethod
     def from_results_dir(cls, results_dir: str) -> Leaderboard:
@@ -164,11 +161,10 @@ class Leaderboard:
         clf_path = os.path.join(metrics_dir, "classification_metrics.csv")
         reg_path = os.path.join(metrics_dir, "regression_metrics.csv")
 
-        clf_df = pd.read_csv(clf_path) if os.path.exists(clf_path) else pd.DataFrame()
         reg_df = pd.read_csv(reg_path) if os.path.exists(reg_path) else pd.DataFrame()
+        clf_df = pd.read_csv(clf_path) if os.path.exists(clf_path) else pd.DataFrame()
 
-        overall, clf_lb, reg_lb = _build_leaderboard_from_metrics(clf_df, reg_df)
-        return cls(overall, clf_lb, reg_lb)
+        return cls(reg_df, clf_df)
 
     # ------------------------------------------------------------------
     # Ranking
@@ -185,11 +181,11 @@ class Leaderboard:
         Returns
         -------
         pd.DataFrame
-            Sorted by primary score (descending).  A ``Rank`` column is added.
+            Sorted by Score (descending) with a ``Rank`` column prepended.
         """
         df = self._select_leaderboard(task).copy()
-        if _PRIMARY_SCORE in df.columns:
-            df = df.sort_values(_PRIMARY_SCORE, ascending=False).reset_index(drop=True)
+        if "Score" in df.columns:
+            df = df.sort_values("Score", ascending=False).reset_index(drop=True)
         df[_RANK_COL] = df.index + 1
         cols = [_RANK_COL] + [c for c in df.columns if c != _RANK_COL]
         return df[cols]
@@ -199,11 +195,12 @@ class Leaderboard:
         df = self.rank()
         lines = ["RamanBench Leaderboard (v0.1)", "=" * 40]
         for _, row in df.iterrows():
-            model = row.get("Model", row.get("model", "?"))
-            score = row.get(_PRIMARY_SCORE, float("nan"))
-            elo = row.get(_ELO_COL, float("nan"))
+            model = row.get("Model", row.get("model_id", "?"))
+            score = row.get("Score", float("nan"))
+            elo = row.get("Elo", float("nan"))
+            elo_str = f"  Elo={elo:.0f}" if not (isinstance(elo, float) and np.isnan(elo)) else ""
             lines.append(
-                f"  #{int(row[_RANK_COL]):2d}  {model:<28}  Score={score:.3f}  Elo={elo:.0f}"
+                f"  #{int(row[_RANK_COL]):2d}  {model:<28}  Score={score:.3f}{elo_str}"
             )
         if self._added_models:
             lines.append(f"\nAdded models: {', '.join(self._added_models)}")
@@ -217,29 +214,48 @@ class Leaderboard:
         self,
         model_name: str,
         metrics_df: pd.DataFrame,
-        task: str = "overall",
     ) -> None:
-        """Add pre-computed metrics for a new model to the leaderboard.
+        """Add raw per-(seed, key) metrics for a new model to the leaderboard.
+
+        The metrics are stored in the same format as the paper's CSV files and
+        the leaderboard scores are recomputed from all models combined
+        (including the new one), so the normalization is updated automatically.
 
         Parameters
         ----------
         model_name : str
-            Display name of the new model.
+            Display name and internal identifier for the new model.
         metrics_df : pd.DataFrame
-            DataFrame with one row per (dataset_key, seed) and metric columns.
-            Must contain columns ``key``, ``seed``, and the relevant metrics
-            (e.g. ``rmse``, ``r2`` for regression; ``f1_score``, ``accuracy``
-            for classification).
-        task : {"overall", "classification", "regression"}
-            Which leaderboard to update.
+            DataFrame with one row per (seed, dataset_key) containing metric
+            columns.  Must include ``seed`` and ``key``.  Regression rows need
+            ``rmse``; classification rows need ``f1_score``.  A ``model``
+            column is added automatically.
         """
-        lb = self._select_leaderboard(task)
-        new_row = _summarise_model_metrics(model_name, metrics_df, task, self._score_params)
-        updated = pd.concat([lb, pd.DataFrame([new_row])], ignore_index=True)
-        self._set_leaderboard(task, updated)
+        df = metrics_df.copy()
+        df["model"] = model_name
+
+        reg_cols = {"rmse", "mse", "mae", "r2"}
+        clf_cols = {"f1_score", "accuracy", "precision", "recall"}
+
+        if reg_cols & set(df.columns):
+            keep = ["seed", "key", "model"] + [c for c in df.columns if c in reg_cols]
+            self._reg_metrics = pd.concat(
+                [self._reg_metrics, df[keep].dropna(subset=["rmse"])],
+                ignore_index=True,
+            )
+
+        if clf_cols & set(df.columns):
+            keep = ["seed", "key", "model"] + [c for c in df.columns if c in clf_cols]
+            self._clf_metrics = pd.concat(
+                [self._clf_metrics, df[keep].dropna(subset=["f1_score"])],
+                ignore_index=True,
+            )
+
         if model_name not in self._added_models:
             self._added_models.append(model_name)
-        logger.info("Added model '%s' to %s leaderboard.", model_name, task)
+
+        self._rebuild()
+        logger.info("Added model '%s' to leaderboard.", model_name)
 
     def evaluate_and_add(
         self,
@@ -273,14 +289,16 @@ class Leaderboard:
         seeds : int
             Number of random seeds to average over (default 3).
         task : str
-            Leaderboard to update (default ``"overall"``).
+            Filter to only regression or classification datasets when set to
+            ``"regression"`` or ``"classification"``; default ``"overall"``
+            runs both.
 
         Returns
         -------
         pd.DataFrame
-            Per-(key, seed) metrics for the newly evaluated model.
+            Per-(seed, key) metrics for the newly evaluated model, in the same
+            format as the paper's raw metrics CSVs.
         """
-
         from raman_data import TASK_TYPE
 
         from raman_bench.benchmark import configure_benchmark
@@ -314,13 +332,22 @@ class Leaderboard:
                     model.fit(X_train, y_train)
                     y_pred = model.predict(X_test)
                     metrics = compute_metrics(y_test, y_pred, task_type=task_type)
-                    records.append({"seed": seed, "key": key, "task_type": task_type, **metrics})
+                    records.append(
+                        {
+                            "seed": seed,
+                            "key": key,
+                            "task_type": task_type.name,
+                            **metrics,
+                        }
+                    )
                 except Exception as e:
-                    logger.warning("Model %s failed on %s (seed %d): %s", model_name, key, seed, e)
-                    records.append({"seed": seed, "key": key, "status": "fail", "error": str(e)})
+                    logger.warning(
+                        "Model %s failed on %s (seed %d): %s", model_name, key, seed, e
+                    )
 
         metrics_df = pd.DataFrame(records)
-        self.add_results(model_name, metrics_df, task=task)
+        if not metrics_df.empty:
+            self.add_results(model_name, metrics_df)
         return metrics_df
 
     # ------------------------------------------------------------------
@@ -351,9 +378,9 @@ class Leaderboard:
         import matplotlib.pyplot as plt
 
         df = self.rank(task).head(n_top)
-        model_col = "Model" if "Model" in df.columns else "model"
+        model_col = "Model" if "Model" in df.columns else "model_id"
         models = df[model_col].tolist()
-        scores = df[_PRIMARY_SCORE].tolist() if _PRIMARY_SCORE in df.columns else [0] * len(df)
+        scores = df["Score"].tolist() if "Score" in df.columns else [0] * len(df)
         colors = ["#e74c3c" if m in self._added_models else "#3498db" for m in models]
 
         fig, ax = plt.subplots(figsize=figsize)
@@ -377,8 +404,42 @@ class Leaderboard:
         return fig
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Internal: rebuild leaderboard from raw metrics
     # ------------------------------------------------------------------
+
+    def _rebuild(self) -> None:
+        """Recompute Score, Avg Rank, Improvability from current raw metrics."""
+        reg_scores = _per_dataset_scores(self._reg_metrics, "rmse", higher_is_better=False)
+        clf_scores = _per_dataset_scores(self._clf_metrics, "f1_score", higher_is_better=True)
+
+        self._reg = self._merge_meta(_aggregate_leaderboard(reg_scores))
+        self._clf = self._merge_meta(_aggregate_leaderboard(clf_scores))
+
+        non_empty = [df for df in [reg_scores, clf_scores] if not df.empty]
+        all_scores = pd.concat(non_empty, ignore_index=True) if non_empty else reg_scores
+        self._overall = self._merge_meta(_aggregate_leaderboard(all_scores))
+
+    def _merge_meta(self, lb: pd.DataFrame) -> pd.DataFrame:
+        """Merge display metadata into a computed leaderboard DataFrame."""
+        if lb.empty:
+            return lb
+        if self._display_meta.empty or "model_id" not in self._display_meta.columns:
+            lb["Model"] = lb["model_id"]
+            return lb
+        available = [c for c in _META_COLS if c in self._display_meta.columns]
+        meta = self._display_meta[["model_id"] + available]
+        merged = lb.merge(meta, on="model_id", how="left")
+        if "Model" in merged.columns:
+            merged["Model"] = merged["Model"].fillna(merged["model_id"])
+        else:
+            merged["Model"] = merged["model_id"]
+        col_order = ["model_id", "Model"] + [
+            c for c in ["Category", "Elo", "Score", "Avg Rank", "Improvability",
+                        "Train Time s", "Infer. s/1K"]
+            if c in merged.columns
+        ]
+        extra = [c for c in merged.columns if c not in col_order]
+        return merged[col_order + extra]
 
     def _select_leaderboard(self, task: str) -> pd.DataFrame:
         if task == "overall":
@@ -391,104 +452,93 @@ class Leaderboard:
             f"Unknown task {task!r}. Use 'overall', 'classification', or 'regression'."
         )
 
-    def _set_leaderboard(self, task: str, df: pd.DataFrame):
-        if task == "overall":
-            self._overall = df
-        elif task == "classification":
-            self._clf = df
-        elif task == "regression":
-            self._reg = df
-
 
 # ------------------------------------------------------------------
 # Helpers for building leaderboard from raw metrics
 # ------------------------------------------------------------------
 
 
-def _summarise_model_metrics(
-    model_name: str,
+def _per_dataset_scores(
     metrics_df: pd.DataFrame,
-    task: str,
-    score_params: dict | None = None,
-) -> dict:
-    """Aggregate per-(key, seed) metrics into a single leaderboard row.
+    metric_col: str,
+    higher_is_better: bool,
+) -> pd.DataFrame:
+    """Compute per-(model, dataset) normalized scores and ranks.
 
-    Only ``Model`` and ``Score`` are returned — raw per-dataset metrics
-    (rmse, r2, f1_score, …) are kept in the metrics DataFrame that
-    ``evaluate_and_add`` returns, not in the leaderboard display columns.
+    For each dataset key, models are ranked and a normalized score is computed:
+    - best model in that dataset  → 1.0
+    - median model in that dataset → 0.0
+    - scores clipped to [0, 1]
+
+    Returns a DataFrame with columns ``model``, ``key``, ``norm_score``,
+    ``rank``.  Only datasets with at least two models are included.
     """
-    return {
-        "Model": model_name,
-        "Score": _compute_normalized_score(metrics_df, task, score_params or {}),
-    }
+    if metrics_df.empty or metric_col not in metrics_df.columns:
+        return pd.DataFrame(columns=["model", "key", "norm_score", "rank"])
 
+    # Average the metric across seeds for each (model, dataset)
+    per_ds = (
+        metrics_df.groupby(["model", "key"])[metric_col]
+        .mean()
+        .reset_index()
+        .dropna(subset=[metric_col])
+    )
 
-def _compute_normalized_score(
-    metrics_df: pd.DataFrame,
-    task: str,
-    score_params: dict,
-) -> float:
-    """Compute the normalized benchmark Score for a new model.
-
-    Mirrors the per-dataset normalization used for precomputed baselines:
-    best model → 1, median model → 0, clipped at 0.  Uses RMSE for regression
-    and F1 for classification.  For task="overall" both sub-tasks are combined.
-    """
-    if "key" not in metrics_df.columns:
-        return float("nan")
-
-    task_cfgs: list[tuple[str, str, bool]] = []
-    if task in ("regression", "overall"):
-        task_cfgs.append(("regression", "rmse", False))
-    if task in ("classification", "overall"):
-        task_cfgs.append(("classification", "f1_score", True))
-
-    scores = []
-    for task_key, metric, higher_is_better in task_cfgs:
-        cfg = score_params.get(task_key, {})
-        ds_params = cfg.get("datasets", {})
-        if not ds_params or metric not in metrics_df.columns:
+    results = []
+    for key, group in per_ds.groupby("key"):
+        if len(group) < 2:
             continue
-        per_dataset = metrics_df.groupby("key")[metric].mean()
-        for key, val in per_dataset.items():
-            if np.isnan(val):
-                continue
-            p = ds_params.get(key)
-            if p is None or p.get("denom") is None:
-                continue
-            e = val if higher_is_better else -val
-            scores.append(float(min(1.0, max(0.0, (e - p["median"]) / p["denom"]))))
+        vals = group[metric_col].values
+        e_vals = vals if higher_is_better else -vals
 
-    return float(np.mean(scores)) if scores else float("nan")
+        median_e = float(np.median(e_vals))
+        best_e = float(np.max(e_vals))
+        denom = best_e - median_e
+
+        if denom > 0:
+            norm = np.clip((e_vals - median_e) / denom, 0.0, 1.0)
+        else:
+            norm = np.zeros(len(e_vals))
+
+        ranks = pd.Series(e_vals).rank(ascending=False, method="min").values
+
+        for i, row in enumerate(group.itertuples(index=False)):
+            results.append(
+                {
+                    "model": row.model,
+                    "key": key,
+                    "norm_score": float(norm[i]),
+                    "rank": float(ranks[i]),
+                }
+            )
+
+    return pd.DataFrame(results)
+
+
+def _aggregate_leaderboard(per_ds: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate per-dataset scores into a leaderboard row per model."""
+    if per_ds.empty:
+        return pd.DataFrame(columns=["model_id", "Score", "Avg Rank", "Improvability"])
+
+    agg = (
+        per_ds.groupby("model")
+        .agg(Score=("norm_score", "mean"), avg_rank=("rank", "mean"))
+        .reset_index()
+        .rename(columns={"model": "model_id", "avg_rank": "Avg Rank"})
+    )
+    agg["Improvability"] = ((1.0 - agg["Score"]) * 100).round(1)
+    agg["Score"] = agg["Score"].round(4)
+    agg["Avg Rank"] = agg["Avg Rank"].round(1)
+    return agg
 
 
 def _build_leaderboard_from_metrics(
     clf_df: pd.DataFrame,
     reg_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Build overall/clf/reg leaderboard DataFrames from raw metrics CSVs."""
+    """Build overall/clf/reg leaderboard DataFrames from raw metrics CSVs.
 
-    def _agg(df: pd.DataFrame) -> pd.DataFrame:
-        if df.empty:
-            return pd.DataFrame()
-        group_cols = [c for c in ["model"] if c in df.columns]
-        if not group_cols:
-            return pd.DataFrame()
-        numeric = df.select_dtypes(include=[np.number]).columns.tolist()
-        metric_cols = [c for c in numeric if c not in ("seed", "target_idx")]
-        result = df.groupby(group_cols)[metric_cols].mean().reset_index()
-        result.rename(columns={"model": "Model"}, inplace=True)
-        return result
-
-    clf_lb = _agg(clf_df)
-    reg_lb = _agg(reg_df)
-
-    if not clf_lb.empty and not reg_lb.empty:
-        overall = pd.concat([clf_lb, reg_lb], ignore_index=True)
-        overall = overall.groupby("Model").mean(numeric_only=True).reset_index()
-    elif not clf_lb.empty:
-        overall = clf_lb
-    else:
-        overall = reg_lb
-
-    return overall, clf_lb, reg_lb
+    Kept for backwards compatibility with :meth:`Leaderboard.from_results_dir`.
+    """
+    lb = Leaderboard(reg_df, clf_df)
+    return lb._overall, lb._clf, lb._reg
