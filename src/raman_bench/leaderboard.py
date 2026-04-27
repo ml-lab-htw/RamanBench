@@ -199,9 +199,7 @@ class Leaderboard:
             score = row.get("Score", float("nan"))
             elo = row.get("Elo", float("nan"))
             elo_str = f"  Elo={elo:.0f}" if not (isinstance(elo, float) and np.isnan(elo)) else ""
-            lines.append(
-                f"  #{int(row[_RANK_COL]):2d}  {model:<28}  Score={score:.3f}{elo_str}"
-            )
+            lines.append(f"  #{int(row[_RANK_COL]):2d}  {model:<28}  Score={score:.3f}{elo_str}")
         if self._added_models:
             lines.append(f"\nAdded models: {', '.join(self._added_models)}")
         return "\n".join(lines)
@@ -341,9 +339,7 @@ class Leaderboard:
                         }
                     )
                 except Exception as e:
-                    logger.warning(
-                        "Model %s failed on %s (seed %d): %s", model_name, key, seed, e
-                    )
+                    logger.warning("Model %s failed on %s (seed %d): %s", model_name, key, seed, e)
 
         metrics_df = pd.DataFrame(records)
         if not metrics_df.empty:
@@ -434,8 +430,16 @@ class Leaderboard:
         else:
             merged["Model"] = merged["model_id"]
         col_order = ["model_id", "Model"] + [
-            c for c in ["Category", "Elo", "Score", "Avg Rank", "Improvability",
-                        "Train Time s", "Infer. s/1K"]
+            c
+            for c in [
+                "Category",
+                "Elo",
+                "Score",
+                "Avg Rank",
+                "Improvability",
+                "Train Time s",
+                "Infer. s/1K",
+            ]
             if c in merged.columns
         ]
         extra = [c for c in merged.columns if c not in col_order]
