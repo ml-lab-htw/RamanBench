@@ -6,17 +6,20 @@ import pytest
 from raman_bench.leaderboard import Leaderboard
 
 
-def _make_leaderboard():
-    overall = pd.DataFrame(
+def _make_reg_metrics():
+    return pd.DataFrame(
         {
-            "Model": ["RF", "GBM", "PLS"],
-            "Score": [0.5, 0.6, 0.4],
-            "Elo": [1000, 1050, 950],
+            "seed": [0, 0, 0, 1, 1, 1],
+            "key": ["ds_0", "ds_0", "ds_0", "ds_0", "ds_0", "ds_0"],
+            "model": ["RF", "GBM", "PLS", "RF", "GBM", "PLS"],
+            "rmse": [0.10, 0.08, 0.12, 0.11, 0.09, 0.13],
+            "r2": [0.90, 0.92, 0.88, 0.89, 0.91, 0.87],
         }
     )
-    clf = overall.copy()
-    reg = overall.copy()
-    return Leaderboard(overall, clf, reg)
+
+
+def _make_leaderboard():
+    return Leaderboard(reg_metrics=_make_reg_metrics(), clf_metrics=pd.DataFrame())
 
 
 def test_rank_returns_sorted():
@@ -39,11 +42,11 @@ def test_add_results():
         {
             "seed": [0, 1],
             "key": ["ds_0", "ds_0"],
-            "rmse": [0.1, 0.12],
-            "r2": [0.9, 0.88],
+            "rmse": [0.05, 0.06],
+            "r2": [0.95, 0.94],
         }
     )
-    lb.add_results("MyModel", metrics_df, task="overall")
+    lb.add_results("MyModel", metrics_df)
     ranked = lb.rank()
     assert "MyModel" in ranked["Model"].tolist()
 
