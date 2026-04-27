@@ -70,10 +70,17 @@ This installs `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, and
 ### Option 3 — Full benchmark reproducibility (AutoGluon fork)
 
 The paper's benchmark runs all models through AutoGluon's automated
-preprocessing and HPO pipeline.  Standard AutoGluon caps tabular foundation
-models (TabPFN v2, TabICL, TabDPT, MITRA) at 500 features; Raman spectra
-typically have 500–4000 wavenumber points.  A
-[patched fork](https://github.com/ml-lab-htw/autogluon) removes this cap.
+preprocessing and HPO pipeline.  The fork addresses two limitations of
+standard AutoGluon 1.5:
+
+1. **Feature cap** — AutoGluon caps tabular foundation models (TabPFN v2,
+   TabICL, TabDPT, MITRA) at 500 features; Raman spectra typically have
+   500–4000 wavenumber points.  The fork removes this cap.
+2. **TabICL v2 regression** — AutoGluon 1.5 ships TabICL v1, which supports
+   classification only.  The fork upgrades to TabICL v2, adding regression
+   support.  This limitation is expected to be resolved in AutoGluon 1.6.
+
+A [patched fork](https://github.com/ml-lab-htw/autogluon) incorporates both fixes.
 
 ```bash
 git clone https://github.com/ml-lab-htw/RamanBench.git
