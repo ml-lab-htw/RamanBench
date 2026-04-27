@@ -5,7 +5,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.ramantransformer import RamanTransformerModel, _RamanTransformerNetwork  # noqa: E402
+from raman_bench.models.custom.ramantransformer import (
+    RamanTransformerModel,
+    _RamanTransformerNetwork,
+)  # noqa: E402
 
 
 def _clf(n=60, f=64, seed=42):
@@ -25,16 +28,24 @@ def _reg(n=60, f=64, seed=42):
 
 def _model(**kwargs):
     defaults = dict(
-        n_epochs=2, patch_size=8, d_model=16, nhead=4,
-        dim_feedforward=32, n_layers=2,
-        patience=100, val_fraction=0.2, warmup_epochs=1,
+        n_epochs=2,
+        patch_size=8,
+        d_model=16,
+        nhead=4,
+        dim_feedforward=32,
+        n_layers=2,
+        patience=100,
+        val_fraction=0.2,
+        warmup_epochs=1,
     )
     return RamanTransformerModel(**{**defaults, **kwargs})
 
 
 def test_network_forward_shapes():
     for n_out in (3, 1):
-        net = _RamanTransformerNetwork(64, n_out, patch_size=8, d_model=16, nhead=4, dim_feedforward=32, n_layers=2)
+        net = _RamanTransformerNetwork(
+            64, n_out, patch_size=8, d_model=16, nhead=4, dim_feedforward=32, n_layers=2
+        )
         assert net(torch.randn(4, 64)).shape == (4, n_out)
 
 

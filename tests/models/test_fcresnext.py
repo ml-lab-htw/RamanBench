@@ -25,15 +25,22 @@ def _reg(n=60, f=50, seed=42):
 
 def _model(**kwargs):
     defaults = dict(
-        n_epochs=2, n_blocks=2, hidden_dim=16, pool_size=5,
-        patience=100, val_fraction=0.2, warmup_epochs=1,
+        n_epochs=2,
+        n_blocks=2,
+        hidden_dim=16,
+        pool_size=5,
+        patience=100,
+        val_fraction=0.2,
+        warmup_epochs=1,
     )
     return FCResNeXtModel(**{**defaults, **kwargs})
 
 
 def test_network_forward_shapes():
     for n_out in (3, 1):
-        net = _FCResNeXtNetwork(n_features=100, n_outputs=n_out, hidden_dim=32, n_blocks=2, pool_size=4)
+        net = _FCResNeXtNetwork(
+            n_features=100, n_outputs=n_out, hidden_dim=32, n_blocks=2, pool_size=4
+        )
         assert net(torch.randn(4, 100)).shape == (4, n_out)
 
 

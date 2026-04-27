@@ -25,8 +25,13 @@ def _reg(n=60, f=50, seed=42):
 
 def _model(**kwargs):
     defaults = dict(
-        n_epochs=2, n_blocks=2, base_channels=8, nhead=2,
-        patience=100, val_fraction=0.2, warmup_epochs=1,
+        n_epochs=2,
+        n_blocks=2,
+        base_channels=8,
+        nhead=2,
+        patience=100,
+        val_fraction=0.2,
+        warmup_epochs=1,
     )
     return CoAtNetModel(**{**defaults, **kwargs})
 

@@ -25,8 +25,13 @@ def _reg(n=60, f=256, seed=42):
 
 def _model(**kwargs):
     defaults = dict(
-        n_epochs=2, window_size=50, fc_dim=64, fc_dropout=0.5,
-        patience=100, val_fraction=0.2, warmup_epochs=1,
+        n_epochs=2,
+        window_size=50,
+        fc_dim=64,
+        fc_dropout=0.5,
+        patience=100,
+        val_fraction=0.2,
+        warmup_epochs=1,
     )
     return RamanNetModel(**{**defaults, **kwargs})
 
@@ -44,7 +49,9 @@ def test_n_windows_calculated_correctly():
         (100, 50, 3),
         (128, 32, 7),
     ]:
-        net = _RamanNetNetwork(n_features=n_features, n_outputs=1, window_size=window_size, fc_dim=64)
+        net = _RamanNetNetwork(
+            n_features=n_features, n_outputs=1, window_size=window_size, fc_dim=64
+        )
         assert net.n_windows == expected
 
 

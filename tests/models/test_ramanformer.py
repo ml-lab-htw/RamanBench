@@ -5,7 +5,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.ramanformer import RamanFormerModel, _RamanFormerNetwork  # noqa: E402
+from raman_bench.models.custom.ramanformer import (
+    RamanFormerModel,
+    _RamanFormerNetwork,
+)  # noqa: E402
 
 
 def _clf(n=60, f=256, seed=42):
@@ -25,9 +28,16 @@ def _reg(n=60, f=256, seed=42):
 
 def _model(**kwargs):
     defaults = dict(
-        n_epochs=2, patch_size=64, d_model=32, nhead=4,
-        dim_feedforward=64, n_layers=1, post_processing_dim=32,
-        patience=100, val_fraction=0.2, warmup_epochs=1,
+        n_epochs=2,
+        patch_size=64,
+        d_model=32,
+        nhead=4,
+        dim_feedforward=64,
+        n_layers=1,
+        post_processing_dim=32,
+        patience=100,
+        val_fraction=0.2,
+        warmup_epochs=1,
     )
     return RamanFormerModel(**{**defaults, **kwargs})
 
@@ -35,15 +45,23 @@ def _model(**kwargs):
 def test_network_forward_shapes():
     for n_out in (3, 1):
         net = _RamanFormerNetwork(
-            256, n_out, patch_size=64, d_model=64, nhead=4,
-            dim_feedforward=128, n_layers=1, post_processing_dim=64,
+            256,
+            n_out,
+            patch_size=64,
+            d_model=64,
+            nhead=4,
+            dim_feedforward=128,
+            n_layers=1,
+            post_processing_dim=64,
         )
         assert net(torch.randn(4, 256)).shape == (4, n_out)
 
 
 def test_n_patches_calculated():
     for n_feat, ps, expected in [(128, 32, 4), (100, 32, 4), (256, 64, 4)]:
-        net = _RamanFormerNetwork(n_feat, 1, patch_size=ps, d_model=32, nhead=4, dim_feedforward=64, n_layers=1)
+        net = _RamanFormerNetwork(
+            n_feat, 1, patch_size=ps, d_model=32, nhead=4, dim_feedforward=64, n_layers=1
+        )
         assert net.n_patches == expected
 
 

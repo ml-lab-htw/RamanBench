@@ -25,15 +25,23 @@ def _reg(n=60, f=64, seed=42):
 
 def _model(**kwargs):
     defaults = dict(
-        n_epochs=2, num_blocks=3, initial_channels=4, num_branches=3, reduction=4,
-        patience=100, val_fraction=0.2, warmup_epochs=1,
+        n_epochs=2,
+        num_blocks=3,
+        initial_channels=4,
+        num_branches=3,
+        reduction=4,
+        patience=100,
+        val_fraction=0.2,
+        warmup_epochs=1,
     )
     return SANetModel(**{**defaults, **kwargs})
 
 
 def test_network_forward_shapes():
     for n_out in (3, 1):
-        net = _SANetNetwork(n_outputs=n_out, num_blocks=3, initial_channels=4, num_branches=3, reduction=4)
+        net = _SANetNetwork(
+            n_outputs=n_out, num_blocks=3, initial_channels=4, num_branches=3, reduction=4
+        )
         assert net(torch.randn(4, 64)).shape == (4, n_out)
 
 

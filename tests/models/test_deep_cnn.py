@@ -25,8 +25,13 @@ def _reg(n=60, f=128, seed=0):
 
 def _model(**kwargs):
     defaults = dict(
-        n_epochs=2, initial_channels=8, dense_dim=32,
-        batch_size=16, patience=100, val_fraction=0.2, warmup_epochs=0,
+        n_epochs=2,
+        initial_channels=8,
+        dense_dim=32,
+        batch_size=16,
+        patience=100,
+        val_fraction=0.2,
+        warmup_epochs=0,
     )
     return DeepCNNModel(**{**defaults, **kwargs})
 

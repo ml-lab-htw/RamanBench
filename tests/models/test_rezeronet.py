@@ -25,8 +25,12 @@ def _reg(n=60, f=100, seed=42):
 
 def _model(**kwargs):
     defaults = dict(
-        n_epochs=2, n_blocks=3, base_channels=8,
-        patience=100, val_fraction=0.2, warmup_epochs=1,
+        n_epochs=2,
+        n_blocks=3,
+        base_channels=8,
+        patience=100,
+        val_fraction=0.2,
+        warmup_epochs=1,
     )
     return ReZeroNetModel(**{**defaults, **kwargs})
 

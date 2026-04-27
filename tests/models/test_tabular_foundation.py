@@ -23,6 +23,7 @@ def _reg(n=60, f=20, seed=42):
 # TabPFNModel
 # ---------------------------------------------------------------------------
 
+
 class TestTabPFNModel:
     @pytest.fixture(autouse=True)
     def _skip(self):
@@ -88,6 +89,7 @@ class TestTabPFNModel:
 # RealMLPModel
 # ---------------------------------------------------------------------------
 
+
 class TestRealMLPModel:
     @pytest.fixture(autouse=True)
     def _skip(self):
@@ -123,6 +125,7 @@ class TestRealMLPModel:
 # TabMModel
 # ---------------------------------------------------------------------------
 
+
 class TestTabMModel:
     @pytest.fixture(autouse=True)
     def _skip(self):
@@ -157,6 +160,7 @@ class TestTabMModel:
 # ---------------------------------------------------------------------------
 # TabDPTModel
 # ---------------------------------------------------------------------------
+
 
 class TestTabDPTModel:
     @pytest.fixture(autouse=True)
