@@ -297,6 +297,8 @@ class Leaderboard:
             Per-(seed, key) metrics for the newly evaluated model, in the same
             format as the paper's raw metrics CSVs.
         """
+        import time
+
         from raman_data import TASK_TYPE
 
         from raman_bench.benchmark import configure_benchmark
@@ -309,6 +311,8 @@ class Leaderboard:
 
         config = load_config(config_path)
         records = []
+        fit_times: list[float] = []
+        infer_us_per_sample: list[float] = []
 
         for seed in range(seeds):
             config["random_state"] = seed
@@ -327,8 +331,15 @@ class Leaderboard:
                 y_test = test_df[label_col].values
 
                 try:
+                    t0 = time.perf_counter()
                     model.fit(X_train, y_train)
+                    fit_times.append(time.perf_counter() - t0)
+
+                    t1 = time.perf_counter()
                     y_pred = model.predict(X_test)
+                    infer_s = time.perf_counter() - t1
+                    infer_us_per_sample.append((infer_s / len(X_test)) * 1e6)
+
                     metrics = compute_metrics(y_test, y_pred, task_type=task_type)
                     records.append(
                         {
@@ -343,6 +354,13 @@ class Leaderboard:
 
         metrics_df = pd.DataFrame(records)
         if not metrics_df.empty:
+            # µs/sample == ms/1K — same unit as the precomputed "Infer. s/1K" column
+            mean_train_s = float(np.mean(fit_times)) if fit_times else float("nan")
+            mean_infer_ms_per_1k = float(np.mean(infer_us_per_sample)) if infer_us_per_sample else float("nan")
+            self._upsert_display_meta(model_name, {
+                "Train Time s": mean_train_s,
+                "Infer. s/1K": mean_infer_ms_per_1k,
+            })
             self.add_results(model_name, metrics_df)
         return metrics_df
 
@@ -402,6 +420,21 @@ class Leaderboard:
     # ------------------------------------------------------------------
     # Internal: rebuild leaderboard from raw metrics
     # ------------------------------------------------------------------
+
+    def _upsert_display_meta(self, model_id: str, values: dict) -> None:
+        """Insert or update display metadata columns for *model_id*."""
+        if self._display_meta.empty or "model_id" not in self._display_meta.columns:
+            self._display_meta = pd.DataFrame([{"model_id": model_id, **values}])
+            return
+        mask = self._display_meta["model_id"] == model_id
+        if mask.any():
+            for col, val in values.items():
+                self._display_meta.loc[mask, col] = val
+        else:
+            new_row = pd.DataFrame([{"model_id": model_id, **values}])
+            self._display_meta = pd.concat(
+                [self._display_meta, new_row], ignore_index=True
+            )
 
     def _rebuild(self) -> None:
         """Recompute Score, Avg Rank, Improvability from current raw metrics."""
@@ -520,9 +553,32 @@ def _per_dataset_scores(
 
 
 def _aggregate_leaderboard(per_ds: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate per-dataset scores into a leaderboard row per model."""
+    """Aggregate per-dataset scores into a leaderboard row per model.
+
+    Models that are missing from some datasets receive norm_score=0 and
+    rank=(n_models_on_that_key + 1) for each absent (model, key) pair.
+    This prevents partial submissions from inflating overall rank.
+    """
     if per_ds.empty:
         return pd.DataFrame(columns=["model_id", "Score", "Avg Rank", "Improvability"])
+
+    all_models = per_ds["model"].unique()
+    all_keys = per_ds["key"].unique()
+    worst_rank_per_key = (
+        per_ds.groupby("key")["rank"].max().add(1).to_dict()
+    )
+
+    have = set(zip(per_ds["model"], per_ds["key"]))
+    penalty_rows = [
+        {"model": m, "key": k, "norm_score": 0.0, "rank": float(worst_rank_per_key[k])}
+        for m in all_models
+        for k in all_keys
+        if (m, k) not in have
+    ]
+    if penalty_rows:
+        per_ds = pd.concat(
+            [per_ds, pd.DataFrame(penalty_rows)], ignore_index=True
+        )
 
     agg = (
         per_ds.groupby("model")
