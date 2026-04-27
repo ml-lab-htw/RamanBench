@@ -14,6 +14,19 @@ def _to_3d(X):
     return arr.reshape(arr.shape[0], 1, arr.shape[1])
 
 
+def _ensure_2d_proba(proba: np.ndarray, n_samples: int) -> np.ndarray:
+    """Normalise sktime predict_proba output to (n_samples, n_classes).
+
+    Newer sktime versions may return (n_classes, n_samples, 1) instead of
+    the sklearn-standard (n_samples, n_classes).
+    """
+    if proba.ndim == 3:
+        proba = proba.squeeze(-1)          # drop trailing size-1 dim
+        if proba.shape[0] != n_samples:    # got (n_classes, n_samples)
+            proba = proba.T
+    return proba
+
+
 class RocketModel(BaseEstimator):
     """ROCKET classifier for Raman spectra — sklearn-compatible estimator.
 
@@ -51,6 +64,7 @@ class RocketModel(BaseEstimator):
 
     def predict_proba(self, X):
         proba = self.model_.predict_proba(_to_3d(X))
+        proba = _ensure_2d_proba(proba, np.asarray(X).shape[0])
         if len(self.classes_) == 2:
             return proba[:, 1]
         return proba
@@ -94,6 +108,7 @@ class ArsenalModel(BaseEstimator):
 
     def predict_proba(self, X):
         proba = self.model_.predict_proba(_to_3d(X))
+        proba = _ensure_2d_proba(proba, np.asarray(X).shape[0])
         if len(self.classes_) == 2:
             return proba[:, 1]
         return proba
