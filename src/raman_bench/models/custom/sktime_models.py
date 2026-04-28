@@ -21,8 +21,8 @@ def _ensure_2d_proba(proba: np.ndarray, n_samples: int) -> np.ndarray:
     the sklearn-standard (n_samples, n_classes).
     """
     if proba.ndim == 3:
-        proba = proba.squeeze(-1)          # drop trailing size-1 dim
-        if proba.shape[0] != n_samples:    # got (n_classes, n_samples)
+        proba = proba.squeeze(-1)  # drop trailing size-1 dim
+        if proba.shape[0] != n_samples:  # got (n_classes, n_samples)
             proba = proba.T
     return proba
 

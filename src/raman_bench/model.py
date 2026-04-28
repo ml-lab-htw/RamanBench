@@ -271,7 +271,9 @@ class AutoGluonModel:
             elif self.problem_type in ("binary", "multiclass"):
                 min_class = int(tabular_data[self.label].value_counts().min())
                 if min_class < n_bag_folds:
-                    disable_reason = f"min class count {min_class} < {n_bag_folds} folds even after augmentation"
+                    disable_reason = (
+                        f"min class count {min_class} < {n_bag_folds} folds even after augmentation"
+                    )
             if disable_reason:
                 fit_args["num_bag_folds"] = 0
                 fit_args["num_stack_levels"] = 0
@@ -383,8 +385,8 @@ class AutoGluonModel:
                     X_cls, y_cls, noise_sigma=0.005, n_augments=n_aug, label_type="classification"
                 )
                 # augment_spectra prepends originals; slice out exactly what we need
-                frame = pd.DataFrame(X_aug[n_cls: n_cls + n_needed], columns=feature_cols)
-                frame[label] = y_aug[n_cls: n_cls + n_needed]
+                frame = pd.DataFrame(X_aug[n_cls : n_cls + n_needed], columns=feature_cols)
+                frame[label] = y_aug[n_cls : n_cls + n_needed]
                 extra_frames.append(frame)
         else:
             min_needed = max(20, 2 * n_bag_folds)
@@ -396,8 +398,8 @@ class AutoGluonModel:
             X_aug, y_aug = augment_spectra(
                 X, y, noise_sigma=0.005, n_augments=n_aug, label_type="regression"
             )
-            frame = pd.DataFrame(X_aug[n_samples: n_samples + n_needed], columns=feature_cols)
-            frame[label] = y_aug[n_samples: n_samples + n_needed]
+            frame = pd.DataFrame(X_aug[n_samples : n_samples + n_needed], columns=feature_cols)
+            frame[label] = y_aug[n_samples : n_samples + n_needed]
             extra_frames.append(frame)
 
         if not extra_frames:
@@ -406,6 +408,8 @@ class AutoGluonModel:
         result = pd.concat([df, *extra_frames], ignore_index=True)
         logger.info(
             "Augmented training set for bagging: %d → %d rows (need %d/class).",
-            len(df), len(result), n_bag_folds,
+            len(df),
+            len(result),
+            n_bag_folds,
         )
         return result
