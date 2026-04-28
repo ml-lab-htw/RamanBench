@@ -360,6 +360,7 @@ class AutoGluonModel:
         """
         import numpy as np
         import pandas as pd
+
         from raman_bench.preprocessing.raman_preprocessing import augment_spectra
 
         feature_cols = [c for c in df.columns if c != label]
