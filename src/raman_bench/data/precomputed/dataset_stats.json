@@ -2705,7 +2705,7 @@
   "streptococcus_thermophilus_fermentation_kaiser": {
     "dataset_id": "streptococcus_thermophilus_fermentation_kaiser",
     "display_name": "Streptococcus thermophilus Fermentations Kaiser",
-    "short_name": "S. thermophilus Ferment. (Kaiser)",
+    "short_name": "S. thermo. Ferment. Kaiser",
     "domain": "Biological",
     "license": "CC BY 4.0",
     "task_type": "Regression",
@@ -2728,7 +2728,7 @@
   "streptococcus_thermophilus_fermentation_timegate": {
     "dataset_id": "streptococcus_thermophilus_fermentation_timegate",
     "display_name": "Time-Gated Streptococcus thermophilus Fermentations",
-    "short_name": "S. thermophilus Ferment. (Timegate)",
+    "short_name": "S. thermo. Ferment. TG",
     "domain": "Biological",
     "license": "CC BY 4.0",
     "task_type": "Regression",
