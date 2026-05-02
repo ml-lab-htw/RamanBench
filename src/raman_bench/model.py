@@ -209,7 +209,7 @@ class AutoGluonModel:
                             pass
                         break
                 merged = {**merged, **search_space}
-                hyperparameters[cls] = merged if merged else "default"
+                hyperparameters[cls] = merged
             else:
                 hyperparameters[cls] = {k: v for k, v in merged.items() if not isinstance(v, Space)}
 
