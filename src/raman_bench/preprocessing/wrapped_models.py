@@ -253,6 +253,13 @@ class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
         self._set_default_param_value("prep_snv_enabled", True)
         super()._set_default_params()
 
+    def _fit(self, X, y, **kwargs):
+        # sklearn requires n_neighbors <= n_samples_fit; clamp for tiny datasets
+        n_neighbors = self._get_model_params().get("n_neighbors", 5)
+        if n_neighbors > len(X):
+            self.params["n_neighbors"] = len(X)
+        super()._fit(X, y, **kwargs)
+
 
 class Prep_LR(_NoAugBase, LinearModel):  # noqa: N801
     """Baseline correction + SNV are standard practice before linear regression."""
