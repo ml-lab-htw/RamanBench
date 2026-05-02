@@ -161,9 +161,26 @@ class _CoAtNetBridge(SklearnAutoGluonBridge):
 class _RocketBridge(SklearnAutoGluonBridge):
     _sklearn_cls = RocketModel
 
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        return {
+            "rocket_transform": space.Categorical("minirocket", "rocket", "multirocket"),
+            "num_kernels": space.Int(lower=5_000, upper=20_000),
+        }
+
 
 class _ArsenalBridge(SklearnAutoGluonBridge):
     _sklearn_cls = ArsenalModel
+
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        return {
+            "rocket_transform": space.Categorical("rocket", "minirocket", "multirocket"),
+            "num_kernels": space.Int(lower=2_000, upper=10_000),
+            "n_estimators": space.Int(lower=10, upper=50),
+        }
 
 
 # ---------------------------------------------------------------------------
