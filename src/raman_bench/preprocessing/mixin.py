@@ -354,6 +354,17 @@ class RamanPreprocessingMixin:
         if prep_restriction is not None:
             self._prep_restriction = prep_restriction
 
+        # For models that don't expose preprocessing to HPO, forcibly restore the
+        # intended prep state.  AutoGluon's Bayesian HPO can sample prep params as
+        # True even when they are absent from the model's *declared* search space,
+        # because _get_search_space() merges self.params (which contains the defaults
+        # set by _set_default_params) into the search space dict.  Enforcing here is
+        # the only reliable defence.
+        if not getattr(self, "_optimize_preprocessing", False):
+            for k in _TRANSFORM_ENABLED_PARAMS:
+                self.params[k] = False
+            self.params["prep_aug_enabled"] = getattr(type(self), "_prep_aug_default", False)
+
         params = self._get_model_params()
         has_preprocessing = any(params.get(k, False) for k in _ALL_ENABLED_PARAMS)
 

@@ -309,6 +309,8 @@ class Prep_PLS(_NoAugBase, _PLSBridge):  # noqa: N801
 class _RamanDLBase(RamanPreprocessingMixin):
     """Raman DL base — enables spectral augmentation (standard for small datasets)."""
 
+    _prep_aug_default: bool = True
+
     def _set_default_params(self):
         self._set_default_param_value("prep_aug_enabled", True)
         self._set_default_param_value("prep_aug_n", 19)
