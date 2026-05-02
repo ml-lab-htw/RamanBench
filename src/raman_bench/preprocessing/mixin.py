@@ -193,6 +193,8 @@ class RamanPreprocessingMixin:
                 self._set_default_param_value(param, val)
 
     def _get_default_searchspace(self):
+        if not getattr(self, "_optimize_preprocessing", False):
+            return super()._get_default_searchspace()
         searchspace = super()._get_default_searchspace()
         restriction = getattr(self, "_prep_restriction", None)
         searchspace.update(build_restricted_searchspace(restriction))
