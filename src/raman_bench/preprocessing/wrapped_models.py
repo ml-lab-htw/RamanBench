@@ -104,9 +104,10 @@ class SklearnAutoGluonBridge(AbstractModel):
         if self.problem_type == "regression":
             return self._estimator.predict(X_np)
         proba = self._estimator.predict_proba(X_np)
-        # AutoGluon expects (n, n_classes); our binary wrappers may return 1-D
-        if proba.ndim == 1:
-            return np.column_stack([1.0 - proba, proba])
+        if self.problem_type == "binary":
+            # AutoGluon bagging pre-allocates oof_pred_proba as 1-D for binary;
+            # return the positive-class column only.
+            return proba[:, 1] if proba.ndim == 2 else proba
         return proba
 
     def _get_default_searchspace(self):
