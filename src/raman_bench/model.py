@@ -295,6 +295,10 @@ class AutoGluonModel:
         except Exception:
             self._leaderboard = None
 
+        if self._leaderboard is not None and not self._leaderboard.empty:
+            lb_str = self._leaderboard[["model", "score_val", "fit_time"]].to_string(index=False)
+            logger.info("AutoGluon leaderboard:\n%s", lb_str)
+
         return self.predictor
 
     def predict(self, data_test: DataFrame):
