@@ -17,12 +17,18 @@ def _to_3d(X):
 def _ensure_2d_proba(proba: np.ndarray, n_samples: int) -> np.ndarray:
     """Normalise sktime predict_proba output to (n_samples, n_classes).
 
-    Newer sktime versions may return (n_classes, n_samples, 1) instead of
-    the sklearn-standard (n_samples, n_classes).
+    Handles several shapes produced by different sktime versions:
+    - (n_classes, n_samples, 1)       → drop trailing dim, transpose
+    - (n_classes, n_timepoints, n_samples) → collapse middle dim, transpose
+    - (n_samples, n_timepoints, n_classes) → collapse middle dim
     """
     if proba.ndim == 3:
-        proba = proba.squeeze(-1)  # drop trailing size-1 dim
-        if proba.shape[0] != n_samples:  # got (n_classes, n_samples)
+        if proba.shape[-1] == 1:
+            proba = proba[..., 0]  # (n_classes, n_samples) or (n_samples, n_classes)
+        else:
+            # e.g. (n_classes, n_timepoints, n_samples) — average over middle axis
+            proba = proba.mean(axis=1)
+        if proba.shape[0] != n_samples:
             proba = proba.T
     return proba
 
