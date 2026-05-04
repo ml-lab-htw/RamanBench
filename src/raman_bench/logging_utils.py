@@ -30,10 +30,9 @@ def run_file_logger(log_path: str):
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(_RUN_FORMAT)
 
-    _loggers = [
-        logging.getLogger(),           # root — catches everything by default
-        logging.getLogger("raman_bench"),  # survives root reconfiguration by Ray/AG
-    ]
+    # Attach to root and raman_bench directly so Ray/AG root reconfigurations
+    # cannot drop our handler.
+    _loggers = [logging.getLogger(), logging.getLogger("raman_bench")]
     for lg in _loggers:
         lg.addHandler(handler)
     try:
