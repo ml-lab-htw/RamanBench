@@ -35,4 +35,4 @@ Any other context about the problem.
 Links:
 - raman-data: https://github.com/ml-lab-htw/raman_data
 - raman-bench: https://github.com/ml-lab-htw/RamanBench
-- Leaderboard: https://huggingface.co/spaces/ml-lab-htw/RamanBench
+- Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench

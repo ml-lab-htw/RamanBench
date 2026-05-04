@@ -46,11 +46,11 @@ print(lb.rank())
 ## Live Leaderboard
 
 The interactive leaderboard with figures and dataset explorer is hosted at:
-https://huggingface.co/spaces/ml-lab-htw/RamanBench
+https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
 
 ## Links
 
 - raman-data (datasets): https://github.com/ml-lab-htw/raman_data | `pip install raman-data`
 - raman-bench (package): https://github.com/ml-lab-htw/RamanBench | `pip install raman-bench`
-- Leaderboard: https://huggingface.co/spaces/ml-lab-htw/RamanBench
+- Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
 - Paper (NeurIPS 2026): https://arxiv.org/abs/TBD

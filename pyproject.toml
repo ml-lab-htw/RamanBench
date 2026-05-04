@@ -92,7 +92,7 @@ Homepage        = "https://github.com/ml-lab-htw/RamanBench"
 Documentation   = "https://ramanbench.readthedocs.io"
 Repository      = "https://github.com/ml-lab-htw/RamanBench"
 "Bug Tracker"   = "https://github.com/ml-lab-htw/RamanBench/issues"
-Leaderboard     = "https://huggingface.co/spaces/ml-lab-htw/RamanBench"
+Leaderboard     = "https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench"
 "raman-data"    = "https://github.com/ml-lab-htw/raman_data"
 Paper           = "https://arxiv.org/abs/TBD"
 

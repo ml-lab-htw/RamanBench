@@ -5,7 +5,7 @@
 [![CI](https://github.com/ml-lab-htw/RamanBench/actions/workflows/ci.yml/badge.svg)](https://github.com/ml-lab-htw/RamanBench/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-TBD-b31b1b)](https://arxiv.org/abs/TBD)
-[![Leaderboard](https://img.shields.io/badge/🏆_Leaderboard-HuggingFace-orange)](https://huggingface.co/spaces/ml-lab-htw/RamanBench)
+[![Leaderboard](https://img.shields.io/badge/🏆_Leaderboard-HuggingFace-orange)](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
 
 **A large-scale benchmark for machine learning on Raman spectroscopy data.**
 
@@ -278,7 +278,7 @@ Models are evaluated under three complementary metrics:
 | **Avg Rank** | Average rank across all datasets and targets |
 | **Improvability** | % gap to the best model, averaged across datasets |
 
-See the [live leaderboard](https://huggingface.co/spaces/ml-lab-htw/RamanBench) for
+See the [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) for
 interactive filtering by model category, task type, and dataset domain.
 
 ---
@@ -406,7 +406,7 @@ Quick summary:
    package (open a PR there).
 3. Open an issue here linking to the raman-data PR.
 
-The [live leaderboard](https://huggingface.co/spaces/ml-lab-htw/RamanBench)
+The [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
 also has a "How to Contribute" section with step-by-step instructions.
 
 ---
@@ -431,6 +431,6 @@ If you use RamanBench in your research, please cite:
 
 MIT — see [LICENSE](LICENSE).
 
-Dataset licenses vary; see the [dataset catalog](https://huggingface.co/spaces/ml-lab-htw/RamanBench)
+Dataset licenses vary; see the [dataset catalog](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
 or [raman-data](https://github.com/ml-lab-htw/raman_data) for per-dataset license information.
 Most datasets are released under CC BY 4.0.

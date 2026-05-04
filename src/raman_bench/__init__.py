@@ -14,7 +14,7 @@ Ecosystem
   Source: https://github.com/ml-lab-htw/RamanBench
 
 - **Live Leaderboard**:
-  https://huggingface.co/spaces/ml-lab-htw/RamanBench
+  https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
 
 - **Paper** (NeurIPS 2026):
   https://arxiv.org/abs/TBD

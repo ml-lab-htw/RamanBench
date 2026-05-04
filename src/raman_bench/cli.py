@@ -21,7 +21,7 @@ Usage
 See Also
 --------
 - Source:      https://github.com/ml-lab-htw/RamanBench
-- Leaderboard: https://huggingface.co/spaces/ml-lab-htw/RamanBench
+- Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
 - raman-data:  https://github.com/ml-lab-htw/raman_data
 - Paper:       https://arxiv.org/abs/TBD
 """
@@ -112,7 +112,7 @@ def cmd_info(_args):
     print("    Source: https://github.com/ml-lab-htw/RamanBench")
     print()
     print("  Live Leaderboard")
-    print("    https://huggingface.co/spaces/ml-lab-htw/RamanBench")
+    print("    https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench")
     print()
     print("  Paper (NeurIPS 2026)")
     print("    https://arxiv.org/abs/TBD")
