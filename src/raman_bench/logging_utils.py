@@ -16,6 +16,10 @@ def run_file_logger(log_path: str):
     *log_path* while the context is active.  The handler is always
     removed and closed on exit, even if an exception occurs.
 
+    The handler is attached both to the root logger and directly to the
+    ``raman_bench`` logger tree so that AutoGluon / Ray reconfigurations
+    of the root logger (which happen during HPO) cannot silence our logs.
+
     Parameters
     ----------
     log_path : str
@@ -25,11 +29,17 @@ def run_file_logger(log_path: str):
     handler = logging.FileHandler(log_path, mode="w", encoding="utf-8")
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(_RUN_FORMAT)
-    root = logging.getLogger()
-    root.addHandler(handler)
+
+    _loggers = [
+        logging.getLogger(),           # root — catches everything by default
+        logging.getLogger("raman_bench"),  # survives root reconfiguration by Ray/AG
+    ]
+    for lg in _loggers:
+        lg.addHandler(handler)
     try:
         yield
     finally:
         handler.flush()
-        root.removeHandler(handler)
+        for lg in _loggers:
+            lg.removeHandler(handler)
         handler.close()
