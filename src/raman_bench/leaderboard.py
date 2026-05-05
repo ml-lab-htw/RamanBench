@@ -29,7 +29,7 @@ See also
 - raman-data: https://github.com/ml-lab-htw/raman_data
 - Source:     https://github.com/ml-lab-htw/RamanBench
 - Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
-- Paper:       https://arxiv.org/abs/TBD
+- Paper:       https://arxiv.org/abs/2605.02003
 """
 
 from __future__ import annotations

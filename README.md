@@ -4,7 +4,7 @@
 [![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)](https://www.python.org)
 [![CI](https://github.com/ml-lab-htw/RamanBench/actions/workflows/ci.yml/badge.svg)](https://github.com/ml-lab-htw/RamanBench/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![arXiv](https://img.shields.io/badge/arXiv-TBD-b31b1b)](https://arxiv.org/abs/TBD)
+[![arXiv](https://img.shields.io/badge/arXiv-2605.02003-b31b1b)](https://arxiv.org/abs/2605.02003)
 [![Leaderboard](https://img.shields.io/badge/🏆_Leaderboard-HuggingFace-orange)](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
 
 **A large-scale benchmark for machine learning on Raman spectroscopy data.**
@@ -32,7 +32,7 @@ PyPI / GitHub     PyPI / GitHub
 | **raman-data** (dataset loader) | [GitHub](https://github.com/ml-lab-htw/raman_data) · [PyPI](https://pypi.org/project/raman-data/)  |
 | **raman-bench** (this package)  | [GitHub](https://github.com/ml-lab-htw/RamanBench) · [PyPI](https://pypi.org/project/raman-bench/) |
 | **Live Leaderboard**            | [huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) |
-| **Paper**                       | [arXiv TBD](https://arxiv.org/abs/TBD)                                                             |
+| **Paper**                       | [arXiv:2605.02003](https://arxiv.org/abs/2605.02003)                                                             |
 
 ---
 
@@ -416,12 +416,16 @@ also has a "How to Contribute" section with step-by-step instructions.
 If you use RamanBench in your research, please cite:
 
 ```bibtex
-@inproceedings{koddenbrock2026ramanbench,
-  title     = {RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy Data},
-  author    = {Koddenbrock, Mario and Lange, Christoph and others},
-  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
-  year      = {2026},
-  url       = {https://arxiv.org/abs/TBD}
+@misc{koddenbrock2026ramanbench,
+  title         = {RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy},
+  author        = {Koddenbrock, Mario and Lange, Christoph and Legner, Robin and Jaeger, Martin
+                   and K{\"o}gler, Martin and Cruz Bournazou, Mariano N. and Neubauer, Peter
+                   and Bie{\ss}mann, Felix and Rodner, Erik},
+  year          = {2026},
+  eprint        = {2605.02003},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2605.02003}
 }
 ```
 

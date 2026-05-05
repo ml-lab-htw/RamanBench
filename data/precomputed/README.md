@@ -1,6 +1,6 @@
 # Precomputed Results — RamanBench v0.1
 
-This directory contains the precomputed benchmark results published alongside the NeurIPS 2026 paper.
+This directory contains the precomputed benchmark results published alongside the paper (under review).
 They represent 28 baseline models evaluated on 74 datasets (163 prediction targets)
 across 3 random seeds.
 
@@ -53,4 +53,22 @@ https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
 - raman-data (datasets): https://github.com/ml-lab-htw/raman_data | `pip install raman-data`
 - raman-bench (package): https://github.com/ml-lab-htw/RamanBench | `pip install raman-bench`
 - Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
-- Paper (NeurIPS 2026): https://arxiv.org/abs/TBD
+- Paper (under review): https://arxiv.org/abs/2605.02003
+
+## Citation
+
+If you use these results, please cite:
+
+```bibtex
+@misc{koddenbrock2026ramanbench,
+  title         = {RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy},
+  author        = {Koddenbrock, Mario and Lange, Christoph and Legner, Robin and Jaeger, Martin
+                   and K{\"o}gler, Martin and Cruz Bournazou, Mariano N. and Neubauer, Peter
+                   and Bie{\ss}mann, Felix and Rodner, Erik},
+  year          = {2026},
+  eprint        = {2605.02003},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2605.02003}
+}
+```

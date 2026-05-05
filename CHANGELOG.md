@@ -39,7 +39,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - raman-data: https://github.com/ml-lab-htw/raman_data | `pip install raman-data`
 - raman-bench: https://github.com/ml-lab-htw/RamanBench | `pip install raman-bench`
 - Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
-- Paper (NeurIPS 2026): https://arxiv.org/abs/TBD
+- Paper (under review): https://arxiv.org/abs/2605.02003
 
 ---
 

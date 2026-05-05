@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "raman-bench"
-version = "0.1.0a1"
+version = "0.1.0"
 description = "A large-scale benchmark for machine learning on Raman spectroscopy data"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -94,7 +94,7 @@ Repository      = "https://github.com/ml-lab-htw/RamanBench"
 "Bug Tracker"   = "https://github.com/ml-lab-htw/RamanBench/issues"
 Leaderboard     = "https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench"
 "raman-data"    = "https://github.com/ml-lab-htw/raman_data"
-Paper           = "https://arxiv.org/abs/TBD"
+Paper           = "https://arxiv.org/abs/2605.02003"
 
 [project.scripts]
 raman-bench = "raman_bench.cli:main"

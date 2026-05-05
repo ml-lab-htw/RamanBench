@@ -23,7 +23,7 @@ See Also
 - Source:      https://github.com/ml-lab-htw/RamanBench
 - Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
 - raman-data:  https://github.com/ml-lab-htw/raman_data
-- Paper:       https://arxiv.org/abs/TBD
+- Paper:       https://arxiv.org/abs/2605.02003
 """
 
 import argparse
@@ -114,8 +114,8 @@ def cmd_info(_args):
     print("  Live Leaderboard")
     print("    https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench")
     print()
-    print("  Paper (NeurIPS 2026)")
-    print("    https://arxiv.org/abs/TBD")
+    print("  Paper (under review)")
+    print("    https://arxiv.org/abs/2605.02003")
 
 
 def main():

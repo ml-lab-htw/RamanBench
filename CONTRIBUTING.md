@@ -19,7 +19,7 @@ Before you start, here are the key resources:
 | **raman-data** (dataset loader) | [GitHub](https://github.com/ml-lab-htw/raman_data) · [PyPI](https://pypi.org/project/raman-data/)  |
 | **raman-bench** (this repo)     | [GitHub](https://github.com/ml-lab-htw/RamanBench) · [PyPI](https://pypi.org/project/raman-bench/) |
 | **Live Leaderboard**            | [huggingface.co/spaces/ml-lab-htw/RamanBench](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) |
-| **Paper**                       | [arXiv TBD](https://arxiv.org/abs/TBD)                                                             |
+| **Paper**                       | [arXiv:2605.02003](https://arxiv.org/abs/2605.02003)                                                             |
 
 ---
 

@@ -16,8 +16,8 @@ Ecosystem
 - **Live Leaderboard**:
   https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
 
-- **Paper** (NeurIPS 2026):
-  https://arxiv.org/abs/TBD
+- **Paper** (under review):
+  https://arxiv.org/abs/2605.02003
 
 Quick Start
 -----------
@@ -36,7 +36,7 @@ Quick Start
 
 import importlib
 
-__version__ = "0.1.0a1"
+__version__ = "0.1.0"
 __author__ = "Mario Koddenbrock (HTW Berlin), Christoph Lange (TU Berlin)"
 
 _public_map = {
