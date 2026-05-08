@@ -399,6 +399,8 @@ PREPROCESSED_MODELS = {
     "ARSENAL": Prep_ARSENAL,
 }
 
+CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL"}
+
 
 def create_preprocessed_hyperparameters(
     model_names: list[str],
