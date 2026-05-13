@@ -7,7 +7,7 @@ ROCKET,5,ROCKET,TS Classification,81.4%,81.5%,82.2%,68.0%,10.4,0.38,55.5,21,1257
 ARSENAL,6,ARSENAL,TS Classification,80.7%,81.6%,82.2%,67.7%,10.4,0.42,58.3,21,1236
 REALTABPFN-V2,7,TabPFN v2,Tabular Foundation,80.9%,81.7%,82.8%,69.8%,10.5,0.41,62.6,21,1256
 DEEPCNN,8,DeepCNN,Raman-Specific,79.0%,79.5%,80.0%,63.6%,12.1,0.38,52.2,21,1181
-TABM,9,TabM,Tabular Foundation,76.8%,77.4%,78.5%,60.3%,13.1,0.31,64.7,21,1153
+TABM,9,TabM,Deep Learning,76.8%,77.4%,78.5%,60.3%,13.1,0.31,64.7,21,1153
 RAMANNET,10,RamanNet,Raman-Specific,77.9%,77.9%,79.6%,62.8%,13.2,0.33,59.1,21,1167
 TABDPT,11,TabDPT,Tabular Foundation,79.4%,80.1%,80.5%,64.2%,13.3,0.32,64.7,21,1151
 MITRA,12,MITRA,Tabular Foundation,78.0%,79.3%,79.9%,64.0%,13.4,0.33,66.5,21,1140
