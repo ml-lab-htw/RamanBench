@@ -493,7 +493,7 @@ def compute_predictions(
                             data_test[["target"]].sort_index().to_csv(truth_path, index=True)
 
                     except Exception as e:
-                        logger.error("Error for %s / %s: %s", key, model_name, e)
+                        logger.error("Error for %s / %s: %s", key, model_name, e, exc_info=True)
                         record["status"] = "fail"
                         record["error"] = str(e)
 
