@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing!  This guide covers two main contribution paths:
 
-1. **[Adding a new model](#adding-a-new-model)** — implement and evaluate a new ML model
+1. **[Adding a new model](#adding-a-new-model)** — wrap an existing AutoGluon model or implement a new one
 2. **[Adding a new dataset](#adding-a-new-dataset)** — contribute a new Raman spectroscopy dataset
 
 For bug reports and feature requests, please open an issue on
@@ -50,9 +50,125 @@ lb.evaluate_and_add("My Model", MyModel())
 print(lb.rank())
 ```
 
-### Option B: AutoGluon-integrated model (full benchmark registration)
+### Option B: Wrapping an existing AutoGluon model
 
-To include your model in the full benchmark pipeline, follow these steps:
+Use this path when the model already exists as an AutoGluon class (e.g. a new version
+of TabPFN, a model from the AutoGluon registry, or any third-party model that ships
+its own AutoGluon integration).
+
+#### 1. Create or locate the AutoGluon model class
+
+If the model is already in AutoGluon's registry (check
+`autogluon.tabular.registry.ag_model_registry`), skip this step.
+
+Otherwise subclass the closest existing AutoGluon base class. For example, a new
+TabPFN version only needs to declare its checkpoint filenames:
+
+```python
+# autogluon/tabular/src/autogluon/tabular/models/tabpfnv2/tabpfnv2_5_model.py
+
+class MyModelAG(TabPFNModel):
+    ag_key = "MYMODEL"
+    ag_name = "MyModel"
+    default_classification_model = "mymodel-classifier-default.ckpt"
+    default_regression_model     = "mymodel-regressor-default.ckpt"
+
+    @staticmethod
+    def extra_checkpoints_for_tuning(problem_type):
+        return []
+```
+
+Register it in `autogluon/tabular/src/autogluon/tabular/models/__init__.py` and
+`autogluon/tabular/src/autogluon/tabular/registry/_ag_model_registry.py`.
+
+#### 2. Create a `Prep_*` wrapper in RamanBench
+
+Every model that runs through the benchmark pipeline must have a `Prep_*` class in
+`src/raman_bench/preprocessing/wrapped_models.py`.
+
+**Why the wrapper exists:** `_NoAugBase` and `RamanPreprocessingMixin` inject
+Raman-specific preprocessing steps (baseline correction, denoising, SNV normalisation,
+spectral augmentation) as AutoGluon hyperparameters directly into the model class.
+This means the benchmark can later analyse which preprocessing combination worked best
+for each model family without running a separate preprocessing sweep — the choices are
+stored alongside the model's predictions.
+
+Without the `Prep_*` wrapper, the pipeline puts the model's string key into the
+hyperparameters dict instead of a class, causing a
+`TypeError: issubclass() arg 1 must be a class` at runtime.
+
+```python
+# src/raman_bench/preprocessing/wrapped_models.py
+
+# 1. Import the AutoGluon class at the top of the file
+from autogluon.tabular.models import MyModelAG
+
+# 2. Create the Prep_ wrapper (inherits _NoAugBase to disable spectral augmentation)
+class Prep_MYMODEL(_NoAugBase, MyModelAG):  # noqa: N801
+    pass
+
+# 3. Register it in the PREPROCESSED_MODELS dict
+PREPROCESSED_MODELS = {
+    ...
+    "MYMODEL": Prep_MYMODEL,
+}
+```
+
+#### 3. Add the model key to config files
+
+```bash
+# Required
+configs/models/all.json           # full benchmark model list
+configs/models/raman.json         # or another appropriate group
+
+# If the model uses a GPU
+configs/models/gpu_models.json
+```
+
+If the model needs dataset-level subsampling on very large datasets (e.g. foundation
+models that OOM on MLROD), add an entry to `configs/hpo_off.json`:
+
+```json
+"subsample": {
+    "combinations": {
+        "MYMODEL": ["mlrod_0"]
+    }
+}
+```
+
+#### 4. Update cluster scripts
+
+In `cluster/submit_per_model.sh`, add a memory tier:
+
+```bash
+MITRA|REALTABPFN-V2|...|MYMODEL)
+    MEM="128G" ;;
+```
+
+In `cluster/run_benchmark_single_model.sbatch`, add to `LARGE_GPU_MODELS` if the model
+needs its seeds run sequentially (i.e. it can exhaust VRAM when two seeds run at once):
+
+```bash
+LARGE_GPU_MODELS="... MYMODEL"
+```
+
+#### 5. Add tests
+
+Create `tests/models/test_my_model.py` (see `tests/models/test_deep_cnn.py` for an example).
+
+#### 6. Open a Pull Request
+
+Include benchmark results on at least the debug config:
+
+```bash
+raman-bench run --config configs/debug.json --model MYMODEL
+```
+
+---
+
+### Option C: Custom Raman-specific model (full implementation)
+
+Use this path when implementing a new neural network or algorithm from scratch.
 
 #### 1. Implement the model
 
@@ -87,23 +203,8 @@ class MyModel(BaseCustomModel):
             batch_size=params["batch_size"], lr=params["learning_rate"])
 ```
 
-#### 2. Register the model
-
-Add your model to `src/raman_bench/models/custom/__init__.py` and to
-`src/raman_bench/preprocessing/wrapped_models.py` following the existing pattern.
-Then add `"MYMODEL"` to `configs/models/raman.json` (and optionally `all.json`).
-
-#### 3. Add tests
-
-Create `tests/models/test_my_model.py` (see `tests/models/test_deep_cnn.py` for an example).
-
-#### 4. Open a Pull Request
-
-Include benchmark results on at least the debug config:
-
-```bash
-raman-bench run --config configs/debug.json --model MYMODEL
-```
+Then follow steps 2–6 from Option B above (the `Prep_*` wrapper, config registration,
+and cluster scripts are identical regardless of whether the model is custom or wrapped).
 
 ---
 
