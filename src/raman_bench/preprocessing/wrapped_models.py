@@ -44,6 +44,7 @@ from autogluon.tabular.models import (
     RealTabPFNv25Model,
     RealTabPFNv26Model,
     TabPFNv3Model,
+    TabPFNv3ThinkingModel,
     RFModel,
     TabDPTModel,
     TabICLModel,
@@ -272,6 +273,10 @@ class Prep_TABPFN_V3(_NoAugBase, TabPFNv3Model):  # noqa: N801
     pass
 
 
+class Prep_TABPFN_V3_THINKING(_NoAugBase, TabPFNv3ThinkingModel):  # noqa: N801
+    pass
+
+
 class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
     """SNV normalises intensity scale so Euclidean distances reflect spectral shape."""
 
@@ -397,6 +402,7 @@ PREPROCESSED_MODELS = {
     "REALTABPFN-V2.5": Prep_REALTABPFN_V25,
     "REALTABPFN-V2.6": Prep_REALTABPFN_V26,
     "TABPFN-V3": Prep_TABPFN_V3,
+    "TABPFN-V3-THINKING": Prep_TABPFN_V3_THINKING,
     # Custom spectroscopy models
     "PLS": Prep_PLS,
     "DEEPCNN": Prep_DEEPCNN,
