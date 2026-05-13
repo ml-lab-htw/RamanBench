@@ -8,7 +8,7 @@
     "output_dir": "results/benchmark_v0.1",
     "models": "models/all.json",
     "autogluon_time_limit": 14400,
-    "autogluon_presets": "best_quality",
+    "autogluon_presets": "extreme_quality",
     "optimize": false,
     "ensemble": false,
     "min_samples_per_class": 9,
@@ -18,8 +18,21 @@
     "exclude_keys": [
         "amino_acids_phenylalanine_0",
         "amino_acids_leucine_0",
-        "sugar_mixtures_high_snr_4",
-        "sugar_mixtures_low_snr_4"
+        "sugar_mixtures_high_snr_3",
+        "sugar_mixtures_low_snr_3",
+        "kaiser_ecoli_fermentation_supernatant_3",
+        "kaiser_ecoli_fermentation_1",
+        "kaiser_ecoli_fermentation_3",
+        "streptococcus_thermophilus_fermentation_timegate_0",
+        "streptococcus_thermophilus_fermentation_timegate_1",
+        "streptococcus_thermophilus_fermentation_timegate_2",
+        "streptococcus_thermophilus_fermentation_timegate_3",
+        "streptococcus_thermophilus_fermentation_kaiser_0",
+        "streptococcus_thermophilus_fermentation_kaiser_2",
+        "streptococcus_thermophilus_fermentation_kaiser_3",
+        "tg_ecoli_fermentation_1",
+        "tg_ecoli_fermentation_supernatant_1",
+        "tg_ecoli_fermentation_supernatant_3"
     ],
     "group_regression_splits": true,
     "subsample": {
