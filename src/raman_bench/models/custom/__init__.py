@@ -2,7 +2,7 @@
 
 All models expose ``fit(X, y)`` and ``predict(X)`` and require only
 ``torch`` (PyTorch-based models), ``sktime`` (ROCKET/Arsenal), or the
-respective foundation-model package (TabPFN, RealMLP, TabM, TabDPT).
+respective package (TabPFN, RealMLP, TabM via pytabkit, TabDPT).
 AutoGluon is **not** required.
 """
 
