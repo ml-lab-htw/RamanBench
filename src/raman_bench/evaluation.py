@@ -144,12 +144,18 @@ def compute_metrics_from_predictions(config):
         benchmark = configure_benchmark(config, init_benchmark=not bool(gt_keys))
 
         if gt_keys:
-            task_type_lookup = {}
-            for ds, task in [
-                (d, TASK_TYPE.Regression) for d in benchmark.dataset_names_regression
-            ] + [(d, TASK_TYPE.Classification) for d in benchmark.dataset_names_classification]:
-                for idx in range(benchmark._index.get(ds, 0)):
-                    task_type_lookup[benchmark.get_key(ds, idx)] = task
+            # Build task_type_lookup directly from dataset name lists.
+            # _index is empty when init_benchmark=False (data loading skipped),
+            # so we infer task type from membership in the regression name set.
+            reg_names = set(benchmark.dataset_names_regression)
+            task_type_lookup = {
+                key: (
+                    TASK_TYPE.Regression
+                    if benchmark.split_key(key)[0] in reg_names
+                    else TASK_TYPE.Classification
+                )
+                for key in gt_keys
+            }
 
             items = []
             for key in gt_keys:
