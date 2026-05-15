@@ -41,7 +41,7 @@ dependencies = [
     "matplotlib>=3.5,<4.0",
     "seaborn>=0.12",
     "tqdm>=4.64,<5.0",
-    "raman-data>=1.0.0",
+    "raman-data>=1.2.6",
 ]
 
 [project.optional-dependencies]
