@@ -216,3 +216,5 @@ AutogluonModels/
 
 # macOS
 .DS_Store
+**/.DS_Store
+**/.cache_loader_check
