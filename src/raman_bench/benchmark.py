@@ -119,7 +119,7 @@ class RamanBenchmark:
         test_size: float = 0.2,
         random_state: int = 42,
         cache_dir: str | None = None,
-        min_samples_per_class: int = 0,
+        min_samples_per_class: int = 9,
         group_regression_splits: bool = True,
     ):
         if not cache_dir:
