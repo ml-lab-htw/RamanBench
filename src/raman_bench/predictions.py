@@ -34,8 +34,8 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from raman_bench.benchmark import configure_benchmark
-from raman_bench.preprocessing.wrapped_models import CLASSIFICATION_ONLY_MODELS
 from raman_bench.logging_utils import LOG_FORMAT, run_file_logger
+from raman_bench.preprocessing.wrapped_models import CLASSIFICATION_ONLY_MODELS
 from raman_bench.seeds import get_seeds
 
 try:
