@@ -225,6 +225,10 @@ class AutoGluonModel:
             "ag_args_ensemble": {"fold_fitting_strategy": "sequential_local"},
             "num_gpus": num_gpus,
             "num_cpus": num_cpus,
+            # Refit the best HPO/ensemble configuration on full train+val data
+            # and use the refit model for downstream predictions.
+            "refit_full": True,
+            "set_best_to_refit_full": True,
         }
 
         if self._autogluon_native:
