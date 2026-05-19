@@ -223,7 +223,10 @@ RamanBench automatically picks up any dataset added there.
 ### Step 1: Prepare and publish your data
 
 1. **Host** your dataset on [HuggingFace Datasets](https://huggingface.co/datasets)
-   or [Zenodo](https://zenodo.org).
+   or [Zenodo](https://zenodo.org). HuggingFace is preferred — see the
+   step-by-step [Uploading Raman Datasets to HuggingFace](https://github.com/ml-lab-htw/raman_data/blob/main/dataset_to_huggingface.md)
+   guide in the `raman_data` repo for the recommended layout (spectra,
+   wavenumbers, metadata files, README).
 2. **License** it under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
    (or a more permissive licence).
 3. **Format**: plain CSV or Parquet.  Wavenumber columns as floats, target
