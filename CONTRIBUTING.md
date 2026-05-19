@@ -214,6 +214,12 @@ New datasets are managed through the companion
 [raman-data](https://github.com/ml-lab-htw/raman_data) package.
 RamanBench automatically picks up any dataset added there.
 
+> **Just want to suggest a dataset without implementing it?** Add an entry
+> (or open an issue/PR) to [`PROPOSED_DATASETS.md`](PROPOSED_DATASETS.md).
+> We maintain it as a running queue of community-suggested datasets to
+> consider for the next benchmark release. The full implementation steps
+> below are only required when you want to integrate a loader yourself.
+
 ### Step 1: Prepare and publish your data
 
 1. **Host** your dataset on [HuggingFace Datasets](https://huggingface.co/datasets)
