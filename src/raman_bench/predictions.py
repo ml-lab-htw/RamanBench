@@ -488,6 +488,22 @@ def compute_predictions(
 
                         y_pred.sort_index().to_csv(pred_path, index=True)
 
+                        # For classification, also persist class probabilities
+                        # so downstream metrics (log_loss, ROC-AUC) can be
+                        # computed without rerunning the model.
+                        if task_type == TASK_TYPE.Classification:
+                            try:
+                                y_proba = model.predict_proba(data_test)
+                                proba_path = os.path.join(
+                                    predictions_dir, f"{key}_{model_name}_proba.csv"
+                                )
+                                y_proba.sort_index().to_csv(proba_path, index=True)
+                            except Exception as e:
+                                logger.warning(
+                                    "predict_proba failed for %s / %s: %s",
+                                    key, model_name, e,
+                                )
+
                         truth_path = os.path.join(predictions_dir, f"{key}_ground_truth.csv")
                         if not os.path.exists(truth_path):
                             data_test[["target"]].sort_index().to_csv(truth_path, index=True)

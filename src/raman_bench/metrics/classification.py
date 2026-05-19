@@ -8,6 +8,7 @@ from sklearn.metrics import (
     cohen_kappa_score,
     confusion_matrix,
     f1_score,
+    log_loss,
     matthews_corrcoef,
     precision_score,
     recall_score,
@@ -59,6 +60,10 @@ class ClassificationMetrics:
                 metrics["roc_auc"] = self.roc_auc(y_true, y_proba)
             except Exception:
                 metrics["roc_auc"] = np.nan
+            try:
+                metrics["log_loss"] = self.log_loss(y_true, y_proba)
+            except Exception:
+                metrics["log_loss"] = np.nan
         return metrics
 
     def accuracy(self, y_true, y_pred) -> float:
@@ -93,6 +98,13 @@ class ClassificationMetrics:
         return float(
             roc_auc_score(y_true_bin, y_proba, multi_class=multi_class, average=self.average)
         )
+
+    def log_loss(self, y_true, y_proba) -> float:
+        """Cross-entropy. Accepts 1-D proba for binary or 2-D (n_samples, n_classes)."""
+        if y_proba.ndim == 1:
+            # Binary: sklearn log_loss wants 2-D for >=2 classes; build it.
+            y_proba = np.column_stack([1.0 - y_proba, y_proba])
+        return float(log_loss(y_true, y_proba, labels=np.unique(y_true)))
 
     def confusion_matrix(self, y_true, y_pred, normalize=None) -> np.ndarray:
         return confusion_matrix(y_true, y_pred, normalize=normalize)

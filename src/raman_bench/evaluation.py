@@ -221,7 +221,22 @@ def compute_metrics_from_predictions(config):
                     "target_idx": target_idx,
                     "model": model_name,
                 }
-                row.update(compute_metrics(data_test_["target"], y_pred["target"], task_type))
+                # Load probability matrix if available so log_loss / ROC-AUC
+                # can be computed alongside the label-based metrics. Missing
+                # proba file just means those metrics stay absent — no error.
+                y_proba = None
+                if task_type == TASK_TYPE.Classification:
+                    proba_path = pred_path.replace("_predictions.csv", "_proba.csv")
+                    if os.path.exists(proba_path):
+                        proba_df = pd.read_csv(proba_path, index_col=0).sort_index()
+                        if np.array_equal(proba_df.index, data_test_.index):
+                            y_proba = proba_df.to_numpy()
+
+                row.update(
+                    compute_metrics(
+                        data_test_["target"], y_pred["target"], task_type, y_proba=y_proba
+                    )
+                )
 
                 if task_type == TASK_TYPE.Classification:
                     (clf_excl_rows if is_excluded else clf_rows).append(row)

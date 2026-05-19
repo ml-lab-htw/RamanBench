@@ -331,6 +331,19 @@ class AutoGluonModel:
 
         return predictions
 
+    def predict_proba(self, data_test: DataFrame):
+        """Return class probabilities for *data_test* (classification only).
+
+        Returns a DataFrame with one column per class and the same index as
+        the test set. Raises ValueError for regression tasks.
+        """
+        if self.problem_type == "regression":
+            raise ValueError("predict_proba is not available for regression tasks.")
+        test_input = (
+            data_test if isinstance(data_test, TabularDataset) else TabularDataset(data_test)
+        )
+        return self.predictor.predict_proba(test_input)
+
     def get_fit_stats(self) -> dict:
         """Return training statistics from AutoGluon's leaderboard.
 
