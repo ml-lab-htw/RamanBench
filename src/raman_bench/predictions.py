@@ -416,7 +416,15 @@ def compute_predictions(
                         continue
 
                 pred_path = os.path.join(predictions_dir, f"{key}_{model_name}_predictions.csv")
-                if os.path.exists(pred_path) and not overwrite:
+                proba_path = os.path.join(predictions_dir, f"{key}_{model_name}_proba.csv")
+                # For classification, both files must exist to skip — otherwise
+                # rerun so the missing proba file gets written and downstream
+                # log_loss / ROC-AUC become available.
+                if task_type == TASK_TYPE.Classification:
+                    already_complete = os.path.exists(pred_path) and os.path.exists(proba_path)
+                else:
+                    already_complete = os.path.exists(pred_path)
+                if already_complete and not overwrite:
                     pbar.update(1)
                     continue
 
