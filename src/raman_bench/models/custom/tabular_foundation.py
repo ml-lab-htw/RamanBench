@@ -74,6 +74,36 @@ class TabPFNModel(BaseEstimator):
         return proba[:, 1] if self.problem_type_ == "binary" else proba
 
 
+class _CloneSafeTabPFNWide(BaseEstimator):
+    """sklearn-clone-safe wrapper around TabPFNWideClassifier.
+
+    TabPFNWideClassifier mutates its own params during __init__ (resolves
+    model_name → model_path), so get_params() returns both, and re-init
+    via sklearn.clone() trips its mutually-exclusive XOR check.
+    This wrapper exposes only the user-supplied constructor args, so
+    cloning round-trips cleanly. Required by ManyClassClassifier, which
+    clones the base estimator per ECOC sub-task.
+    """
+
+    def __init__(self, model_name: str = "wide-v2-5k", device: str = "cpu"):
+        self.model_name = model_name
+        self.device = device
+
+    def fit(self, X, y):
+        from tabpfnwide.classifier import TabPFNWideClassifier
+
+        self._estimator = TabPFNWideClassifier(model_name=self.model_name, device=self.device)
+        self._estimator.fit(X, y)
+        self.classes_ = self._estimator.classes_
+        return self
+
+    def predict(self, X):
+        return self._estimator.predict(X)
+
+    def predict_proba(self, X):
+        return self._estimator.predict_proba(X)
+
+
 class TabPFNWideModel(BaseEstimator):
     """TabPFN-Wide for Raman spectra — sklearn-compatible (classification only).
 
@@ -100,7 +130,7 @@ class TabPFNWideModel(BaseEstimator):
 
     def fit(self, X, y):
         try:
-            from tabpfnwide.classifier import TabPFNWideClassifier
+            import tabpfnwide.classifier  # noqa: F401
         except ImportError as e:
             raise ImportError(
                 "TabPFNWideModel requires tabpfnwide. Install with: pip install tabpfnwide"
@@ -112,7 +142,7 @@ class TabPFNWideModel(BaseEstimator):
             raise ValueError("TabPFN-Wide does not support regression.")
 
         self.classes_ = np.unique(y_arr)
-        base_model = TabPFNWideClassifier(model_name=self.model_name, device=self.device)
+        base_model = _CloneSafeTabPFNWide(model_name=self.model_name, device=self.device)
 
         # TabPFN natively supports up to 10 classes. For more, wrap with the
         # ECOC-based ManyClassClassifier from tabpfn-extensions (same approach
