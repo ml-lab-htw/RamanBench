@@ -88,9 +88,15 @@ class TabPFNWideModel(BaseEstimator):
         DOI: 10.48550/arXiv.2510.06162
     """
 
-    def __init__(self, model_name: str = "wide-v2-5k", device: str = "cpu"):
+    def __init__(
+        self,
+        model_name: str = "wide-v2-5k",
+        device: str = "cpu",
+        many_class_threshold: int = 10,
+    ):
         self.model_name = model_name
         self.device = device
+        self.many_class_threshold = many_class_threshold
 
     def fit(self, X, y):
         try:
@@ -106,7 +112,26 @@ class TabPFNWideModel(BaseEstimator):
             raise ValueError("TabPFN-Wide does not support regression.")
 
         self.classes_ = np.unique(y_arr)
-        self.model_ = TabPFNWideClassifier(model_name=self.model_name, device=self.device)
+        base_model = TabPFNWideClassifier(model_name=self.model_name, device=self.device)
+
+        # TabPFN natively supports up to 10 classes. For more, wrap with the
+        # ECOC-based ManyClassClassifier from tabpfn-extensions (same approach
+        # as AutoGluon's TabPFNv2_5Model).
+        if len(self.classes_) > self.many_class_threshold:
+            try:
+                from tabpfn_extensions.many_class import ManyClassClassifier
+            except ImportError as e:
+                raise ImportError(
+                    f"TabPFN-Wide: {len(self.classes_)} classes exceeds native limit "
+                    f"({self.many_class_threshold}). Install tabpfn-extensions: "
+                    "pip install tabpfn-extensions"
+                ) from e
+            self.model_ = ManyClassClassifier(
+                estimator=base_model, alphabet_size=self.many_class_threshold
+            )
+        else:
+            self.model_ = base_model
+
         self.model_.fit(X_arr, y_arr)
         return self
 
