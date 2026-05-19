@@ -126,7 +126,13 @@ class AutoGluonModel:
             self.metric: str = "rmse"
             self.problem_type: str = "regression"
         elif task_type == TASK_TYPE.Classification:
-            self.metric = "f1_macro"
+            # HPO trial scoring in autogluon_fork passes the (N, K) proba
+            # matrix into sklearn f1_score without argmax-converting it to
+            # labels, which raises a length-mismatch error on multi-class
+            # datasets. log_loss is proba-native and bypasses that codepath.
+            # Headline F1 is recomputed downstream from predictions, so this
+            # only affects model selection during HPO.
+            self.metric = "log_loss" if optimize else "f1_macro"
             self.problem_type = "multiclass"
         else:
             raise ValueError(f"Unsupported task type: {task_type}")
