@@ -74,6 +74,50 @@ class TabPFNModel(BaseEstimator):
         return proba[:, 1] if self.problem_type_ == "binary" else proba
 
 
+class TabPFNWideModel(BaseEstimator):
+    """TabPFN-Wide for Raman spectra — sklearn-compatible (classification only).
+
+    Built with PriorLabs-TabPFN. TabPFN-Wide targets datasets with many
+    features and few samples — a regime Raman spectroscopy frequently
+    occupies (2000+ wavenumber columns, often <1000 spectra).
+
+    Requires the ``tabpfnwide`` package.
+
+    Reference:
+        TabPFN-Wide: https://github.com/not-a-feature/TabPFN-Wide
+        DOI: 10.48550/arXiv.2510.06162
+    """
+
+    def __init__(self, model_name: str = "wide-v2-5k", device: str = "cpu"):
+        self.model_name = model_name
+        self.device = device
+
+    def fit(self, X, y):
+        try:
+            from tabpfnwide.classifier import TabPFNWideClassifier
+        except ImportError as e:
+            raise ImportError(
+                "TabPFNWideModel requires tabpfnwide. Install with: pip install tabpfnwide"
+            ) from e
+
+        X_arr, y_arr = _to_numpy(X), np.asarray(y)
+        self.problem_type_ = _infer_problem_type(y)
+        if self.problem_type_ == "regression":
+            raise ValueError("TabPFN-Wide does not support regression.")
+
+        self.classes_ = np.unique(y_arr)
+        self.model_ = TabPFNWideClassifier(model_name=self.model_name, device=self.device)
+        self.model_.fit(X_arr, y_arr)
+        return self
+
+    def predict(self, X):
+        return self.model_.predict(_to_numpy(X))
+
+    def predict_proba(self, X):
+        proba = self.model_.predict_proba(_to_numpy(X))
+        return proba[:, 1] if self.problem_type_ == "binary" else proba
+
+
 class RealMLPModel(BaseEstimator):
     """RealMLP (pytabkit) for Raman spectra — sklearn-compatible (classification + regression).
 

@@ -58,6 +58,7 @@ models = [
     "tabpfn>=6.3.2",
     "pytabkit>=1.7.3",
     "tabdpt>=1.1.12",
+    "tabpfnwide>=0.1.0",
     "sktime>=0.40.0",
     "numba>=0.63.0",
 ]

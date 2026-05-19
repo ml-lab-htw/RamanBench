@@ -55,6 +55,7 @@ from autogluon.tabular.models import (
 )
 
 from raman_bench.models.custom.coatnet import CoAtNetModel
+from raman_bench.models.custom.tabular_foundation import TabPFNWideModel
 from raman_bench.models.custom.deepcnn import DeepCNNModel
 from raman_bench.models.custom.fcresnext import FCResNeXtModel
 from raman_bench.models.custom.pls import PLSModel
@@ -174,6 +175,10 @@ class _RocketBridge(SklearnAutoGluonBridge):
         }
 
 
+class _TabPFNWideBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = TabPFNWideModel
+
+
 class _ArsenalBridge(SklearnAutoGluonBridge):
     _sklearn_cls = ArsenalModel
 
@@ -274,6 +279,15 @@ class Prep_TABPFN_V3(_NoAugBase, TabPFNv3Model):  # noqa: N801
 
 
 class Prep_TABPFN_V3_THINKING(_NoAugBase, TabPFNv3ThinkingModel):  # noqa: N801
+    pass
+
+
+class Prep_TABPFN_WIDE(_NoAugBase, _TabPFNWideBridge):  # noqa: N801
+    """TabPFN-Wide — classification-only, targets wide datasets (many features, few samples).
+
+    Built with PriorLabs-TabPFN.
+    """
+
     pass
 
 
@@ -403,6 +417,7 @@ PREPROCESSED_MODELS = {
     "REALTABPFN-V2.6": Prep_REALTABPFN_V26,
     "TABPFN-V3": Prep_TABPFN_V3,
     "TABPFN-V3-THINKING": Prep_TABPFN_V3_THINKING,
+    "TABPFN-WIDE": Prep_TABPFN_WIDE,
     # Custom spectroscopy models
     "PLS": Prep_PLS,
     "DEEPCNN": Prep_DEEPCNN,
@@ -417,7 +432,7 @@ PREPROCESSED_MODELS = {
     "ARSENAL": Prep_ARSENAL,
 }
 
-CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL"}
+CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL", "TABPFN-WIDE"}
 
 
 def create_preprocessed_hyperparameters(
