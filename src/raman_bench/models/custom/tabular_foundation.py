@@ -142,25 +142,34 @@ class TabPFNWideModel(BaseEstimator):
             raise ValueError("TabPFN-Wide does not support regression.")
 
         self.classes_ = np.unique(y_arr)
-        base_model = _CloneSafeTabPFNWide(model_name=self.model_name, device=self.device)
 
-        # TabPFN natively supports up to 10 classes. For more, wrap with the
-        # ECOC-based ManyClassClassifier from tabpfn-extensions (same approach
-        # as AutoGluon's TabPFNv2_5Model).
+        # TabPFN natively supports up to `many_class_threshold` classes. The
+        # ECOC ManyClassClassifier workaround OOMs on wide Raman spectra, so for
+        # now we skip datasets above the limit by failing fast (AutoGluon then
+        # records no prediction for this dataset/model).
         if len(self.classes_) > self.many_class_threshold:
-            try:
-                from tabpfn_extensions.many_class import ManyClassClassifier
-            except ImportError as e:
-                raise ImportError(
-                    f"TabPFN-Wide: {len(self.classes_)} classes exceeds native limit "
-                    f"({self.many_class_threshold}). Install tabpfn-extensions: "
-                    "pip install tabpfn-extensions"
-                ) from e
-            self.model_ = ManyClassClassifier(
-                estimator=base_model, alphabet_size=self.many_class_threshold
+            raise ValueError(
+                f"TabPFN-Wide: {len(self.classes_)} classes exceeds the native limit "
+                f"({self.many_class_threshold}); skipping this dataset."
             )
-        else:
-            self.model_ = base_model
+
+        self.model_ = _CloneSafeTabPFNWide(model_name=self.model_name, device=self.device)
+
+        # Many-class support via ECOC ManyClassClassifier — disabled for now
+        # because it OOMs on wide Raman spectra even at 256G. Pending advice
+        # from the TabPFN-Wide authors on memory-efficient many-class usage.
+        # if len(self.classes_) > self.many_class_threshold:
+        #     try:
+        #         from tabpfn_extensions.many_class import ManyClassClassifier
+        #     except ImportError as e:
+        #         raise ImportError(
+        #             f"TabPFN-Wide: {len(self.classes_)} classes exceeds native limit "
+        #             f"({self.many_class_threshold}). Install tabpfn-extensions: "
+        #             "pip install tabpfn-extensions"
+        #         ) from e
+        #     self.model_ = ManyClassClassifier(
+        #         estimator=self.model_, alphabet_size=self.many_class_threshold
+        #     )
 
         self.model_.fit(X_arr, y_arr)
         return self
