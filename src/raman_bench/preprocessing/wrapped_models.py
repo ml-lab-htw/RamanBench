@@ -231,11 +231,11 @@ class Prep_XT(_NoAugBase, XTModel):  # noqa: N801
 
 
 class Prep_NN_TORCH(_NoAugBase, TabularNeuralNetTorchModel):  # noqa: N801
-    pass
+    _supports_augmentation: bool = True
 
 
 class Prep_FASTAI(_NoAugBase, NNFastAiTabularModel):  # noqa: N801
-    pass
+    _supports_augmentation: bool = True
 
 
 class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
@@ -243,7 +243,7 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
 
 
 class Prep_REALMLP(_NoAugBase, RealMLPModel):  # noqa: N801
-    pass
+    _supports_augmentation: bool = True
 
 
 class Prep_MITRA(_NoAugBase, MitraModel):  # noqa: N801
@@ -339,7 +339,7 @@ class Prep_PLS(_NoAugBase, _PLSBridge):  # noqa: N801
 class _RamanDLBase(RamanPreprocessingMixin):
     """Raman DL base — enables spectral augmentation (standard for small datasets)."""
 
-    _prep_aug_default: bool = True
+    _supports_augmentation: bool = True
 
     def _set_default_params(self):
         self._set_default_param_value("prep_aug_enabled", True)

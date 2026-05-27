@@ -139,6 +139,14 @@ _TRANSFORM_ENABLED_PARAMS = [
 ]
 _ALL_ENABLED_PARAMS = _TRANSFORM_ENABLED_PARAMS + ["prep_aug_enabled"]
 
+# Public mapping: step_key (as used in preprocessing_config / restriction dicts)
+# → the boolean "enabled" hyperparameter name for that step.
+# Used by model.py to enforce disabled steps at fit time.
+STEP_ENABLED_PARAMS: dict[str, str] = {
+    step_key: next(k for k in step_def["defaults"] if k.endswith("_enabled"))
+    for step_key, step_def in _PREP_STEP_DEFINITIONS.items()
+}
+
 
 def build_restricted_searchspace(restriction: dict | None) -> dict:
     """Return HPO search-space params filtered by *restriction*.
@@ -180,9 +188,15 @@ class RamanPreprocessingMixin:
     Set ``_optimize_preprocessing = True`` on subclasses where preprocessing
     is an integral part of the model (e.g. PLS, KNN, LR) and should therefore
     be included in HPO.  All other models only tune model-specific parameters.
+
+    Set ``_supports_augmentation = True`` on subclasses that can meaningfully
+    consume augmented training data (neural-network models).  When ``False``
+    (default), ``prep_aug_enabled`` is always forced off regardless of the
+    config — augmentation is silently skipped for tree/kernel/linear models.
     """
 
     _optimize_preprocessing: bool = False
+    _supports_augmentation: bool = False
 
     def _set_default_params(self):
         super()._set_default_params()
@@ -363,7 +377,14 @@ class RamanPreprocessingMixin:
         if not getattr(self, "_optimize_preprocessing", False):
             for k in _TRANSFORM_ENABLED_PARAMS:
                 self.params[k] = False
-            self.params["prep_aug_enabled"] = getattr(type(self), "_prep_aug_default", False)
+
+        # Augmentation gate is unconditional — applies to _optimize_preprocessing
+        # models (PLS, KNN, LR) as well as all others.  Without this, HPO can
+        # sample prep_aug_enabled=True for PLS because augmentation params are
+        # in the search space whenever augmentation=True in the config, and the
+        # _optimize_preprocessing path bypasses the block above entirely.
+        if not getattr(self, "_supports_augmentation", False):
+            self.params["prep_aug_enabled"] = False
 
         params = self._get_model_params()
         has_preprocessing = any(params.get(k, False) for k in _ALL_ENABLED_PARAMS)
@@ -373,6 +394,11 @@ class RamanPreprocessingMixin:
         if has_preprocessing:
             feature_cols = X.columns.tolist()
             X_np = X.values.astype(np.float64)
+            logger.info(
+                "Start Preprocessing for Training — %d spectra (%s)",
+                len(X_np),
+                self.__class__.__name__,
+            )
             X_np = self._preprocess_fit(X_np)
 
             if params.get("prep_aug_enabled", False):
@@ -424,7 +450,9 @@ class RamanPreprocessingMixin:
         prep_keys = [k for k in list(self.params.keys()) if k.startswith("prep_")]
         prep_params_backup = {k: self.params.pop(k) for k in prep_keys}
         try:
-            return super()._fit(X, y, **kwargs)
+            result = super()._fit(X, y, **kwargs)
+            logger.info("Fitted Model — %s", self.__class__.__name__)
+            return result
         finally:
             self.params.update(prep_params_backup)
 
@@ -438,6 +466,11 @@ class RamanPreprocessingMixin:
         params = self._get_model_params()
         if any(params.get(k, False) for k in _TRANSFORM_ENABLED_PARAMS):
             if isinstance(X, pd.DataFrame):
+                logger.info(
+                    "Start Preprocessing for Inference — %d spectra (%s)",
+                    len(X),
+                    self.__class__.__name__,
+                )
                 feature_cols = X.columns.tolist()
                 X_np = X.values.astype(np.float64)
                 X_np = self._preprocess_transform(X_np)
@@ -457,5 +490,9 @@ class RamanPreprocessingMixin:
         # regression by delegating to self._predict — that re-enters this
         # method's MRO and applies preprocessing a second time. Use a private
         # _raw_predict() helper that bypasses the mixin instead.
+        n_spectra = len(X) if hasattr(X, "__len__") else None
         X = self._preprocess_if_dataframe(X)
-        return super()._predict_proba(X, **kwargs)
+        result = super()._predict_proba(X, **kwargs)
+        if n_spectra is not None:
+            logger.info("Predicted %d spectra (%s)", n_spectra, self.__class__.__name__)
+        return result

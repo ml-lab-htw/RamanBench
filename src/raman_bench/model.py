@@ -34,7 +34,11 @@ except ImportError as _ag_err:
         "Install with: pip install -r requirements-autogluon-fork.txt && pip install 'raman-bench[autogluon]'"
     ) from _ag_err
 from raman_bench.models.custom.base import BaseRamanEstimator as BaseCustomModel
-from raman_bench.preprocessing.mixin import RamanPreprocessingMixin, build_restricted_searchspace
+from raman_bench.preprocessing.mixin import (
+    RamanPreprocessingMixin,
+    STEP_ENABLED_PARAMS,
+    build_restricted_searchspace,
+)
 from raman_bench.preprocessing.wrapped_models import create_preprocessed_hyperparameters
 
 logger = logging.getLogger(__name__)
@@ -199,9 +203,39 @@ class AutoGluonModel:
             if restriction and restriction.get("standard_scaling"):
                 merged["prep_scaling_enabled"] = True
 
+            # Enforce restriction for each step:
+            #  - Disabled (False) → force the enabled flag off.  This overrides
+            #    model-class defaults from _set_default_params (e.g. Prep_PLS
+            #    defaults prep_bl_enabled=True) so HPO cannot silently activate
+            #    a step the user turned off.
+            #  - Augmentation enabled (True) + model supports it → force on.
+            #    _NoAugBase defaults prep_aug_enabled=False; without this a
+            #    capable model (NN_TORCH, FASTAI, REALMLP) would never see
+            #    augmented data even when the config enables it.
+            if restriction is not None:
+                for step_key, enabled_param in STEP_ENABLED_PARAMS.items():
+                    if not restriction.get(step_key, True):
+                        merged[enabled_param] = False
+                    elif (
+                        step_key == "augmentation"
+                        and restriction.get("augmentation", False)
+                        and getattr(cls, "_supports_augmentation", False)
+                    ):
+                        merged[enabled_param] = True
+
             if self.optimize:
                 optimize_prep = getattr(cls, "_optimize_preprocessing", False)
                 search_space = build_restricted_searchspace(restriction) if optimize_prep else {}
+                # Strip augmentation params from the HPO search space for models
+                # that don't support augmentation.  build_restricted_searchspace
+                # adds prep_aug_* whenever augmentation=True in the config; without
+                # this filter, HPO would sample aug params for PLS/KNN/LR even
+                # though _supports_augmentation=False.
+                if not getattr(cls, "_supports_augmentation", False):
+                    search_space = {
+                        k: v for k, v in search_space.items()
+                        if not k.startswith("prep_aug_")
+                    }
                 for base_cls in cls.__mro__[1:]:
                     if issubclass(base_cls, RamanPreprocessingMixin):
                         continue
