@@ -42,6 +42,7 @@ dependencies = [
     "seaborn>=0.12",
     "tqdm>=4.64,<5.0",
     "raman-data>=1.2.6",
+    "torch>=2.0,<3.0",
 ]
 
 [project.optional-dependencies]
@@ -52,7 +53,6 @@ autogluon = [
     "autogluon.tabular>=1.5",
 ]
 models = [
-    "torch>=2.0,<3.0",
     "ramanspy>=0.2.10,<0.3.0",
     "imodels>=2.0.4",
     "tabpfn>=6.3.2",
