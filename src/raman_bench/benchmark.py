@@ -43,6 +43,15 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
+def _is_float_col(s: str) -> bool:
+    """Check if string is a parseable float (for wavenumber column detection)."""
+    try:
+        float(s)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 def configure_benchmark(config, init_benchmark: bool = True) -> "RamanBenchmark":
     """Instantiate a :class:`RamanBenchmark` from a loaded config dict.
 
@@ -66,6 +75,8 @@ def configure_benchmark(config, init_benchmark: bool = True) -> "RamanBenchmark"
         cache_dir=config.get("cache_dir") or None,
         min_samples_per_class=config.get("min_samples_per_class", 9),
         group_regression_splits=config.get("group_regression_splits", True),
+        use_mirror=config.get("use_mirror", True),
+        mirror_repo=config.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench"),
     )
 
     if init_benchmark:
@@ -98,6 +109,12 @@ class RamanBenchmark:
         If ``True`` (default), use :class:`~sklearn.model_selection.GroupShuffleSplit`
         to keep samples from the same physical measurement in the same split.
         This prevents data leakage in multi-measurement datasets.
+    use_mirror : bool
+        If ``True`` (default), load datasets from the HuggingFace mirror repo.
+        If ``False``, download from original sources via raman-data.
+    mirror_repo : str
+        HuggingFace dataset repo ID for the mirror (default
+        ``"HTW-KI-Werkstatt/RamanBench"``).
 
     Examples
     --------
@@ -121,6 +138,8 @@ class RamanBenchmark:
         cache_dir: str | None = None,
         min_samples_per_class: int = 9,
         group_regression_splits: bool = True,
+        use_mirror: bool = True,
+        mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
     ):
         if not cache_dir:
             cache_dir = ".cache"
@@ -137,6 +156,8 @@ class RamanBenchmark:
         self.random_state = random_state
         self.min_samples_per_class = min_samples_per_class
         self.group_regression_splits = group_regression_splits
+        self.use_mirror = use_mirror
+        self.mirror_repo = mirror_repo
 
         if dataset_names_classification is None:
             self.dataset_names_classification = raman_data(
@@ -283,6 +304,79 @@ class RamanBenchmark:
             json.dump(self._index, f)
 
     # ------------------------------------------------------------------
+    # Mirror loading
+    # ------------------------------------------------------------------
+
+    def _load_raman_dataset(self, dataset_name: str):
+        """Load dataset from mirror or original source.
+
+        If use_mirror is True, loads from HuggingFace mirror repo.
+        Otherwise, downloads from original sources via raman_data().
+        """
+        if self.use_mirror:
+            return self._load_from_mirror(dataset_name)
+        return raman_data(dataset_name, cache_dir=self.cache_dir_raw)
+
+    def _load_from_mirror(self, dataset_name: str):
+        """Load dataset from HuggingFace mirror repo.
+
+        Reconstructs RamanDataset from wide-format Parquet stored in mirror.
+        Metadata (target_names, task_type) is stored in dataset info.
+        """
+        from datasets import load_dataset as hf_load_dataset
+        from raman_data import RamanDataset as RamanDatasetType
+        from raman_data.types import DatasetInfo as RamanDatasetInfo
+
+        try:
+            hf_ds = hf_load_dataset(self.mirror_repo, dataset_name, split="train")
+        except Exception as e:
+            logger.warning("Failed to load %s from mirror: %s", dataset_name, e)
+            return None
+
+        # Parse metadata from dataset info
+        try:
+            meta = json.loads(hf_ds.info.description or "{}")
+            target_names = meta.get("target_names", [])
+            task_type_str = meta.get("task_type", "regression")
+            task_type = TASK_TYPE(task_type_str)
+        except Exception as e:
+            logger.warning("Failed to parse metadata for %s: %s", dataset_name, e)
+            return None
+
+        # Separate wavenumber columns (float-parseable) from target columns
+        all_cols = hf_ds.column_names
+        shift_cols = sorted(
+            [c for c in all_cols if _is_float_col(c)],
+            key=float
+        )
+        target_cols = [c for c in all_cols if not _is_float_col(c)]
+
+        # Convert to pandas and extract arrays
+        df = hf_ds.to_pandas()
+        spectra = df[shift_cols].values.astype(np.float32)
+        raman_shifts = np.array([float(c) for c in shift_cols])
+
+        # Reconstruct targets (single vs multi-target)
+        if len(target_cols) == 1:
+            targets = df[target_cols[0]].values
+        else:
+            targets = df[target_cols].values
+
+        # Reconstruct RamanDataset
+        info = RamanDatasetInfo(
+            id=dataset_name,
+            name=dataset_name,
+            task_type=task_type,
+        )
+        return RamanDatasetType(
+            spectra=spectra,
+            targets=targets,
+            raman_shifts=raman_shifts,
+            target_names=target_names,
+            info=info,
+        )
+
+    # ------------------------------------------------------------------
     # Dataset loading
     # ------------------------------------------------------------------
 
@@ -291,8 +385,8 @@ class RamanBenchmark:
             if dataset_name in self._index:
                 num_targets = self._index[dataset_name]
             else:
-                dataset = raman_data(dataset_name, cache_dir=self.cache_dir_raw)
-                if dataset.targets is None:
+                dataset = self._load_raman_dataset(dataset_name)
+                if dataset is None or dataset.targets is None:
                     num_targets = 0
                 elif dataset.targets.ndim == 1:
                     num_targets = 1
@@ -310,9 +404,9 @@ class RamanBenchmark:
 
     def _load_dataset_from_key(self, key: str) -> tuple[DataFrame | None, DataFrame | None]:
         dataset_name, target_idx = self.split_key(key)
-        dataset = raman_data(dataset_name, cache_dir=self.cache_dir_raw)
+        dataset = self._load_raman_dataset(dataset_name)
 
-        if dataset.targets is None:
+        if dataset is None or dataset.targets is None:
             num_targets = 0
         elif dataset.targets.ndim == 1:
             num_targets = 1
