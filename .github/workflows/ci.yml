@@ -46,6 +46,20 @@ jobs:
         env:
           PYTHONPATH: src
 
+      - name: Cache datasets
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/raman-data
+          key: ${{ runner.os }}-raman-datasets-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-raman-datasets-
+
+      - name: Verify benchmark datasets (smoke test)
+        run: pytest tests/test_data_download_integration.py::test_benchmark_init_and_dataset_listing -v
+        timeout-minutes: 5
+        env:
+          PYTHONPATH: src
+
   publish:
     runs-on: ubuntu-latest
     needs: test
