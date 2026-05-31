@@ -1,0 +1,60 @@
+name: Full Dataset Verification
+
+on:
+  # Run on release tags
+  push:
+    tags:
+      - "v*"
+  # Run nightly
+  schedule:
+    - cron: "0 2 * * *"  # 2am UTC daily
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  verify-datasets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # Full verification takes ~30-60 min
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+
+      - name: Cache datasets
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/raman-data
+          key: ${{ runner.os }}-raman-datasets-full-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-raman-datasets-full-
+
+      - name: Install package (core + dev)
+        run: pip install -e ".[dev]"
+
+      - name: Install torch (CPU-only)
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Run full dataset verification
+        run: python tests/verify_full_benchmark.py
+        timeout-minutes: 90
+        env:
+          PYTHONPATH: src
+
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataset-verification-report
+          path: |
+            /tmp/raman_verify_*/
+          retention-days: 30
