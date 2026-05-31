@@ -416,16 +416,11 @@ also has a "How to Contribute" section with step-by-step instructions.
 If you use RamanBench in your research, please cite:
 
 ```bibtex
-@misc{koddenbrock2026ramanbench,
-  title         = {RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy},
-  author        = {Koddenbrock, Mario and Lange, Christoph and Legner, Robin and Jaeger, Martin
-                   and K{\"o}gler, Martin and Cruz Bournazou, Mariano N. and Neubauer, Peter
-                   and Bie{\ss}mann, Felix and Rodner, Erik},
-  year          = {2026},
-  eprint        = {2605.02003},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.LG},
-  url           = {https://arxiv.org/abs/2605.02003}
+@article{koddenbrock2026ramanbench,
+  title={RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy},
+  author={Koddenbrock, Mario and Lange, Christoph and Legner, Robin and J{\"a}ger, Martin and K{\"o}gler, Martin and Bournazou, Mariano N Cruz and Neubauer, Peter and Biessmann, Felix and Rodner, Erik},
+  journal={arXiv preprint arXiv:2605.02003},
+  year={2026}
 }
 ```
 
