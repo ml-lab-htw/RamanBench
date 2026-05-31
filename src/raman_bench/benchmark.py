@@ -321,9 +321,10 @@ class RamanBenchmark:
         """Load dataset from HuggingFace mirror repo.
 
         Reconstructs RamanDataset from wide-format Parquet stored in mirror.
-        Metadata (target_names, task_type) is stored in dataset info.
+        Metadata is loaded from the separate metadata.json file if available.
         """
         from datasets import load_dataset as hf_load_dataset
+        from huggingface_hub import hf_hub_download
         from raman_data import RamanDataset as RamanDatasetType
         from raman_data.types import DatasetInfo as RamanDatasetInfo
 
@@ -331,16 +332,6 @@ class RamanBenchmark:
             hf_ds = hf_load_dataset(self.mirror_repo, dataset_name, split="train")
         except Exception as e:
             logger.warning("Failed to load %s from mirror: %s", dataset_name, e)
-            return None
-
-        # Parse metadata from dataset info
-        try:
-            meta = json.loads(hf_ds.info.description or "{}")
-            target_names = meta.get("target_names", [])
-            task_type_str = meta.get("task_type", "regression")
-            task_type = TASK_TYPE(task_type_str)
-        except Exception as e:
-            logger.warning("Failed to parse metadata for %s: %s", dataset_name, e)
             return None
 
         # Separate wavenumber columns (float-parseable) from target columns
@@ -355,6 +346,47 @@ class RamanBenchmark:
         df = hf_ds.to_pandas()
         spectra = df[shift_cols].values.astype(np.float32)
         raman_shifts = np.array([float(c) for c in shift_cols])
+
+        # Try to load metadata from separate metadata.json file
+        target_names = None
+        task_type = None
+        try:
+            metadata_path = hf_hub_download(
+                repo_id=self.mirror_repo,
+                filename=f"{dataset_name}/metadata.json",
+                repo_type="dataset",
+                cache_dir=self.cache_dir_raw,
+            )
+            with open(metadata_path) as f:
+                meta = json.load(f)
+                target_names = meta.get("target_names")
+                task_type_val = meta.get("task_type")
+                # task_type might be a string or int
+                if isinstance(task_type_val, int):
+                    task_type = TASK_TYPE(task_type_val)
+                elif task_type_val:
+                    task_type_str = str(task_type_val).lower()
+                    if task_type_str in ["classification", "0"]:
+                        task_type = TASK_TYPE.Classification
+                    elif task_type_str in ["regression", "1"]:
+                        task_type = TASK_TYPE.Regression
+        except Exception as e:
+            logger.debug("Could not load metadata.json for %s: %s", dataset_name, e)
+
+        # Infer target_names and task_type if not in metadata
+        if target_names is None:
+            target_names = target_cols
+        if task_type is None:
+            # Infer from target column type
+            if len(target_cols) > 0:
+                first_target = df[target_cols[0]]
+                # Classification if non-numeric strings, regression otherwise
+                if first_target.dtype == object or first_target.dtype.name.startswith('str'):
+                    task_type = TASK_TYPE.Classification
+                else:
+                    task_type = TASK_TYPE.Regression
+            else:
+                task_type = TASK_TYPE.Regression
 
         # Reconstruct targets (single vs multi-target)
         if len(target_cols) == 1:
