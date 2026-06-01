@@ -144,7 +144,9 @@ class RamanBenchmark:
         if not cache_dir:
             cache_dir = ".cache"
 
-        self.cache_dir_raw = os.path.join(cache_dir, "datasets_raw")
+        # Use separate cache directories for mirror vs. original sources
+        raw_subdir = "datasets_mirror" if use_mirror else "datasets_raw"
+        self.cache_dir_raw = os.path.join(cache_dir, raw_subdir)
         os.makedirs(self.cache_dir_raw, exist_ok=True)
 
         self.cache_dir_processed = os.path.join(
@@ -310,11 +312,15 @@ class RamanBenchmark:
     def _load_raman_dataset(self, dataset_name: str):
         """Load dataset from mirror or original source.
 
-        If use_mirror is True, loads from HuggingFace mirror repo.
-        Otherwise, downloads from original sources via raman_data().
+        If use_mirror is True, loads from HuggingFace mirror repo with fallback
+        to original sources. Otherwise, downloads from original sources via raman_data().
         """
         if self.use_mirror:
-            return self._load_from_mirror(dataset_name)
+            dataset = self._load_from_mirror(dataset_name)
+            if dataset is not None:
+                return dataset
+            # Fallback to original source if mirror fails
+            logger.debug("Mirror load failed for %s; falling back to original source", dataset_name)
         return raman_data(dataset_name, cache_dir=self.cache_dir_raw)
 
     def _load_from_mirror(self, dataset_name: str):
@@ -323,27 +329,38 @@ class RamanBenchmark:
         Reconstructs RamanDataset from wide-format Parquet stored in mirror.
         Metadata is loaded from the separate metadata.json file if available.
         """
-        from datasets import load_dataset as hf_load_dataset
         from huggingface_hub import hf_hub_download
         from raman_data import RamanDataset as RamanDatasetType
         from raman_data.types import DatasetInfo as RamanDatasetInfo
 
         try:
-            hf_ds = hf_load_dataset(self.mirror_repo, dataset_name, split="train")
+            # Download Parquet file directly from HF Hub
+            parquet_path = hf_hub_download(
+                repo_id=self.mirror_repo,
+                filename=f"{dataset_name}/data/train-00000-of-00001.parquet",
+                repo_type="dataset",
+                cache_dir=self.cache_dir_raw,
+            )
         except Exception as e:
             logger.warning("Failed to load %s from mirror: %s", dataset_name, e)
             return None
 
+        # Load Parquet to pandas
+        try:
+            df = pd.read_parquet(parquet_path)
+        except Exception as e:
+            logger.warning("Failed to read parquet for %s: %s", dataset_name, e)
+            return None
+
         # Separate wavenumber columns (float-parseable) from target columns
-        all_cols = hf_ds.column_names
+        all_cols = df.columns.tolist()
         shift_cols = sorted(
             [c for c in all_cols if _is_float_col(c)],
             key=float
         )
         target_cols = [c for c in all_cols if not _is_float_col(c)]
 
-        # Convert to pandas and extract arrays
-        df = hf_ds.to_pandas()
+        # Extract arrays
         spectra = df[shift_cols].values.astype(np.float32)
         raman_shifts = np.array([float(c) for c in shift_cols])
 
