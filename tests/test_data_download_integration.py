@@ -229,6 +229,7 @@ def run_all_tests():
         except Exception as e:
             print(f"❌ ERROR: {e}")
             import traceback
+
             traceback.print_exc()
             failed.append((test_name, e))
 
@@ -251,5 +252,6 @@ def run_all_tests():
 
 if __name__ == "__main__":
     import sys
+
     success = run_all_tests()
     sys.exit(0 if success else 1)

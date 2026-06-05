@@ -19,7 +19,7 @@ def verify_all_datasets():
         print("\n📦 Initializing benchmark with all datasets...")
         bm = RamanBenchmark(
             dataset_names_classification=None,  # Load all
-            dataset_names_regression=None,      # Load all
+            dataset_names_regression=None,  # Load all
             cache_dir=temp_cache,
             use_mirror=True,  # Use HuggingFace mirror (faster, more reliable in CI)
         )

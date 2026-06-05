@@ -233,8 +233,7 @@ class AutoGluonModel:
                 # though _supports_augmentation=False.
                 if not getattr(cls, "_supports_augmentation", False):
                     search_space = {
-                        k: v for k, v in search_space.items()
-                        if not k.startswith("prep_aug_")
+                        k: v for k, v in search_space.items() if not k.startswith("prep_aug_")
                     }
                 for base_cls in cls.__mro__[1:]:
                     if issubclass(base_cls, RamanPreprocessingMixin):

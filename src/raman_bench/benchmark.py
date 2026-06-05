@@ -358,10 +358,7 @@ class RamanBenchmark:
 
         # Separate wavenumber columns (float-parseable) from target columns
         all_cols = df.columns.tolist()
-        shift_cols = sorted(
-            [c for c in all_cols if _is_float_col(c)],
-            key=float
-        )
+        shift_cols = sorted([c for c in all_cols if _is_float_col(c)], key=float)
         target_cols = [c for c in all_cols if not _is_float_col(c)]
 
         # Extract arrays
@@ -402,7 +399,7 @@ class RamanBenchmark:
             if len(target_cols) > 0:
                 first_target = df[target_cols[0]]
                 # Classification if non-numeric strings, regression otherwise
-                if first_target.dtype == object or first_target.dtype.name.startswith('str'):
+                if first_target.dtype == object or first_target.dtype.name.startswith("str"):
                     task_type = TASK_TYPE.Classification
                 else:
                     task_type = TASK_TYPE.Regression

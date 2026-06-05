@@ -509,7 +509,9 @@ def compute_predictions(
                             except Exception as e:
                                 logger.warning(
                                     "predict_proba failed for %s / %s: %s",
-                                    key, model_name, e,
+                                    key,
+                                    model_name,
+                                    e,
                                 )
 
                         truth_path = os.path.join(predictions_dir, f"{key}_ground_truth.csv")
