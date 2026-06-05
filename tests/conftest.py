@@ -1,5 +1,9 @@
 """Shared test fixtures for RamanBench."""
 
+import os
+import shutil
+import tempfile
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -47,3 +51,12 @@ def debug_config(tmp_path):
         "n_repetitions": 1,
         "preprocessing_config": None,
     }
+
+
+@pytest.fixture
+def temp_cache():
+    """Create a temporary cache directory and clean it up after the test."""
+    temp_dir = tempfile.mkdtemp(prefix="raman_test_")
+    yield temp_dir
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir, ignore_errors=True)
