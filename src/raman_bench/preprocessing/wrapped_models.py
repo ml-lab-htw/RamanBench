@@ -55,7 +55,6 @@ from autogluon.tabular.models import (
 )
 
 from raman_bench.models.custom.coatnet import CoAtNetModel
-from raman_bench.models.custom.tabular_foundation import TabPFNWideModel
 from raman_bench.models.custom.deepcnn import DeepCNNModel
 from raman_bench.models.custom.fcresnext import FCResNeXtModel
 from raman_bench.models.custom.pls import PLSModel
@@ -65,6 +64,7 @@ from raman_bench.models.custom.ramantransformer import RamanTransformerModel
 from raman_bench.models.custom.rezeronet import ReZeroNetModel
 from raman_bench.models.custom.sanet import SANetModel
 from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
+from raman_bench.models.custom.tabular_foundation import TabPFNWideModel
 from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
 
 # ---------------------------------------------------------------------------

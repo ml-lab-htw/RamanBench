@@ -35,8 +35,8 @@ except ImportError as _ag_err:
     ) from _ag_err
 from raman_bench.models.custom.base import BaseRamanEstimator as BaseCustomModel
 from raman_bench.preprocessing.mixin import (
-    RamanPreprocessingMixin,
     STEP_ENABLED_PARAMS,
+    RamanPreprocessingMixin,
     build_restricted_searchspace,
 )
 from raman_bench.preprocessing.wrapped_models import create_preprocessed_hyperparameters
