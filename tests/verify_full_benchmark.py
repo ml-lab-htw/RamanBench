@@ -21,7 +21,7 @@ def verify_all_datasets():
             dataset_names_classification=None,  # Load all
             dataset_names_regression=None,      # Load all
             cache_dir=temp_cache,
-            use_mirror=False,  # Use original sources
+            use_mirror=True,  # Use HuggingFace mirror (faster, more reliable in CI)
         )
 
         print(f"✓ Found {len(bm.dataset_names_classification)} classification datasets")
