@@ -42,6 +42,10 @@ from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
+# Suppress verbose HTTP request logs from huggingface_hub downloads
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+
 
 def _is_float_col(s: str) -> bool:
     """Check if string is a parseable float (for wavenumber column detection)."""
@@ -411,10 +415,11 @@ class RamanBenchmark:
         else:
             targets = df[target_cols].values
 
-        # Reconstruct RamanDataset
         info = RamanDatasetInfo(
             id=dataset_name,
             name=dataset_name,
+            loader=lambda: None,
+            metadata={},
             task_type=task_type,
         )
         return RamanDatasetType(
@@ -431,7 +436,7 @@ class RamanBenchmark:
 
     def _load_datasets(self, dataset_names: list[str]):
         for dataset_name in tqdm(dataset_names, desc="Loading datasets"):
-            if dataset_name in self._index:
+            if dataset_name in self._index and self._index[dataset_name] > 0:
                 num_targets = self._index[dataset_name]
             else:
                 dataset = self._load_raman_dataset(dataset_name)

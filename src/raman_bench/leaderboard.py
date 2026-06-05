@@ -262,6 +262,8 @@ class Leaderboard:
         config_path: str | None = None,
         seeds: int = 3,
         task: str = "overall",
+        use_mirror: bool = True,
+        mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
     ) -> pd.DataFrame:
         """Run a model through the full benchmark and add it to the leaderboard.
 
@@ -290,6 +292,13 @@ class Leaderboard:
             Filter to only regression or classification datasets when set to
             ``"regression"`` or ``"classification"``; default ``"overall"``
             runs both.
+        use_mirror : bool, optional
+            If ``True`` (default), load datasets from the HuggingFace mirror repo
+            with automatic caching. If ``False``, load from original sources via
+            raman-data.
+        mirror_repo : str, optional
+            HuggingFace dataset repo ID for the mirror (default
+            ``"HTW-KI-Werkstatt/RamanBench"``). Only used if ``use_mirror=True``.
 
         Returns
         -------
@@ -310,6 +319,9 @@ class Leaderboard:
             config_path = os.path.join(pkg_root, "..", "..", "configs", "benchmark_v0.1.json")
 
         config = load_config(config_path)
+        config["use_mirror"] = use_mirror
+        config["mirror_repo"] = mirror_repo
+
         records = []
         fit_times: list[float] = []
         infer_us_per_sample: list[float] = []
