@@ -186,9 +186,9 @@ class _ArsenalBridge(SklearnAutoGluonBridge):
         from autogluon.common import space
 
         return {
-            "rocket_transform": space.Categorical("rocket", "minirocket", "multirocket"),
-            "num_kernels": space.Int(lower=2_000, upper=10_000),
-            "n_estimators": space.Int(lower=10, upper=50),
+            "rocket_transform": space.Categorical("rocket", "minirocket"),
+            "num_kernels": space.Int(lower=2_000, upper=5_000),
+            "n_estimators": space.Int(lower=20, upper=40),
         }
 
 
