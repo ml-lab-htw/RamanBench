@@ -259,6 +259,38 @@ class RamanBenchmark:
         parts = key.split("_")
         return "_".join(parts[:-1]), int(parts[-1])
 
+    def get_target_names(self, dataset_name: str) -> list[str]:
+        """Return the ordered target column names for *dataset_name*.
+
+        Lightweight: reads only the cached mirror ``metadata.json`` (the same
+        source used during loading); falls back to loading the dataset if the
+        metadata is unavailable. Returns ``[]`` on failure. Used to resolve
+        ``exclude_targets`` (target names) to per-target keys.
+        """
+        if self.use_mirror:
+            try:
+                from huggingface_hub import hf_hub_download
+
+                metadata_path = hf_hub_download(
+                    repo_id=self.mirror_repo,
+                    filename=f"{dataset_name}/metadata.json",
+                    repo_type="dataset",
+                    cache_dir=self.cache_dir_raw,
+                )
+                with open(metadata_path) as f:
+                    names = json.load(f).get("target_names")
+                if names:
+                    return list(names)
+            except Exception:
+                pass
+        try:
+            ds = self._load_raman_dataset(dataset_name)
+            if ds is not None and ds.target_names:
+                return list(ds.target_names)
+        except Exception:
+            pass
+        return []
+
     # ------------------------------------------------------------------
     # Cache helpers
     # ------------------------------------------------------------------
