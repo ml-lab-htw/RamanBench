@@ -243,6 +243,36 @@ class _PowerTracker:
 
 
 # ---------------------------------------------------------------------------
+# Excluded-key resolution (ablation-only keys/targets)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_excluded_keys(config, benchmark) -> set[str]:
+    """Resolve ``exclude_keys`` + ``exclude_targets`` to a set of dataset keys.
+
+    Works during the prediction step without needing ``dataset_stats.json``:
+
+    * ``exclude_keys``    — exact keys (e.g. ``"amino_acids_leucine_0"``), used directly.
+    * ``exclude_targets`` — regression target column names (e.g. ``"time_h"``),
+      resolved to ``"{dataset}_{target_idx}"`` via the dataset's target names
+      (read from the mirror metadata by :meth:`RamanBenchmark.get_target_names`).
+
+    Only regression dataset names are scanned for target-name matches:
+    classification ``target_names`` are class labels, not target columns.
+    """
+    excluded: set[str] = set(config.get("exclude_keys", []))
+
+    names = set(config.get("exclude_targets", []))
+    if names:
+        for ds in benchmark.dataset_names_regression or []:
+            for idx, tname in enumerate(benchmark.get_target_names(ds)):
+                if tname in names:
+                    excluded.add(f"{ds}_{idx}")
+
+    return excluded
+
+
+# ---------------------------------------------------------------------------
 # Subsampling (OOM guard for specific model/dataset combinations)
 # ---------------------------------------------------------------------------
 
@@ -375,6 +405,25 @@ def compute_predictions(
         stats_dir = os.path.join(seed_dir, "stats")
         for d in (predictions_dir, logs_dir, stats_dir):
             os.makedirs(d, exist_ok=True)
+
+        # Ablation-only keys/targets (exclude_keys/exclude_targets) are computed
+        # by default. When compute_excluded_keys=False (e.g. HPO runs) drop them
+        # from the key list so they are neither loaded nor predicted.
+        if not config.get("compute_excluded_keys", True):
+            excluded = _resolve_excluded_keys(config, benchmark)
+            if excluded:
+                pairs = [
+                    (k, t)
+                    for k, t in zip(benchmark._key_list, benchmark._task_type_list)
+                    if k not in excluded
+                ]
+                n_dropped = len(benchmark._key_list) - len(pairs)
+                benchmark._key_list = [k for k, _ in pairs]
+                benchmark._task_type_list = [t for _, t in pairs]
+                logger.info(
+                    "compute_excluded_keys=False: skipping %d excluded key(s) in predictions.",
+                    n_dropped,
+                )
 
         if reverse:
             benchmark._key_list = list(reversed(benchmark._key_list))
