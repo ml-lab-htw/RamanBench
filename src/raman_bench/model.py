@@ -60,6 +60,25 @@ def _build_foundation_hyperparameters(num_gpus: int) -> dict:
         hp[cls_v25] = [{**gpu_arg}]
     except Exception:
         pass
+
+    # Pin CatBoost to CPU. Its GPU implementation competes with the foundation
+    # models (TabPFN/TabICL/TabDPT) for VRAM and triggered CUDA out-of-memory
+    # crashes that aborted the whole run (e.g. during refit_full). CatBoost is
+    # fast on CPU, so the only cost is a small bit of CPU time. The portfolio is
+    # keyed by short model strings ("CAT"), so we patch that key directly.
+    try:
+        cat_cfgs = hp.get("CAT")
+        if cat_cfgs is not None:
+            if isinstance(cat_cfgs, dict):
+                cat_cfgs = [cat_cfgs]
+            patched = []
+            for cfg in cat_cfgs:
+                ag_args_fit = {**cfg.get("ag_args_fit", {}), "ag.num_gpus": 0}
+                patched.append({**cfg, "ag_args_fit": ag_args_fit})
+            hp["CAT"] = patched
+    except Exception:
+        pass
+
     return hp
 
 
