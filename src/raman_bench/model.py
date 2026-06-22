@@ -287,6 +287,15 @@ class AutoGluonModel:
             # and use the refit model for downstream predictions.
             "refit_full": True,
             "set_best_to_refit_full": True,
+            # Disable post-fit probability calibration. The `extreme_quality`
+            # preset enables it, but its calibrate_model() step calls
+            # get_model_best(can_infer=True) and raises "Trainer has no fit
+            # models that can infer" whenever no model carries a validation
+            # score — which happens on large classification datasets where HPO
+            # trials exhaust the time budget (slow custom models) or the single
+            # trained model's val score is not registered. Calibration is not
+            # needed for the benchmark metrics, so turn it off for robustness.
+            "calibrate": False,
         }
 
         if self._autogluon_native:
