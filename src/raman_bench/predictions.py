@@ -289,15 +289,19 @@ def _maybe_subsample(
 
     Applies uniform spectral downsampling (``max_features``) and/or stratified
     sample subsampling (``max_samples``) as an OOM guard for large datasets.
-    A model whose dataset list contains ``"*"`` is subsampled on every dataset.
+    A model whose dataset list contains ``"*"`` is subsampled on every dataset;
+    a ``"*"`` model key applies its dataset list to every model.
     Returns *data_train* unchanged if the pair is not listed.
     """
     if subsample_config is None:
         return data_train
 
     combos = subsample_config.get("combinations", {})
-    model_keys = combos.get(model_name, [])
-    # "*" subsamples the model on every dataset (OOM guard for memory-heavy models).
+    # Two wildcard conventions are supported:
+    #   - a model's dataset list containing "*"  -> that model on every dataset
+    #   - a "*" model key whose value is a list   -> every model on those datasets
+    #     (e.g. sample-heavy datasets capped uniformly for all models)
+    model_keys = list(combos.get(model_name, [])) + list(combos.get("*", []))
     if "*" not in model_keys and key not in model_keys:
         return data_train
 
