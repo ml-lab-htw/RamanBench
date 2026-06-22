@@ -230,7 +230,7 @@ class RamanBenchmark:
         self._load_datasets(self.dataset_names_regression)
         self._load_datasets(self.dataset_names_classification)
 
-        for dataset_name in self.dataset_names_classification + self.dataset_names_regression:
+        for dataset_name in self.dataset_names_regression + self.dataset_names_classification:
             for target_idx in range(self._index.get(dataset_name, 0)):
                 self._key_list.append(self.get_key(dataset_name, target_idx))
                 task = (
