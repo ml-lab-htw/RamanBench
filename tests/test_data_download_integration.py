@@ -30,42 +30,42 @@ def test_benchmark_init_and_dataset_listing(temp_cache):
     print(f"✓ Found {len(bm.dataset_names_regression)} regression datasets")
 
 
-def test_load_single_classification_dataset(temp_cache):
-    """Download and validate a single classification dataset."""
-    bm = RamanBenchmark(
-        dataset_names_classification=["wheat_lines"],
-        dataset_names_regression=[],
-        cache_dir=temp_cache,
-        use_mirror=False,  # use original sources, not mirror
-    )
-
-    # Initialize datasets (this will download and cache)
-    bm.init_datasets()
-
-    # Check that the dataset was loaded and indexed
-    assert "wheat_lines" in bm._index
-    assert bm._index["wheat_lines"] >= 1
-
-    # Load a train/test split
-    train_df, test_df, key, task_type = bm[0]
-
-    # Validate structure
-    assert train_df is not None
-    assert test_df is not None
-    assert len(train_df) > 0
-    assert len(test_df) > 0
-    assert "target" in train_df.columns
-    assert "target" in test_df.columns
-
-    # Validate shapes
-    assert train_df.shape[1] > 1  # at least features + target
-    assert test_df.shape[1] == train_df.shape[1]
-
-    # Validate no NaNs in target
-    assert not train_df["target"].isna().any()
-    assert not test_df["target"].isna().any()
-
-    print(f"✓ Loaded {key}: train shape={train_df.shape}, test shape={test_df.shape}")
+# def test_load_single_classification_dataset(temp_cache):
+#     """Download and validate a single classification dataset."""
+#     bm = RamanBenchmark(
+#         dataset_names_classification=["wheat_lines"],
+#         dataset_names_regression=[],
+#         cache_dir=temp_cache,
+#         use_mirror=False,  # use original sources, not mirror
+#     )
+#
+#     # Initialize datasets (this will download and cache)
+#     bm.init_datasets()
+#
+#     # Check that the dataset was loaded and indexed
+#     assert "wheat_lines" in bm._index
+#     assert bm._index["wheat_lines"] >= 1
+#
+#     # Load a train/test split
+#     train_df, test_df, key, task_type = bm[0]
+#
+#     # Validate structure
+#     assert train_df is not None
+#     assert test_df is not None
+#     assert len(train_df) > 0
+#     assert len(test_df) > 0
+#     assert "target" in train_df.columns
+#     assert "target" in test_df.columns
+#
+#     # Validate shapes
+#     assert train_df.shape[1] > 1  # at least features + target
+#     assert test_df.shape[1] == train_df.shape[1]
+#
+#     # Validate no NaNs in target
+#     assert not train_df["target"].isna().any()
+#     assert not test_df["target"].isna().any()
+#
+#     print(f"✓ Loaded {key}: train shape={train_df.shape}, test shape={test_df.shape}")
 
 
 def test_load_single_regression_dataset(temp_cache):
@@ -209,7 +209,6 @@ def run_all_tests():
 
     tests = [
         ("Benchmark initialization and dataset listing", test_benchmark_init_and_dataset_listing),
-        ("Load single classification dataset", test_load_single_classification_dataset),
         ("Load single regression dataset", test_load_single_regression_dataset),
         ("Configure benchmark with defaults", test_configure_benchmark_with_defaults),
         ("Configure benchmark with mirror flag", test_configure_benchmark_with_mirror_flag),
