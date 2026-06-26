@@ -32,6 +32,7 @@ Example
 import json
 import logging
 import os
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -334,12 +335,34 @@ class RamanBenchmark:
     def _load_index(self) -> dict[str, int]:
         if not os.path.exists(self._index_file):
             return {}
-        with open(self._index_file) as f:
-            return json.load(f)
+        try:
+            with open(self._index_file) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            # A concurrent or interrupted write can leave the index unreadable.
+            # Treat it as empty so it gets rebuilt rather than crashing the run.
+            logger.warning(
+                "Index file %s is unreadable; rebuilding it.", self._index_file
+            )
+            return {}
 
     def _save_index(self):
-        with open(self._index_file, "w") as f:
-            json.dump(self._index, f)
+        # Atomic write: many array jobs share this per-seed index file, so a
+        # concurrent reader must never observe a half-written file. Write to a
+        # unique temp file in the same directory, then os.replace (atomic on
+        # POSIX) into place.
+        dir_ = os.path.dirname(self._index_file) or "."
+        fd, tmp = tempfile.mkstemp(dir=dir_, prefix=".index.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(self._index, f)
+            os.replace(tmp, self._index_file)
+        except BaseException:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
 
     # ------------------------------------------------------------------
     # Mirror loading
