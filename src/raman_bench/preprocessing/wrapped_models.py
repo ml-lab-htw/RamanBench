@@ -158,6 +158,7 @@ class _RamanNetBridge(SklearnAutoGluonBridge):
             "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
             "fc_dropout": space.Categorical(0.5, 0.2, 0.3, 0.7),
             "fc_dim": space.Categorical(512, 256, 1024),
+            "window_size": space.Categorical(50, 25, 100),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
         }
 
@@ -193,6 +194,8 @@ class _RamanFormerBridge(SklearnAutoGluonBridge):
             "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
             "dropout": space.Categorical(0.1, 0.0, 0.2, 0.3),
             "d_model": space.Categorical(256, 128, 512),
+            "nhead": space.Categorical(8, 4, 16),
+            "dim_feedforward": space.Categorical(1024, 512, 2048),
             "n_layers": space.Categorical(3, 2, 4),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
         }
@@ -210,6 +213,8 @@ class _RamanTransformerBridge(SklearnAutoGluonBridge):
             "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
             "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
             "dropout": space.Categorical(0.1, 0.0, 0.2),
+            "nhead": space.Categorical(12, 8, 16),
+            "dim_feedforward": space.Categorical(3072, 1536, 2048),
             "n_layers": space.Categorical(12, 6, 8),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
         }
@@ -228,6 +233,7 @@ class _ReZeroNetBridge(SklearnAutoGluonBridge):
             "fc_dropout": space.Categorical(0.2, 0.0, 0.1, 0.3, 0.5),
             "n_blocks": space.Int(lower=4, upper=8),
             "base_channels": space.Categorical(64, 32, 128),
+            "channel_factor": space.Categorical(1.0, 1.5, 2.0),
             "kernel_size": space.Categorical(3, 5, 7),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
         }
@@ -265,6 +271,8 @@ class _CoAtNetBridge(SklearnAutoGluonBridge):
             "attn_dropout": space.Categorical(0.1, 0.0, 0.2),
             "n_blocks": space.Int(lower=4, upper=8),
             "base_channels": space.Categorical(64, 32, 128),
+            "channel_factor": space.Categorical(1.0, 1.5, 2.0),
+            "kernel_size": space.Categorical(3, 5, 7),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
         }
 
