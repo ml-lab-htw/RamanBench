@@ -134,33 +134,139 @@ class _PLSBridge(SklearnAutoGluonBridge):
 class _DeepCNNBridge(SklearnAutoGluonBridge):
     _sklearn_cls = DeepCNNModel
 
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        return {
+            "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
+            "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
+            "dropout": space.Categorical(0.5, 0.2, 0.3, 0.7),
+            "initial_channels": space.Categorical(32, 16, 64),
+            "dense_dim": space.Categorical(256, 128, 512),
+            "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+        }
+
 
 class _RamanNetBridge(SklearnAutoGluonBridge):
     _sklearn_cls = RamanNetModel
+
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        return {
+            "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
+            "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
+            "fc_dropout": space.Categorical(0.5, 0.2, 0.3, 0.7),
+            "fc_dim": space.Categorical(512, 256, 1024),
+            "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+        }
 
 
 class _SANetBridge(SklearnAutoGluonBridge):
     _sklearn_cls = SANetModel
 
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        # First categorical value is the model default (AutoGluon convention).
+        return {
+            "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
+            "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
+            "num_blocks": space.Int(lower=3, upper=7),
+            "channel_factor": space.Categorical(2.0, 1.5, 2.5),
+            "initial_channels": space.Categorical(16, 8, 32),
+            "num_branches": space.Categorical(6, 4, 8),
+            "reduction": space.Categorical(16, 8, 32),
+            "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+        }
+
 
 class _RamanFormerBridge(SklearnAutoGluonBridge):
     _sklearn_cls = RamanFormerModel
+
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        # d_model options stay divisible by nhead (8).
+        return {
+            "lr": space.Real(3e-5, 1e-3, default=1e-4, log=True),
+            "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
+            "dropout": space.Categorical(0.1, 0.0, 0.2, 0.3),
+            "d_model": space.Categorical(256, 128, 512),
+            "n_layers": space.Categorical(3, 2, 4),
+            "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+        }
 
 
 class _RamanTransformerBridge(SklearnAutoGluonBridge):
     _sklearn_cls = RamanTransformerModel
 
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        # Keep d_model/nhead/patch_size fixed (hard divisibility constraints);
+        # tune depth, regularisation and optimisation.
+        return {
+            "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
+            "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
+            "dropout": space.Categorical(0.1, 0.0, 0.2),
+            "n_layers": space.Categorical(12, 6, 8),
+            "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+        }
+
 
 class _ReZeroNetBridge(SklearnAutoGluonBridge):
     _sklearn_cls = ReZeroNetModel
+
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        # First categorical value is the model default (AutoGluon convention).
+        return {
+            "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
+            "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
+            "fc_dropout": space.Categorical(0.2, 0.0, 0.1, 0.3, 0.5),
+            "n_blocks": space.Int(lower=4, upper=8),
+            "base_channels": space.Categorical(64, 32, 128),
+            "kernel_size": space.Categorical(3, 5, 7),
+            "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+        }
 
 
 class _FCResNeXtBridge(SklearnAutoGluonBridge):
     _sklearn_cls = FCResNeXtModel
 
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        # cardinality choices divide every hidden_dim option.
+        return {
+            "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
+            "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
+            "fc_dropout": space.Categorical(0.2, 0.0, 0.1, 0.3, 0.5),
+            "hidden_dim": space.Categorical(256, 128, 512),
+            "n_blocks": space.Int(lower=3, upper=6),
+            "cardinality": space.Categorical(4, 2, 8),
+            "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+        }
+
 
 class _CoAtNetBridge(SklearnAutoGluonBridge):
     _sklearn_cls = CoAtNetModel
+
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        # base_channels options stay divisible by nhead (4).
+        return {
+            "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
+            "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
+            "fc_dropout": space.Categorical(0.2, 0.0, 0.1, 0.3),
+            "attn_dropout": space.Categorical(0.1, 0.0, 0.2),
+            "n_blocks": space.Int(lower=4, upper=8),
+            "base_channels": space.Categorical(64, 32, 128),
+            "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+        }
 
 
 class _RocketBridge(SklearnAutoGluonBridge):
