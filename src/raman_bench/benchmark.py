@@ -135,16 +135,16 @@ class RamanBenchmark:
     """
 
     def __init__(
-        self,
-        dataset_names_classification: list[str] | None = None,
-        dataset_names_regression: list[str] | None = None,
-        test_size: float = 0.2,
-        random_state: int = 42,
-        cache_dir: str | None = None,
-        min_samples_per_class: int = 9,
-        group_regression_splits: bool = True,
-        use_mirror: bool = True,
-        mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+            self,
+            dataset_names_classification: list[str] | None = None,
+            dataset_names_regression: list[str] | None = None,
+            test_size: float = 0.2,
+            random_state: int = 42,
+            cache_dir: str | None = None,
+            min_samples_per_class: int = 9,
+            group_regression_splits: bool = True,
+            use_mirror: bool = True,
+            mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
     ):
         if not cache_dir:
             cache_dir = ".cache"
@@ -556,7 +556,7 @@ class RamanBenchmark:
     # ------------------------------------------------------------------
 
     def _filter_rare_classes(
-        self, data_df: DataFrame, key: str
+            self, data_df: DataFrame, key: str
     ) -> tuple[DataFrame | None, list | None]:
         dataset_name, _ = self.split_key(key)
         if dataset_name not in self.dataset_names_classification:
@@ -599,7 +599,7 @@ class RamanBenchmark:
     # ------------------------------------------------------------------
 
     def _grouped_train_test_split(
-        self, data_df: DataFrame, group_by_df: DataFrame | None = None
+            self, data_df: DataFrame, group_by_df: DataFrame | None = None
     ) -> tuple[DataFrame, DataFrame]:
         """Split while keeping co-measured samples in the same partition.
 
