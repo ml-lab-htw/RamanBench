@@ -150,7 +150,7 @@ class ReZeroNetModel(BaseRamanEstimator):
         aug_mixup_alpha=1e-12,
         per_epoch_augmentation=False,
         aug_max_train_samples=2000,
-        aug_n_per_epoch=20,
+        aug_n_per_epoch=1,
         grad_clip_norm=1.0,
     ):
         self.n_blocks = n_blocks
