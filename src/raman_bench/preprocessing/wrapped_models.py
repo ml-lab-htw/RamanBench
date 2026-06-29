@@ -190,14 +190,16 @@ class _RamanFormerBridge(SklearnAutoGluonBridge):
 
         # d_model options stay divisible by nhead (8).
         return {
+            "patch_size": space.Categorical(64, 128, 256),
             "lr": space.Real(3e-5, 1e-3, default=1e-4, log=True),
             "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
             "dropout": space.Categorical(0.1, 0.0, 0.2, 0.3),
             "d_model": space.Categorical(256, 128, 512),
-            "nhead": space.Categorical(8, 4, 16),
+            "nhead": space.Categorical(4, 8, 16),
             "dim_feedforward": space.Categorical(1024, 512, 2048),
             "n_layers": space.Categorical(3, 2, 4),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
+            "postprocessing_dim": space.Categorical(256, 512, 1024),
         }
 
 
@@ -210,10 +212,12 @@ class _RamanTransformerBridge(SklearnAutoGluonBridge):
         # Keep d_model/nhead/patch_size fixed (hard divisibility constraints);
         # tune depth, regularisation and optimisation.
         return {
+            "patch_size": space.Categorical(16, 32, 64),
+            "d_model": space.Categorical(256, 128, 512),
             "lr": space.Real(1e-4, 3e-3, default=1e-3, log=True),
             "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
             "dropout": space.Categorical(0.1, 0.0, 0.2),
-            "nhead": space.Categorical(12, 8, 16),
+            "nhead": space.Categorical(4, 8, 16),
             "dim_feedforward": space.Categorical(3072, 1536, 2048),
             "n_layers": space.Categorical(12, 6, 8),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
@@ -233,7 +237,7 @@ class _ReZeroNetBridge(SklearnAutoGluonBridge):
             "fc_dropout": space.Categorical(0.2, 0.0, 0.1, 0.3, 0.5),
             "n_blocks": space.Int(lower=4, upper=8),
             "base_channels": space.Categorical(64, 32, 128),
-            "channel_factor": space.Categorical(1.0, 1.5, 2.0),
+            "channel_factor": space.Categorical(1.0, 1.25, 1.5),
             "kernel_size": space.Categorical(3, 5, 7),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
         }
@@ -251,7 +255,8 @@ class _FCResNeXtBridge(SklearnAutoGluonBridge):
             "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
             "fc_dropout": space.Categorical(0.2, 0.0, 0.1, 0.3, 0.5),
             "hidden_dim": space.Categorical(256, 128, 512),
-            "n_blocks": space.Int(lower=3, upper=6),
+            "n_blocks": space.Int(lower=2, upper=6),
+            "pool_size": space.Categorical(10, 5, 20),
             "cardinality": space.Categorical(4, 2, 8),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
         }
@@ -269,9 +274,10 @@ class _CoAtNetBridge(SklearnAutoGluonBridge):
             "weight_decay": space.Real(1e-6, 1e-3, default=1e-4, log=True),
             "fc_dropout": space.Categorical(0.2, 0.0, 0.1, 0.3),
             "attn_dropout": space.Categorical(0.1, 0.0, 0.2),
-            "n_blocks": space.Int(lower=4, upper=8),
+            "n_blocks": space.Int(lower=3, upper=8),
             "base_channels": space.Categorical(64, 32, 128),
-            "channel_factor": space.Categorical(1.0, 1.5, 2.0),
+            "channel_factor": space.Categorical(1.0, 1.25, 1.5),
+            "nhead": space.Categorical(2, 4, 8),
             "kernel_size": space.Categorical(3, 5, 7),
             "aug_noise_sigma": space.Categorical(0.01, 0.0, 0.03),
         }
