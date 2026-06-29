@@ -413,7 +413,7 @@ def compute_predictions(
         # Ablation-only keys/targets (exclude_keys/exclude_targets) are computed
         # by default. When compute_excluded_keys=False (e.g. HPO runs) drop them
         # from the key list so they are neither loaded nor predicted.
-        if not config.get("compute_excluded_keys", True):
+        if not config.get("compute_excluded_keys", False):
             excluded = _resolve_excluded_keys(config, benchmark)
             if excluded:
                 pairs = [
