@@ -45,6 +45,7 @@ from autogluon.tabular.models import (
     RealTabPFNv26Model,
     RFModel,
     TabDPTModel,
+    TabFMModel,
     TabICLModel,
     TabMModel,
     TabPFNv3Model,
@@ -386,6 +387,10 @@ class Prep_TABDPT(_NoAugBase, TabDPTModel):  # noqa: N801
     pass
 
 
+class Prep_TABFM(_NoAugBase, TabFMModel):  # noqa: N801
+    pass
+
+
 class Prep_TABICL(_NoAugBase, TabICLModel):  # noqa: N801
     pass
 
@@ -539,6 +544,7 @@ PREPROCESSED_MODELS = {
     "MITRA": Prep_MITRA,
     "TABM": Prep_TABM,
     "TABDPT": Prep_TABDPT,
+    "TABFM": Prep_TABFM,
     "TABICL": Prep_TABICL,
     "REALTABPFN-V2": Prep_REALTABPFN_V2,
     "REALTABPFN-V2.5": Prep_REALTABPFN_V25,
