@@ -279,7 +279,7 @@ class AutoGluonModel:
             "presets": self.presets,
             "raise_on_no_models_fitted": raise_on_no_models_fitted,
             "verbosity": 1,
-            "ag_args_fit": {"ag.max_memory_usage_ratio": 100.0},
+            "ag_args_fit": {"ag.max_memory_usage_ratio": 100.0, "time_limit": self.time_limit},
             "ag_args_ensemble": {"fold_fitting_strategy": "sequential_local"},
             "num_gpus": num_gpus,
             "num_cpus": num_cpus,

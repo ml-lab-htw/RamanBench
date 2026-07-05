@@ -86,7 +86,7 @@ class SklearnAutoGluonBridge(AbstractModel):
 
     _sklearn_cls = None  # override in subclass
 
-    def _fit(self, X, y, **kwargs):
+    def _fit(self, X, y, time_limit=None, **kwargs):
         X_np = (
             X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
         )
@@ -100,7 +100,7 @@ class SklearnAutoGluonBridge(AbstractModel):
             if not k.startswith("ag.") and not k.startswith("_")
         }
         self._estimator = self._sklearn_cls(**params)
-        self._estimator.fit(X_np, y_arr)
+        self._estimator.fit(X_np, y_arr, time_limit=time_limit)
 
     def _predict_proba(self, X, **kwargs):
         X_np = (

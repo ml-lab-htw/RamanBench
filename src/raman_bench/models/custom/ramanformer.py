@@ -139,7 +139,7 @@ class RamanFormerModel(BaseRamanEstimator):
         self.aug_n_per_epoch = aug_n_per_epoch
         self.grad_clip_norm = grad_clip_norm
 
-    def fit(self, X, y):
+    def fit(self, X, y, time_limit=None):
         self.problem_type_ = self._infer_problem_type(y)
         self._setup_device()
         X_np, y_np, n_outputs, criterion = self._prepare_labels(X, y)
@@ -164,7 +164,7 @@ class RamanFormerModel(BaseRamanEstimator):
             y_val_t=y_val_t,
             n_epochs=self.n_epochs,
             patience=self.patience,
-            time_limit=None,
+            time_limit=time_limit,
             criterion=criterion,
             per_epoch_augmentation=self.per_epoch_augmentation,
             batch_size=self.batch_size,
