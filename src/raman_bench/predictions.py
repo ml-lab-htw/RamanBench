@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import random
+import shutil
 import threading
 import time
 import tracemalloc
@@ -604,7 +605,7 @@ def compute_predictions(
 
 
 def _cleanup_model(model):
-    """Clear AutoGluon internals before deleting to break reference cycles."""
+    """Clear AutoGluon internals and delete on-disk cache to free scratch space."""
     try:
         predictor = getattr(model, "predictor", None)
         if predictor is not None:
@@ -613,6 +614,12 @@ def _cleanup_model(model):
             if trainer is not None and hasattr(trainer, "models"):
                 trainer.models.clear()
             model.predictor = None
+    except Exception:
+        pass
+    try:
+        cache_path = getattr(model, "autogluon_path", None)
+        if cache_path and os.path.isdir(cache_path):
+            shutil.rmtree(cache_path, ignore_errors=True)
     except Exception:
         pass
 
