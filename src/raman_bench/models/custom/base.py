@@ -218,6 +218,8 @@ class BaseRamanEstimator(BaseEstimator):
             )
         self.model.load_state_dict(best_state)
         self.model = self.model.cpu()
+        # Release CUDA memory immediately so HPO trials don't accumulate VRAM.
+        torch.cuda.empty_cache()
 
         self.model.eval()
         with torch.no_grad():
