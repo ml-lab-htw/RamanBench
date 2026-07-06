@@ -29,6 +29,12 @@ jobs:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
 
+      - name: Verify clean install (simulates fresh user pip install)
+        run: |
+          python -m venv /tmp/clean_venv
+          /tmp/clean_venv/bin/pip install . --quiet
+          /tmp/clean_venv/bin/pip check
+
       - name: Install package (core + dev)
         run: pip install -e ".[dev]"
 
