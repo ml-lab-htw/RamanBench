@@ -285,7 +285,12 @@ class AutoGluonModel:
             "num_cpus": num_cpus,
             # Refit the best HPO/ensemble configuration on full train+val data
             # and use the refit model for downstream predictions.
-            "refit_full": True,
+            # Use "best" (not True): refit_full=True resolves to "all" and refits
+            # EVERY HPO trial on the full data as an unbounded post-fit step
+            # (predictor.py:1836-1846, "not bound by time_limit"). With unlimited
+            # HPO trials that roughly doubles wall-clock (~1h search + ~1h refit-all)
+            # while only the best trial's _FULL model is ever used for inference.
+            "refit_full": "best",
             "set_best_to_refit_full": True,
             # Disable post-fit probability calibration. The `extreme_quality`
             # preset enables it, but its calibrate_model() step calls
