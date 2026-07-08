@@ -353,6 +353,7 @@ def compute_predictions(
     seed_index: int | None = None,
     overwrite: bool = False,
     reverse: bool = False,
+    dataset_keys: list[str] | None = None,
 ):
     """Train all models and save predictions to CSV.
 
@@ -366,6 +367,12 @@ def compute_predictions(
         Re-run even when a prediction file already exists.
     reverse : bool
         Iterate datasets in reverse order (useful for forward+reverse parallel jobs).
+    dataset_keys : list[str] | None
+        If given, restrict predictions to these dataset keys only. Enables
+        per-dataset process isolation (one subprocess per dataset), which is
+        required for foundation models (e.g. TabFM) whose GPU memory accumulates
+        across datasets within a single long-lived process — a fresh process per
+        dataset tears down the CUDA context and reclaims all VRAM.
     """
     logger.info("=" * 60 + "\nSTEP 1: Computing Predictions")
 
@@ -429,6 +436,30 @@ def compute_predictions(
                     "compute_excluded_keys=False: skipping %d excluded key(s) in predictions.",
                     n_dropped,
                 )
+
+        # Restrict to an explicit set of dataset keys (per-dataset process
+        # isolation). Unknown keys are ignored with a warning rather than raised
+        # so a stale key list doesn't abort a whole sweep.
+        if dataset_keys is not None:
+            wanted = set(dataset_keys)
+            pairs = [
+                (k, t)
+                for k, t in zip(benchmark._key_list, benchmark._task_type_list)
+                if k in wanted
+            ]
+            benchmark._key_list = [k for k, _ in pairs]
+            benchmark._task_type_list = [t for _, t in pairs]
+            missing = wanted - set(benchmark._key_list)
+            if missing:
+                logger.warning(
+                    "dataset_keys: %d requested key(s) not found in benchmark: %s",
+                    len(missing),
+                    ", ".join(sorted(missing)),
+                )
+            logger.info(
+                "dataset_keys: restricting predictions to %d key(s).",
+                len(benchmark._key_list),
+            )
 
         if reverse:
             benchmark._key_list = list(reversed(benchmark._key_list))
