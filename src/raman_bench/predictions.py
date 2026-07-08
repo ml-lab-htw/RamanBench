@@ -612,8 +612,22 @@ def _cleanup_model(model):
             learner = getattr(predictor, "_learner", None)
             trainer = getattr(learner, "_trainer", None) if learner else None
             if trainer is not None and hasattr(trainer, "models"):
+                # Move GPU-resident models to CPU before dropping references so
+                # VRAM is freed immediately rather than waiting for the GC.
+                for ag_model in trainer.models.values():
+                    if hasattr(ag_model, "_set_device"):
+                        try:
+                            ag_model._set_device("cpu")
+                        except Exception:
+                            pass
                 trainer.models.clear()
             model.predictor = None
+    except Exception:
+        pass
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     except Exception:
         pass
     try:
