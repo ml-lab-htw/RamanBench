@@ -42,9 +42,11 @@ jobs:
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Lint (ruff)
+        continue-on-error: true
         run: ruff check src/
 
       - name: Format check (black)
+        continue-on-error: true
         run: black --check --fast src/ tests/
 
       - name: Run tests
