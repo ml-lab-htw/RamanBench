@@ -106,7 +106,7 @@ class _PsutilMemoryTracker:
         proc = _psutil.Process()
         while not self._stop.is_set():
             try:
-                rss = proc.memory_info().rss / (1024**2)
+                rss = proc.memory_info().rss / (1024 ** 2)
                 if rss > self._peak_mb:
                     self._peak_mb = rss
             except Exception:
@@ -115,7 +115,7 @@ class _PsutilMemoryTracker:
 
     def __enter__(self):
         self._stop.clear()
-        self._peak_mb = _psutil.Process().memory_info().rss / (1024**2)
+        self._peak_mb = _psutil.Process().memory_info().rss / (1024 ** 2)
         self._thread = threading.Thread(target=self._poll, daemon=True)
         self._thread.start()
         return self
@@ -138,7 +138,7 @@ class _TracemallocMemoryTracker:
     def __exit__(self, *_):
         _, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
-        self._peak_mb = peak / (1024**2)
+        self._peak_mb = peak / (1024 ** 2)
 
     @property
     def peak_mb(self) -> float:
@@ -279,12 +279,12 @@ def _resolve_excluded_keys(config, benchmark) -> set[str]:
 
 
 def _maybe_subsample(
-    data_train: pd.DataFrame,
-    model_name: str,
-    key: str,
-    task_type,
-    subsample_config: dict | None,
-    seed: int,
+        data_train: pd.DataFrame,
+        model_name: str,
+        key: str,
+        task_type,
+        subsample_config: dict | None,
+        seed: int,
 ) -> pd.DataFrame:
     """Subsample *data_train* for listed (model, dataset) pairs.
 
@@ -349,11 +349,11 @@ def _timed():
 
 
 def compute_predictions(
-    config,
-    seed_index: int | None = None,
-    overwrite: bool = False,
-    reverse: bool = False,
-    dataset_keys: list[str] | None = None,
+        config,
+        seed_index: int | None = None,
+        overwrite: bool = False,
+        reverse: bool = False,
+        dataset_keys: list[str] | None = None,
 ):
     """Train all models and save predictions to CSV.
 
