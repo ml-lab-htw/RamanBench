@@ -204,7 +204,7 @@ class _RamanFormerBridge(SklearnAutoGluonBridge):
             "n_layers": space.Categorical(3, 2, 4),
             "aug_noise_sigma": space.Real(1e-4, 1e-1, default=1e-2, log=True),
             "aug_mixup_alpha": space.Real(1e-2, 1e2, default=1, log=True),
-            "postprocessing_dim": space.Categorical(256, 512, 1024),
+            "post_processing_dim": space.Categorical(256, 512, 1024),
         }
 
 
