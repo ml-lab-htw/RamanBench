@@ -608,6 +608,15 @@ class RamanBenchmark:
 
         Falls back to a plain :func:`~sklearn.model_selection.train_test_split`
         when every row is in its own unique group.
+
+        The group label must be built from the *sorted* key. ``str(frozenset)``
+        renders its items in hash order, and Python randomises string hashes per
+        process (``PYTHONHASHSEED``), so the same group is spelled differently
+        from run to run. ``GroupShuffleSplit`` calls ``np.unique`` on the labels,
+        which sorts them — a different spelling permutes the group order and
+        therefore selects a different test set from identical data and an
+        identical ``random_state``. Sorting the items makes the label a pure
+        function of the values, so the split is reproducible across processes.
         """
         target_col = data_df.columns[-1]
         target_values = group_by_df if group_by_df is not None else data_df[[target_col]]
@@ -626,7 +635,8 @@ class RamanBenchmark:
                 unique_counter += 1
             else:
                 if k not in seen:
-                    seen[k] = str(k)
+                    # sorted() -> deterministic spelling; str(frozenset) is not.
+                    seen[k] = str(sorted(k))
                 group_labels.append(seen[k])
 
         groups = np.array(group_labels)
