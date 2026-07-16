@@ -56,6 +56,7 @@ models = [
     "ramanspy>=0.2.10,<0.3.0",
     "imodels>=2.0.4",
     "tabpfn>=6.3.2",
+    "tabpfn-extensions>=0.3.0",
     "pytabkit>=1.7.3",
     "tabdpt>=1.1.12",
     "tabpfnwide>=0.1.0",
