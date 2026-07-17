@@ -124,6 +124,10 @@ def compute_metrics_from_predictions(config):
     already_done = clf_done | reg_done | clf_excl_done | reg_excl_done
 
     clf_rows, reg_rows, clf_excl_rows, reg_excl_rows = [], [], [], []
+    # (seed, key, model) whose prediction index disagrees with the stored ground
+    # truth. Collected so the run ends with one visible summary — a per-key warning
+    # scrolls past unread in a sweep of thousands.
+    mismatched: list[tuple] = []
 
     for seed in seeds:
         logger.info("--- Seed %s ---", seed)
@@ -183,13 +187,24 @@ def compute_metrics_from_predictions(config):
                 data_test_ = data_test.sort_index()
 
                 if not np.array_equal(data_test_.index, y_pred.index):
+                    # Skip, never delete. This used to os.remove(pred_path) so that a
+                    # later compute_predictions would regenerate it — but computing
+                    # metrics must not destroy the results it is asked to measure.
+                    # The loss was invisible: the model simply fell back to
+                    # Random-Forest imputation and the leaderboard kept rendering,
+                    # carrying a number that was not the model's.
+                    # A mismatch means the prediction and the ground truth describe
+                    # different splits. Diagnose it; do not silently discard one side.
+                    mismatched.append((seed, key, model_name))
                     logger.warning(
-                        "Index mismatch for %s / %s seed %s — deleting stale prediction.",
+                        "Index mismatch for %s / %s seed %s — skipping "
+                        "(prediction kept on disk; %d vs %d test rows).",
                         key,
                         model_name,
                         seed,
+                        len(y_pred),
+                        len(data_test_),
                     )
-                    os.remove(pred_path)
                     pbar.update(1)
                     continue
 
@@ -258,6 +273,28 @@ def compute_metrics_from_predictions(config):
     _save(reg_rows, reg_existing, reg_csv)
     _save(clf_excl_rows, clf_excl_existing, clf_excl_csv)
     _save(reg_excl_rows, reg_excl_existing, reg_excl_csv)
+
+    if mismatched:
+        models = sorted({m for _, _, m in mismatched})
+        logger.warning("=" * 70)
+        logger.warning(
+            "%d prediction(s) SKIPPED: index does not match the stored ground truth.",
+            len(mismatched),
+        )
+        logger.warning("Affected model(s): %s", ", ".join(models))
+        for seed, key, model in mismatched[:5]:
+            logger.warning("    seed %s  %s  %s", seed, key, model)
+        if len(mismatched) > 5:
+            logger.warning("    ... and %d more", len(mismatched) - 5)
+        logger.warning(
+            "These have NO metric row, so they will be imputed downstream and the "
+            "leaderboard will show a number that is not the model's."
+        )
+        logger.warning(
+            "The prediction and the ground truth describe different splits. Find out "
+            "why before trusting this run; the files are still on disk."
+        )
+        logger.warning("=" * 70)
 
 
 def _write_summary(df: pd.DataFrame, path: str):
