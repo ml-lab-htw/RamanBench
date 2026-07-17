@@ -38,6 +38,33 @@ from raman_bench.seeds import get_seeds
 logger = logging.getLogger(__name__)
 
 
+def _usable_cache_dir(cache_dir):
+    """Return *cache_dir* if it can be created here, else None (-> the ``.cache`` default).
+
+    Configs written for a cluster point ``cache_dir`` at scratch space that does not
+    exist elsewhere, and ``configure_benchmark`` mkdirs it unconditionally — so merely
+    loading a config would abort a metrics rebuild on a laptop with a read-only-FS
+    error. Metrics only ever reads the stored prediction and ground-truth CSVs (the
+    benchmark is not initialised when ground truth is on disk), so the cache dir is
+    created and then unused: falling back keeps the rebuild working and costs nothing.
+
+    The probe is what makes this safe to apply everywhere. On the cluster the scratch
+    path *is* writable, so it is returned untouched.
+    """
+    if not cache_dir:
+        return cache_dir
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        return cache_dir
+    except OSError:
+        logger.warning(
+            "cache_dir %r is not writable here — falling back to the default '.cache' "
+            "(unused: metrics reads the stored ground truth).",
+            cache_dir,
+        )
+        return None
+
+
 def _load_ground_truth(predictions_dir: str, key: str, task_type_lookup: dict):
     """Return ``(data_test, task_type)`` from saved files, or ``(None, None)``."""
     if key not in task_type_lookup:
@@ -128,6 +155,8 @@ def compute_metrics_from_predictions(config):
     # truth. Collected so the run ends with one visible summary — a per-key warning
     # scrolls past unread in a sweep of thousands.
     mismatched: list[tuple] = []
+
+    config["cache_dir"] = _usable_cache_dir(config.get("cache_dir"))
 
     for seed in seeds:
         logger.info("--- Seed %s ---", seed)
