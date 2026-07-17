@@ -22,6 +22,7 @@ import logging
 import os
 import random
 import shutil
+import tempfile
 import threading
 import time
 import tracemalloc
@@ -45,6 +46,43 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
+
+
+def _atomic_to_csv(df: pd.DataFrame, path: str) -> None:
+    """Write *df* to *path* so a reader never sees a half-written file.
+
+    ``DataFrame.to_csv(path)`` opens with mode 'w': it truncates immediately, then
+    streams buffered chunks. Two processes writing the same path therefore interleave
+    at their own offsets, and the result is a single file containing a torn line where
+    one writer's flush landed inside the other's, followed by the tail of whichever
+    write was longer. It parses as CSV, so nothing raises — it just carries duplicate
+    rows and shredded index values, and the mismatch only surfaces much later as a
+    silently missing roc_auc.
+
+    Writing to a private temp file in the same directory and then ``os.replace`` makes
+    the publish a single atomic rename (POSIX, and rename-atomic over NFS). Concurrent
+    writers then resolve to one complete file rather than a blend of both, and a reader
+    sees either the old file or the new one. The temp file is created in the target
+    directory, not /tmp, so the rename stays within one filesystem.
+
+    This makes a duplicated job harmless rather than corrupting; it does not stop two
+    jobs computing the same key. Both writers produce equivalent content, so last-one-
+    wins is the correct resolution.
+    """
+    directory = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(
+        dir=directory, prefix=os.path.basename(path) + ".", suffix=".tmp"
+    )
+    os.close(fd)
+    try:
+        df.to_csv(tmp, index=True)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -581,7 +619,7 @@ def compute_predictions(
                         record["inference_gpu_energy_j"] = ip.gpu_energy_j
                         record["inference_cpu_energy_j"] = ip.cpu_energy_j
 
-                        y_pred.sort_index().to_csv(pred_path, index=True)
+                        _atomic_to_csv(y_pred.sort_index(), pred_path)
 
                         # For classification, also persist class probabilities
                         # so downstream metrics (log_loss, ROC-AUC) can be
@@ -592,7 +630,7 @@ def compute_predictions(
                                 proba_path = os.path.join(
                                     predictions_dir, f"{key}_{model_name}_proba.csv"
                                 )
-                                y_proba.sort_index().to_csv(proba_path, index=True)
+                                _atomic_to_csv(y_proba.sort_index(), proba_path)
                             except Exception as e:
                                 logger.warning(
                                     "predict_proba failed for %s / %s: %s",
@@ -603,7 +641,11 @@ def compute_predictions(
 
                         truth_path = os.path.join(predictions_dir, f"{key}_ground_truth.csv")
                         if not os.path.exists(truth_path):
-                            data_test[["target"]].sort_index().to_csv(truth_path, index=True)
+                            # The exists() check races two jobs on the same key, so the
+                            # write must be atomic: both would otherwise truncate and
+                            # stream into one path. Identical content, so either winning
+                            # is fine — a torn blend of the two is not.
+                            _atomic_to_csv(data_test[["target"]].sort_index(), truth_path)
 
                     except Exception as e:
                         logger.error("Error for %s / %s: %s", key, model_name, e, exc_info=True)
