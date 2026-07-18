@@ -23,6 +23,8 @@ sklearn's ``fit(X, y)`` / ``predict(X)`` API to AutoGluon's internal
 themselves free of any AutoGluon dependency.
 """
 
+import inspect
+
 import numpy as np
 
 try:
@@ -100,7 +102,18 @@ class SklearnAutoGluonBridge(AbstractModel):
             if not k.startswith("ag.") and not k.startswith("_")
         }
         self._estimator = self._sklearn_cls(**params)
-        self._estimator.fit(X_np, y_arr, time_limit=time_limit)
+        # Only the deep-learning estimators accept a training budget; the sklearn
+        # wrappers (PLS, ROCKET, ARSENAL) have fit(self, X, y). Passing time_limit
+        # to those raises TypeError, which under HPO fails every trial. Forward it
+        # only when the estimator's fit actually accepts it (named param or **kwargs).
+        fit_params = inspect.signature(self._estimator.fit).parameters
+        accepts_time_limit = "time_limit" in fit_params or any(
+            p.kind is inspect.Parameter.VAR_KEYWORD for p in fit_params.values()
+        )
+        if accepts_time_limit:
+            self._estimator.fit(X_np, y_arr, time_limit=time_limit)
+        else:
+            self._estimator.fit(X_np, y_arr)
 
     def _predict_proba(self, X, **kwargs):
         X_np = (
