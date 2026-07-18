@@ -1,5 +1,7 @@
 """Classification metrics for RamanBench."""
 
+import warnings
+
 import numpy as np
 from sklearn.metrics import (
     accuracy_score,
@@ -104,7 +106,34 @@ class ClassificationMetrics:
         if y_proba.ndim == 1:
             # Binary: sklearn log_loss wants 2-D for >=2 classes; build it.
             y_proba = np.column_stack([1.0 - y_proba, y_proba])
-        return float(log_loss(y_true, y_proba, labels=np.unique(y_true)))
+        y_proba = np.asarray(y_proba, dtype=np.float64)
+        row_sums = y_proba.sum(axis=1, keepdims=True)
+
+        # sklearn's log_loss warns whenever row sums stray from 1 by more than
+        # sqrt(float64 eps) ~= 1.5e-8. Probabilities are stored from float32 model
+        # outputs, so their sums drift ~1e-7 — genuinely normalized, but past that
+        # threshold, so the warning fires on nearly every multiclass dataset and drowns
+        # out anything real. Replace it with our own check at a tolerance that only
+        # flags a genuinely un-normalized proba (a real model bug), then renormalize so
+        # the loss is computed on exact probabilities regardless.
+        max_dev = float(np.abs(row_sums - 1.0).max()) if row_sums.size else 0.0
+        if max_dev > 1e-3:
+            warnings.warn(
+                f"Probability rows deviate from 1.0 by up to {max_dev:.2e}; "
+                "check the model's predict_proba output.",
+                UserWarning,
+                stacklevel=2,
+            )
+        y_proba = np.divide(
+            y_proba, row_sums, out=np.zeros_like(y_proba), where=row_sums != 0
+        )
+        with warnings.catch_warnings():
+            # Belt-and-suspenders: rows now sum to 1 to machine precision, but suppress
+            # sklearn's sum-to-one warning so a future dtype change can't reintroduce it.
+            warnings.filterwarnings(
+                "ignore", message="The y_pred values do not sum to one", category=UserWarning
+            )
+            return float(log_loss(y_true, y_proba, labels=np.unique(y_true)))
 
     def confusion_matrix(self, y_true, y_pred, normalize=None) -> np.ndarray:
         return confusion_matrix(y_true, y_pred, normalize=normalize)
