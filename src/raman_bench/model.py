@@ -149,13 +149,14 @@ class AutoGluonModel:
             self.metric: str = "rmse"
             self.problem_type: str = "regression"
         elif task_type == TASK_TYPE.Classification:
-            # HPO trial scoring in autogluon_fork passes the (N, K) proba
-            # matrix into sklearn f1_score without argmax-converting it to
-            # labels, which raises a length-mismatch error on multi-class
-            # datasets. log_loss is proba-native and bypasses that codepath.
-            # Headline F1 is recomputed downstream from predictions, so this
-            # only affects model selection during HPO.
-            self.metric = "log_loss" if optimize else "f1_macro"
+            # Provisional metric/problem_type. The final choice needs the class
+            # count, which is only known once the training labels arrive, so it is
+            # settled in fit() (see _finalize_classification_metric). We align with
+            # TabArena: binary -> roc_auc, multiclass -> log_loss (both proba-native,
+            # avoiding the fork's f1_score-on-proba length-mismatch codepath).
+            # Headline F1/bal-acc are recomputed downstream, so this only drives
+            # model selection.
+            self.metric = "log_loss"
             self.problem_type = "multiclass"
         else:
             raise ValueError(f"Unsupported task type: {task_type}")
@@ -193,6 +194,33 @@ class AutoGluonModel:
             path=self.autogluon_path,
         )
 
+    def _finalize_classification_metric(self, data_train: DataFrame) -> None:
+        """Pick the TabArena-aligned eval metric now that the labels are known.
+
+        TabArena tunes/validates on the task's native metric: regression -> rmse,
+        **binary -> roc_auc, multiclass -> log_loss**. The class count is unknown at
+        construction (no data yet), so the __init__ value is a fallback and the real
+        choice is made here, then the predictor is rebuilt with it. Both are
+        proba-native, so neither hits the fork's f1_score-on-proba length mismatch.
+        """
+        if self.task_type != TASK_TYPE.Classification:
+            return
+        n_classes = int(data_train[self.label].nunique())
+        if n_classes == 2:
+            self.metric, self.problem_type = "roc_auc", "binary"
+        else:
+            self.metric, self.problem_type = "log_loss", "multiclass"
+        # Rebuild the predictor with the finalised metric/problem_type. The path is
+        # empty until fit, so recreating it here is clean.
+        if os.path.exists(self.autogluon_path):
+            shutil.rmtree(self.autogluon_path)
+        self.predictor = TabularPredictor(
+            label=self.label,
+            eval_metric=self.metric,
+            problem_type=self.problem_type,
+            path=self.autogluon_path,
+        )
+
     def fit(
         self, data_train: DataFrame, raise_on_no_models_fitted: bool = True
     ) -> TabularPredictor:
@@ -209,6 +237,8 @@ class AutoGluonModel:
         -------
         autogluon.tabular.TabularPredictor
         """
+        self._finalize_classification_metric(data_train)
+
         hyperparameters = {}
         for cls, cfg in self.custom_models.items():
             sklearn_cls = getattr(cls, "_sklearn_cls", None)
