@@ -17,10 +17,11 @@ class PLSModel(BaseEstimator):
         https://doi.org/10.1137/0905052
     """
 
-    def __init__(self, n_components=10, max_iter=500, scale=True):
+    def __init__(self, n_components=10, max_iter=500, scale=True, tol=1e-6):
         self.n_components = n_components
         self.max_iter = max_iter
         self.scale = scale
+        self.tol = tol
 
     def fit(self, X, y):
         X_np = X.values if hasattr(X, "values") else np.asarray(X)
@@ -41,12 +42,14 @@ class PLSModel(BaseEstimator):
             for i, val in enumerate(y_arr):
                 y_encoded[i, self._class_to_idx[val]] = 1.0
             self.model_ = PLSRegression(
-                n_components=n_components, max_iter=self.max_iter, scale=self.scale
+                n_components=n_components, max_iter=self.max_iter, scale=self.scale,
+                tol=self.tol,
             )
             self.model_.fit(X_np, y_encoded)
         else:
             self.model_ = PLSRegression(
-                n_components=n_components, max_iter=self.max_iter, scale=self.scale
+                n_components=n_components, max_iter=self.max_iter, scale=self.scale,
+                tol=self.tol,
             ).fit(X_np, y_arr)
 
         return self
