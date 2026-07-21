@@ -139,9 +139,18 @@ class _PLSBridge(SklearnAutoGluonBridge):
     def _get_default_searchspace(self):
         from autogluon.common import space
 
+        # n_components is PLS's defining hyperparameter (number of latent variables);
+        # widened from 50 -> 100 since Raman spectra commonly have hundreds of feature
+        # bins. PLSModel.fit() still clips to min(n_components, n_features,
+        # n_samples - 1), so this only grants more headroom on datasets big enough to
+        # use it; small datasets are unaffected. max_iter/tol control the NIPALS
+        # deflation's convergence and were plumbed through PLSModel but previously
+        # fixed at their sklearn defaults for every trial.
         return {
-            "n_components": space.Int(lower=2, upper=50),
+            "n_components": space.Int(lower=2, upper=100),
             "scale": space.Categorical(True, False),
+            "max_iter": space.Int(lower=200, upper=1000),
+            "tol": space.Real(lower=1e-8, upper=1e-3, log=True),
         }
 
 
