@@ -274,7 +274,31 @@ def compute_metrics_from_predictions(config):
                     if os.path.exists(proba_path):
                         proba_df = pd.read_csv(proba_path, index_col=0).sort_index()
                         if np.array_equal(proba_df.index, data_test_.index):
-                            y_proba = proba_df.to_numpy()
+                            # Reindex columns to the true class order (numeric sort of
+                            # the labels) before converting to array. CSV column headers
+                            # are always read back as strings, and for >=10 classes
+                            # AutoGluon's own column order is string-sorted internally
+                            # (e.g. '0','1','10','11','2',...) -- lexicographic, not
+                            # numeric. Using the array positionally (the old behaviour)
+                            # silently scored column i against class i of
+                            # np.unique(y_true)'s NUMERIC sort, corrupting roc_auc/
+                            # log_loss for every >=10-class dataset while leaving
+                            # F1/accuracy untouched (predict() returns labels directly,
+                            # never indexes through this array). If a fold's classes and
+                            # the stored proba's columns don't match 1:1, skip proba
+                            # for this row instead of guessing at an alignment.
+                            class_order = [str(c) for c in sorted(data_test_["target"].unique())]
+                            proba_df.columns = proba_df.columns.astype(str)
+                            if set(class_order) == set(proba_df.columns):
+                                y_proba = proba_df[class_order].to_numpy()
+                            else:
+                                logger.warning(
+                                    "%s / %s (seed %s): proba columns %s do not match "
+                                    "the fold's classes %s -- skipping roc_auc/log_loss "
+                                    "for this row instead of risking a misaligned score.",
+                                    key, model_name, seed,
+                                    sorted(proba_df.columns), class_order,
+                                )
 
                 row.update(
                     compute_metrics(
