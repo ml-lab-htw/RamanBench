@@ -221,24 +221,24 @@ class AutoGluonModel:
             path=self.autogluon_path,
         )
 
-    def fit(
-        self, data_train: DataFrame, raise_on_no_models_fitted: bool = True
-    ) -> TabularPredictor:
-        """Fit the predictor on *data_train*.
+    def _build_model_hyperparameters(self) -> dict:
+        """Build the ``hyperparameters`` dict passed to ``TabularPredictor.fit``.
 
-        Parameters
-        ----------
-        data_train : DataFrame
-            Training data.  The last column must be ``"target"``.
-        raise_on_no_models_fitted : bool
-            Passed directly to AutoGluon (default ``True``).
+        For each ``Prep_*`` model class this merges the model's config with any
+        custom-model extras, then applies the preprocessing *restriction*
+        (``_prep_restriction`` == the config's ``preprocessing_config``):
+        steps set ``False`` are force-disabled, steps set ``True`` are
+        force-enabled (augmentation only for models that support it), and
+        unspecified steps keep the model-class default.  When ``self.optimize``
+        is set, the restricted preprocessing search space and each model's own
+        search space are folded in; otherwise ``Space`` values are stripped so
+        the model runs with fixed hyperparameters.
 
         Returns
         -------
-        autogluon.tabular.TabularPredictor
+        dict
+            Mapping of ``Prep_*`` class → params dict, ready for AutoGluon.
         """
-        self._finalize_classification_metric(data_train)
-
         hyperparameters = {}
         for cls, cfg in self.custom_models.items():
             sklearn_cls = getattr(cls, "_sklearn_cls", None)
@@ -252,23 +252,28 @@ class AutoGluonModel:
             if restriction and restriction.get("standard_scaling"):
                 merged["prep_scaling_enabled"] = True
 
-            # Enforce restriction for each step:
-            #  - Disabled (False) → force the enabled flag off.  This overrides
-            #    model-class defaults from _set_default_params (e.g. Prep_PLS
-            #    defaults prep_bl_enabled=True) so HPO cannot silently activate
-            #    a step the user turned off.
-            #  - Augmentation enabled (True) + model supports it → force on.
-            #    _NoAugBase defaults prep_aug_enabled=False; without this a
-            #    capable model (NN_TORCH, FASTAI, REALMLP) would never see
-            #    augmented data even when the config enables it.
+            # Enforce the restriction for each step, overriding the model-class
+            # defaults from _set_default_params (e.g. Prep_PLS defaults
+            # prep_bl_enabled=True) so the config — not the class default or HPO
+            # — decides which steps run:
+            #  - Disabled (False) → force the enabled flag off.
+            #  - Enabled (True)   → force the enabled flag on, so a step applies
+            #    even for models whose class default leaves it off (e.g. MSC on
+            #    Prep_RF).  Augmentation is the exception: it is only forced on
+            #    for models declaring _supports_augmentation (tree/linear/kernel
+            #    models silently skip it), and _NoAugBase defaults it off.
+            #  - Unspecified (key absent) → keep the model-class default.
+            # standard_scaling is handled above (not a step-definition key, so it
+            # is absent from STEP_ENABLED_PARAMS and force-enabled separately).
             if restriction is not None:
                 for step_key, enabled_param in STEP_ENABLED_PARAMS.items():
-                    if not restriction.get(step_key, True):
+                    want = restriction.get(step_key)
+                    if want is None:
+                        continue
+                    if not want:
                         merged[enabled_param] = False
-                    elif (
-                        step_key == "augmentation"
-                        and restriction.get("augmentation", False)
-                        and getattr(cls, "_supports_augmentation", False)
+                    elif step_key != "augmentation" or getattr(
+                        cls, "_supports_augmentation", False
                     ):
                         merged[enabled_param] = True
 
@@ -300,6 +305,28 @@ class AutoGluonModel:
                 hyperparameters[cls] = merged
             else:
                 hyperparameters[cls] = {k: v for k, v in merged.items() if not isinstance(v, Space)}
+
+        return hyperparameters
+
+    def fit(
+        self, data_train: DataFrame, raise_on_no_models_fitted: bool = True
+    ) -> TabularPredictor:
+        """Fit the predictor on *data_train*.
+
+        Parameters
+        ----------
+        data_train : DataFrame
+            Training data.  The last column must be ``"target"``.
+        raise_on_no_models_fitted : bool
+            Passed directly to AutoGluon (default ``True``).
+
+        Returns
+        -------
+        autogluon.tabular.TabularPredictor
+        """
+        self._finalize_classification_metric(data_train)
+
+        hyperparameters = self._build_model_hyperparameters()
 
         num_cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count()))
         num_gpus = min(1, torch.cuda.device_count())
