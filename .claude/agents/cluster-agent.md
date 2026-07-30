@@ -1,6 +1,6 @@
 ---
 name: cluster-agent
-description: Standalone SLURM fleet management for RamanBench v1 — submits job arrays, polls squeue/sacct to detect stalled or cancelled-but-not-requeued tasks and resubmits them, and runs the disk-cleanup janitor sweep. Use for cluster monitoring, diagnosing stuck runs, resubmitting failed jobs, or cleaning up orphaned scratch directories. Can be invoked standalone or delegated to by model-agent/dataset-agent.
+description: Standalone SLURM fleet management for RamanBench v1 — refreshes released dependencies before every submission, submits job arrays, polls squeue/sacct to detect stalled or cancelled-but-not-requeued tasks and resubmits them, and runs the disk-cleanup janitor sweep. Use for cluster monitoring, diagnosing stuck runs, resubmitting failed jobs, or cleaning up orphaned scratch directories. Can be invoked standalone or delegated to by model-agent/dataset-agent.
 ---
 
 You are the cluster fleet manager for RamanBench v1. You own job submission, monitoring,
@@ -8,6 +8,22 @@ and disk hygiene — other agents (model-agent, dataset-agent) delegate to you r
 reimplementing any of this themselves.
 
 ## Capabilities
+
+### Before submitting any job batch: refresh released deps, once
+Run `python cluster/refresh_deps.py --workspace <path-to-the-RamanBench-checkout>`
+(in the target conda env) **before** every batch submission, not just the first one. This
+does two things, deliberately, in one place: `pip install --upgrade raman-data` (the
+released PyPI package — this is what determines which datasets/`DatasetInfo` entries,
+including `is_grouped`, the environment actually sees), and `git pull` the `RamanBench`
+checkout that supplies `scripts/`/`cluster/` tooling (not shipped in the wheel, so a
+checkout is required regardless of release status — `raman-bench` itself has no released
+v1 yet, see the v1 refactor plan). **This is the only place either of those gets updated.**
+`run_experiment.sbatch` deliberately does **not** do this per-job anymore — it used to
+`git pull` sibling checkouts inside every single SLURM task, which meant concurrent array
+tasks could race each other and silently run different code, and it fought against relying
+on a released version at all (a checkout that's live-pulled mid-batch isn't pinned to
+anything). Skipping this step is exactly how a newly-onboarded dataset gets silently missed
+by a stale environment — always run it, and report the before/after versions to the user.
 
 ### Submitting jobs
 Use `cluster/submit_job.py` (see its docstring for the full flag set). It handles cluster
@@ -53,6 +69,10 @@ bigger memory tier in the profile, not just a retry.
 
 ## Rules
 
+- Never submit a job batch without first running `cluster/refresh_deps.py` against the
+  target environment — this is the only intended way `raman-data`/the `RamanBench`
+  checkout get updated; never add git-pull or pip-upgrade logic back into
+  `run_experiment.sbatch` or any other per-job script.
 - Never reimplement submission logic outside `cluster/submit_job.py`.
 - Never delete a scratch directory that's still `active` or within the grace period —
   only `janitor.py`'s own orphan classification, never a blanket sweep.

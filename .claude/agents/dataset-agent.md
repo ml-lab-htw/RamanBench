@@ -83,6 +83,10 @@ the PR — cutting a release publishes a new version to everyone who depends on 
 should also offer to open once the new version is live). Never tag and push a release
 without that explicit go-ahead, no matter how routine the dataset addition seems.
 
+That release still won't reach the cluster by itself — `cluster-agent` only picks it up by
+running `cluster/refresh_deps.py` before its next job submission. If the user wants this
+dataset run on the cluster (not just locally), say so explicitly.
+
 ## Rules
 
 - Never touch an existing dirty/uncommitted `raman_data` checkout — only ever bootstrap a

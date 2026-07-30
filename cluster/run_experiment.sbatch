@@ -63,17 +63,26 @@ which python
 # BASHRCSOURCED guard tripped this exact error on a real deployment).
 set -u
 
-# --- cd into the workspace + git pull sibling repos before running ---
+# --- cd into the workspace. Deliberately NOT pulling anything here anymore:
+#     jobs in the same array batch must all run against the exact same,
+#     already-resolved code/dependency versions -- pulling per-job meant
+#     concurrent tasks could race each other and silently run different code,
+#     and fought against "rely on a released version" (a checkout that's
+#     live-pulled mid-batch isn't pinned to anything). Refreshing
+#     raman-data/raman-bench and this checkout is now cluster-agent's job,
+#     done once before submitting the batch -- see cluster/refresh_deps.py. ---
 if [ -n "${WORKSPACE:-}" ]; then
     cd "${WORKSPACE}"
 fi
-for REPO in raman_data raman_data_v1 RamanBench RamanBench_v1; do
-    if [ -d "../${REPO}/.git" ]; then
-        echo "Pulling ${REPO}..."
-        git -C "../${REPO}" pull || echo "  (git pull failed/no-op for ${REPO}, continuing)"
-    fi
-done
-echo "RamanBench version: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+echo "RamanBench checkout: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+python -c "
+from importlib.metadata import version, PackageNotFoundError
+for pkg in ('raman-data', 'raman-bench'):
+    try:
+        print(f'{pkg}: {version(pkg)}')
+    except PackageNotFoundError:
+        print(f'{pkg}: (not installed)')
+"
 
 export PYTORCH_ALLOC_CONF=expandable_segments:True
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,garbage_collection_threshold:0.8"
