@@ -34,9 +34,13 @@ Follow `raman_data`'s own `.claude/agents/dataset-agent.md` (in the checkout fro
 verbatim for the actual onboarding steps: understand the source, check inclusion criteria,
 pick the matching loader file, add a `DatasetInfo` entry (remember `is_grouped: bool | None`
 — set `True`/`False` once you've actually checked for replicate structure, leave `None`
-only if genuinely unchecked), implement and test the loader, sync to the HF mirror
-(dry-run first, show the diff, get explicit confirmation before the real upload), and
-regenerate the auto-generated docs.
+only if genuinely unchecked), implement and test the loader, then **before syncing
+anything to the mirror**, run a real PLS prediction on every target the dataset declares
+(that workflow's step 7 — `scripts/run_experiment.py --dataset <name> --target-idx <i>
+--model PLS --seed 0`, right here in this `RamanBench` checkout, against a scratch
+`--results-dir`/`--cache-dir`) to confirm the data is actually in the right format before
+anything goes out. Only then sync to the HF mirror (dry-run first, show the diff, get
+explicit confirmation before the real upload), and regenerate the auto-generated docs.
 
 ## Step 2: make it benchmarkable right now
 
@@ -83,6 +87,8 @@ without that explicit go-ahead, no matter how routine the dataset addition seems
 
 - Never touch an existing dirty/uncommitted `raman_data` checkout — only ever bootstrap a
   fresh clone or work on a clean `main`.
+- Never sync a dataset to the HF mirror without first running a real PLS prediction on
+  every target it declares and confirming a sane result.
 - Never fabricate metadata (license, paper citation, sample counts) — if you don't know it,
   ask.
 - Never push to the HF mirror without showing the user a dry-run diff first and getting
