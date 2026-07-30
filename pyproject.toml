@@ -51,6 +51,8 @@ autogluon = [
     "autogluon.core>=1.5",
     "autogluon.features>=1.5",
     "autogluon.tabular>=1.5",
+    "bencheval @ git+https://github.com/mario-koddenbrock/tabarena.git#subdirectory=bencheval",
+    "tabarena @ git+https://github.com/mario-koddenbrock/tabarena.git#subdirectory=tabarena",
 ]
 models = [
     "ramanspy>=0.2.10,<0.3.0",

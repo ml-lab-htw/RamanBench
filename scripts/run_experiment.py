@@ -1,0 +1,240 @@
+#!/usr/bin/env python
+"""Thin per-config-job cluster runner for RamanBench v1 (TabArena-based).
+
+One process = one (model, dataset, target, seed, config-index) experiment --
+"every single evaluation gets a completely fresh job" (see the v1 refactor
+plan). Mirrors TabArena's own ``tabflow_slurm/run_tabarena_experiment.py`` in
+spirit: resolve compute resources from the environment, build the task, run
+exactly one experiment, cache the result to disk, exit.
+
+This is an ADDITIVE, parallel execution path. It does not replace or modify
+``raman_bench.model.AutoGluonModel`` / ``raman_bench.predictions``, which the
+paper repo's currently-published/in-flight v0/v1 results still depend on.
+
+Job identity and reproducibility
+---------------------------------
+``--config-index 0`` is always the default config (``_c1``); indices
+``1..num_random_configs`` are the HPO random-search pool (``_r1..rN``).
+``--num-random-configs`` MUST be identical across every job for a given model
+(it fixes the deterministic seed sequence the config pool is sampled from --
+see ``raman_bench.models.generate``), even though a given job only needs and
+runs a single one of those configs. Passing a different value in different
+jobs for the same model would desynchronize which hyperparameters
+``config-index N`` actually refers to.
+
+Usage
+-----
+    python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \\
+        --model PLS --seed 0 --seeds 0 1 2 --config-index 0 \\
+        --results-dir results/v1/data
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import logging
+import os
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+DEFAULT_NUM_RANDOM_CONFIGS = 50
+DEFAULT_NUM_BAG_FOLDS = 8
+DEFAULT_TIME_LIMIT = 3600
+
+
+def _resolve_num_cpus() -> int:
+    for var in ("SLURM_CPUS_PER_TASK", "SLURM_CPUS_ON_NODE"):
+        val = os.environ.get(var)
+        if val:
+            return int(val)
+    return os.cpu_count() or 1
+
+
+def _resolve_num_gpus(use_gpu: bool) -> int:
+    if not use_gpu:
+        return 0
+    try:
+        import torch
+
+        return 1 if torch.cuda.is_available() else 0
+    except ImportError:
+        return 0
+
+
+def _import_generator(model_key: str):
+    """Import ``raman_bench.models.generate.<key>`` and return its ``gen_<key>``."""
+    module_key = model_key.lower().replace("-", "_").replace(".", "")
+    module = importlib.import_module(f"raman_bench.models.generate.{module_key}")
+    gen_name = f"gen_{module_key}"
+    if not hasattr(module, gen_name):
+        raise AttributeError(
+            f"raman_bench.models.generate.{module_key} has no attribute {gen_name!r}. "
+            f"Add a generate.py module for model key {model_key!r} first."
+        )
+    return getattr(module, gen_name)
+
+
+def run_one(
+    *,
+    dataset_name: str,
+    target_idx: int,
+    model_key: str,
+    seed: int,
+    seeds: list[int],
+    config_index: int,
+    num_random_configs: int = DEFAULT_NUM_RANDOM_CONFIGS,
+    num_bag_folds: int = DEFAULT_NUM_BAG_FOLDS,
+    time_limit: float = DEFAULT_TIME_LIMIT,
+    test_size: float = 0.2,
+    results_dir: str = "results/v1/data",
+    cache_dir: str = ".cache_v1",
+    mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+    use_gpu: bool = False,
+    scratch_dir: str | None = None,
+) -> dict:
+    """Run exactly one (model, dataset, target, seed, config) job and cache the result."""
+    from tabarena.utils.cache import CacheFunctionPickle
+
+    from raman_bench.benchmark import RamanBenchmark
+    from raman_bench.models.registry import infer_model_cls
+    from raman_bench.splitting import GROUP_COL, RamanBenchTaskWrapper, build_user_task
+    from raman_data import TASK_TYPE
+
+    num_cpus = _resolve_num_cpus()
+    num_gpus = _resolve_num_gpus(use_gpu)
+    logger.info("Resources: num_cpus=%d num_gpus=%d", num_cpus, num_gpus)
+
+    # Reuses RamanBenchmark's existing, tested mirror-first (with fallback)
+    # dataset loading -- no need for the full init_datasets() index/cache
+    # bookkeeping, just the one dataset this job needs.
+    bench = RamanBenchmark(
+        dataset_names_classification=[],
+        dataset_names_regression=[],
+        cache_dir=cache_dir,
+        use_mirror=True,
+        mirror_repo=mirror_repo,
+    )
+    dataset = bench._load_raman_dataset(dataset_name)
+    if dataset is None:
+        raise RuntimeError(f"Failed to load dataset {dataset_name!r}")
+
+    df = dataset.to_dataframe(target_idx)
+    label_col = df.columns[-1]
+    problem_type = "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
+
+    task_name = f"{dataset_name}__{target_idx}"
+    _, task_obj = build_user_task(
+        task_name=task_name,
+        df=df,
+        label_col=label_col,
+        problem_type=problem_type,
+        seeds=seeds,
+        test_size=test_size,
+        group_col=GROUP_COL if GROUP_COL in df.columns else None,
+    )
+    task_wrapper = RamanBenchTaskWrapper(task=task_obj)
+
+    model_cls = infer_model_cls(model_key)
+    gen = _import_generator(model_key)
+    generate_kwargs = dict(
+        num_random_configs=num_random_configs,
+        time_limit=time_limit,
+        num_bag_folds=num_bag_folds,
+        fold_fitting_strategy="sequential_local",
+    )
+    if scratch_dir is not None:
+        # Deterministic AutoGluon predictor path for this job (default is a
+        # relative AutogluonModels/ag-<timestamp> under cwd) -- lets the
+        # sbatch wrapper's cleanup trap find and remove it reliably, even if
+        # the job is killed rather than finishing normally.
+        Path(scratch_dir).mkdir(parents=True, exist_ok=True)
+        generate_kwargs["method_kwargs"] = {"init_kwargs": {"path": scratch_dir}}
+    experiments = gen.generate_all_bag_experiments(**generate_kwargs)
+    if config_index >= len(experiments):
+        raise IndexError(
+            f"config_index={config_index} out of range for {model_key} "
+            f"(only {len(experiments)} configs generated with num_random_configs={num_random_configs})"
+        )
+    experiment = experiments[config_index]
+    assert experiment.method_kwargs["model_cls"] is model_cls, (
+        f"generate.py for {model_key!r} produces a different model_cls "
+        f"({experiment.method_kwargs['model_cls']}) than the registry ({model_cls})"
+    )
+
+    cache_path = os.path.join(results_dir, experiment.name, task_name, f"{seed}_0")
+    Path(cache_path).mkdir(parents=True, exist_ok=True)
+    cacher = CacheFunctionPickle(cache_name="results", cache_path=cache_path, include_self_in_call=True)
+
+    logger.info("Running %s on %s seed=%d -> %s", experiment.name, task_name, seed, cache_path)
+    out = experiment.run(
+        task=task_wrapper,
+        fold=0,
+        repeat=seed,
+        task_name=task_name,
+        cacher=cacher,
+        ignore_cache=False,
+    )
+    logger.info("Done: metric_error=%s", out.get("metric_error"))
+    return out
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--dataset", required=True, help="raman_data dataset name")
+    parser.add_argument("--target-idx", type=int, default=0)
+    parser.add_argument("--model", required=True, help="Model key, e.g. PLS, GBM, REZERONET")
+    parser.add_argument("--seed", type=int, required=True, help="Seed to fit/evaluate (repeat index) in this job")
+    parser.add_argument(
+        "--seeds", type=int, nargs="+", default=None,
+        help="All seeds in this run (defines the task's repeats); defaults to [--seed]",
+    )
+    parser.add_argument(
+        "--config-index", type=int, default=0,
+        help="0 = default config (_c1); 1..num-random-configs = HPO pool config (_rN)",
+    )
+    parser.add_argument(
+        "--num-random-configs", type=int, default=DEFAULT_NUM_RANDOM_CONFIGS,
+        help="Must be identical across every job for this model (fixes config-pool identity)",
+    )
+    parser.add_argument("--num-bag-folds", type=int, default=DEFAULT_NUM_BAG_FOLDS)
+    parser.add_argument("--time-limit", type=float, default=DEFAULT_TIME_LIMIT)
+    parser.add_argument("--test-size", type=float, default=0.2)
+    parser.add_argument("--results-dir", default="results/v1/data")
+    parser.add_argument("--cache-dir", default=".cache_v1")
+    parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
+    parser.add_argument("--use-gpu", action="store_true")
+    parser.add_argument(
+        "--scratch-dir", default=None,
+        help="Deterministic path for AutoGluon's predictor artifacts (for cluster cleanup); "
+             "defaults to AutoGluon's own relative AutogluonModels/ag-<timestamp> under cwd",
+    )
+    args = parser.parse_args()
+
+    seeds = args.seeds if args.seeds is not None else [args.seed]
+    if args.seed not in seeds:
+        seeds = sorted(set(seeds) | {args.seed})
+
+    run_one(
+        dataset_name=args.dataset,
+        target_idx=args.target_idx,
+        model_key=args.model,
+        seed=args.seed,
+        seeds=seeds,
+        config_index=args.config_index,
+        num_random_configs=args.num_random_configs,
+        num_bag_folds=args.num_bag_folds,
+        time_limit=args.time_limit,
+        test_size=args.test_size,
+        results_dir=args.results_dir,
+        cache_dir=args.cache_dir,
+        mirror_repo=args.mirror_repo,
+        use_gpu=args.use_gpu,
+        scratch_dir=args.scratch_dir,
+    )
+
+
+if __name__ == "__main__":
+    main()

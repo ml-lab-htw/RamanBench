@@ -1,0 +1,7 @@
+# Profile for running without any SLURM cluster -- executes jobs as plain
+# local subprocesses instead of `sbatch`. Used automatically when
+# `detect_cluster.py` reports "none", or picked explicitly with
+# `--profile cluster/profiles/local.yaml`.
+name: local
+description: No SLURM cluster available -- run experiments as local subprocesses.
+slurm: false

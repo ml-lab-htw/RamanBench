@@ -1,0 +1,51 @@
+# Template for a new SLURM cluster profile. Copy this file, fill in the real
+# values for your cluster, and pass it via `--profile path/to/your.yaml`.
+#
+# No institution-specific secrets belong in the PUBLIC RamanBench repo's
+# profiles/ directory -- real account/partition/mail/workspace values for
+# HTW/TU live in the private raman_bench_paper repo's cluster/profiles/
+# instead, which is exactly this same schema with real values filled in.
+name: example
+description: Template profile -- copy and edit for your own cluster.
+slurm: true
+
+# SLURM job accounting.
+account: null              # e.g. "kiwi" -- null means don't pass --account
+partition: null             # e.g. "a100", "Debug_node"
+mail_user: null             # e.g. "you@example.org"; null disables --mail-user
+mail_type: FAIL
+
+# Where the sibling repos (RamanBench, raman_data) live on this cluster's
+# shared filesystem, used to `git pull` before each job and to `cd` into.
+workspace: null              # e.g. "/home/you/workspace"
+
+# How to activate the Python environment inside the sbatch script.
+activation: conda            # "conda" or "venv"
+conda_env: raman_bench       # used when activation == conda
+venv_path: .venv             # used when activation == venv (relative to workspace)
+
+# SLURM flag dialect differences between clusters.
+gpu_flag_style: gres          # "gres" (--gres=gpu:1) or "gpus_per_task" (--gpus-per-task=1)
+mem_flag_style: total         # "total" (--mem=64G) or "per_cpu" (--mem-per-cpu=25GB, paired with cpus_per_task)
+
+default_cpus_per_task: 16
+default_time: "10-00:00:00"
+default_mem: "64G"           # used when mem_flag_style == total and no per-model tier matches
+per_cpu_mem: "25GB"          # used when mem_flag_style == per_cpu
+
+# Optional per-model memory overrides (total-memory style only). Falls back
+# to default_mem for any model not listed.
+mem_tiers:
+  ARSENAL: "256G"
+  TABICL: "256G"
+  ROCKET: "256G"
+  TABPFN-WIDE: "256G"
+  MITRA: "128G"
+  REALTABPFN-V2: "128G"
+  REALTABPFN-V2.5: "128G"
+  REALTABPFN-V2.6: "128G"
+  TABPFN-V3: "128G"
+  TABDPT: "128G"
+  TABFM: "128G"
+
+extra_sbatch_args: []

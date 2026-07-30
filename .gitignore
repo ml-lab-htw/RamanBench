@@ -295,6 +295,9 @@ __marimo__/
 # RamanBench — benchmark outputs (large, reproducible from source)
 results/
 .cache/
+.cache_v1/
+.scratch_v1/
+.slurm_jobspecs/
 AutogluonModels/
 
 # Local Claude Code settings

@@ -39,23 +39,51 @@ from autogluon.tabular.models import (
     KNNModel,
     LGBModel,
     LinearModel,
-    MitraModel,
     NNFastAiTabularModel,
-    RealMLPModel,
-    RealTabPFNv2Model,
-    RealTabPFNv25Model,
-    RealTabPFNv26Model,
     RFModel,
-    TabDPTModel,
-    TabFMModel,
-    TabICLModel,
-    TabMModel,
-    TabPFNv3Model,
-    TabPFNv3ThinkingModel,
     TabularNeuralNetTorchModel,
     XGBoostModel,
     XTModel,
 )
+
+# The tabular-foundation-model classes below are NOT reliably present across
+# every AutoGluon >=1.5 release/prerelease build -- confirmed in practice on a
+# real deployment: a given dated prerelease snapshot may be missing several of
+# these (observed missing: RealTabPFNv26Model, TabFMModel, TabPFNv3Model), even
+# though the "classic" models imported above have been stable across releases
+# for years. Import defensively so a missing foundation-model class doesn't
+# crash this whole module (and thus every other model, including plain PLS).
+import warnings as _warnings
+
+from autogluon.tabular import models as _ag_tabular_models
+
+_OPTIONAL_AG_MODEL_NAMES = [
+    "MitraModel",
+    "RealMLPModel",
+    "RealTabPFNv2Model",
+    "RealTabPFNv25Model",
+    "RealTabPFNv26Model",
+    "TabDPTModel",
+    "TabFMModel",
+    "TabICLModel",
+    "TabMModel",
+    "TabPFNv3Model",
+    "TabPFNv3ThinkingModel",
+]
+_missing_optional_ag_models = []
+for _name in _OPTIONAL_AG_MODEL_NAMES:
+    globals()[_name] = getattr(_ag_tabular_models, _name, None)
+    if globals()[_name] is None:
+        _missing_optional_ag_models.append(_name)
+if _missing_optional_ag_models:
+    _warnings.warn(
+        f"This AutoGluon build is missing model classes: {_missing_optional_ag_models}. "
+        "The corresponding RamanBench Prep_* models will be unavailable in this "
+        "environment (expected -- different AutoGluon releases/prereleases carry "
+        "different bleeding-edge model classes).",
+        stacklevel=2,
+    )
+del _name, _ag_tabular_models
 
 from raman_bench.models.custom.coatnet import CoAtNetModel
 from raman_bench.models.custom.deepcnn import DeepCNNModel
@@ -65,6 +93,7 @@ from raman_bench.models.custom.ramanformer import RamanFormerModel
 from raman_bench.models.custom.ramannet import RamanNetModel
 from raman_bench.models.custom.ramantransformer import RamanTransformerModel
 from raman_bench.models.custom.rezeronet import ReZeroNetModel
+from raman_bench.models.custom.ridge import RidgeModel
 from raman_bench.models.custom.sanet import SANetModel
 from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
 from raman_bench.models.custom.tabular_foundation import TabPFNWideModel
@@ -132,9 +161,14 @@ class SklearnAutoGluonBridge(AbstractModel):
         return {}
 
 
-# Per-model bridge subclasses (one line each — just set _sklearn_cls)
+# Per-model bridge subclasses (one line each — just set _sklearn_cls).
+# ag_key/ag_name identify the model family to TabArena's ConfigGenerator/registry
+# (tabarena/tabarena/utils/config_utils.py asserts both are set); ag_key matches
+# the string key already used in PREPROCESSED_MODELS below.
 class _PLSBridge(SklearnAutoGluonBridge):
     _sklearn_cls = PLSModel
+    ag_key = "PLS"
+    ag_name = "PLS"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -154,8 +188,23 @@ class _PLSBridge(SklearnAutoGluonBridge):
         }
 
 
+class _RidgeBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = RidgeModel
+    ag_key = "RIDGE"
+    ag_name = "Ridge"
+
+    def _get_default_searchspace(self):
+        from autogluon.common import space
+
+        return {
+            "alpha": space.Real(lower=1e-3, upper=1e3, log=True),
+        }
+
+
 class _DeepCNNBridge(SklearnAutoGluonBridge):
     _sklearn_cls = DeepCNNModel
+    ag_key = "DEEPCNN"
+    ag_name = "DeepCNN"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -173,6 +222,8 @@ class _DeepCNNBridge(SklearnAutoGluonBridge):
 
 class _RamanNetBridge(SklearnAutoGluonBridge):
     _sklearn_cls = RamanNetModel
+    ag_key = "RAMANNET"
+    ag_name = "RamanNet"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -190,6 +241,8 @@ class _RamanNetBridge(SklearnAutoGluonBridge):
 
 class _SANetBridge(SklearnAutoGluonBridge):
     _sklearn_cls = SANetModel
+    ag_key = "SANET"
+    ag_name = "SANet"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -210,6 +263,8 @@ class _SANetBridge(SklearnAutoGluonBridge):
 
 class _RamanFormerBridge(SklearnAutoGluonBridge):
     _sklearn_cls = RamanFormerModel
+    ag_key = "RAMANFORMER"
+    ag_name = "RamanFormer"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -232,6 +287,8 @@ class _RamanFormerBridge(SklearnAutoGluonBridge):
 
 class _RamanTransformerBridge(SklearnAutoGluonBridge):
     _sklearn_cls = RamanTransformerModel
+    ag_key = "RAMANTRANSFORMER"
+    ag_name = "RamanTransformer"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -254,6 +311,8 @@ class _RamanTransformerBridge(SklearnAutoGluonBridge):
 
 class _ReZeroNetBridge(SklearnAutoGluonBridge):
     _sklearn_cls = ReZeroNetModel
+    ag_key = "REZERONET"
+    ag_name = "ReZeroNet"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -274,6 +333,8 @@ class _ReZeroNetBridge(SklearnAutoGluonBridge):
 
 class _FCResNeXtBridge(SklearnAutoGluonBridge):
     _sklearn_cls = FCResNeXtModel
+    ag_key = "FCRESNEXT"
+    ag_name = "FCResNeXt"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -294,6 +355,8 @@ class _FCResNeXtBridge(SklearnAutoGluonBridge):
 
 class _CoAtNetBridge(SklearnAutoGluonBridge):
     _sklearn_cls = CoAtNetModel
+    ag_key = "COATNET"
+    ag_name = "CoAtNet"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -316,6 +379,8 @@ class _CoAtNetBridge(SklearnAutoGluonBridge):
 
 class _RocketBridge(SklearnAutoGluonBridge):
     _sklearn_cls = RocketModel
+    ag_key = "ROCKET"
+    ag_name = "ROCKET"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -328,10 +393,14 @@ class _RocketBridge(SklearnAutoGluonBridge):
 
 class _TabPFNWideBridge(SklearnAutoGluonBridge):
     _sklearn_cls = TabPFNWideModel
+    ag_key = "TABPFN-WIDE"
+    ag_name = "TabPFN-Wide"
 
 
 class _ArsenalBridge(SklearnAutoGluonBridge):
     _sklearn_cls = ArsenalModel
+    ag_key = "ARSENAL"
+    ag_name = "ARSENAL"
 
     def _get_default_searchspace(self):
         from autogluon.common import space
@@ -393,48 +462,29 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
     pass
 
 
-class Prep_REALMLP(_NoAugBase, RealMLPModel):  # noqa: N801
-    _supports_augmentation: bool = True
+def _make_optional_prep_class(name: str, base_model_cls, **class_attrs):
+    """Build a ``Prep_*`` class for a possibly-unavailable AutoGluon model class.
+
+    Returns ``None`` (rather than raising ``TypeError: bases must be types``)
+    when ``base_model_cls`` is ``None`` -- i.e. this AutoGluon build doesn't
+    carry that foundation-model class (see the defensive import above).
+    """
+    if base_model_cls is None:
+        return None
+    return type(name, (_NoAugBase, base_model_cls), dict(class_attrs))
 
 
-class Prep_MITRA(_NoAugBase, MitraModel):  # noqa: N801
-    pass
-
-
-class Prep_TABM(_NoAugBase, TabMModel):  # noqa: N801
-    pass
-
-
-class Prep_TABDPT(_NoAugBase, TabDPTModel):  # noqa: N801
-    pass
-
-
-class Prep_TABFM(_NoAugBase, TabFMModel):  # noqa: N801
-    pass
-
-
-class Prep_TABICL(_NoAugBase, TabICLModel):  # noqa: N801
-    pass
-
-
-class Prep_REALTABPFN_V2(_NoAugBase, RealTabPFNv2Model):  # noqa: N801
-    pass
-
-
-class Prep_REALTABPFN_V25(_NoAugBase, RealTabPFNv25Model):  # noqa: N801
-    pass
-
-
-class Prep_REALTABPFN_V26(_NoAugBase, RealTabPFNv26Model):  # noqa: N801
-    pass
-
-
-class Prep_TABPFN_V3(_NoAugBase, TabPFNv3Model):  # noqa: N801
-    pass
-
-
-class Prep_TABPFN_V3_THINKING(_NoAugBase, TabPFNv3ThinkingModel):  # noqa: N801
-    pass
+Prep_REALMLP = _make_optional_prep_class("Prep_REALMLP", RealMLPModel, _supports_augmentation=True)
+Prep_MITRA = _make_optional_prep_class("Prep_MITRA", MitraModel)
+Prep_TABM = _make_optional_prep_class("Prep_TABM", TabMModel)
+Prep_TABDPT = _make_optional_prep_class("Prep_TABDPT", TabDPTModel)
+Prep_TABFM = _make_optional_prep_class("Prep_TABFM", TabFMModel)
+Prep_TABICL = _make_optional_prep_class("Prep_TABICL", TabICLModel)
+Prep_REALTABPFN_V2 = _make_optional_prep_class("Prep_REALTABPFN_V2", RealTabPFNv2Model)
+Prep_REALTABPFN_V25 = _make_optional_prep_class("Prep_REALTABPFN_V25", RealTabPFNv25Model)
+Prep_REALTABPFN_V26 = _make_optional_prep_class("Prep_REALTABPFN_V26", RealTabPFNv26Model)
+Prep_TABPFN_V3 = _make_optional_prep_class("Prep_TABPFN_V3", TabPFNv3Model)
+Prep_TABPFN_V3_THINKING = _make_optional_prep_class("Prep_TABPFN_V3_THINKING", TabPFNv3ThinkingModel)
 
 
 class Prep_TABPFN_WIDE(_NoAugBase, _TabPFNWideBridge):  # noqa: N801
@@ -489,6 +539,16 @@ class Prep_PLS(_NoAugBase, _PLSBridge):  # noqa: N801
         self._set_default_param_value("prep_denoise_enabled", True)
         self._set_default_param_value("prep_snv_enabled", True)
         super()._set_default_params()
+
+
+class Prep_RIDGE(_NoAugBase, _RidgeBridge):  # noqa: N801
+    """Ridge (L2-regularized linear) regression/classification.
+
+    Added as a model-agent workflow dry-run artifact -- validates the
+    add-a-new-model steps end to end, not a benchmark-motivated addition.
+    """
+
+    pass
 
 
 class _RamanDLBase(RamanPreprocessingMixin):
@@ -576,6 +636,7 @@ PREPROCESSED_MODELS = {
     "TABPFN-WIDE": Prep_TABPFN_WIDE,
     # Custom spectroscopy models
     "PLS": Prep_PLS,
+    "RIDGE": Prep_RIDGE,
     "DEEPCNN": Prep_DEEPCNN,
     "RAMANNET": Prep_RAMANNET,
     "SANET": Prep_SANET,
@@ -587,6 +648,18 @@ PREPROCESSED_MODELS = {
     "ROCKET": Prep_ROCKET,
     "ARSENAL": Prep_ARSENAL,
 }
+
+# Drop any entry whose AutoGluon base class wasn't available on this build (see
+# the defensive import above) rather than exposing a None-valued model class.
+_unavailable_models = [key for key, cls in PREPROCESSED_MODELS.items() if cls is None]
+for _key in _unavailable_models:
+    del PREPROCESSED_MODELS[_key]
+if _unavailable_models:
+    _warnings.warn(
+        f"Skipping model(s) unavailable in this AutoGluon build: {_unavailable_models}",
+        stacklevel=2,
+    )
+del _unavailable_models
 
 CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL", "TABPFN-WIDE"}
 

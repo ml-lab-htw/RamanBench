@@ -409,14 +409,20 @@ class RamanBenchmark:
             logger.warning("Failed to read parquet for %s: %s", dataset_name, e)
             return None
 
-        # Separate wavenumber columns (float-parseable) from target columns
+        # Separate wavenumber columns (float-parseable), the optional explicit
+        # group-id column, and target columns. The group-id column is a real
+        # column name ("_group_id") rather than float-parseable, so it must be
+        # excluded explicitly -- otherwise it would be misclassified as a target.
         all_cols = df.columns.tolist()
-        shift_cols = sorted([c for c in all_cols if _is_float_col(c)], key=float)
-        target_cols = [c for c in all_cols if not _is_float_col(c)]
+        group_col = "_group_id" if "_group_id" in all_cols else None
+        remaining_cols = [c for c in all_cols if c != group_col]
+        shift_cols = sorted([c for c in remaining_cols if _is_float_col(c)], key=float)
+        target_cols = [c for c in remaining_cols if not _is_float_col(c)]
 
         # Extract arrays
         spectra = df[shift_cols].values.astype(np.float32)
         raman_shifts = np.array([float(c) for c in shift_cols])
+        group_ids = df[group_col].values if group_col is not None else None
 
         # Try to load metadata from separate metadata.json file
         target_names = None
@@ -478,6 +484,7 @@ class RamanBenchmark:
             raman_shifts=raman_shifts,
             target_names=target_names,
             info=info,
+            group_ids=group_ids,
         )
 
     # ------------------------------------------------------------------
