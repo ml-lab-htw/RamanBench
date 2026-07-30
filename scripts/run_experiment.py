@@ -94,13 +94,26 @@ def run_one(
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
     use_gpu: bool = False,
     scratch_dir: str | None = None,
-) -> dict:
-    """Run exactly one (model, dataset, target, seed, config) job and cache the result."""
+    min_samples_per_class: int = 9,
+) -> dict | None:
+    """Run exactly one (model, dataset, target, seed, config) job and cache the result.
+
+    Returns ``None`` (a clean, expected skip -- not an error) if this target
+    fails rare-class filtering (classification only), matching how the old
+    ``RamanBenchmark`` silently excluded such keys from the benchmark.
+    """
     from tabarena.utils.cache import CacheFunctionPickle
 
     from raman_bench.benchmark import RamanBenchmark
     from raman_bench.models.registry import infer_model_cls
-    from raman_bench.splitting import GROUP_COL, RamanBenchTaskWrapper, build_user_task
+    from raman_bench.splitting import (
+        GROUP_COL,
+        RamanBenchTaskWrapper,
+        TooFewClassesError,
+        build_user_task,
+        filter_rare_classes,
+        infer_group_ids_from_targets,
+    )
     from raman_data import TASK_TYPE
 
     num_cpus = _resolve_num_cpus()
@@ -124,6 +137,28 @@ def run_one(
     df = dataset.to_dataframe(target_idx)
     label_col = df.columns[-1]
     problem_type = "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
+
+    # Explicit per-spectrum group ids (from a loader that knows the dataset's
+    # replicate structure) take priority. No loader populates this yet for
+    # any real dataset, so fall back to inferring group structure from the
+    # dataset's own full target matrix (regression only -- see
+    # infer_group_ids_from_targets's docstring for why this is invalid for
+    # classification) rather than silently running every dataset ungrouped.
+    if GROUP_COL not in df.columns and problem_type == "regression":
+        inferred = infer_group_ids_from_targets(dataset.targets)
+        if inferred is not None:
+            df[GROUP_COL] = inferred
+            logger.info(
+                "%s: no explicit group_ids -- inferred %d group(s) from matching target values",
+                dataset_name, len(set(inferred.tolist())),
+            )
+
+    if problem_type == "classification":
+        try:
+            df = filter_rare_classes(df, label_col=label_col, min_samples_per_class=min_samples_per_class)
+        except TooFewClassesError as e:
+            logger.info("Skipping %s target %d: %s", dataset_name, target_idx, e)
+            return None
 
     task_name = f"{dataset_name}__{target_idx}"
     _, task_obj = build_user_task(
@@ -211,13 +246,18 @@ def main():
         help="Deterministic path for AutoGluon's predictor artifacts (for cluster cleanup); "
              "defaults to AutoGluon's own relative AutogluonModels/ag-<timestamp> under cwd",
     )
+    parser.add_argument(
+        "--min-samples-per-class", type=int, default=9,
+        help="Classification only: drop classes with fewer rows than this; skip the target "
+             "cleanly (exit 0, no error) if fewer than 2 classes remain. 0 disables filtering.",
+    )
     args = parser.parse_args()
 
     seeds = args.seeds if args.seeds is not None else [args.seed]
     if args.seed not in seeds:
         seeds = sorted(set(seeds) | {args.seed})
 
-    run_one(
+    out = run_one(
         dataset_name=args.dataset,
         target_idx=args.target_idx,
         model_key=args.model,
@@ -233,7 +273,10 @@ def main():
         mirror_repo=args.mirror_repo,
         use_gpu=args.use_gpu,
         scratch_dir=args.scratch_dir,
+        min_samples_per_class=args.min_samples_per_class,
     )
+    if out is None:
+        logger.info("Target skipped (rare-class filtering) -- clean exit, not an error.")
 
 
 if __name__ == "__main__":

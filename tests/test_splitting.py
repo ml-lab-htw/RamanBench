@@ -8,8 +8,16 @@ group-id column (available to classification and regression alike).
 
 import numpy as np
 import pandas as pd
+import pytest
 
-from raman_bench.splitting import GROUP_COL, RamanBenchTaskWrapper, build_user_task
+from raman_bench.splitting import (
+    GROUP_COL,
+    RamanBenchTaskWrapper,
+    TooFewClassesError,
+    build_user_task,
+    filter_rare_classes,
+    infer_group_ids_from_targets,
+)
 
 
 def _grouped_dataset(n=40, n_wn=15, n_groups=10, problem_type="regression", seed=0):
@@ -108,3 +116,51 @@ def test_ungrouped_classification_fallback_is_stratified():
     test_frac_x = (y_te == "x").mean()
     assert abs(train_frac_x - 0.6) < 0.15
     assert abs(test_frac_x - 0.6) < 0.2
+
+
+def test_filter_rare_classes_drops_below_threshold():
+    df = pd.DataFrame({"x": range(30), "target": ["a"] * 15 + ["b"] * 12 + ["c"] * 3})
+    filtered = filter_rare_classes(df, label_col="target", min_samples_per_class=9)
+    assert sorted(filtered["target"].unique()) == ["a", "b"]
+
+
+def test_filter_rare_classes_raises_when_fewer_than_two_remain():
+    df = pd.DataFrame({"x": range(5), "target": ["a"] * 3 + ["b"] * 2})
+    with pytest.raises(TooFewClassesError):
+        filter_rare_classes(df, label_col="target", min_samples_per_class=9)
+
+
+def test_filter_rare_classes_disabled_when_threshold_zero():
+    df = pd.DataFrame({"x": range(5), "target": ["a"] * 3 + ["b"] * 2})
+    filtered = filter_rare_classes(df, label_col="target", min_samples_per_class=0)
+    assert len(filtered) == 5
+
+
+def test_infer_group_ids_finds_real_replicates():
+    targets = np.array([
+        [1.5, 2.0],
+        [3.3, 0.0],
+        [1.5, 2.0],  # replicate of row 0
+        [9.9, 1.1],
+        [3.3, 0.0],  # replicate of row 1
+    ])
+    group_ids = infer_group_ids_from_targets(targets)
+    assert group_ids is not None
+    assert group_ids[0] == group_ids[2]
+    assert group_ids[1] == group_ids[4]
+    assert group_ids[3] not in (group_ids[0], group_ids[1])
+
+
+def test_infer_group_ids_returns_none_when_no_structure():
+    targets = np.array([[1.0], [2.0], [3.0], [4.0]])
+    assert infer_group_ids_from_targets(targets) is None
+
+
+def test_infer_group_ids_ignores_all_zero_rows():
+    # An all-zero target row carries no group signal (0 = "not measured" in
+    # this domain) and must not be spuriously grouped with other zero rows.
+    targets = np.array([[0.0, 0.0], [1.0, 2.0], [0.0, 0.0], [1.0, 2.0]])
+    group_ids = infer_group_ids_from_targets(targets)
+    assert group_ids is not None
+    assert group_ids[1] == group_ids[3]
+    assert group_ids[0] != group_ids[2]  # both all-zero, but not grouped with each other

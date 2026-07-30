@@ -39,6 +39,88 @@ from tabarena.benchmark.task.user_task import (
 GROUP_COL = "_group_id"
 
 
+class TooFewClassesError(ValueError):
+    """Raised when rare-class filtering leaves fewer than 2 classes.
+
+    Callers (e.g. ``scripts/run_experiment.py``) should treat this as a clean,
+    expected skip for this (dataset, target) -- not a crash -- matching how
+    the old ``RamanBenchmark._filter_rare_classes`` silently excluded such
+    keys from the benchmark entirely.
+    """
+
+
+def filter_rare_classes(
+    df: pd.DataFrame, *, label_col: str, min_samples_per_class: int = 9
+) -> pd.DataFrame:
+    """Drop classes with fewer than ``min_samples_per_class`` rows.
+
+    Port of :meth:`~raman_bench.benchmark.RamanBenchmark._filter_rare_classes`
+    for the new pipeline. Only meaningful for classification; call only when
+    ``problem_type == "classification"``. Raises :class:`TooFewClassesError`
+    if fewer than 2 classes remain after filtering.
+    """
+    if min_samples_per_class <= 0:
+        return df
+    counts = df[label_col].value_counts()
+    rare = counts[counts < min_samples_per_class].index.tolist()
+    if rare:
+        df = df[~df[label_col].isin(rare)]
+    if df[label_col].nunique() < 2:
+        raise TooFewClassesError(
+            f"Fewer than 2 classes remain in {label_col!r} after dropping classes with "
+            f"< {min_samples_per_class} samples (dropped: {rare})."
+        )
+    return df
+
+
+def infer_group_ids_from_targets(targets: np.ndarray) -> np.ndarray | None:
+    """Derive group ids from exact matches across a dataset's *full* target array.
+
+    **Regression only** -- do not call this for classification. Two rows are
+    treated as the same physical sample/measurement when every one of their
+    target columns has an identical value (zero entries excluded from the
+    key, on the convention that 0 means "not measured" for that analyte in
+    this domain). This is deliberately the same signal the retired
+    ``RamanBenchmark._grouped_train_test_split`` relied on -- a coincidental
+    exact match across several independent continuous-valued targets is
+    vanishingly unlikely, so a real match is strong evidence of a shared
+    physical sample -- just computed explicitly once per dataset (over *all*
+    of its targets together) rather than inline, per split, with the old
+    hash-order reproducibility bug.
+
+    Uses the dataset's full target matrix, not just the one target currently
+    being benchmarked -- a sample's identity is defined by everything
+    measured about it, and the same grouping must then be reused for every
+    individual target's benchmark task on that dataset (so a replicate can
+    never leak across train/test on any of them).
+
+    Returns ``None`` when no row's key is shared by any other row -- i.e.
+    the data shows no real replicate structure. Returning ``None`` rather
+    than an all-unique array is intentional: it signals "no grouping needed"
+    distinctly from "grouped, and every group happens to have size 1".
+    """
+    targets_2d = targets.reshape(-1, 1) if targets.ndim == 1 else targets
+    n = len(targets_2d)
+    group_ids = np.arange(n)
+
+    key_to_rows: dict[tuple, list[int]] = {}
+    for i, row in enumerate(targets_2d):
+        nonzero = tuple(v for v in row if v != 0)
+        if not nonzero:
+            continue  # all-zero row: no signal, leave it as its own unique group
+        key_to_rows.setdefault(nonzero, []).append(i)
+
+    found_real_group = False
+    for rows in key_to_rows.values():
+        if len(rows) > 1:
+            found_real_group = True
+            shared_id = rows[0]
+            for i in rows[1:]:
+                group_ids[i] = shared_id
+
+    return group_ids if found_real_group else None
+
+
 class RamanBenchTaskWrapper(OpenMLTaskWrapper):
     """An :class:`OpenMLTaskWrapper` that drops the group-id column from X.
 
