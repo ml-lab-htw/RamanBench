@@ -1,0 +1,17 @@
+{
+    "_comment": "Template for cluster/opportunistic_scheduler.py --scope. Copy and edit, or just use configs/v1/scope_default.json directly -- it has no institution-specific values, only the SLURM profile (cluster/profiles/*.yaml) does.",
+    "name": "my_scope",
+    "targets_file": "path/to/target_list.json",
+    "models": ["PLS"],
+    "n_splits": 3,
+    "num_random_configs": 50,
+    "num_bag_folds": 8,
+    "time_limit": 3600,
+    "results_dir": "results/v1/data",
+    "cache_dir": ".cache_v1",
+    "mirror_repo": "HTW-KI-Werkstatt/RamanBench",
+    "chunk_size": 300,
+    "throttle": 8,
+    "min_idle_cpus": 32,
+    "courtesy_ceiling": 200
+}

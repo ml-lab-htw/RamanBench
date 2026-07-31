@@ -1,0 +1,1266 @@
+[
+  {
+    "dataset": "alzheimer",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1151,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "cancer_cell_(cooh)2",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 627,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "cancer_cell_cooh",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 633,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "cancer_cell_nh2",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 632,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "chlorinated_samples",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 230,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "comfile_stroke",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 4020,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "covid19_salvia",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 2501,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "diabetes_skin_ear_lobe",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 20,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "diabetes_skin_inner_arm",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 20,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "diabetes_skin_thumbnail",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 20,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "diabetes_skin_vein",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 20,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "hair_dyes_sers",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1713,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "head_neck_cancer",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 111,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "locust_phase_hemolymph",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 5000,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "microplastics_weathered",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 97,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "parkinson",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1476,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "pharmaceutical_ingredients",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 3510,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "wheat_lines",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 53134,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "serum_alzheimer_disease",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 3417,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "serum_prostate_cancer",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 12601,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "rruff_mineral_raw",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 5244,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "mlrod",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 130061,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "bacteria_identification",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 78500,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "amino_acids_glycine",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 90,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "amino_acids_leucine",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 90,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "amino_acids_phenylalanine",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 90,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "amino_acids_tryptophan",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 90,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_substrates",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 6960,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_substrates",
+    "target_idx": 1,
+    "target_name": "Glycerol",
+    "num_instances": 6960,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_substrates",
+    "target_idx": 2,
+    "target_name": "Acetate",
+    "num_instances": 6960,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_substrates",
+    "target_idx": 3,
+    "target_name": "EnPump",
+    "num_instances": 6960,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_substrates",
+    "target_idx": 4,
+    "target_name": "Nitrate",
+    "num_instances": 6960,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_substrates",
+    "target_idx": 5,
+    "target_name": "Yeast_Extract",
+    "num_instances": 6960,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_substrates",
+    "target_idx": 6,
+    "target_name": "total_phosphate",
+    "num_instances": 6960,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_substrates",
+    "target_idx": 7,
+    "target_name": "total_sulfate",
+    "num_instances": 6960,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "ecoli_fermentation",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 379,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ecoli_fermentation",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 379,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ecoli_metabolites",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 1920,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ecoli_metabolites",
+    "target_idx": 1,
+    "target_name": "Sodium_Acetate",
+    "num_instances": 1920,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ecoli_metabolites_dig4bio",
+    "target_idx": 0,
+    "target_name": "Glucose (g/L)",
+    "num_instances": 384,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ecoli_metabolites_dig4bio",
+    "target_idx": 1,
+    "target_name": "Sodium Acetate (g/L)",
+    "num_instances": 384,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ecoli_metabolites_dig4bio",
+    "target_idx": 2,
+    "target_name": "Magnesium Acetate (g/L)",
+    "num_instances": 384,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ht_raman_bio_catalysis_axp",
+    "target_idx": 0,
+    "target_name": "Adenosin",
+    "num_instances": 344,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ht_raman_bio_catalysis_axp",
+    "target_idx": 1,
+    "target_name": "ADP",
+    "num_instances": 344,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ht_raman_bio_catalysis_axp",
+    "target_idx": 2,
+    "target_name": "AMP",
+    "num_instances": 344,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ht_raman_bio_catalysis_axp",
+    "target_idx": 3,
+    "target_name": "ATP",
+    "num_instances": 344,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 0,
+    "target_name": "Research Octane Number",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 1,
+    "target_name": "Motor Octane Number",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 2,
+    "target_name": "Ethanol Content (%)",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 3,
+    "target_name": "Ethyl Tert-Butyl Ether (ETBE)",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 4,
+    "target_name": "Methyl Tert-Butyl Ether (MTBE)",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 5,
+    "target_name": "Density at 15\u00b0C",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 6,
+    "target_name": "Water Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 7,
+    "target_name": "Oxygenates Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 8,
+    "target_name": "Oxygen Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 9,
+    "target_name": "Olefins Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 10,
+    "target_name": "Aromatics Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 11,
+    "target_name": "Benzene Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 0,
+    "target_name": "Research Octane Number",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 1,
+    "target_name": "Motor Octane Number",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 2,
+    "target_name": "Ethanol Content (%)",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 3,
+    "target_name": "Ethyl Tert-Butyl Ether (ETBE)",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 4,
+    "target_name": "Methyl Tert-Butyl Ether (MTBE)",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 5,
+    "target_name": "Density at 15\u00b0C",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 6,
+    "target_name": "Water Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 7,
+    "target_name": "Oxygenates Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 8,
+    "target_name": "Oxygen Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 9,
+    "target_name": "Olefins Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 10,
+    "target_name": "Aromatics Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 11,
+    "target_name": "Benzene Content",
+    "num_instances": 179,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "yeast_fermentation",
+    "target_idx": 0,
+    "target_name": "Glucose [mol / L]",
+    "num_instances": 58,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "yeast_fermentation",
+    "target_idx": 1,
+    "target_name": "Fructose [mol / L]",
+    "num_instances": 58,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "yeast_fermentation",
+    "target_idx": 2,
+    "target_name": "Glycerol [mol / L]",
+    "num_instances": 58,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "yeast_fermentation",
+    "target_idx": 3,
+    "target_name": "Ethanol [mol / L]",
+    "num_instances": 58,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ralstonia_fermentations",
+    "target_idx": 0,
+    "target_name": "Cell Dry Weight [g/L]",
+    "num_instances": 82,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ralstonia_fermentations",
+    "target_idx": 1,
+    "target_name": "Fructose HPLC [g/L]",
+    "num_instances": 82,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ralstonia_fermentations",
+    "target_idx": 2,
+    "target_name": "Hhx [g/L]",
+    "num_instances": 82,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ralstonia_fermentations",
+    "target_idx": 3,
+    "target_name": "HB [g/L]",
+    "num_instances": 82,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ralstonia_fermentations",
+    "target_idx": 4,
+    "target_name": "Residual CDW [g/L]",
+    "num_instances": 82,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "ralstonia_fermentations",
+    "target_idx": 5,
+    "target_name": "Urea kit [g/L]",
+    "num_instances": 82,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_532",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 270,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_532",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 270,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_532",
+    "target_idx": 2,
+    "target_name": "MagnesiumSulfate",
+    "num_instances": 270,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_785",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 270,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_785",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 270,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_785",
+    "target_idx": 2,
+    "target_name": "MagnesiumSulfate",
+    "num_instances": 270,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_kaiser",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 134,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_kaiser",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 134,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_kaiser",
+    "target_idx": 2,
+    "target_name": "MagnesiumSulfate",
+    "num_instances": 134,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_metrohm",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 399,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_metrohm",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 399,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_metrohm",
+    "target_idx": 2,
+    "target_name": "MagnesiumSulfate",
+    "num_instances": 399,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_mettler_toledo",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 275,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_mettler_toledo",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 275,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_mettler_toledo",
+    "target_idx": 2,
+    "target_name": "MagnesiumSulfate",
+    "num_instances": 275,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_tec5",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 395,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_tec5",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 395,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_tec5",
+    "target_idx": 2,
+    "target_name": "MagnesiumSulfate",
+    "num_instances": 395,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_timegate",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 133,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_timegate",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 133,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_timegate",
+    "target_idx": 2,
+    "target_name": "MagnesiumSulfate",
+    "num_instances": 133,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_tornado",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 385,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_tornado",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 385,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "bioprocess_analytes_tornado",
+    "target_idx": 2,
+    "target_name": "MagnesiumSulfate",
+    "num_instances": 385,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "streptococcus_thermophilus_fermentation_kaiser",
+    "target_idx": 0,
+    "target_name": "Lactose",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "streptococcus_thermophilus_fermentation_kaiser",
+    "target_idx": 1,
+    "target_name": "Galactose",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "streptococcus_thermophilus_fermentation_kaiser",
+    "target_idx": 2,
+    "target_name": "Lactate",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "streptococcus_thermophilus_fermentation_kaiser",
+    "target_idx": 3,
+    "target_name": "OD600",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "streptococcus_thermophilus_fermentation_timegate",
+    "target_idx": 0,
+    "target_name": "Lactose",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "streptococcus_thermophilus_fermentation_timegate",
+    "target_idx": 1,
+    "target_name": "Galactose",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "streptococcus_thermophilus_fermentation_timegate",
+    "target_idx": 2,
+    "target_name": "Lactate",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "streptococcus_thermophilus_fermentation_timegate",
+    "target_idx": 3,
+    "target_name": "OD600",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "kaiser_ecoli_fermentation_supernatant",
+    "target_idx": 0,
+    "target_name": "time_h",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": true
+  },
+  {
+    "dataset": "kaiser_ecoli_fermentation_supernatant",
+    "target_idx": 1,
+    "target_name": "OD600",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "kaiser_ecoli_fermentation_supernatant",
+    "target_idx": 2,
+    "target_name": "Glucose",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "kaiser_ecoli_fermentation_supernatant",
+    "target_idx": 3,
+    "target_name": "Acetate",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "kaiser_ecoli_fermentation",
+    "target_idx": 0,
+    "target_name": "time_h",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": true
+  },
+  {
+    "dataset": "kaiser_ecoli_fermentation",
+    "target_idx": 1,
+    "target_name": "OD600",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "kaiser_ecoli_fermentation",
+    "target_idx": 2,
+    "target_name": "Glucose",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "kaiser_ecoli_fermentation",
+    "target_idx": 3,
+    "target_name": "Acetate",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "tg_ecoli_fermentation_supernatant",
+    "target_idx": 0,
+    "target_name": "time_h",
+    "num_instances": 13,
+    "n_repeats": 10,
+    "excluded": true
+  },
+  {
+    "dataset": "tg_ecoli_fermentation_supernatant",
+    "target_idx": 1,
+    "target_name": "OD600",
+    "num_instances": 13,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "tg_ecoli_fermentation_supernatant",
+    "target_idx": 2,
+    "target_name": "Glucose",
+    "num_instances": 13,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "tg_ecoli_fermentation_supernatant",
+    "target_idx": 3,
+    "target_name": "Acetate",
+    "num_instances": 13,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "tg_ecoli_fermentation",
+    "target_idx": 0,
+    "target_name": "time_h",
+    "num_instances": 12,
+    "n_repeats": 10,
+    "excluded": true
+  },
+  {
+    "dataset": "tg_ecoli_fermentation",
+    "target_idx": 1,
+    "target_name": "OD600",
+    "num_instances": 12,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "tg_ecoli_fermentation",
+    "target_idx": 2,
+    "target_name": "Glucose",
+    "num_instances": 12,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "tg_ecoli_fermentation",
+    "target_idx": 3,
+    "target_name": "Acetate",
+    "num_instances": 12,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "sugar_mixtures_low_snr",
+    "target_idx": 0,
+    "target_name": "Sucrose",
+    "num_instances": 7840,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "sugar_mixtures_low_snr",
+    "target_idx": 1,
+    "target_name": "Fructose",
+    "num_instances": 7840,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "sugar_mixtures_low_snr",
+    "target_idx": 2,
+    "target_name": "Maltose",
+    "num_instances": 7840,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "sugar_mixtures_low_snr",
+    "target_idx": 3,
+    "target_name": "Glucose",
+    "num_instances": 7840,
+    "n_repeats": 3,
+    "excluded": false
+  },
+  {
+    "dataset": "sugar_mixtures_high_snr",
+    "target_idx": 0,
+    "target_name": "Sucrose",
+    "num_instances": 1960,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "sugar_mixtures_high_snr",
+    "target_idx": 1,
+    "target_name": "Fructose",
+    "num_instances": 1960,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "sugar_mixtures_high_snr",
+    "target_idx": 2,
+    "target_name": "Maltose",
+    "num_instances": 1960,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "sugar_mixtures_high_snr",
+    "target_idx": 3,
+    "target_name": "Glucose",
+    "num_instances": 1960,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "adenine_colloidal_gold",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 225,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "adenine_solid_gold",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 810,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "adenine_colloidal_silver",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 630,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "adenine_solid_silver",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1851,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "flow_microgel_synthesis",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 86,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "microgel_synthesis",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 14,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "succinic_acid_species",
+    "target_idx": 0,
+    "target_name": "pH",
+    "num_instances": 70,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "succinic_acid_species",
+    "target_idx": 1,
+    "target_name": "Mass of NaOH",
+    "num_instances": 70,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "levulinic_acid_species",
+    "target_idx": 0,
+    "target_name": "pH",
+    "num_instances": 36,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "levulinic_acid_species",
+    "target_idx": 1,
+    "target_name": "Mass of NaOH",
+    "num_instances": 36,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "formic_acid_species",
+    "target_idx": 0,
+    "target_name": "Formic acid (FA)",
+    "num_instances": 24,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "formic_acid_species",
+    "target_idx": 1,
+    "target_name": "Formiate (FA-)",
+    "num_instances": 24,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "formic_acid_species",
+    "target_idx": 2,
+    "target_name": "water",
+    "num_instances": 24,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "citric_acid_species",
+    "target_idx": 0,
+    "target_name": "Citric acid (CA)",
+    "num_instances": 45,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "citric_acid_species",
+    "target_idx": 1,
+    "target_name": "Citrate 1 (CA-)",
+    "num_instances": 45,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "itaconic_acid_species",
+    "target_idx": 0,
+    "target_name": "Itaconic acid (IA)",
+    "num_instances": 21,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "itaconic_acid_species",
+    "target_idx": 1,
+    "target_name": "Itaconate 1 (IA-)",
+    "num_instances": 21,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "itaconic_acid_species",
+    "target_idx": 2,
+    "target_name": "Itaconate 2 (IA2-)",
+    "num_instances": 21,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "acetic_acid_species",
+    "target_idx": 0,
+    "target_name": "Acetic Acid (AA)",
+    "num_instances": 42,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "acetic_acid_species",
+    "target_idx": 1,
+    "target_name": "Acetate (AA-)",
+    "num_instances": 42,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "microgel_size_raw_global",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 235,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "synthetic_organic_pigments_raw",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 325,
+    "n_repeats": 10,
+    "excluded": false
+  }
+]

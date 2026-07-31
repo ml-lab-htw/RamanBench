@@ -123,33 +123,44 @@ def resolve_gpu_flags(profile: dict, use_gpu: bool) -> list[str]:
     return ["--gres=gpu:1"]
 
 
-def write_jobspec(jobs: list[tuple[int, int, int]], slug: str) -> Path:
-    """One line per (repeat, fold, config_index) task; array task N reads line N+1."""
+# A single array task's full identity: (dataset, target_idx, repeat, fold,
+# config_index, n_repeats). dataset/target_idx/n_repeats are carried per-line
+# (rather than fixed --export env vars for the whole array) so one array can
+# span multiple (dataset, target) pairs for the same model -- not just
+# multiple (repeat, fold, config) tuples for a single fixed target. The
+# single-target CLI path below just repeats the same three values on every
+# line; the opportunistic scheduler (``opportunistic_scheduler.py``) is what
+# actually varies them within one array.
+Job = tuple[str, int, int, int, int, int]
+
+
+def write_jobspec(jobs: list[Job], slug: str) -> Path:
+    """One line per (dataset, target_idx, repeat, fold, config_index, n_repeats)
+    task; array task N reads line N+1."""
     JOBSPEC_DIR.mkdir(exist_ok=True)
     path = JOBSPEC_DIR / f"{slug}.txt"
     with open(path, "w") as f:
-        for repeat, fold, config_index in jobs:
-            f.write(f"{repeat} {fold} {config_index}\n")
+        for dataset, target_idx, repeat, fold, config_index, n_repeats in jobs:
+            f.write(f"{dataset} {target_idx} {repeat} {fold} {config_index} {n_repeats}\n")
     return path
 
 
-def _chunk(jobs: list[tuple[int, int, int]], size: int) -> list[list[tuple[int, int, int]]]:
+def _chunk(jobs: list[Job], size: int) -> list[list[Job]]:
     """Split into groups of at most ``size`` -- SLURM's MaxArraySize (commonly 1001)
     rejects an array bigger than that with "Invalid job array specification", confirmed
     by a real failed submission (a 10-repeat x 3-fold x 51-config target needs 1530
     tasks). Each chunk becomes its own array-task-index-0-based jobspec/sbatch call, so
-    a chunk boundary never needs to line up with any (repeat, fold, config) boundary."""
+    a chunk boundary never needs to line up with any (dataset, target, repeat, fold,
+    config) boundary."""
     return [jobs[i : i + size] for i in range(0, len(jobs), size)] or [[]]
 
 
-def submit(
+def submit_jobs(
     *,
-    dataset: str,
-    target_idx: int,
     model: str,
-    n_repeats: int,
+    jobs: list[Job],
+    slug: str,
     n_splits: int,
-    config_indices: list[int],
     num_random_configs: int,
     num_bag_folds: int,
     time_limit: float,
@@ -159,21 +170,25 @@ def submit(
     profile: dict,
     throttle: int,
     dry_run: bool,
-) -> None:
+) -> list[str]:
+    """Submit ``jobs`` (all for one ``model`` -- resource flags are resolved once per
+    call, so every task in an array must share the same GPU/CPU and memory tier) as
+    one or more SLURM array jobs, chunked at the profile's MaxArraySize. Returns the
+    list of submitted SLURM job IDs (empty on a dry run or a non-SLURM profile).
+
+    Shared by the single-(dataset,target) CLI path (``submit()`` below) and
+    ``opportunistic_scheduler.py``'s multi-(dataset,target) backlog submission --
+    the only difference between them is how ``jobs`` was built.
+    """
     use_gpu = model in GPU_MODELS
-    jobs = [
-        (repeat, fold, cfg)
-        for repeat in range(n_repeats)
-        for fold in range(n_splits)
-        for cfg in config_indices
-    ]
+    job_ids: list[str] = []
 
     if not profile.get("slurm", True):
-        # No SLURM -- run every (repeat, fold, config) job as a local subprocess.
+        # No SLURM -- run every job as a local subprocess.
         print(f"Profile {profile['name']!r} has no SLURM -- running {len(jobs)} job(s) locally.")
-        for repeat, fold, cfg in jobs:
-            slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
-            scratch_dir = str(REPO_ROOT / ".scratch_v1" / f"local_{slug}_{repeat}_{fold}_{cfg}")
+        for dataset, target_idx, repeat, fold, cfg, n_repeats in jobs:
+            task_slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
+            scratch_dir = str(REPO_ROOT / ".scratch_v1" / f"local_{task_slug}_{repeat}_{fold}_{cfg}")
             cmd = [
                 sys.executable, str(REPO_ROOT / "scripts" / "run_experiment.py"),
                 "--dataset", dataset, "--target-idx", str(target_idx), "--model", model,
@@ -186,22 +201,20 @@ def submit(
             ]
             if use_gpu:
                 cmd.append("--use-gpu")
-            print(f"  repeat={repeat} fold={fold} config_index={cfg}: {' '.join(cmd)}")
+            print(f"  {dataset}[{target_idx}] repeat={repeat} fold={fold} config_index={cfg}: {' '.join(cmd)}")
             if not dry_run:
                 try:
                     subprocess.run(cmd, check=True)
                 finally:
                     shutil.rmtree(scratch_dir, ignore_errors=True)
-        return
+        return job_ids
 
-    slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
     max_array_size = profile.get("max_array_size", DEFAULT_MAX_ARRAY_SIZE)
     chunks = _chunk(jobs, max_array_size)
     multi_part = len(chunks) > 1
 
     print(
-        f"{len(jobs)} job(s) ({n_repeats} repeat(s) x {n_splits} fold(s) x "
-        f"{len(config_indices)} config(s)) as {slug}"
+        f"{len(jobs)} job(s) as {slug}"
         + (f" -- split into {len(chunks)} array(s) of <={max_array_size} (SLURM MaxArraySize)" if multi_part else "")
     )
 
@@ -229,10 +242,7 @@ def submit(
         sbatch_args += profile.get("extra_sbatch_args", [])
 
         export_vars = ",".join([
-            f"DATASET={dataset}",
-            f"TARGET_IDX={target_idx}",
             f"MODEL={model}",
-            f"N_REPEATS={n_repeats}",
             f"N_SPLITS={n_splits}",
             f"NUM_RANDOM_CONFIGS={num_random_configs}",
             f"NUM_BAG_FOLDS={num_bag_folds}",
@@ -255,6 +265,43 @@ def submit(
             continue
         result = subprocess.run(sbatch_args, capture_output=True, text=True, check=True)
         print(result.stdout.strip())
+        # sbatch's stdout is "Submitted batch job <id>"
+        job_ids.append(result.stdout.strip().rsplit(" ", 1)[-1])
+
+    return job_ids
+
+
+def submit(
+    *,
+    dataset: str,
+    target_idx: int,
+    model: str,
+    n_repeats: int,
+    n_splits: int,
+    config_indices: list[int],
+    num_random_configs: int,
+    num_bag_folds: int,
+    time_limit: float,
+    results_dir: str,
+    cache_dir: str,
+    mirror_repo: str,
+    profile: dict,
+    throttle: int,
+    dry_run: bool,
+) -> None:
+    jobs: list[Job] = [
+        (dataset, target_idx, repeat, fold, cfg, n_repeats)
+        for repeat in range(n_repeats)
+        for fold in range(n_splits)
+        for cfg in config_indices
+    ]
+    slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
+    submit_jobs(
+        model=model, jobs=jobs, slug=slug, n_splits=n_splits,
+        num_random_configs=num_random_configs, num_bag_folds=num_bag_folds, time_limit=time_limit,
+        results_dir=results_dir, cache_dir=cache_dir, mirror_repo=mirror_repo,
+        profile=profile, throttle=throttle, dry_run=dry_run,
+    )
 
 
 def main():

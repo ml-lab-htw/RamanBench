@@ -10,15 +10,18 @@
 # -- this file has no institution-specific values.
 #
 # Required env vars (set via --export by submit_job.py):
-#   DATASET, TARGET_IDX, MODEL, N_REPEATS, N_SPLITS, NUM_RANDOM_CONFIGS, NUM_BAG_FOLDS,
-#   TIME_LIMIT, RESULTS_DIR, CACHE_DIR, MIRROR_REPO, USE_GPU, JOBSPEC,
-#   ACTIVATION, CONDA_ENV, VENV_PATH, WORKSPACE
+#   MODEL, N_SPLITS, NUM_RANDOM_CONFIGS, NUM_BAG_FOLDS, TIME_LIMIT, RESULTS_DIR,
+#   CACHE_DIR, MIRROR_REPO, USE_GPU, JOBSPEC, ACTIVATION, CONDA_ENV, VENV_PATH, WORKSPACE
+# DATASET/TARGET_IDX/REPEAT/FOLD/CONFIG_INDEX/N_REPEATS come from this task's own
+# JOBSPEC line instead -- one array can span multiple (dataset, target) pairs for
+# the same MODEL (a single sbatch call's resource flags are per-model, not per-task,
+# so MODEL itself must stay array-wide), not just multiple (repeat, fold, config)
+# tuples for one fixed (dataset, target).
 
 echo "SLURM Job ID:        $SLURM_JOB_ID"
 echo "SLURM Array Task ID: ${SLURM_ARRAY_TASK_ID:-0}"
 echo "SLURM Nodes:         $SLURM_NODELIST"
 echo "Model:               $MODEL"
-echo "Dataset:             $DATASET (target $TARGET_IDX)"
 echo "Job started on $(hostname) at $(date)"
 
 # --- Deterministic scratch dir for this task's AutoGluon predictor artifacts.
@@ -31,9 +34,6 @@ echo "Job started on $(hostname) at $(date)"
 SCRATCH_ROOT="${CACHE_DIR:-.cache_v1}/scratch_v1"
 SCRATCH_DIR="${SCRATCH_ROOT}/${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-0}"
 mkdir -p "${SCRATCH_DIR}"
-cat > "${SCRATCH_DIR}/job.json" <<JOBMETA
-{"job_id": "${SLURM_JOB_ID}", "array_task_id": "${SLURM_ARRAY_TASK_ID:-0}", "model": "${MODEL}", "dataset": "${DATASET}", "started": "$(date -Iseconds)"}
-JOBMETA
 
 # --- Per-job OpenML local-dataset cache, same reasoning as SCRATCH_DIR above.
 #     TabArena's UserTask.create_local_openml_task keys its on-disk cache
@@ -104,10 +104,17 @@ if [ "${USE_GPU:-0}" = "0" ]; then
     export CUDA_VISIBLE_DEVICES=""
 fi
 
-# --- Read this array task's (seed, config_index) from the jobspec line ---
+# --- Read this array task's (dataset, target, seed, config_index) from the
+#     jobspec line -- dataset/target_idx/n_repeats are per-line rather than
+#     --export env vars so one array can cover many (dataset, target) pairs
+#     for this MODEL, not just many (repeat, fold, config) tuples for one. ---
 LINE_NO=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
-read -r REPEAT FOLD CONFIG_INDEX <<< "$(sed -n "${LINE_NO}p" "${JOBSPEC}")"
-echo "Task line ${LINE_NO} of ${JOBSPEC}: repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX}"
+read -r DATASET TARGET_IDX REPEAT FOLD CONFIG_INDEX N_REPEATS <<< "$(sed -n "${LINE_NO}p" "${JOBSPEC}")"
+echo "Task line ${LINE_NO} of ${JOBSPEC}: dataset=${DATASET} target_idx=${TARGET_IDX} repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX}"
+
+cat > "${SCRATCH_DIR}/job.json" <<JOBMETA
+{"job_id": "${SLURM_JOB_ID}", "array_task_id": "${SLURM_ARRAY_TASK_ID:-0}", "model": "${MODEL}", "dataset": "${DATASET}", "target_idx": "${TARGET_IDX}", "started": "$(date -Iseconds)"}
+JOBMETA
 
 GPU_FLAG=""
 [ "${USE_GPU:-0}" = "1" ] && GPU_FLAG="--use-gpu"
@@ -138,5 +145,5 @@ RC=$?
 # over-large num_bag_folds for tiny datasets, both silently, until this was
 # added and results.pkl presence was checked directly instead of trusting
 # sacct's state.
-echo "Done: ${MODEL} repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX} at $(date) (exit=${RC})"
+echo "Done: ${MODEL} ${DATASET}[${TARGET_IDX}] repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX} at $(date) (exit=${RC})"
 exit $RC

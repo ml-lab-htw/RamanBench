@@ -50,6 +50,30 @@ directly, rather than reimplementing patterns "inspired by" them.
 
 ### Added
 
+- `configs/v1/`: the public, canonical definition of what the v1 benchmark runs --
+  `datasets/{classification,regression}_all.json` (the curated 66-dataset scope),
+  `target_list.json` (one row per (dataset, target), built by
+  `scripts/build_target_list.py`; currently 154 runnable targets), `models.json` (the
+  roster of models validated end-to-end on the new pipeline; currently just `PLS`), and
+  `scope_default.json` (the opportunistic scheduler's default scope -- see below). No
+  institution-specific values live here; only the SLURM profile
+  (`raman_bench_paper/cluster/profiles/{htw,tu}.yaml`) stays private.
+- `cluster/opportunistic_scheduler.py`: one tick of a capacity-aware, opportunistic
+  scheduler for the routine full-benchmark sweep. Computes the backlog of not-yet-cached
+  `(model, dataset, target, repeat, fold)` tasks fresh every tick (no separate state file
+  to get out of sync -- a completed task just stops appearing), checks real idle cluster
+  capacity (`sinfo`) and this user's own resident task count (`squeue`) against a courtesy
+  ceiling, and submits exactly one modest-sized chunk if there's room, otherwise skips --
+  logging every decision. Meant to be driven by a cron entry (see the private
+  `raman_bench_paper/cluster/submit_v1_opportunistic.sh`), never by an agent call, since
+  the routine decision itself needs no judgment. Verified end-to-end against the real HTW
+  cluster in `--dry-run`: computed a real 4151-task backlog, correctly read 192 idle CPUs
+  / 2 resident tasks off `sinfo`/`squeue`, and produced a correct `sbatch` command for a
+  300-task chunk spanning many (dataset, target) pairs for one model in a single array.
+  `.claude/agents/cluster-agent.md` extended with the human-facing control surface for
+  this scheduler (out-of-cycle submit, backlog/progress "watch", pause/resume/adjust the
+  cron trigger, and -- unlike the autonomous layer, which never touches submitted work --
+  cancel/requeue a genuinely stuck array on explicit request).
 - Real repeated k-fold cross-validation (`RepeatedStratifiedKFold`/`RepeatedKFold` for
   ungrouped datasets; a manually-repeated `StratifiedGroupKFold`/`GroupKFold` for datasets
   with physical-replicate structure, since sklearn has no repeated wrapper for those),
@@ -99,6 +123,20 @@ directly, rather than reimplementing patterns "inspired by" them.
 
 ### Changed
 
+- `cluster/submit_job.py`'s jobspec format extended: each line now carries
+  `DATASET TARGET_IDX REPEAT FOLD CONFIG_INDEX N_REPEATS` instead of just
+  `REPEAT FOLD CONFIG_INDEX` (with dataset/target/n_repeats fixed `--export` env vars for
+  the whole array). This lets one SLURM array span many (dataset, target) pairs for the
+  same model, not just many (repeat, fold, config) tuples for one fixed target -- the
+  mechanism the opportunistic scheduler needs to "combine as much as possible into
+  arrays." `MODEL` (and thus GPU/memory tier) stays array-wide, since a single `sbatch`
+  call's resource flags apply to every task in it -- an array never mixes models.
+  `run_experiment.sbatch` reads the extra fields from its jobspec line instead of env
+  vars. The single-(dataset,target) CLI path (`submit_job.py`'s own `submit()`, used by
+  model-agent/cluster-agent for one-off submissions) is unaffected -- it just repeats the
+  same three values on every line now. New shared `submit_jobs()` helper factors out the
+  actual chunking/sbatch-invocation logic so both that path and the opportunistic
+  scheduler's multi-target case go through one code path.
 - `tabarena`/`bencheval` dependencies now point at upstream `autogluon/tabarena`
   (`packages/{tabarena,bencheval}`, since upstream's monorepo restructure) instead of a
   personal fork. Verified end-to-end by installing `packages/tabarena[benchmark]` fresh
