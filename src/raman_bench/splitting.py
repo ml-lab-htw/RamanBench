@@ -191,7 +191,7 @@ class RamanBenchTaskWrapper(OpenMLTaskWrapper):
         return X_train, y_train, X_test, y_test
 
 
-def _repeated_kfold_splits(
+def _repeated_kfold_splits_labeled(
     df: pd.DataFrame,
     *,
     label_col: str,
@@ -200,7 +200,8 @@ def _repeated_kfold_splits(
     n_splits: int,
     group_col: str | None = GROUP_COL,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Build ``n_repeats * n_splits`` (train_idx, test_idx) folds, repeat-major.
+    """Build ``n_repeats * n_splits`` (train_idx, test_idx) folds, repeat-major,
+    over a fully-labeled ``df`` (every row has a non-null ``label_col``).
 
     Non-grouped: ``RepeatedStratifiedKFold`` (classification) or
     ``RepeatedKFold`` (regression) -- these already iterate repeat-major,
@@ -237,6 +238,66 @@ def _repeated_kfold_splits(
     return list(splitter.split(df))
 
 
+def _repeated_kfold_splits(
+    df: pd.DataFrame,
+    *,
+    label_col: str,
+    problem_type: Literal["classification", "regression"],
+    n_repeats: int,
+    n_splits: int,
+    group_col: str | None = GROUP_COL,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Build ``n_repeats * n_splits`` (train_idx, test_idx) folds, repeat-major.
+
+    Rows with a missing (NaN) ``label_col`` -- present when a caller opted
+    into semi-supervised benchmarking by *not* dropping them first (see
+    ``run_experiment.py``'s ``filter_unlabeled`` flag) -- are never eligible
+    for a test fold (there is no ground truth to score against); they are
+    computed over the labeled subset only, then unioned into each fold's
+    train indices. If every row is labeled this is a no-op passthrough to
+    :func:`_repeated_kfold_splits_labeled`.
+
+    For grouped datasets, an unlabeled row is only added to a given fold's
+    train indices if its group doesn't also appear in that fold's *test*
+    indices -- an unlabeled row can share a physical-replicate group with a
+    labeled row, and blindly adding every unlabeled row to every fold would
+    silently violate the "a group never spans train/test" guarantee for
+    whichever folds hold that group's labeled replicate in test.
+    """
+    labeled_mask = df[label_col].notna().to_numpy()
+    if labeled_mask.all():
+        return _repeated_kfold_splits_labeled(
+            df, label_col=label_col, problem_type=problem_type,
+            n_repeats=n_repeats, n_splits=n_splits, group_col=group_col,
+        )
+
+    labeled_positions = np.flatnonzero(labeled_mask)
+    unlabeled_positions = np.flatnonzero(~labeled_mask)
+    df_labeled = df.iloc[labeled_positions].reset_index(drop=True)
+
+    labeled_splits = _repeated_kfold_splits_labeled(
+        df_labeled, label_col=label_col, problem_type=problem_type,
+        n_repeats=n_repeats, n_splits=n_splits, group_col=group_col,
+    )
+
+    has_groups = group_col is not None and group_col in df.columns and df[group_col].notna().any()
+    if not has_groups:
+        return [
+            (np.concatenate([labeled_positions[train_idx], unlabeled_positions]), labeled_positions[test_idx])
+            for train_idx, test_idx in labeled_splits
+        ]
+
+    groups = df[group_col].to_numpy()
+    unlabeled_groups = groups[unlabeled_positions]
+    result = []
+    for train_idx, test_idx in labeled_splits:
+        mapped_test = labeled_positions[test_idx]
+        test_groups = set(groups[mapped_test].tolist())
+        safe_unlabeled = unlabeled_positions[[g not in test_groups for g in unlabeled_groups]]
+        result.append((np.concatenate([labeled_positions[train_idx], safe_unlabeled]), mapped_test))
+    return result
+
+
 def build_user_task(
     *,
     task_name: str,
@@ -255,6 +316,12 @@ def build_user_task(
     datasets. Returns the raw task object; wrap it with
     :class:`RamanBenchTaskWrapper` (not plain :class:`OpenMLTaskWrapper`)
     before fitting.
+
+    ``df`` may contain rows with a missing (NaN) ``label_col`` -- semi-supervised
+    benchmarking support: a caller that chose not to drop them (see
+    ``run_experiment.py``'s ``filter_unlabeled`` flag) gets them included in
+    every fold's train split (never test, since there's no ground truth to
+    score against) rather than silently breaking the split.
     """
     has_groups = group_col is not None and group_col in df.columns and df[group_col].notna().any()
 
