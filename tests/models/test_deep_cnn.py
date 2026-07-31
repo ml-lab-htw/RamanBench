@@ -5,7 +5,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.deepcnn import DeepCNNModel, _DeepCNNNetwork  # noqa: E402
+from raman_bench.models.custom.deepcnn.model import (  # noqa: E402
+    DeepCNNModel,
+    _DeepCNNNetwork,
+)
 
 
 def _clf(n=60, f=128, n_classes=3, seed=0):

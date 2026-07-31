@@ -5,7 +5,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.sanet import SANetModel, _SANetNetwork  # noqa: E402
+from raman_bench.models.custom.sanet.model import (  # noqa: E402
+    SANetModel,
+    _SANetNetwork,
+)
 
 
 def _clf(n=60, f=64, seed=42):

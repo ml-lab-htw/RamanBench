@@ -6,18 +6,19 @@ respective package (TabPFN, RealMLP, TabM via pytabkit, TabDPT).
 AutoGluon is **not** required.
 """
 
+from raman_bench.models.custom.arsenal.model import ArsenalModel
 from raman_bench.models.custom.base import BaseRamanEstimator
-from raman_bench.models.custom.coatnet import CoAtNetModel
-from raman_bench.models.custom.deepcnn import DeepCNNModel
-from raman_bench.models.custom.fcresnext import FCResNeXtModel
-from raman_bench.models.custom.pls import PLSModel
-from raman_bench.models.custom.ramanformer import RamanFormerModel
-from raman_bench.models.custom.ramannet import RamanNetModel
-from raman_bench.models.custom.ramantransformer import RamanTransformerModel
-from raman_bench.models.custom.rezeronet import ReZeroNetModel
+from raman_bench.models.custom.coatnet.model import CoAtNetModel
+from raman_bench.models.custom.deepcnn.model import DeepCNNModel
+from raman_bench.models.custom.fcresnext.model import FCResNeXtModel
+from raman_bench.models.custom.pls.model import PLSModel
+from raman_bench.models.custom.ramanformer.model import RamanFormerModel
+from raman_bench.models.custom.ramannet.model import RamanNetModel
+from raman_bench.models.custom.ramantransformer.model import RamanTransformerModel
+from raman_bench.models.custom.rezeronet.model import ReZeroNetModel
 from raman_bench.models.custom.ridge.model import RidgeModel
-from raman_bench.models.custom.sanet import SANetModel
-from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
+from raman_bench.models.custom.rocket.model import RocketModel
+from raman_bench.models.custom.sanet.model import SANetModel
 from raman_bench.models.custom.tabular_foundation import (
     RealMLPModel,
     TabDPTModel,

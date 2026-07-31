@@ -5,7 +5,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.coatnet import CoAtNetModel, _CoAtNetNetwork  # noqa: E402
+from raman_bench.models.custom.coatnet.model import (  # noqa: E402
+    CoAtNetModel,
+    _CoAtNetNetwork,
+)
 
 
 def _clf(n=60, f=50, seed=42):

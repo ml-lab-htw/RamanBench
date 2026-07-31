@@ -5,10 +5,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.ramantransformer import (
+from raman_bench.models.custom.ramantransformer.model import (  # noqa: E402
     RamanTransformerModel,
     _RamanTransformerNetwork,
-)  # noqa: E402
+)
 
 
 def _clf(n=60, f=64, seed=42):

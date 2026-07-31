@@ -5,7 +5,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.rezeronet import ReZeroNetModel, _ReZeroNetNetwork  # noqa: E402
+from raman_bench.models.custom.rezeronet.model import (  # noqa: E402
+    ReZeroNetModel,
+    _ReZeroNetNetwork,
+)
 
 
 def _clf(n=60, f=100, seed=42):

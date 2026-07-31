@@ -5,7 +5,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from raman_bench.models.custom.fcresnext import FCResNeXtModel, _FCResNeXtNetwork  # noqa: E402
+from raman_bench.models.custom.fcresnext.model import (  # noqa: E402
+    FCResNeXtModel,
+    _FCResNeXtNetwork,
+)
 
 
 def _clf(n=60, f=50, seed=42):

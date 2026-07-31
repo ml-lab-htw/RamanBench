@@ -5,7 +5,8 @@ import pytest
 
 pytest.importorskip("sktime")
 
-from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel  # noqa: E402
+from raman_bench.models.custom.arsenal.model import ArsenalModel  # noqa: E402
+from raman_bench.models.custom.rocket.model import RocketModel  # noqa: E402
 
 
 def _clf(n=60, f=50, seed=42):

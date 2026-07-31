@@ -74,14 +74,24 @@ def _resolve_num_gpus(use_gpu: bool) -> int:
 
 
 def _import_generator(model_key: str):
-    """Import ``raman_bench.models.generate.<key>`` and return its ``gen_<key>``."""
+    """Return the ``gen_<key>`` ``ConfigGenerator`` for a model key.
+
+    Tries the new per-model-directory convention first
+    (``raman_bench.models.custom.<key>.hpo``, see ``raman_bench.models.discover``),
+    falling back to the older flat-file convention
+    (``raman_bench.models.generate.<key>``) for models not yet migrated -- both
+    conventions coexist (see ``RamanBench/.claude/agents/model-agent.md``).
+    """
     module_key = model_key.lower().replace("-", "_").replace(".", "")
-    module = importlib.import_module(f"raman_bench.models.generate.{module_key}")
     gen_name = f"gen_{module_key}"
+    try:
+        module = importlib.import_module(f"raman_bench.models.custom.{module_key}.hpo")
+    except ImportError:
+        module = importlib.import_module(f"raman_bench.models.generate.{module_key}")
     if not hasattr(module, gen_name):
         raise AttributeError(
-            f"raman_bench.models.generate.{module_key} has no attribute {gen_name!r}. "
-            f"Add a generate.py module for model key {model_key!r} first."
+            f"{module.__name__} has no attribute {gen_name!r}. "
+            f"Add an hpo.py (or generate.py) module for model key {model_key!r} first."
         )
     return getattr(module, gen_name)
 

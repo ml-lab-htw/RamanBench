@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from raman_bench.models.custom.pls import PLSModel
+from raman_bench.models.custom.pls.model import PLSModel
 
 
 def _clf(n=60, f=30, n_classes=3, seed=0):

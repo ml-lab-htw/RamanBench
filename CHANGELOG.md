@@ -126,6 +126,18 @@ directly, rather than reimplementing patterns "inspired by" them.
   post-restructure onboarding pattern (`ModelInfo`/`discover_models`). `ridge` migrated as
   the reference implementation; other already-integrated models are unaffected and keep
   working via the previous flat-file convention.
+- All remaining models migrated to the per-directory convention: PLS, DeepCNN, RamanNet,
+  SANet, RamanFormer, RamanTransformer, ReZeroNet, FC-ResNeXt, CoAtNet, ROCKET, Arsenal,
+  TabPFN-Wide, GBM, TA-TABPFN-3. `wrapped_models.py` now only hand-lists the built-in-
+  AutoGluon-backed `Prep_*` classes that have no separate "pure model" class of their own;
+  every Raman-specific architecture's `Prep_*` class, search space, and metadata now lives
+  next to its model code. `models/generate/` is kept as an empty package purely as a
+  fallback import path for any future model added the old way before being migrated --
+  `scripts/run_experiment.py::_import_generator` tries the new per-model `hpo.py` location
+  first, falling back to the old `generate/<key>.py` location. Verified via the full test
+  suite (152 passed, same 3 pre-existing unrelated TabPFN-license failures) and by
+  confirming `PREPROCESSED_MODELS` resolves all 33 keys, including migrated ones, to the
+  exact same classes as before.
 
 - Metrics now use TabArena/AutoGluon's own problem-type-appropriate defaults (ROC AUC for
   binary classification, log loss for multiclass, RMSE for regression) instead of
