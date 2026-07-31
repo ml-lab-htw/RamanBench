@@ -12,9 +12,11 @@ Each invocation of this script does exactly ONE tick:
        (dataset, target) row in its target list, every (repeat, fold) in its
        repeated-k-fold scheme, check whether ``results.pkl`` already exists under
        ``results_dir`` (the same cache convention ``run_experiment.py`` /
-       ``submit_job.py`` already use). Recomputed fresh every tick -- nothing is
-       tracked in a separate state file, so a completed task just stops appearing
-       in the backlog next time around (self-healing: nothing can get out of sync).
+       ``submit_job.py`` already use) AND whether it already has a queued/running
+       SLURM task (via squeue/sacct + the submitted jobspec files -- see
+       ``_in_flight_targets``). Recomputed fresh every tick -- nothing is tracked
+       in a separate state file, so a completed task just stops appearing in the
+       backlog next time around (self-healing: nothing can get out of sync).
     2. Check capacity: idle CPUs on the target partition (``sinfo``) and this
        user's own current resident task count (``squeue``).
     3. If there's room, submit exactly one modest-sized chunk from the backlog
@@ -48,7 +50,7 @@ from pathlib import Path
 CLUSTER_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(CLUSTER_DIR))
 
-from submit_job import Job, resolve_profile, submit_jobs  # noqa: E402
+from submit_job import JOBSPEC_DIR, Job, resolve_profile, submit_jobs  # noqa: E402
 
 DEFAULT_CHUNK_SIZE = 300
 DEFAULT_COURTESY_CEILING = 200
@@ -84,14 +86,80 @@ def _ag_name(model_key: str) -> str:
     return infer_model_cls(model_key).ag_name
 
 
-def compute_backlog(scope: dict) -> dict[str, list[Job]]:
+def _in_flight_targets(model: str, user: str) -> set[tuple[str, int, int, int]]:
+    """(dataset, target_idx, repeat, fold) tuples for ``model`` (config_index 0
+    only -- that's all the routine backlog tracks) that already have a queued or
+    running SLURM task, so ``compute_backlog`` doesn't re-count them.
+
+    Every array task's identity lives in a jobspec file under
+    ``submit_job.JOBSPEC_DIR`` (one line per task), and ``submit_jobs`` always
+    names the SLURM job ``RB_{model}_{part_slug}`` where ``part_slug`` is exactly
+    that jobspec file's stem -- so a live job name tells us which file to read
+    back, with no separate state tracking needed. Checked via squeue first;
+    sacct is also checked (restricted to the last hour) as a fallback in case a
+    job submitted moments ago hasn't propagated to squeue yet on this cluster.
+
+    Confirmed necessary in practice: without this, three duplicate 300-task PLS
+    arrays got submitted in one afternoon because every tick recomputed the same
+    "not yet cached" backlog for tasks that were already queued/running from the
+    previous tick.
+    """
+    name_prefix = f"RB_{model}_"
+    part_slugs: set[str] = set()
+
+    try:
+        out = subprocess.run(
+            ["squeue", "-h", "-u", user, "-t", "pending,running", "-o", "%.200j"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+        for name in out.splitlines():
+            name = name.strip()
+            if name.startswith(name_prefix):
+                part_slugs.add(name[len(name_prefix):])
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass  # no SLURM here -- fall through to cache-only backlog, as before
+
+    try:
+        cutoff = (datetime.datetime.now() - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        out = subprocess.run(
+            ["sacct", "-h", "-n", "-X", "-u", user, "--starttime", cutoff,
+             "--state", "PENDING,RUNNING,REQUEUED", "-o", "JobName%200"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+        for name in out.splitlines():
+            name = name.strip()
+            if name.startswith(name_prefix):
+                part_slugs.add(name[len(name_prefix):])
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    targets: set[tuple[str, int, int, int]] = set()
+    for part_slug in part_slugs:
+        jobspec_path = JOBSPEC_DIR / f"{part_slug}.txt"
+        if not jobspec_path.exists():
+            continue
+        with open(jobspec_path) as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) != 6:
+                    continue
+                dataset, target_idx, repeat, fold, config_index, _n_repeats = parts
+                if int(config_index) != 0:
+                    continue
+                targets.add((dataset, int(target_idx), int(repeat), int(fold)))
+    return targets
+
+
+def compute_backlog(scope: dict, profile: dict) -> dict[str, list[Job]]:
     """Return ``{model: [(dataset, target_idx, repeat, fold, config_index=0, n_repeats), ...]}``
-    for every not-yet-cached task in scope. Only the routine default config
-    (config_index 0) is considered -- per the plan's Decision 3, HPO sweeps are
-    opted into per model separately, not part of the routine opportunistic backlog.
+    for every not-yet-cached AND not-already-queued/running task in scope. Only
+    the routine default config (config_index 0) is considered -- per the plan's
+    Decision 3, HPO sweeps are opted into per model separately, not part of the
+    routine opportunistic backlog.
     """
     results_dir = Path(scope["results_dir"])
     n_splits = scope["n_splits"]
+    user = profile.get("cron_user") or _current_user()
 
     with open(scope["targets_file"]) as f:
         targets = json.load(f)
@@ -100,6 +168,7 @@ def compute_backlog(scope: dict) -> dict[str, list[Job]]:
     for model in scope["models"]:
         ag_name = _ag_name(model)
         experiment_name = f"{ag_name}_c1_BAG_L1"
+        in_flight = _in_flight_targets(model, user)
         model_backlog: list[Job] = []
         for row in targets:
             if row.get("excluded"):
@@ -110,6 +179,8 @@ def compute_backlog(scope: dict) -> dict[str, list[Job]]:
             task_name = f"{dataset}__{target_idx}"
             for repeat in range(n_repeats):
                 for fold in range(n_splits):
+                    if (dataset, target_idx, repeat, fold) in in_flight:
+                        continue
                     cache_file = results_dir / experiment_name / task_name / f"{repeat}_{fold}" / "results.pkl"
                     if not cache_file.exists():
                         model_backlog.append((dataset, target_idx, repeat, fold, 0, n_repeats))
@@ -184,7 +255,7 @@ def log_tick(log_path: str | Path | None, entry: dict) -> None:
 
 def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: bool) -> dict:
     timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    backlog = compute_backlog(scope)
+    backlog = compute_backlog(scope, profile)
     backlog_sizes = {model: len(jobs) for model, jobs in backlog.items()}
     total_backlog = sum(backlog_sizes.values())
 
