@@ -102,6 +102,7 @@ def run_one(
     results_dir: str = "results/v1/data",
     cache_dir: str = ".cache_v1",
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+    use_mirror: bool = True,
     use_gpu: bool = False,
     scratch_dir: str | None = None,
     min_samples_per_class: int = 9,
@@ -148,12 +149,14 @@ def run_one(
 
     # Reuses RamanBenchmark's existing, tested mirror-first (with fallback)
     # dataset loading -- no need for the full init_datasets() index/cache
-    # bookkeeping, just the one dataset this job needs.
+    # bookkeeping, just the one dataset this job needs. Mirror-first is the
+    # default (much faster and more reliable than every original source);
+    # use_mirror=False forces direct raman-data (original source) access.
     bench = RamanBenchmark(
         dataset_names_classification=[],
         dataset_names_regression=[],
         cache_dir=cache_dir,
-        use_mirror=True,
+        use_mirror=use_mirror,
         mirror_repo=mirror_repo,
     )
     dataset = bench._load_raman_dataset(dataset_name)
@@ -376,6 +379,12 @@ def main():
     parser.add_argument("--results-dir", default="results/v1/data")
     parser.add_argument("--cache-dir", default=".cache_v1")
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
+    parser.add_argument(
+        "--use-mirror", action=argparse.BooleanOptionalAction, default=True,
+        help="Load via the HF mirror first, falling back to the original raman-data "
+             "source on a miss (default: on -- much faster and more reliable). Pass "
+             "--no-use-mirror to force direct raman-data access.",
+    )
     parser.add_argument("--use-gpu", action="store_true")
     parser.add_argument(
         "--scratch-dir",
@@ -418,6 +427,7 @@ def main():
         results_dir=args.results_dir,
         cache_dir=args.cache_dir,
         mirror_repo=args.mirror_repo,
+        use_mirror=args.use_mirror,
         use_gpu=args.use_gpu,
         scratch_dir=args.scratch_dir,
         min_samples_per_class=args.min_samples_per_class,

@@ -11,9 +11,20 @@ the dataset-size-adaptive ``n_repeats`` TabArena's own real protocol uses (see
 "time_h") is marked ``excluded`` rather than dropped, so the full list stays a complete,
 auditable record of what was and wasn't run.
 
-A dataset that fails to load (network hiccup, a genuinely broken source) is skipped with
-a warning rather than aborting the whole build -- rerun for just that dataset separately
-once fixed.
+Loads each dataset via ``RamanBenchmark._load_raman_dataset``, mirror-first by default
+(falling back to the original raman-data source only on a mirror miss) -- the same path
+``scripts/run_experiment.py`` uses. The mirror is much faster and more reliable than
+hitting original sources directly: several datasets whose original source is currently
+unreachable (an RWTH bot-detection wall, a network path to Zenodo that hangs from
+certain hosts) load fine from the mirror, so calling ``raman_data()`` directly would
+incorrectly mark them unloadable even though they're already mirrored and every other
+part of the pipeline can read them fine. Pass ``--no-use-mirror`` to force direct
+raman-data (original source) access instead -- e.g. to verify the mirror itself is
+faithfully in sync, or when a specific dataset's mirror entry is suspected stale.
+
+A dataset that fails to load from *both* the mirror and the original source (network
+hiccup, a genuinely broken source) is skipped with a warning rather than aborting the
+whole build -- rerun for just that dataset separately once fixed.
 
 Usage:
     python scripts/build_target_list.py \\
@@ -26,23 +37,38 @@ from __future__ import annotations
 import argparse
 import json
 
+from raman_bench.benchmark import RamanBenchmark
 from raman_bench.splitting import get_n_repeats
-from raman_data import raman_data
 
 
-def build_target_list(dataset_lists: list[str], exclude_targets: set[str]) -> tuple[list[dict], list[str]]:
+def build_target_list(
+    dataset_lists: list[str],
+    exclude_targets: set[str],
+    cache_dir: str | None = None,
+    mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+    use_mirror: bool = True,
+) -> tuple[list[dict], list[str]]:
     names: list[str] = []
     for path in dataset_lists:
         with open(path) as f:
             names.extend(json.load(f))
 
+    bench = RamanBenchmark(
+        dataset_names_classification=[], dataset_names_regression=[],
+        cache_dir=cache_dir, use_mirror=use_mirror, mirror_repo=mirror_repo,
+    )
+
     targets = []
     failed = []
     for name in names:
         try:
-            ds = raman_data(name)
+            ds = bench._load_raman_dataset(name)
         except Exception as e:
             print(f"FAILED to load {name}: {e}")
+            failed.append(name)
+            continue
+        if ds is None:
+            print(f"FAILED to load {name}: not on the mirror and the original source failed")
             failed.append(name)
             continue
         num_instances = ds.spectra.shape[0]
@@ -86,9 +112,20 @@ def main():
         help="Target names to mark excluded rather than run (e.g. a raw elapsed-time column)",
     )
     parser.add_argument("--output", required=True)
+    parser.add_argument("--cache-dir", default=None)
+    parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
+    parser.add_argument(
+        "--use-mirror", action=argparse.BooleanOptionalAction, default=True,
+        help="Load via the HF mirror first, falling back to the original raman-data "
+             "source on a miss (default: on -- much faster and more reliable). Pass "
+             "--no-use-mirror to force direct raman-data access for every dataset.",
+    )
     args = parser.parse_args()
 
-    targets, failed = build_target_list(args.dataset_lists, set(args.exclude_targets))
+    targets, failed = build_target_list(
+        args.dataset_lists, set(args.exclude_targets),
+        cache_dir=args.cache_dir, mirror_repo=args.mirror_repo, use_mirror=args.use_mirror,
+    )
 
     with open(args.output, "w") as f:
         json.dump(targets, f, indent=2)

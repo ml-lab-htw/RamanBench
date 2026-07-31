@@ -55,6 +55,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CLUSTER_DIR = Path(__file__).resolve().parent
 JOBSPEC_DIR = REPO_ROOT / ".slurm_jobspecs"
 
+# SLURM's MaxArraySize commonly defaults to 1001 (array indices 0..1000); a profile
+# can override via max_array_size if its cluster is configured differently. Confirmed
+# via a real failed submission: "sbatch: error: ... Invalid job array specification"
+# for a 1530-task array (10 repeats x 3 folds x 51 configs) on a cluster with the
+# common default.
+DEFAULT_MAX_ARRAY_SIZE = 1000
+
 with open(CLUSTER_DIR / "gpu_models.json") as f:
     GPU_MODELS = set(json.load(f))
 
@@ -126,6 +133,15 @@ def write_jobspec(jobs: list[tuple[int, int, int]], slug: str) -> Path:
     return path
 
 
+def _chunk(jobs: list[tuple[int, int, int]], size: int) -> list[list[tuple[int, int, int]]]:
+    """Split into groups of at most ``size`` -- SLURM's MaxArraySize (commonly 1001)
+    rejects an array bigger than that with "Invalid job array specification", confirmed
+    by a real failed submission (a 10-repeat x 3-fold x 51-config target needs 1530
+    tasks). Each chunk becomes its own array-task-index-0-based jobspec/sbatch call, so
+    a chunk boundary never needs to line up with any (repeat, fold, config) boundary."""
+    return [jobs[i : i + size] for i in range(0, len(jobs), size)] or [[]]
+
+
 def submit(
     *,
     dataset: str,
@@ -179,56 +195,66 @@ def submit(
         return
 
     slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
-    jobspec_path = write_jobspec(jobs, slug)
-
-    sbatch_args = [
-        "sbatch",
-        f"--array=0-{len(jobs) - 1}%{throttle}",
-        f"--job-name=RB_{model}_{slug}",
-        "--cpus-per-task", str(profile.get("default_cpus_per_task", 16)),
-        "--time", profile.get("default_time", "10-00:00:00"),
-    ]
-    sbatch_args += resolve_mem_flags(profile, model)
-    sbatch_args += resolve_gpu_flags(profile, use_gpu)
-    if profile.get("account"):
-        sbatch_args.append(f"--account={profile['account']}")
-    if profile.get("partition"):
-        sbatch_args.append(f"--partition={profile['partition']}")
-    if profile.get("mail_user"):
-        sbatch_args += [f"--mail-user={profile['mail_user']}", f"--mail-type={profile.get('mail_type', 'FAIL')}"]
-    sbatch_args += profile.get("extra_sbatch_args", [])
-
-    export_vars = ",".join([
-        f"DATASET={dataset}",
-        f"TARGET_IDX={target_idx}",
-        f"MODEL={model}",
-        f"N_REPEATS={n_repeats}",
-        f"N_SPLITS={n_splits}",
-        f"NUM_RANDOM_CONFIGS={num_random_configs}",
-        f"NUM_BAG_FOLDS={num_bag_folds}",
-        f"TIME_LIMIT={time_limit}",
-        f"RESULTS_DIR={results_dir}",
-        f"CACHE_DIR={cache_dir}",
-        f"MIRROR_REPO={mirror_repo}",
-        f"USE_GPU={1 if use_gpu else 0}",
-        f"JOBSPEC={jobspec_path}",
-        f"ACTIVATION={profile.get('activation') or 'conda'}",
-        f"CONDA_ENV={profile.get('conda_env') or ''}",
-        f"VENV_PATH={profile.get('venv_path') or ''}",
-        f"WORKSPACE={profile.get('workspace') or ''}",
-    ])
-    sbatch_args += ["--export", export_vars, str(CLUSTER_DIR / "run_experiment.sbatch")]
+    max_array_size = profile.get("max_array_size", DEFAULT_MAX_ARRAY_SIZE)
+    chunks = _chunk(jobs, max_array_size)
+    multi_part = len(chunks) > 1
 
     print(
         f"{len(jobs)} job(s) ({n_repeats} repeat(s) x {n_splits} fold(s) x "
-        f"{len(config_indices)} config(s)) as array: {slug}"
+        f"{len(config_indices)} config(s)) as {slug}"
+        + (f" -- split into {len(chunks)} array(s) of <={max_array_size} (SLURM MaxArraySize)" if multi_part else "")
     )
-    print(f"  jobspec: {jobspec_path}")
-    print(f"  {' '.join(sbatch_args)}")
-    if dry_run:
-        return
-    result = subprocess.run(sbatch_args, capture_output=True, text=True, check=True)
-    print(result.stdout.strip())
+
+    for part, chunk_jobs in enumerate(chunks):
+        part_slug = f"{slug}_p{part}" if multi_part else slug
+        jobspec_path = write_jobspec(chunk_jobs, part_slug)
+
+        sbatch_args = [
+            "sbatch",
+            f"--array=0-{len(chunk_jobs) - 1}%{throttle}",
+            f"--job-name=RB_{model}_{part_slug}",
+            "--cpus-per-task", str(profile.get("default_cpus_per_task", 16)),
+            "--time", profile.get("default_time", "10-00:00:00"),
+        ]
+        sbatch_args += resolve_mem_flags(profile, model)
+        sbatch_args += resolve_gpu_flags(profile, use_gpu)
+        if profile.get("account"):
+            sbatch_args.append(f"--account={profile['account']}")
+        if profile.get("partition"):
+            sbatch_args.append(f"--partition={profile['partition']}")
+        if profile.get("mail_user"):
+            sbatch_args += [
+                f"--mail-user={profile['mail_user']}", f"--mail-type={profile.get('mail_type', 'FAIL')}"
+            ]
+        sbatch_args += profile.get("extra_sbatch_args", [])
+
+        export_vars = ",".join([
+            f"DATASET={dataset}",
+            f"TARGET_IDX={target_idx}",
+            f"MODEL={model}",
+            f"N_REPEATS={n_repeats}",
+            f"N_SPLITS={n_splits}",
+            f"NUM_RANDOM_CONFIGS={num_random_configs}",
+            f"NUM_BAG_FOLDS={num_bag_folds}",
+            f"TIME_LIMIT={time_limit}",
+            f"RESULTS_DIR={results_dir}",
+            f"CACHE_DIR={cache_dir}",
+            f"MIRROR_REPO={mirror_repo}",
+            f"USE_GPU={1 if use_gpu else 0}",
+            f"JOBSPEC={jobspec_path}",
+            f"ACTIVATION={profile.get('activation') or 'conda'}",
+            f"CONDA_ENV={profile.get('conda_env') or ''}",
+            f"VENV_PATH={profile.get('venv_path') or ''}",
+            f"WORKSPACE={profile.get('workspace') or ''}",
+        ])
+        sbatch_args += ["--export", export_vars, str(CLUSTER_DIR / "run_experiment.sbatch")]
+
+        print(f"  jobspec: {jobspec_path}")
+        print(f"  {' '.join(sbatch_args)}")
+        if dry_run:
+            continue
+        result = subprocess.run(sbatch_args, capture_output=True, text=True, check=True)
+        print(result.stdout.strip())
 
 
 def main():

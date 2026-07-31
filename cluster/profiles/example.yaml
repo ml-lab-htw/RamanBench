@@ -49,3 +49,11 @@ mem_tiers:
   TABFM: "128G"
 
 extra_sbatch_args: []
+
+# SLURM's MaxArraySize (`scontrol show config | grep MaxArraySize`) caps how many
+# tasks a single array can have -- 1001 is a common default, but check your own
+# cluster. submit_job.py splits a target needing more tasks than this (e.g. 10
+# repeats x 3 folds x 51 configs = 1530) into multiple array submissions rather
+# than failing with "Invalid job array specification". Uncomment/adjust if your
+# cluster's limit differs from the 1000 default:
+# max_array_size: 1000
