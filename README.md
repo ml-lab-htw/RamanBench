@@ -95,6 +95,47 @@ pip install -e ".[models]"
 
 ---
 
+## RamanBench v1
+
+RamanBench's benchmark-running layer is being migrated onto
+[TabArena](https://github.com/autogluon/tabarena) (`tabarena`/`bencheval`) directly, rather
+than reimplementing patterns "inspired by" it. Concretely: each (dataset, target) pair
+becomes a TabArena `UserTask`; splitting is real repeated k-fold cross-validation
+(`raman_bench.splitting`, dataset-size-adaptive `n_repeats`, matching TabArena's own
+documented convention); each model's HPO search space is a TabArena `ConfigGenerator`
+config pool, and the default/tuned/tuned+ensemble triad is recycled from that pool with
+zero extra fitting (`EndToEnd.from_raw(...).get_results(...)`, no re-training). See
+TabArena's own docs for the underlying mechanism — RamanBench's layer on top is thin by
+design: datasets come from the raman-data HF mirror instead of OpenML, and ~13 additional
+Raman-specific model architectures are wired in alongside TabArena's own registry.
+
+```bash
+git clone https://github.com/ml-lab-htw/RamanBench.git
+cd RamanBench
+uv pip install --prerelease=allow -e ".[models]"   # uv resolves bencheval automatically;
+                                                    # plain pip needs it installed first --
+                                                    # see the note in pyproject.toml
+```
+
+Key entry points:
+- `scripts/run_experiment.py` — thin per-(model, dataset, target, repeat, fold,
+  config-index) job runner; reads datasets mirror-first by default
+  (`--use-mirror`/`--no-use-mirror` to opt out).
+- `raman_bench.models.registry.raman_bench_model_registry` — TabArena's full model
+  registry plus RamanBench's own architectures and Raman-preprocessing overrides.
+- `cluster/` — cluster-agnostic SLURM job submission (`submit_job.py`,
+  `run_experiment.sbatch`, `detect_cluster.py`, `janitor.py`) driven by a profile YAML;
+  works locally too when no cluster is available.
+- `.claude/agents/` — six Claude Code agents for routine maintenance (see
+  **Contributor Agents** below).
+
+New models are onboarded via a per-model directory —
+`raman_bench/models/custom/<key>/{model.py,hpo.py,info.py}`, auto-discovered into the
+registry — see `models/custom/ridge/` for the reference implementation and
+`.claude/agents/model-agent.md` for the full workflow.
+
+---
+
 ## Quick Start
 
 ### Load a dataset (Option 1 — core install only)
@@ -288,32 +329,40 @@ interactive filtering by model category, task type, and dataset domain.
 ```
 RamanBench/
 ├── src/raman_bench/
-│   ├── leaderboard.py          # Leaderboard + model evaluation API
-│   ├── benchmark.py            # Dataset loading and cross-validation
-│   ├── predictions.py          # Prediction generation (benchmark step 1)
-│   ├── evaluation.py           # Metric computation (benchmark step 2)
-│   ├── model.py                # AutoGluon pipeline wrapper (fork required)
+│   ├── leaderboard.py          # Leaderboard + model evaluation API (v0)
+│   ├── benchmark.py            # Dataset loading (mirror-first) and cross-validation
+│   ├── predictions.py          # Prediction generation (v0 benchmark step 1)
+│   ├── evaluation.py           # Metric computation (v0 benchmark step 2)
+│   ├── model.py                # v0 AutoGluon pipeline wrapper (fork required)
 │   ├── config.py               # JSON config loader
-│   ├── models/custom/          # All built-in Raman models (sklearn API)
-│   │   ├── base.py             #   BaseRamanEstimator (shared training loop)
-│   │   ├── deepcnn.py          #   DeepCNNModel
-│   │   ├── ramannet.py         #   RamanNetModel
-│   │   ├── sanet.py            #   SANetModel
-│   │   ├── ramanformer.py      #   RamanFormerModel
-│   │   ├── ramantransformer.py #   RamanTransformerModel
-│   │   ├── rezeronet.py        #   ReZeroNetModel
-│   │   ├── fcresnext.py        #   FCResNeXtModel
-│   │   ├── coatnet.py          #   CoAtNetModel
-│   │   ├── pls.py              #   PLSModel
-│   │   ├── sktime_models.py    #   RocketModel, ArsenalModel
-│   │   └── tabular_foundation.py # TabPFNModel, RealMLPModel, TabMModel, TabDPTModel
+│   ├── splitting.py            # v1: repeated k-fold CV + TabArena UserTask construction
+│   ├── models/
+│   │   ├── registry.py         #   raman_bench_model_registry (TabArena's + ours)
+│   │   ├── discover.py         #   auto-discovery for models/custom/<key>/info.py
+│   │   ├── _model_info.py      #   lightweight per-model ModelInfo dataclass
+│   │   ├── generate/           #   per-model ConfigGenerator (HPO search space) modules
+│   │   └── custom/             # All built-in Raman models (sklearn API)
+│   │       ├── base.py         #   BaseRamanEstimator (shared training loop)
+│   │       ├── ridge/           #   reference implementation of the new per-directory
+│   │       │                    #   {model.py,hpo.py,info.py} onboarding convention
+│   │       ├── deepcnn.py, ramannet.py, sanet.py, ramanformer.py, ...
+│   │       │                    #   (older flat-file convention, still supported)
+│   │       └── tabular_foundation.py
 │   └── preprocessing/
 │       ├── mixin.py            #   RamanPreprocessingMixin (AutoGluon HPO)
-│       └── wrapped_models.py   #   Prep_* classes + SklearnAutoGluonBridge
+│       ├── bridge_bases.py     #   SklearnAutoGluonBridge + shared bases
+│       └── wrapped_models.py   #   Prep_* classes, PREPROCESSED_MODELS registry
+├── cluster/                    # v1: cluster-agnostic SLURM submission
+│   ├── detect_cluster.py, submit_job.py, run_experiment.sbatch, janitor.py
+│   └── profiles/                #   generic + example cluster profiles (no secrets)
+├── scripts/
+│   ├── run_experiment.py       # v1: per-(model,dataset,target,repeat,fold,config) job runner
+│   ├── build_target_list.py    # v1: builds the full-benchmark target list (mirror-first)
+│   └── aggregate_results.py    # v1: recycles cached results into default/tuned/tuned+ensemble
+├── .claude/agents/              # model-agent, cluster-agent (see Contributor Agents)
 ├── configs/                    # Benchmark configuration files
 ├── data/precomputed/           # Bundled v0.1 results
 ├── notebooks/                  # Example Jupyter notebooks
-├── scripts/                    # CLI scripts
 └── tests/                      # pytest test suite
 ```
 
@@ -391,14 +440,44 @@ CUSTOM_MODELS["MYMODEL"] = MyModel
 
 4. Open a pull request — CI will run the full test suite automatically.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide, including how to
-optionally wire your model into the AutoGluon benchmark pipeline for full
-reproducibility.
+The steps above cover the standalone sklearn-compatible path (Option 2). To also wire
+your model into the full RamanBench v1 benchmark pipeline (Raman preprocessing HPO,
+default/tuned/tuned+ensemble recycling, cluster submission), follow the per-model
+directory convention instead — `raman_bench/models/custom/<key>/{model.py,hpo.py,info.py}`,
+auto-discovered into `raman_bench_model_registry`. `models/custom/ridge/` is the reference
+implementation; `.claude/agents/model-agent.md` documents the full workflow end to end
+(implement → test → run across the benchmark, cluster or local).
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ### Adding a New Dataset
 
 See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-new-dataset) and
 [NEW_DATASETS.md](NEW_DATASETS.md) for detailed instructions and examples.
+`.claude/agents/dataset-agent.md` (in the `raman-data` repo) documents the full
+onboarding workflow, including the HF mirror sync new datasets need to be discoverable
+through `run_experiment.py`'s mirror-first loading.
+
+---
+
+## Contributor Agents
+
+Six Claude Code agents cover routine maintenance so contributors don't need any private
+tooling. Each is a `.claude/agents/*.md` file in the repo it operates on:
+
+| Agent | Repo | Responsibility |
+|---|---|---|
+| `dataset-agent` | `raman_data` | Onboard a new dataset: pick the right loader, add a `DatasetInfo` entry, populate `group_ids`/`has_missing_labels` if applicable, sync to the HF mirror. |
+| `model-agent` | `RamanBench` (this repo) | Add a new model via the per-directory convention, test it, ask whether to also propose it upstream to TabArena, then run it across the benchmark (cluster or local). |
+| `cluster-agent` | `RamanBench` (public) + `raman_bench_paper` (private profiles) | Fleet management: submit job arrays, detect stalled/cancelled tasks and resubmit, run `cluster/janitor.py`'s disk-cleanup sweep. |
+| `leaderboard-agent` | `raman_bench_paper` | Regenerate leaderboard CSVs/figures from completed results; always shows a diff and asks permission before publishing to the live HF Space. |
+| `hf-frontend-agent` | `HF_spaces/RamanBench` | Frontend work on the public Gradio leaderboard Space. |
+| `docs-agent` | `raman_bench_paper` (cross-repo aware) | Keeps README/CONTRIBUTING in sync across all repos as things change. |
+
+Typical handoff: dataset-agent → model-agent (optional) → cluster-agent → leaderboard-agent
+(with explicit permission before publishing) → hf-frontend-agent. docs-agent runs
+independently after structural changes. None of these agents ever add a Claude/Anthropic
+co-author trailer to a commit.
 
 Quick summary:
 1. Upload your dataset to HuggingFace Datasets or Zenodo under CC BY 4.0.
