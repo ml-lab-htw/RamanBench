@@ -50,7 +50,7 @@ from pathlib import Path
 CLUSTER_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(CLUSTER_DIR))
 
-from submit_job import JOBSPEC_DIR, Job, resolve_profile, submit_jobs  # noqa: E402
+from submit_job import JOBSPEC_DIR, REPO_ROOT, Job, resolve_profile, submit_jobs  # noqa: E402
 
 DEFAULT_CHUNK_SIZE = 300
 DEFAULT_COURTESY_CEILING = 200
@@ -62,15 +62,26 @@ def load_scope(path: str | Path) -> dict:
     """Load a scope JSON. ``targets_file`` is resolved relative to the scope file's
     own directory (a static config asset checked into the repo, e.g.
     ``configs/v1/target_list.json``) if not already absolute -- so the scope file
-    works regardless of the caller's cwd. ``results_dir``/``cache_dir`` are left as
-    given: they're runtime data directories (typically resolved relative to the
-    cluster workspace cwd), not repo-relative assets."""
+    works regardless of the caller's cwd. ``results_dir``/``cache_dir`` are runtime
+    data directories that live under the RamanBench workspace root -- resolved
+    relative to ``submit_job.REPO_ROOT`` (the same anchor ``submit_job.py`` already
+    uses for ``JOBSPEC_DIR`` and the ``--chdir`` it passes every SLURM submission)
+    if not already absolute. This matters because the routine cron tick invokes
+    this script from an arbitrary cwd (cron's default is ``$HOME``, not the
+    workspace) -- left cwd-relative, every on-disk results.pkl check silently saw
+    "nothing is ever done" whenever a tick fired from cron, so the backlog never
+    shrank there even once real completions existed (confirmed in practice: this
+    is why the in-flight dedup fix alone didn't stop duplicate submissions on the
+    real cron path -- the cache-based half of the exclusion was cwd-blind)."""
     path = Path(path)
     with open(path) as f:
         scope = json.load(f)
     targets_file = Path(scope["targets_file"])
     if not targets_file.is_absolute():
         scope["targets_file"] = str((path.parent / targets_file).resolve())
+    for key in ("results_dir", "cache_dir"):
+        if key in scope and not Path(scope[key]).is_absolute():
+            scope[key] = str((REPO_ROOT / scope[key]).resolve())
     return scope
 
 
