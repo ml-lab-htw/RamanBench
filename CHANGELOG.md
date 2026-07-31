@@ -191,6 +191,19 @@ directly, rather than reimplementing patterns "inspired by" them.
 
 ### Fixed
 
+- `cluster/opportunistic_scheduler.py`'s `compute_backlog()` only excluded targets with an
+  on-disk `results.pkl`, never targets that already had a queued/running SLURM task for
+  them. Since `pick_chunk()` deterministically takes the first `chunk_size` items, any tick
+  firing before the previous array finished (an out-of-cycle tick, or an array that takes
+  close to an hour against the hourly cron cadence) recomputed and resubmitted the
+  identical slice. Confirmed in practice: three duplicate 300-task PLS arrays (26454,
+  26527, 26671) got submitted within about 40 minutes for the same targets. Now also
+  excludes targets with a live SLURM task, found by matching `squeue`/`sacct` job names
+  (`submit_jobs` always names a job `RB_{model}_{part_slug}`) back to that submission's
+  jobspec file and reading the tasks it covers -- no new state file, same
+  recomputed-fresh-every-tick design as the disk-cache check. Verified against the live
+  HTW cluster: backlog dropped from the stale 4158 to 3858, with zero overlap between the
+  newly picked chunk and the 300 targets already covered by the three duplicate arrays.
 - `cluster/submit_job.py` now passes an explicit `--chdir <workspace>` to every `sbatch`
   call. `run_experiment.sbatch`'s `#SBATCH --output=.logs/...`/`--error=.logs/...` are
   relative paths, resolved by SLURM against the directory `sbatch` was invoked *from* --
