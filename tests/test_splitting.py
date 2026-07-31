@@ -3,7 +3,9 @@
 Regression guards for the refactor away from
 ``RamanBenchmark._grouped_train_test_split``'s target-value-hash group
 inference (regression-only) toward ``splitting.build_user_task``'s explicit
-group-id column (available to classification and regression alike).
+group-id column (available to classification and regression alike), and for
+the later refactor from "one holdout split per seed" to real repeated k-fold
+CV matching TabArena's own documented convention for custom datasets.
 """
 
 import numpy as np
@@ -33,35 +35,38 @@ def _grouped_dataset(n=40, n_wn=15, n_groups=10, problem_type="regression", seed
     return df
 
 
-def test_grouped_classification_no_leakage_across_seeds():
+def test_grouped_classification_no_leakage_across_repeats_and_folds():
     """Grouping now covers classification too -- previously regression-only."""
     df = _grouped_dataset(problem_type="classification")
-    seeds = [0, 1, 2]
+    n_repeats, n_splits = 2, 3
     _, task_obj = build_user_task(
         task_name="test_grouped_clf", df=df, label_col="target",
-        problem_type="classification", seeds=seeds, test_size=0.3,
+        problem_type="classification", n_repeats=n_repeats, n_splits=n_splits,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
-    for seed in seeds:
-        X_tr, _, X_te, _ = wrapper.get_train_test_split(fold=0, repeat=seed)
-        assert GROUP_COL not in X_tr.columns
-        assert GROUP_COL not in X_te.columns
-        train_groups = set(df.loc[X_tr.index, GROUP_COL])
-        test_groups = set(df.loc[X_te.index, GROUP_COL])
-        assert not (train_groups & test_groups), f"group leak at seed {seed}"
+    for repeat in range(n_repeats):
+        for fold in range(n_splits):
+            X_tr, _, X_te, _ = wrapper.get_train_test_split(fold=fold, repeat=repeat)
+            assert GROUP_COL not in X_tr.columns
+            assert GROUP_COL not in X_te.columns
+            train_groups = set(df.loc[X_tr.index, GROUP_COL])
+            test_groups = set(df.loc[X_te.index, GROUP_COL])
+            assert not (train_groups & test_groups), f"group leak at repeat={repeat} fold={fold}"
 
 
 def test_grouped_regression_no_leakage():
     df = _grouped_dataset(problem_type="regression")
     _, task_obj = build_user_task(
         task_name="test_grouped_reg", df=df, label_col="target",
-        problem_type="regression", seeds=[0], test_size=0.3,
+        problem_type="regression", n_repeats=2, n_splits=3,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
-    X_tr, _, X_te, _ = wrapper.get_train_test_split(fold=0, repeat=0)
-    train_groups = set(df.loc[X_tr.index, GROUP_COL])
-    test_groups = set(df.loc[X_te.index, GROUP_COL])
-    assert not (train_groups & test_groups)
+    for repeat in range(2):
+        for fold in range(3):
+            X_tr, _, X_te, _ = wrapper.get_train_test_split(fold=fold, repeat=repeat)
+            train_groups = set(df.loc[X_tr.index, GROUP_COL])
+            test_groups = set(df.loc[X_te.index, GROUP_COL])
+            assert not (train_groups & test_groups)
 
 
 def test_group_id_column_always_stripped_from_features():
@@ -73,7 +78,7 @@ def test_group_id_column_always_stripped_from_features():
     df = _grouped_dataset(problem_type="regression")
     _, task_obj = build_user_task(
         task_name="test_strip", df=df, label_col="target",
-        problem_type="regression", seeds=[0], test_size=0.3,
+        problem_type="regression", n_repeats=1, n_splits=3,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     assert GROUP_COL not in wrapper.X.columns
@@ -88,15 +93,17 @@ def test_ungrouped_regression_fallback():
     df = X.copy()
     df["target"] = X.iloc[:, 0] * 2 + rng.randn(25) * 0.1
 
+    n_splits = 5
     _, task_obj = build_user_task(
         task_name="test_ungrouped_reg", df=df, label_col="target",
-        problem_type="regression", seeds=[0, 1], test_size=0.2, group_col=None,
+        problem_type="regression", n_repeats=2, n_splits=n_splits, group_col=None,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
-    for seed in (0, 1):
-        X_tr, _, X_te, _ = wrapper.get_train_test_split(fold=0, repeat=seed)
-        assert len(X_tr) == 20
-        assert len(X_te) == 5
+    for repeat in range(2):
+        for fold in range(n_splits):
+            X_tr, _, X_te, _ = wrapper.get_train_test_split(fold=fold, repeat=repeat)
+            assert len(X_tr) == 20
+            assert len(X_te) == 5
 
 
 def test_ungrouped_classification_fallback_is_stratified():
@@ -107,7 +114,7 @@ def test_ungrouped_classification_fallback_is_stratified():
 
     _, task_obj = build_user_task(
         task_name="test_ungrouped_clf", df=df, label_col="target",
-        problem_type="classification", seeds=[0], test_size=0.3, group_col=None,
+        problem_type="classification", n_repeats=1, n_splits=3, group_col=None,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     X_tr, y_tr, X_te, y_te = wrapper.get_train_test_split(fold=0, repeat=0)
@@ -116,6 +123,23 @@ def test_ungrouped_classification_fallback_is_stratified():
     test_frac_x = (y_te == "x").mean()
     assert abs(train_frac_x - 0.6) < 0.15
     assert abs(test_frac_x - 0.6) < 0.2
+
+
+def test_repeats_produce_different_splits():
+    """Different repeats must not just re-run the same fold split."""
+    rng = np.random.RandomState(3)
+    X = pd.DataFrame(rng.randn(30, 8), columns=[f"{100 + i * 5}" for i in range(8)])
+    df = X.copy()
+    df["target"] = X.iloc[:, 0] * 2 + rng.randn(30) * 0.1
+
+    _, task_obj = build_user_task(
+        task_name="test_repeats_differ", df=df, label_col="target",
+        problem_type="regression", n_repeats=2, n_splits=3, group_col=None,
+    )
+    wrapper = RamanBenchTaskWrapper(task=task_obj)
+    X_tr_r0, _, _, _ = wrapper.get_train_test_split(fold=0, repeat=0)
+    X_tr_r1, _, _, _ = wrapper.get_train_test_split(fold=0, repeat=1)
+    assert set(X_tr_r0.index) != set(X_tr_r1.index)
 
 
 def test_filter_rare_classes_drops_below_threshold():

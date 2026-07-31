@@ -4,13 +4,14 @@
 Reads a JSON target list (list of {"dataset": ..., "target_idx": ...,
 "excluded": bool, ...}) and calls cluster/submit_job.py once per
 non-excluded entry -- i.e. one job array per (dataset, target), each array
-covering every requested seed x config-index combination for that target.
-This is the "run this model across the whole benchmark" primitive
-model-agent's workflow describes.
+covering every (repeat, fold) x config-index combination for that target
+(real repeated k-fold CV, matching TabArena's own documented convention for
+custom datasets -- see raman_bench.splitting). This is the "run this model
+across the whole benchmark" primitive model-agent's workflow describes.
 
 Usage:
     python cluster/submit_full_benchmark.py --model PLS --targets-file targets.json \\
-        --profile ~/workspace/htw_v1_profile.yaml --seeds 0 1 2 --config-indices 0
+        --profile ~/workspace/htw_v1_profile.yaml --n-repeats 10 --n-splits 3 --config-indices 0
 """
 
 from __future__ import annotations
@@ -30,7 +31,8 @@ def main():
     parser.add_argument("--targets-file", required=True, help="JSON list of {dataset, target_idx, excluded}")
     parser.add_argument("--profile", default=None)
     parser.add_argument("--cluster", default=None, choices=["htw", "tu", "local"])
-    parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    parser.add_argument("--n-repeats", type=int, default=10)
+    parser.add_argument("--n-splits", type=int, default=3)
     parser.add_argument("--config-indices", type=int, nargs="+", default=[0])
     parser.add_argument("--num-random-configs", type=int, default=50)
     parser.add_argument("--num-bag-folds", type=int, default=8)
@@ -45,7 +47,8 @@ def main():
         targets = json.load(f)
     targets = [t for t in targets if not t.get("excluded")]
     print(f"Submitting {len(targets)} target(s) for model {args.model!r} "
-          f"({len(args.seeds)} seed(s) x {len(args.config_indices)} config(s) each)")
+          f"({args.n_repeats} repeat(s) x {args.n_splits} fold(s) x "
+          f"{len(args.config_indices)} config(s) each)")
 
     ok, failed = 0, []
     for t in targets:
@@ -53,7 +56,7 @@ def main():
             sys.executable, str(CLUSTER_DIR / "submit_job.py"),
             "--dataset", t["dataset"], "--target-idx", str(t["target_idx"]),
             "--model", args.model,
-            "--seeds", *[str(s) for s in args.seeds],
+            "--n-repeats", str(args.n_repeats), "--n-splits", str(args.n_splits),
             "--config-indices", *[str(c) for c in args.config_indices],
             "--num-random-configs", str(args.num_random_configs),
             "--num-bag-folds", str(args.num_bag_folds),

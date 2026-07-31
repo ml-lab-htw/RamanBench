@@ -10,10 +10,21 @@ replicate structure — see :attr:`raman_data.types.RamanDataset.group_ids`),
 available to classification and regression alike.
 
 Each (dataset, target) pair becomes one TabArena
-:class:`~tabarena.benchmark.task.user_task.UserTask` covering every seed as a
-separate "repeat" (fold is always 0 — RamanBench has no k-fold CV concept,
-only repeated random splits, one per seed). A cluster job for seed ``s``
-calls ``experiment.run(task=wrapped_task, fold=0, repeat=s, ...)``.
+:class:`~tabarena.benchmark.task.user_task.UserTask` covering real repeated
+k-fold cross-validation — matching TabArena's own documented convention for
+custom/local datasets (see ``examples/benchmarking/
+run_quickstart_tabarena_custom_datasets.py`` in the ``tabarena`` repo:
+``RepeatedStratifiedKFold(n_repeats=10, n_splits=3)``), not RamanBench's
+earlier "3 independent holdout splits, no folds" scheme. A cluster job for
+repeat ``r`` / fold ``f`` calls
+``experiment.run(task=wrapped_task, fold=f, repeat=r, ...)``.
+
+sklearn has no "repeated" wrapper for the *grouped* splitters
+(``GroupKFold``/``StratifiedGroupKFold``), so the repeated-group case below
+loops ``n_repeats`` times, reseeding the (shuffled) splitter each time —
+this also lifts the previous single-split scheme's known limitation that a
+grouped classification split couldn't additionally be class-balanced:
+``StratifiedGroupKFold`` does both at once.
 
 Confirmed by direct testing (see the Phase 0 spike in the refactor plan):
 TabArena's ``group_on`` is used only for split/metadata bookkeeping — it is
@@ -28,7 +39,12 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import GroupShuffleSplit, ShuffleSplit, StratifiedShuffleSplit
+from sklearn.model_selection import (
+    GroupKFold,
+    RepeatedKFold,
+    RepeatedStratifiedKFold,
+    StratifiedGroupKFold,
+)
 from tabarena.benchmark.task.openml.task_wrapper import OpenMLTaskWrapper
 from tabarena.benchmark.task.user_task import (
     GroupLabelTypes,
@@ -37,6 +53,8 @@ from tabarena.benchmark.task.user_task import (
 )
 
 GROUP_COL = "_group_id"
+DEFAULT_N_REPEATS = 10
+DEFAULT_N_SPLITS = 3
 
 
 class TooFewClassesError(ValueError):
@@ -151,41 +169,50 @@ class RamanBenchTaskWrapper(OpenMLTaskWrapper):
         return X_train, y_train, X_test, y_test
 
 
-def _split_indices_per_seed(
+def _repeated_kfold_splits(
     df: pd.DataFrame,
     *,
     label_col: str,
     problem_type: Literal["classification", "regression"],
-    seeds: list[int],
-    test_size: float,
+    n_repeats: int,
+    n_splits: int,
     group_col: str | None = GROUP_COL,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Build one (train_idx, test_idx) split per seed.
+    """Build ``n_repeats * n_splits`` (train_idx, test_idx) folds, repeat-major.
 
-    Uses ``GroupShuffleSplit`` keyed on an explicit group-id column when
-    present -- for classification *and* regression alike -- so replicate rows
-    (same physical sample/measurement) never land on both sides of a split.
-    Falls back to ``StratifiedShuffleSplit`` (classification) or
-    ``ShuffleSplit`` (regression) when no group-id column is available.
-    Note: sklearn has no stratified *and* grouped single-split splitter, so a
-    grouped classification split is not additionally class-balanced -- the
-    same trade-off the previous (regression-only) grouped split already made.
+    Non-grouped: ``RepeatedStratifiedKFold`` (classification) or
+    ``RepeatedKFold`` (regression) -- these already iterate repeat-major,
+    fold-minor natively, matching what
+    :func:`~tabarena.benchmark.task.user_task.from_sklearn_splits_to_user_task_splits`
+    expects.
+
+    Grouped: sklearn has no repeated wrapper for ``GroupKFold``/
+    ``StratifiedGroupKFold``, so this loops ``n_repeats`` times, reseeding a
+    freshly-shuffled splitter (``random_state=repeat_idx``) each time --
+    ``StratifiedGroupKFold`` for classification balances classes *and*
+    respects groups in the same split, unlike the old single-split scheme's
+    ``GroupShuffleSplit``-only approach.
     """
     has_groups = group_col is not None and group_col in df.columns and df[group_col].notna().any()
-    splits = []
-    for seed in seeds:
-        if has_groups:
-            groups = df[group_col].values
-            splitter = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-            train_idx, test_idx = next(splitter.split(df, groups=groups))
-        elif problem_type == "classification":
-            splitter = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-            train_idx, test_idx = next(splitter.split(df, df[label_col]))
-        else:
-            splitter = ShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-            train_idx, test_idx = next(splitter.split(df))
-        splits.append((train_idx, test_idx))
-    return splits
+
+    if has_groups:
+        groups = df[group_col].values
+        splits = []
+        for repeat_idx in range(n_repeats):
+            if problem_type == "classification":
+                splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=repeat_idx)
+                repeat_splits = splitter.split(df, df[label_col], groups=groups)
+            else:
+                splitter = GroupKFold(n_splits=n_splits, shuffle=True, random_state=repeat_idx)
+                repeat_splits = splitter.split(df, groups=groups)
+            splits.extend(repeat_splits)
+        return splits
+
+    if problem_type == "classification":
+        splitter = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=0)
+        return list(splitter.split(df, df[label_col]))
+    splitter = RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=0)
+    return list(splitter.split(df))
 
 
 def build_user_task(
@@ -194,28 +221,30 @@ def build_user_task(
     df: pd.DataFrame,
     label_col: str,
     problem_type: Literal["classification", "regression"],
-    seeds: list[int],
-    test_size: float = 0.2,
+    n_repeats: int = DEFAULT_N_REPEATS,
+    n_splits: int = DEFAULT_N_SPLITS,
     group_col: str | None = GROUP_COL,
     task_cache_path=None,
 ):
     """Build a TabArena ``OpenMLSupervisedTask`` for one (dataset, target) pair.
 
-    One repeat per seed (``seeds[i]`` -> repeat index ``i``), fold always 0.
-    Returns the raw task object; wrap it with :class:`RamanBenchTaskWrapper`
-    (not plain :class:`OpenMLTaskWrapper`) before fitting.
+    Real repeated k-fold CV (``n_repeats`` repeats of ``n_splits``-fold CV
+    each), matching TabArena's own documented convention for custom/local
+    datasets. Returns the raw task object; wrap it with
+    :class:`RamanBenchTaskWrapper` (not plain :class:`OpenMLTaskWrapper`)
+    before fitting.
     """
     has_groups = group_col is not None and group_col in df.columns and df[group_col].notna().any()
 
-    sklearn_splits = _split_indices_per_seed(
+    sklearn_splits = _repeated_kfold_splits(
         df,
         label_col=label_col,
         problem_type=problem_type,
-        seeds=seeds,
-        test_size=test_size,
+        n_repeats=n_repeats,
+        n_splits=n_splits,
         group_col=group_col,
     )
-    splits = from_sklearn_splits_to_user_task_splits(sklearn_splits, n_splits=1)
+    splits = from_sklearn_splits_to_user_task_splits(sklearn_splits, n_splits=n_splits)
 
     user_task = UserTask(task_name=task_name, task_cache_path=task_cache_path)
     task_obj = user_task.create_local_openml_task(

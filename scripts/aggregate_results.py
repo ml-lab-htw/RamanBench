@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Aggregate cached v1 per-config results into a combined leaderboard-ready table.
 
-Scans ``{results_dir}/{experiment_name}/{task_name}/{seed}_{fold}/results.pkl``
+Scans ``{results_dir}/{experiment_name}/{task_name}/{repeat}_{fold}/results.pkl``
 caches (as written by ``scripts/run_experiment.py``) and calls TabArena's own
 ``EndToEnd.from_raw`` once, across every cached result, to recycle each
 model's raw per-config runs into default/tuned/tuned+ensemble rows -- reusing

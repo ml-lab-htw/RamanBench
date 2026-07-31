@@ -10,7 +10,7 @@
 # -- this file has no institution-specific values.
 #
 # Required env vars (set via --export by submit_job.py):
-#   DATASET, TARGET_IDX, MODEL, SEEDS, NUM_RANDOM_CONFIGS, NUM_BAG_FOLDS,
+#   DATASET, TARGET_IDX, MODEL, N_REPEATS, N_SPLITS, NUM_RANDOM_CONFIGS, NUM_BAG_FOLDS,
 #   TIME_LIMIT, RESULTS_DIR, CACHE_DIR, MIRROR_REPO, USE_GPU, JOBSPEC,
 #   ACTIVATION, CONDA_ENV, VENV_PATH, WORKSPACE
 
@@ -35,9 +35,23 @@ cat > "${SCRATCH_DIR}/job.json" <<JOBMETA
 {"job_id": "${SLURM_JOB_ID}", "array_task_id": "${SLURM_ARRAY_TASK_ID:-0}", "model": "${MODEL}", "dataset": "${DATASET}", "started": "$(date -Iseconds)"}
 JOBMETA
 
+# --- Per-job OpenML local-dataset cache, same reasoning as SCRATCH_DIR above.
+#     TabArena's UserTask.create_local_openml_task keys its on-disk cache
+#     (~/.cache/openml/local/datasets/<hash>/data.pkl.py3) by dataset+target
+#     only, not by repeat/fold, so concurrent jobs on the same task
+#     technically share this file. A real batch's crashes turned out to
+#     have a different root cause (missing/NaN labels, oversized
+#     num_bag_folds on tiny datasets -- both fixed in run_experiment.py),
+#     not a confirmed corruption here, but TabArena's own
+#     tabflow_slurm/run_tabarena_experiment.py treats this cache dir as an
+#     explicit, deliberately job-scoped parameter too -- keeping it isolated
+#     is cheap, well-precedented hygiene, not just theoretical caution. ---
+export OPENML_CACHE_DIR="${SCRATCH_ROOT}/openml_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-0}"
+mkdir -p "${OPENML_CACHE_DIR}"
+
 cleanup() {
-    echo "Cleanup: removing ${SCRATCH_DIR}"
-    rm -rf "${SCRATCH_DIR}"
+    echo "Cleanup: removing ${SCRATCH_DIR} and ${OPENML_CACHE_DIR}"
+    rm -rf "${SCRATCH_DIR}" "${OPENML_CACHE_DIR}"
 }
 # Fires on ANY exit path (normal completion, error, or a signal-induced exit
 # below) -- this is the guarantee today's Python-only cleanup lacks.
@@ -92,8 +106,8 @@ fi
 
 # --- Read this array task's (seed, config_index) from the jobspec line ---
 LINE_NO=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
-read -r SEED CONFIG_INDEX <<< "$(sed -n "${LINE_NO}p" "${JOBSPEC}")"
-echo "Task line ${LINE_NO} of ${JOBSPEC}: seed=${SEED} config_index=${CONFIG_INDEX}"
+read -r REPEAT FOLD CONFIG_INDEX <<< "$(sed -n "${LINE_NO}p" "${JOBSPEC}")"
+echo "Task line ${LINE_NO} of ${JOBSPEC}: repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX}"
 
 GPU_FLAG=""
 [ "${USE_GPU:-0}" = "1" ] && GPU_FLAG="--use-gpu"
@@ -102,8 +116,10 @@ python scripts/run_experiment.py \
     --dataset "${DATASET}" \
     --target-idx "${TARGET_IDX}" \
     --model "${MODEL}" \
-    --seed "${SEED}" \
-    --seeds ${SEEDS} \
+    --repeat "${REPEAT}" \
+    --fold "${FOLD}" \
+    --n-repeats "${N_REPEATS}" \
+    --n-splits "${N_SPLITS}" \
     --config-index "${CONFIG_INDEX}" \
     --num-random-configs "${NUM_RANDOM_CONFIGS}" \
     --num-bag-folds "${NUM_BAG_FOLDS}" \
@@ -113,5 +129,14 @@ python scripts/run_experiment.py \
     --mirror-repo "${MIRROR_REPO}" \
     --scratch-dir "${SCRATCH_DIR}" \
     ${GPU_FLAG}
+RC=$?
 
-echo "Done: ${MODEL} seed=${SEED} config_index=${CONFIG_INDEX} at $(date)"
+# Propagate the real exit code -- without this, a crashed run_experiment.py
+# still reports SLURM job success (no `set -e`, and this echo always
+# succeeds). Confirmed in practice: sacct showed COMPLETED for a real batch
+# of jobs that had actually crashed on missing (NaN) labels or an
+# over-large num_bag_folds for tiny datasets, both silently, until this was
+# added and results.pkl presence was checked directly instead of trusting
+# sacct's state.
+echo "Done: ${MODEL} repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX} at $(date) (exit=${RC})"
+exit $RC

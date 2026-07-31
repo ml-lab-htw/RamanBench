@@ -31,10 +31,9 @@ def plot_model(df: pd.DataFrame, model: str, output_dir: str) -> str:
     sub = df[df["ta_name"] == model].copy()
     sub = sub.sort_values(["dataset", "method"])
 
-    # Each (dataset, method) has one row per seed/fold -- TabArena's "fold"
-    # column is the split axis, which for RamanBench is really the repeated
-    # seed (see the v1 refactor: repeat=seed, fold is always 0 upstream).
-    # Aggregate across seeds (mean +/- std) rather than showing just one.
+    # Each (dataset, method) has one row per (repeat, fold) -- real repeated
+    # k-fold CV (see raman_bench.splitting). Aggregate across all of them
+    # (mean +/- std) rather than showing just one.
     agg = (
         sub.groupby(["dataset", "method"])["metric_error"]
         .agg(["mean", "std", "count"])
@@ -59,7 +58,7 @@ def plot_model(df: pd.DataFrame, model: str, output_dir: str) -> str:
 
     ax.set_xticks([xi + width * (len(method_types) - 1) / 2 for xi in x])
     ax.set_xticklabels(datasets, rotation=90, fontsize=7)
-    ax.set_ylabel("mean metric_error across seeds (lower is better)")
+    ax.set_ylabel("mean metric_error across repeats/folds (lower is better)")
     ax.set_title(f"{model}: per-task performance", loc="left", fontweight="bold")
     ax.legend()
     fig.tight_layout()

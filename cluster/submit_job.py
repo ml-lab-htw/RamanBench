@@ -1,12 +1,16 @@
 #!/usr/bin/env python
 """Generalized cluster submitter for RamanBench v1.
 
-One job array task = one (model, dataset, target, seed, config-index)
+One job array task = one (model, dataset, target, repeat, fold, config-index)
 experiment -- "every single evaluation gets a completely fresh job" (see the
-v1 refactor plan). Generalizes the institution-specific logic previously
-hardcoded in ``raman_bench_paper/cluster/submit_per_model.sh`` (per-model
-memory tiers, GPU-vs-CPU node selection, TU-vs-HTW sbatch dialect) into a
-profile-driven, no-secrets-in-public-repo design:
+v1 refactor plan). Splitting is real repeated k-fold CV (see
+``raman_bench.splitting``, matching TabArena's own documented convention for
+custom datasets), so the full sweep for one (dataset, target, model) fans out
+over every (repeat, fold) pair, not just a list of seeds. Generalizes the
+institution-specific logic previously hardcoded in
+``raman_bench_paper/cluster/submit_per_model.sh`` (per-model memory tiers,
+GPU-vs-CPU node selection, TU-vs-HTW sbatch dialect) into a profile-driven,
+no-secrets-in-public-repo design:
 
     - This script and ``run_experiment.sbatch`` are cluster-agnostic.
     - A profile YAML (``cluster/profiles/*.yaml``) supplies the actual
@@ -20,18 +24,18 @@ profile-driven, no-secrets-in-public-repo design:
 
 Usage
 -----
-    # Auto-detect cluster, submit one array covering 3 seeds x 1 config (default only)
+    # Auto-detect cluster, submit one array covering 10 repeats x 3 folds x 1 config (default only)
     python cluster/submit_job.py --dataset wheat_lines --target-idx 0 --model PLS \\
-        --seeds 0 1 2 --config-indices 0 --results-dir results/v1/data
+        --n-repeats 10 --n-splits 3 --config-indices 0 --results-dir results/v1/data
 
-    # Explicit profile, HPO sweep (default + 5 random configs) for one seed
+    # Explicit profile, HPO sweep (default + 5 random configs)
     python cluster/submit_job.py --profile cluster/profiles/htw.yaml \\
         --dataset wheat_lines --target-idx 0 --model REZERONET \\
-        --seeds 0 --config-indices 0 1 2 3 4 5 --num-random-configs 5
+        --n-repeats 10 --n-splits 3 --config-indices 0 1 2 3 4 5 --num-random-configs 5
 
     # No cluster available -- run locally instead (prompts unless --yes)
     python cluster/submit_job.py --profile cluster/profiles/local.yaml \\
-        --dataset wheat_lines --target-idx 0 --model PLS --seeds 0
+        --dataset wheat_lines --target-idx 0 --model PLS --n-repeats 10 --n-splits 3
 """
 
 from __future__ import annotations
@@ -112,13 +116,13 @@ def resolve_gpu_flags(profile: dict, use_gpu: bool) -> list[str]:
     return ["--gres=gpu:1"]
 
 
-def write_jobspec(jobs: list[tuple[int, int]], slug: str) -> Path:
-    """One line per (seed, config_index) task; array task N reads line N+1."""
+def write_jobspec(jobs: list[tuple[int, int, int]], slug: str) -> Path:
+    """One line per (repeat, fold, config_index) task; array task N reads line N+1."""
     JOBSPEC_DIR.mkdir(exist_ok=True)
     path = JOBSPEC_DIR / f"{slug}.txt"
     with open(path, "w") as f:
-        for seed, config_index in jobs:
-            f.write(f"{seed} {config_index}\n")
+        for repeat, fold, config_index in jobs:
+            f.write(f"{repeat} {fold} {config_index}\n")
     return path
 
 
@@ -127,7 +131,8 @@ def submit(
     dataset: str,
     target_idx: int,
     model: str,
-    seeds: list[int],
+    n_repeats: int,
+    n_splits: int,
     config_indices: list[int],
     num_random_configs: int,
     num_bag_folds: int,
@@ -140,18 +145,24 @@ def submit(
     dry_run: bool,
 ) -> None:
     use_gpu = model in GPU_MODELS
-    jobs = [(seed, cfg) for seed in seeds for cfg in config_indices]
+    jobs = [
+        (repeat, fold, cfg)
+        for repeat in range(n_repeats)
+        for fold in range(n_splits)
+        for cfg in config_indices
+    ]
 
     if not profile.get("slurm", True):
-        # No SLURM -- run every (seed, config) job as a local subprocess.
+        # No SLURM -- run every (repeat, fold, config) job as a local subprocess.
         print(f"Profile {profile['name']!r} has no SLURM -- running {len(jobs)} job(s) locally.")
-        for seed, cfg in jobs:
+        for repeat, fold, cfg in jobs:
             slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
-            scratch_dir = str(REPO_ROOT / ".scratch_v1" / f"local_{slug}_{seed}_{cfg}")
+            scratch_dir = str(REPO_ROOT / ".scratch_v1" / f"local_{slug}_{repeat}_{fold}_{cfg}")
             cmd = [
                 sys.executable, str(REPO_ROOT / "scripts" / "run_experiment.py"),
                 "--dataset", dataset, "--target-idx", str(target_idx), "--model", model,
-                "--seed", str(seed), "--seeds", *[str(s) for s in seeds],
+                "--repeat", str(repeat), "--fold", str(fold),
+                "--n-repeats", str(n_repeats), "--n-splits", str(n_splits),
                 "--config-index", str(cfg), "--num-random-configs", str(num_random_configs),
                 "--num-bag-folds", str(num_bag_folds), "--time-limit", str(time_limit),
                 "--results-dir", results_dir, "--cache-dir", cache_dir, "--mirror-repo", mirror_repo,
@@ -159,7 +170,7 @@ def submit(
             ]
             if use_gpu:
                 cmd.append("--use-gpu")
-            print(f"  seed={seed} config_index={cfg}: {' '.join(cmd)}")
+            print(f"  repeat={repeat} fold={fold} config_index={cfg}: {' '.join(cmd)}")
             if not dry_run:
                 try:
                     subprocess.run(cmd, check=True)
@@ -191,7 +202,8 @@ def submit(
         f"DATASET={dataset}",
         f"TARGET_IDX={target_idx}",
         f"MODEL={model}",
-        f"SEEDS={' '.join(str(s) for s in seeds)}",
+        f"N_REPEATS={n_repeats}",
+        f"N_SPLITS={n_splits}",
         f"NUM_RANDOM_CONFIGS={num_random_configs}",
         f"NUM_BAG_FOLDS={num_bag_folds}",
         f"TIME_LIMIT={time_limit}",
@@ -207,7 +219,10 @@ def submit(
     ])
     sbatch_args += ["--export", export_vars, str(CLUSTER_DIR / "run_experiment.sbatch")]
 
-    print(f"{len(jobs)} job(s) ({len(seeds)} seed(s) x {len(config_indices)} config(s)) as array: {slug}")
+    print(
+        f"{len(jobs)} job(s) ({n_repeats} repeat(s) x {n_splits} fold(s) x "
+        f"{len(config_indices)} config(s)) as array: {slug}"
+    )
     print(f"  jobspec: {jobspec_path}")
     print(f"  {' '.join(sbatch_args)}")
     if dry_run:
@@ -221,7 +236,11 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--target-idx", type=int, default=0)
     parser.add_argument("--model", required=True)
-    parser.add_argument("--seeds", type=int, nargs="+", required=True)
+    parser.add_argument(
+        "--n-repeats", type=int, default=10,
+        help="Repeats of the repeated-kfold split (matches TabArena's own custom-dataset convention)",
+    )
+    parser.add_argument("--n-splits", type=int, default=3, help="Folds per repeat")
     parser.add_argument(
         "--config-indices", type=int, nargs="+", default=[0],
         help="0 = default config only (routine sweep); 1..N = HPO pool configs (opt-in per model)",
@@ -241,7 +260,7 @@ def main():
     profile = resolve_profile(args.profile, args.cluster)
     submit(
         dataset=args.dataset, target_idx=args.target_idx, model=args.model,
-        seeds=args.seeds, config_indices=args.config_indices,
+        n_repeats=args.n_repeats, n_splits=args.n_splits, config_indices=args.config_indices,
         num_random_configs=args.num_random_configs, num_bag_folds=args.num_bag_folds,
         time_limit=args.time_limit, results_dir=args.results_dir, cache_dir=args.cache_dir,
         mirror_repo=args.mirror_repo, profile=profile, throttle=args.throttle, dry_run=args.dry_run,
