@@ -51,16 +51,33 @@ autogluon = [
     "autogluon.core>=1.5",
     "autogluon.features>=1.5",
     "autogluon.tabular>=1.5",
-    "bencheval @ git+https://github.com/mario-koddenbrock/tabarena.git#subdirectory=bencheval",
-    "tabarena @ git+https://github.com/mario-koddenbrock/tabarena.git#subdirectory=tabarena",
+    "bencheval @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/bencheval",
+    "tabarena @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/tabarena",
 ]
 models = [
+    "raman-bench[autogluon]",
+    # tabarena's own per-model extras covering the gap found here: tabicl, ebm
+    # (+configspace), realmlp (pytabkit), tabdpt, tabm (+torch). Deliberately NOT
+    # tabarena's full `[benchmark]` union -- that also pulls `[tabpfn]`
+    # (tabpfn>=8.0.8), which conflicts with `tabpfnwide` below: every published
+    # tabpfnwide release exact-pins an *older* tabpfn (0.3.0 -> tabpfn==8.0.3),
+    # incompatible with tabarena's floor (confirmed via a real pip resolve:
+    # "tabpfnwide 0.1.0 depends on tabpfn==6.0.6" vs "tabarena[tabpfn] depends on
+    # tabpfn>=8.0.8" -- ResolutionImpossible). RamanBench keeps its own, more
+    # permissive tabpfn/tabpfn-extensions floor below instead, which tabpfnwide's
+    # exact pin already satisfies.
+    #
+    # The extras MUST be attached directly to this git URL, not requested as a bare
+    # "tabarena[...]" elsewhere -- a real (unrelated, version-0.0.0 placeholder)
+    # package named "tabarena" exists on PyPI, so a bare name+extras requirement
+    # resolves against *that* instead of this git dependency and conflicts with the
+    # `autogluon` extra's URL-pinned "tabarena" below (confirmed via a real pip
+    # resolve: ResolutionImpossible over exactly this).
+    "tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm] @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/tabarena",
     "ramanspy>=0.2.10,<0.3.0",
     "imodels>=2.0.4",
     "tabpfn>=6.3.2",
     "tabpfn-extensions>=0.3.0",
-    "pytabkit>=1.7.3",
-    "tabdpt>=1.1.12",
     "tabpfnwide>=0.1.0",
     "sktime>=0.40.0",
     "numba>=0.63.0",
@@ -93,7 +110,6 @@ notebooks = [
 
 [project.urls]
 Homepage        = "https://github.com/ml-lab-htw/RamanBench"
-Documentation   = "https://ramanbench.readthedocs.io"
 Repository      = "https://github.com/ml-lab-htw/RamanBench"
 "Bug Tracker"   = "https://github.com/ml-lab-htw/RamanBench/issues"
 Leaderboard     = "https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench"

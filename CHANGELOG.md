@@ -85,8 +85,47 @@ directly, rather than reimplementing patterns "inspired by" them.
   model registry.
 - Six Claude Code agents (dataset/model/cluster/leaderboard/frontend/docs) under
   `.claude/agents/`.
+- Optional semi-supervised benchmarking support: `raman_bench.splitting`'s repeated
+  k-fold splitting is now NaN-target-aware -- unlabeled (NaN-label) rows are never placed
+  in a test fold (no ground truth to score against) but are included in every train fold
+  (for grouped datasets, only when they don't share a fold's test group). `scripts/
+  run_experiment.py --keep-unlabeled` (default: off, preserving every prior run's
+  behavior) opts a job into this instead of the default unconditional NaN-drop. No model
+  in this codebase yet fits on unlabeled training rows; this is data-layer plumbing for
+  a future semi-supervised-aware model.
+- `DatasetInfo.has_missing_labels` (in `raman-data`): a filterable field marking whether
+  a dataset has confirmed NaN values in its target column(s), mirroring `is_grouped`'s
+  True/False/None semantics.
 
 ### Changed
+
+- `tabarena`/`bencheval` dependencies now point at upstream `autogluon/tabarena`
+  (`packages/{tabarena,bencheval}`, since upstream's monorepo restructure) instead of a
+  personal fork. Verified end-to-end by installing `packages/tabarena[benchmark]` fresh
+  (per upstream's own quickstart) and running its full quickstart script.
+- The `models` extra now depends on `tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm]`
+  instead of hand-listing a subset of the same per-model packages a second time -- that
+  hand-listed subset had drifted out of sync with upstream and was missing `tabicl`/`tabm`
+  (both import fine from `autogluon.tabular.models` -- the model class is always
+  discoverable -- but actually fitting either failed on a missing package, since
+  AutoGluon's own model classes import their backing library lazily inside `_fit()`, not
+  at class-definition time). Deliberately not tabarena's full `[benchmark]` union: that
+  also pulls `[tabpfn]` (`tabpfn>=8.0.8`), which conflicts with `tabpfnwide` (every
+  release exact-pins an older `tabpfn`) -- confirmed via a real pip resolve
+  (`ResolutionImpossible`). RamanBench keeps its own, more permissive `tabpfn`/
+  `tabpfn-extensions` floor instead, which every `tabpfnwide` release's exact pin already
+  satisfies. Installing `bencheval` needs `uv pip install` (resolves its
+  `[tool.uv.workspace]`-only reference to its sibling package automatically) or a manual
+  `pip install bencheval @ git+...#subdirectory=packages/bencheval` before `pip install
+  raman-bench[...]` -- plain pip cannot resolve tabarena's own bare `bencheval`
+  dependency in one shot (confirmed via a real pip resolve: "No matching distribution
+  found for bencheval").
+- Model onboarding: new models should follow the `models/custom/<key>/{model.py,hpo.py,
+  info.py}` per-directory convention (auto-discovered via
+  `raman_bench.models.discover.discover_custom_models`), matching upstream TabArena's own
+  post-restructure onboarding pattern (`ModelInfo`/`discover_models`). `ridge` migrated as
+  the reference implementation; other already-integrated models are unaffected and keep
+  working via the previous flat-file convention.
 
 - Metrics now use TabArena/AutoGluon's own problem-type-appropriate defaults (ROC AUC for
   binary classification, log loss for multiclass, RMSE for regression) instead of
@@ -109,6 +148,33 @@ directly, rather than reimplementing patterns "inspired by" them.
   every analyte, e.g. `fuel_benchtop`'s target 1: 157/179 NaN).
 - `num_bag_folds` now scales down for small datasets/classes, avoiding AutoGluon's internal
   bagging producing a single-class validation fold and crashing ROC AUC computation.
+- Fixed 6 real breaks against current upstream `tabarena` (written against the personal
+  fork, never updated as upstream's post-fork restructure moved on 224 commits) --
+  found by actually installing from upstream fresh and running the real pipeline, not
+  just reading source:
+  - `models/registry.py`: `tabarena.benchmark.models.model_registry` no longer exists ->
+    `tabarena.benchmark.exec_models.registry`.
+  - `splitting.py`: `GroupLabelTypes` moved from `tabarena.benchmark.task.user_task`
+    (now a type-checking-only import there, invisible at runtime) to
+    `tabarena.benchmark.task.metadata`.
+  - `models/generate/gbm.py`, `models/generate/ta_tabpfn_3.py`: TabArena's own per-model
+    `generate.py` modules were renamed to `hpo.py` (same function names).
+  - `scripts/run_experiment.py`: `Experiment.run()` gained a new required `cache_task_key`
+    keyword argument (the task's canonical cache identifier); now passed as `task_name`
+    (matching `UserTask.cache_key`'s semantics for our tasks).
+  - `scripts/aggregate_results.py`: three separate breaks -- `CacheFunctionPickle` now
+    gzip-compresses cache writes by default (a raw `pickle.load` no longer works; use
+    `tabarena.utils.pickle_utils.load_pickle`, which handles both transparently);
+    `EndToEnd.from_raw` no longer accepts a legacy `task_metadata` DataFrame directly
+    (wrap it in `TaskMetadataCollection.from_legacy_df`, which needs a fuller column set
+    than this repo's frame used to carry -- `n_folds`/`n_repeats` are now derived
+    accurately from what was actually run per task, other per-dataset stats not tracked
+    in the results cache are explicit placeholders); `EndToEnd.from_raw` now returns
+    `EndToEndResults` directly, with `get_results(use_model_results=True/False)`
+    replacing the old `.to_results().model_results`/`.hpo_results`.
+  - Verified end-to-end, not just import-checked: a real `run_experiment.py` ->
+    `aggregate_results.py` round trip reproduced the same `metric_error` through both
+    the raw cache and the aggregated `hpo_results` row.
 
 ### Still planned
 

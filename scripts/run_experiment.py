@@ -105,6 +105,7 @@ def run_one(
     use_gpu: bool = False,
     scratch_dir: str | None = None,
     min_samples_per_class: int = 9,
+    filter_unlabeled: bool = True,
 ) -> dict | None:
     """Run exactly one (model, dataset, target, repeat, fold, config) job and cache the result.
 
@@ -112,6 +113,20 @@ def run_one(
     fails rare-class filtering (classification only, matching how the old
     ``RamanBenchmark`` silently excluded such keys from the benchmark) or if
     every row for this target has a missing (NaN) label.
+
+    ``filter_unlabeled`` (default ``True``) drops rows with a missing (NaN)
+    target before splitting -- today's models all require a real training
+    label, so this is the only currently-usable setting for a normal
+    supervised run. Set ``False`` to keep unlabeled rows instead: they flow
+    into ``splitting.py``'s NaN-aware ``_repeated_kfold_splits``, which keeps
+    them out of every test fold (no ground truth to score against) but
+    includes them in every train fold -- the data-layer half of
+    semi-supervised benchmarking support. No model in this codebase yet
+    consumes unlabeled training rows (that needs a model wired to something
+    like AutoGluon's ``fit_pseudolabel``, deliberately out of scope here) --
+    running a normal model with ``filter_unlabeled=False`` will still fail
+    inside AutoGluon's own fit call, with AutoGluon's own clear "NaN in
+    label" error, which is expected until such a model exists.
     """
     from tabarena.utils.cache import CacheFunctionPickle
 
@@ -147,7 +162,9 @@ def run_one(
 
     df = dataset.to_dataframe(target_idx)
     label_col = df.columns[-1]
-    problem_type = "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
+    problem_type = (
+        "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
+    )
 
     # Explicit per-spectrum group ids (from a loader that knows the dataset's
     # replicate structure, e.g. locust_phase_hemolymph's real Sample column)
@@ -162,7 +179,8 @@ def run_one(
             df[GROUP_COL] = inferred
             logger.info(
                 "%s: no explicit group_ids -- inferred %d group(s) from matching target values",
-                dataset_name, len(set(inferred.tolist())),
+                dataset_name,
+                len(set(inferred.tolist())),
             )
 
     # Drop rows with a missing (NaN) label. Common in multi-target regression
@@ -171,20 +189,42 @@ def run_one(
     # 15-157 out of 179) -- AutoGluon refuses to fit on a NaN label, and
     # until this was added that crashed the whole job instead of just
     # excluding the unmeasured rows for this particular target.
+    #
+    # Optional (filter_unlabeled=False): keep unlabeled rows instead, for
+    # semi-supervised benchmarking -- see this function's docstring.
     n_before = len(df)
-    df = df[df[label_col].notna()]
-    if len(df) < n_before:
+    if filter_unlabeled:
+        df = df[df[label_col].notna()]
+        if len(df) < n_before:
+            logger.info(
+                "%s target %d: dropped %d/%d rows with a missing (NaN) label",
+                dataset_name,
+                target_idx,
+                n_before - len(df),
+                n_before,
+            )
+    else:
+        n_unlabeled = int(df[label_col].isna().sum())
+        if n_unlabeled:
+            logger.info(
+                "%s target %d: keeping %d/%d unlabeled (NaN-label) rows for "
+                "semi-supervised splitting (filter_unlabeled=False)",
+                dataset_name,
+                target_idx,
+                n_unlabeled,
+                n_before,
+            )
+    if df.empty or df[label_col].notna().sum() == 0:
         logger.info(
-            "%s target %d: dropped %d/%d rows with a missing (NaN) label",
-            dataset_name, target_idx, n_before - len(df), n_before,
+            "Skipping %s target %d: every row has a missing label", dataset_name, target_idx
         )
-    if df.empty:
-        logger.info("Skipping %s target %d: every row has a missing label", dataset_name, target_idx)
         return None
 
     if problem_type == "classification":
         try:
-            df = filter_rare_classes(df, label_col=label_col, min_samples_per_class=min_samples_per_class)
+            df = filter_rare_classes(
+                df, label_col=label_col, min_samples_per_class=min_samples_per_class
+            )
         except TooFewClassesError as e:
             logger.info("Skipping %s target %d: %s", dataset_name, target_idx, e)
             return None
@@ -220,7 +260,11 @@ def run_one(
     if effective_bag_folds < num_bag_folds:
         logger.info(
             "%s target %d: reducing num_bag_folds %d -> %d for a small dataset (%d rows)",
-            dataset_name, target_idx, num_bag_folds, effective_bag_folds, len(df),
+            dataset_name,
+            target_idx,
+            num_bag_folds,
+            effective_bag_folds,
+            len(df),
         )
         num_bag_folds = effective_bag_folds
 
@@ -260,16 +304,29 @@ def run_one(
 
     cache_path = os.path.join(results_dir, experiment.name, task_name, f"{repeat}_{fold}")
     Path(cache_path).mkdir(parents=True, exist_ok=True)
-    cacher = CacheFunctionPickle(cache_name="results", cache_path=cache_path, include_self_in_call=True)
+    cacher = CacheFunctionPickle(
+        cache_name="results", cache_path=cache_path, include_self_in_call=True
+    )
 
     logger.info(
-        "Running %s on %s repeat=%d fold=%d -> %s", experiment.name, task_name, repeat, fold, cache_path
+        "Running %s on %s repeat=%d fold=%d -> %s",
+        experiment.name,
+        task_name,
+        repeat,
+        fold,
+        cache_path,
     )
     out = experiment.run(
         task=task_wrapper,
         fold=fold,
         repeat=repeat,
         task_name=task_name,
+        # The task's own canonical cache identifier (UserTask.cache_key == its slug,
+        # here identical to task_name) -- a required kwarg as of a later tabarena
+        # version than when this was first written; used to key its text-embedding
+        # cache scope. We build our own results cache path independently (below),
+        # so this only matters for that internal scoping, not for where results land.
+        cache_task_key=task_name,
         cacher=cacher,
         ignore_cache=False,
     )
@@ -278,26 +335,40 @@ def run_one(
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--dataset", required=True, help="raman_data dataset name")
     parser.add_argument("--target-idx", type=int, default=0)
     parser.add_argument("--model", required=True, help="Model key, e.g. PLS, GBM, REZERONET")
-    parser.add_argument("--repeat", type=int, required=True, help="Which repeat (of --n-repeats) to run in this job")
-    parser.add_argument("--fold", type=int, required=True, help="Which fold (of --n-splits) to run in this job")
     parser.add_argument(
-        "--n-repeats", type=int, default=DEFAULT_N_REPEATS,
+        "--repeat", type=int, required=True, help="Which repeat (of --n-repeats) to run in this job"
+    )
+    parser.add_argument(
+        "--fold", type=int, required=True, help="Which fold (of --n-splits) to run in this job"
+    )
+    parser.add_argument(
+        "--n-repeats",
+        type=int,
+        default=DEFAULT_N_REPEATS,
         help="Must be identical across every job for this (dataset, target) -- defines the repeated-kfold scheme",
     )
     parser.add_argument(
-        "--n-splits", type=int, default=DEFAULT_N_SPLITS,
+        "--n-splits",
+        type=int,
+        default=DEFAULT_N_SPLITS,
         help="Must be identical across every job for this (dataset, target) -- folds per repeat",
     )
     parser.add_argument(
-        "--config-index", type=int, default=0,
+        "--config-index",
+        type=int,
+        default=0,
         help="0 = default config (_c1); 1..num-random-configs = HPO pool config (_rN)",
     )
     parser.add_argument(
-        "--num-random-configs", type=int, default=DEFAULT_NUM_RANDOM_CONFIGS,
+        "--num-random-configs",
+        type=int,
+        default=DEFAULT_NUM_RANDOM_CONFIGS,
         help="Must be identical across every job for this model (fixes config-pool identity)",
     )
     parser.add_argument("--num-bag-folds", type=int, default=DEFAULT_NUM_BAG_FOLDS)
@@ -307,14 +378,28 @@ def main():
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
     parser.add_argument("--use-gpu", action="store_true")
     parser.add_argument(
-        "--scratch-dir", default=None,
+        "--scratch-dir",
+        default=None,
         help="Deterministic path for AutoGluon's predictor artifacts (for cluster cleanup); "
-             "defaults to AutoGluon's own relative AutogluonModels/ag-<timestamp> under cwd",
+        "defaults to AutoGluon's own relative AutogluonModels/ag-<timestamp> under cwd",
     )
     parser.add_argument(
-        "--min-samples-per-class", type=int, default=9,
+        "--min-samples-per-class",
+        type=int,
+        default=9,
         help="Classification only: drop classes with fewer rows than this; skip the target "
-             "cleanly (exit 0, no error) if fewer than 2 classes remain. 0 disables filtering.",
+        "cleanly (exit 0, no error) if fewer than 2 classes remain. 0 disables filtering.",
+    )
+    parser.add_argument(
+        "--keep-unlabeled",
+        action="store_true",
+        help="Keep rows with a missing (NaN) target instead of dropping them before "
+        "splitting, for semi-supervised benchmarking. They're excluded from every "
+        "test fold but included in every train fold (see splitting.py's "
+        "_repeated_kfold_splits). No model in this codebase yet fits on unlabeled "
+        "training rows, so a normal model will still fail inside AutoGluon's own "
+        "fit call -- this only affects the split, not model fitting. Default: off "
+        "(unlabeled rows are dropped, matching every prior run).",
     )
     args = parser.parse_args()
 
@@ -336,6 +421,7 @@ def main():
         use_gpu=args.use_gpu,
         scratch_dir=args.scratch_dir,
         min_samples_per_class=args.min_samples_per_class,
+        filter_unlabeled=not args.keep_unlabeled,
     )
     if out is None:
         logger.info("Target skipped (rare-class filtering) -- clean exit, not an error.")

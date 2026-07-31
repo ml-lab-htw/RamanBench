@@ -1,6 +1,6 @@
 """RamanBench model registry — extends TabArena's registry with RamanBench's models.
 
-Mirrors :mod:`tabarena.benchmark.models.model_registry`: start from TabArena's
+Mirrors :mod:`tabarena.benchmark.exec_models.registry`: start from TabArena's
 full registry (every model TabArena knows about, including foundation models
 RamanBench hasn't given Raman-specific preprocessing hooks) and layer
 RamanBench's own :data:`~raman_bench.preprocessing.wrapped_models.PREPROCESSED_MODELS`
@@ -25,7 +25,7 @@ from __future__ import annotations
 import copy
 
 from autogluon.tabular.registry import ModelRegistry
-from tabarena.benchmark.models.model_registry import tabarena_model_registry
+from tabarena.benchmark.exec_models.registry import tabarena_model_registry
 
 from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS
 
@@ -41,7 +41,7 @@ for _model_cls in PREPROCESSED_MODELS.values():
 def infer_model_cls(model_cls, model_register: ModelRegistry | None = None):
     """Resolve a model key / display name / class name string to its class.
 
-    Mirrors :func:`tabarena.benchmark.models.model_registry.infer_model_cls`,
+    Mirrors :func:`tabarena.benchmark.exec_models.registry.infer_model_cls`,
     defaulting to :data:`raman_bench_model_registry` instead of TabArena's own.
     """
     if model_register is None:

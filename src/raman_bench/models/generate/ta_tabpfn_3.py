@@ -10,6 +10,6 @@ This directly reuses TabArena's logic rather than reimplementing it, matching
 the refactor's "use TabArena's models as much as possible" goal.
 """
 
-from tabarena.models.tabpfn_3.generate import gen_tabpfn_3 as gen_ta_tabpfn_3
+from tabarena.models.tabpfn_3.hpo import gen_tabpfn_3 as gen_ta_tabpfn_3
 
 __all__ = ["gen_ta_tabpfn_3"]

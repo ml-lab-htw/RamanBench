@@ -45,9 +45,9 @@ from sklearn.model_selection import (
     RepeatedStratifiedKFold,
     StratifiedGroupKFold,
 )
+from tabarena.benchmark.task.metadata import GroupLabelTypes
 from tabarena.benchmark.task.openml.task_wrapper import OpenMLTaskWrapper
 from tabarena.benchmark.task.user_task import (
-    GroupLabelTypes,
     UserTask,
     from_sklearn_splits_to_user_task_splits,
 )

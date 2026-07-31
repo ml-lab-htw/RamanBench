@@ -8,10 +8,10 @@ every other AutoGluon-built-in model in
 :data:`~raman_bench.preprocessing.wrapped_models.PREPROCESSED_MODELS`
 (XGB, CAT, RF, XT, KNN, LR, NN_TORCH, FASTAI, REALMLP, MITRA, TABM, TABDPT,
 TABFM, TABICL, the REALTABPFN/TABPFN-V3 variants, ...) by importing the
-matching ``tabarena.models.{key}.generate`` module.
+matching ``tabarena.models.{key}.hpo`` module.
 """
 
-from tabarena.models.lightgbm.generate import generate_configs_lightgbm
+from tabarena.models.lightgbm.hpo import generate_configs_lightgbm
 from tabarena.utils.config_utils import CustomAGConfigGenerator
 
 from raman_bench.preprocessing.wrapped_models import Prep_GBM
