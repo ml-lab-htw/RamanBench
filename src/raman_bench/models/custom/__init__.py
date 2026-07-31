@@ -15,7 +15,7 @@ from raman_bench.models.custom.ramanformer import RamanFormerModel
 from raman_bench.models.custom.ramannet import RamanNetModel
 from raman_bench.models.custom.ramantransformer import RamanTransformerModel
 from raman_bench.models.custom.rezeronet import ReZeroNetModel
-from raman_bench.models.custom.ridge import RidgeModel
+from raman_bench.models.custom.ridge.model import RidgeModel
 from raman_bench.models.custom.sanet import SANetModel
 from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
 from raman_bench.models.custom.tabular_foundation import (

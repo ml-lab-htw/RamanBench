@@ -23,12 +23,8 @@ sklearn's ``fit(X, y)`` / ``predict(X)`` API to AutoGluon's internal
 themselves free of any AutoGluon dependency.
 """
 
-import inspect
-
-import numpy as np
-
 try:
-    from autogluon.core.models import AbstractModel, DummyModel
+    from autogluon.core.models import DummyModel
 except ImportError as _ag_err:
     raise ImportError(
         "raman_bench.preprocessing.wrapped_models requires autogluon. "
@@ -93,72 +89,27 @@ from raman_bench.models.custom.ramanformer import RamanFormerModel
 from raman_bench.models.custom.ramannet import RamanNetModel
 from raman_bench.models.custom.ramantransformer import RamanTransformerModel
 from raman_bench.models.custom.rezeronet import ReZeroNetModel
-from raman_bench.models.custom.ridge import RidgeModel
 from raman_bench.models.custom.sanet import SANetModel
 from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
 from raman_bench.models.custom.tabular_foundation import TabPFNWideModel
-from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
+from raman_bench.models.discover import discover_custom_models
+from raman_bench.preprocessing.bridge_bases import (
+    SklearnAutoGluonBridge,
+    _make_optional_prep_class,
+    _NoAugBase,
+    _RamanDLBase,
+)
 
 # ---------------------------------------------------------------------------
 # Bridge: sklearn fit()/predict() ↔ AutoGluon _fit()/_predict_proba()
+#
+# SklearnAutoGluonBridge / _NoAugBase / _RamanDLBase / _make_optional_prep_class
+# live in preprocessing.bridge_bases now (models migrated to the new
+# models/custom/<key>/{model.py,hpo.py,info.py} convention -- see
+# raman_bench.models.discover -- import them from there directly, which would
+# otherwise be a circular import against this module's PREPROCESSED_MODELS
+# merge step below).
 # ---------------------------------------------------------------------------
-
-
-class SklearnAutoGluonBridge(AbstractModel):
-    """Adapter that connects sklearn-compatible estimators to AutoGluon.
-
-    Concrete subclasses set ``_sklearn_cls`` to a sklearn ``BaseEstimator``
-    subclass.  AutoGluon hyperparameters (excluding ``ag.*`` and ``prep_*``
-    prefixes) are forwarded verbatim to the sklearn constructor.
-
-    This keeps all custom model classes free of AutoGluon imports while still
-    allowing them to participate in the full AutoGluon benchmark pipeline.
-    """
-
-    _sklearn_cls = None  # override in subclass
-
-    def _fit(self, X, y, time_limit=None, **kwargs):
-        X_np = (
-            X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
-        )
-        y_arr = y.values if hasattr(y, "values") else np.asarray(y)
-
-        # _get_model_params() at this point no longer contains prep_* keys —
-        # RamanPreprocessingMixin._fit() strips them before calling super().
-        params = {
-            k: v
-            for k, v in self._get_model_params().items()
-            if not k.startswith("ag.") and not k.startswith("_")
-        }
-        self._estimator = self._sklearn_cls(**params)
-        # Only the deep-learning estimators accept a training budget; the sklearn
-        # wrappers (PLS, ROCKET, ARSENAL) have fit(self, X, y). Passing time_limit
-        # to those raises TypeError, which under HPO fails every trial. Forward it
-        # only when the estimator's fit actually accepts it (named param or **kwargs).
-        fit_params = inspect.signature(self._estimator.fit).parameters
-        accepts_time_limit = "time_limit" in fit_params or any(
-            p.kind is inspect.Parameter.VAR_KEYWORD for p in fit_params.values()
-        )
-        if accepts_time_limit:
-            self._estimator.fit(X_np, y_arr, time_limit=time_limit)
-        else:
-            self._estimator.fit(X_np, y_arr)
-
-    def _predict_proba(self, X, **kwargs):
-        X_np = (
-            X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
-        )
-        if self.problem_type == "regression":
-            return self._estimator.predict(X_np)
-        proba = self._estimator.predict_proba(X_np)
-        if self.problem_type == "binary":
-            # AutoGluon bagging pre-allocates oof_pred_proba as 1-D for binary;
-            # return the positive-class column only.
-            return proba[:, 1] if proba.ndim == 2 else proba
-        return proba
-
-    def _get_default_searchspace(self):
-        return {}
 
 
 # Per-model bridge subclasses (one line each — just set _sklearn_cls).
@@ -185,19 +136,6 @@ class _PLSBridge(SklearnAutoGluonBridge):
             "scale": space.Categorical(True, False),
             "max_iter": space.Int(lower=200, upper=1000),
             "tol": space.Real(lower=1e-8, upper=1e-3, log=True),
-        }
-
-
-class _RidgeBridge(SklearnAutoGluonBridge):
-    _sklearn_cls = RidgeModel
-    ag_key = "RIDGE"
-    ag_name = "Ridge"
-
-    def _get_default_searchspace(self):
-        from autogluon.common import space
-
-        return {
-            "alpha": space.Real(lower=1e-3, upper=1e3, log=True),
         }
 
 
@@ -413,19 +351,6 @@ class _ArsenalBridge(SklearnAutoGluonBridge):
 
 
 # ---------------------------------------------------------------------------
-# Shared mixin bases
-# ---------------------------------------------------------------------------
-
-
-class _NoAugBase(RamanPreprocessingMixin):
-    """Disable preprocessing augmentation by default."""
-
-    def _set_default_params(self):
-        self._set_default_param_value("prep_aug_enabled", False)
-        super()._set_default_params()
-
-
-# ---------------------------------------------------------------------------
 # Built-in AutoGluon models
 # ---------------------------------------------------------------------------
 
@@ -460,18 +385,6 @@ class Prep_FASTAI(_NoAugBase, NNFastAiTabularModel):  # noqa: N801
 
 class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
     pass
-
-
-def _make_optional_prep_class(name: str, base_model_cls, **class_attrs):
-    """Build a ``Prep_*`` class for a possibly-unavailable AutoGluon model class.
-
-    Returns ``None`` (rather than raising ``TypeError: bases must be types``)
-    when ``base_model_cls`` is ``None`` -- i.e. this AutoGluon build doesn't
-    carry that foundation-model class (see the defensive import above).
-    """
-    if base_model_cls is None:
-        return None
-    return type(name, (_NoAugBase, base_model_cls), dict(class_attrs))
 
 
 Prep_REALMLP = _make_optional_prep_class("Prep_REALMLP", RealMLPModel, _supports_augmentation=True)
@@ -538,31 +451,6 @@ class Prep_PLS(_NoAugBase, _PLSBridge):  # noqa: N801
         self._set_default_param_value("prep_bl_enabled", True)
         self._set_default_param_value("prep_denoise_enabled", True)
         self._set_default_param_value("prep_snv_enabled", True)
-        super()._set_default_params()
-
-
-class Prep_RIDGE(_NoAugBase, _RidgeBridge):  # noqa: N801
-    """Ridge (L2-regularized linear) regression/classification.
-
-    Added as a model-agent workflow dry-run artifact -- validates the
-    add-a-new-model steps end to end, not a benchmark-motivated addition.
-    """
-
-    pass
-
-
-class _RamanDLBase(RamanPreprocessingMixin):
-    """Raman DL base — enables spectral augmentation (standard for small datasets)."""
-
-    _supports_augmentation: bool = True
-
-    def _set_default_params(self):
-        self._set_default_param_value("prep_aug_enabled", True)
-        self._set_default_param_value("prep_aug_n", 19)
-        self._set_default_param_value("prep_aug_noise", 0.01)
-        self._set_default_param_value("prep_aug_shift", 0)
-        self._set_default_param_value("prep_aug_mixup", 0.0)
-        self._set_default_param_value("prep_aug_max_train_samples", 2000)
         super()._set_default_params()
 
 
@@ -636,7 +524,6 @@ PREPROCESSED_MODELS = {
     "TABPFN-WIDE": Prep_TABPFN_WIDE,
     # Custom spectroscopy models
     "PLS": Prep_PLS,
-    "RIDGE": Prep_RIDGE,
     "DEEPCNN": Prep_DEEPCNN,
     "RAMANNET": Prep_RAMANNET,
     "SANET": Prep_SANET,
@@ -660,6 +547,15 @@ if _unavailable_models:
         stacklevel=2,
     )
 del _unavailable_models
+
+# Models migrated to the new per-directory convention
+# (raman_bench/models/custom/<key>/{model.py,hpo.py,info.py}, discovered via
+# raman_bench.models.discover.discover_custom_models()) register themselves
+# here instead of being hand-listed above. New models should be added there,
+# not as a new dict entry in this file -- see RamanBench/.claude/agents/model-agent.md.
+for _key, _info in discover_custom_models().items():
+    PREPROCESSED_MODELS[_key] = _info.model_cls
+del _key, _info
 
 CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL", "TABPFN-WIDE"}
 

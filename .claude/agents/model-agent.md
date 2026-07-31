@@ -24,22 +24,46 @@ sklearn-compatible model code (`raman_bench/models/custom/*.py`) for genuinely n
 architectures with no TabArena equivalent.
 
 ### 3. Implement the model
-Follow the existing pattern (see `preprocessing/wrapped_models.py` and
-`models/custom/*.py` for examples):
-- Pure sklearn/PyTorch model class in `raman_bench/models/custom/<name>.py` (no AutoGluon
-  imports — keep custom architectures framework-agnostic).
-- A bridge class in `preprocessing/wrapped_models.py` (`SklearnAutoGluonBridge` subclass)
-  with **`ag_key` and `ag_name` class attributes set** — `tabarena`'s `ConfigGenerator`
-  asserts both are non-None.
-- A `Prep_<NAME>` class combining the bridge with `RamanPreprocessingMixin` (or
-  `_NoAugBase`/`_RamanDLBase` for the augmentation-default convention).
-- Register it in `PREPROCESSED_MODELS` in the same file.
-- A `raman_bench/models/generate/<name>.py` module defining `search_space` (an
-  `autogluon.common.space`-typed dict — reuse `bridge_search_space(YourBridgeClass)` from
-  `models/generate/_common.py` if you gave the bridge a `_get_default_searchspace()`
-  override) and `gen_<name> = ConfigGenerator(model_cls=Prep_<NAME>, manual_configs=[{}],
-  search_space=search_space)`. See `models/generate/pls.py` or `rezeronet.py` for the
-  pattern, or `gbm.py` for the pattern when reusing a TabArena built-in's own search space.
+RamanBench's own onboarding convention was redesigned (2026-07) to mirror upstream
+TabArena's post-fork restructure, which moved from one big `models/<key>/generate.py`
+file per model to a **per-model directory** (`tabarena/models/<key>/{model.py,hpo.py,
+info.py}`, auto-discovered into a single registry via `ModelInfo`/`discover_models()`
+rather than a hand-maintained dict). RamanBench's version of this — the reference
+implementation is `raman_bench/models/custom/ridge/` — is:
+
+- **`raman_bench/models/custom/<name>/model.py`**: the pure sklearn/PyTorch model class
+  (no AutoGluon imports — keep custom architectures framework-agnostic), plus a bridge
+  class (`SklearnAutoGluonBridge` subclass, imported from
+  `raman_bench.preprocessing.bridge_bases` — **not** from `wrapped_models.py`, which
+  would be a circular import) with **`ag_key` and `ag_name` class attributes set** —
+  `tabarena`'s `ConfigGenerator` asserts both are non-None — and a `Prep_<NAME>` class
+  combining the bridge with `RamanPreprocessingMixin` via `_NoAugBase`/`_RamanDLBase`
+  (also from `preprocessing.bridge_bases`) for the augmentation-default convention.
+- **`raman_bench/models/custom/<name>/hpo.py`**: `gen_<name> = ConfigGenerator(
+  model_cls=Prep_<NAME>, manual_configs=[{}], search_space=<a dict of
+  autogluon.common.space objects, typically your bridge's own
+  _get_default_searchspace()>)`.
+- **`raman_bench/models/custom/<name>/info.py`**: `<name>_info = ModelInfo(
+  model_cls=Prep_<NAME>, search_space=gen_<name>, display_name="<Display Name>",
+  compute="cpu"|"gpu")` — `ModelInfo` is `raman_bench.models._model_info.ModelInfo`
+  (a lightweight RamanBench-local mirror of TabArena's own `ModelInfo`; RamanBench
+  does **not** need TabArena's `MethodMetadata` — that class owns TabArena's own S3/
+  suite-versioned hosted-leaderboard artifact bookkeeping, which RamanBench has no use
+  for since its results live under `results/<run>/`, not a dated R2/S3 cache).
+- **`raman_bench/models/custom/<name>/__init__.py`**: re-export `Prep_<NAME>` and the
+  plain model class.
+
+No manual registry edit needed: `raman_bench/models/discover.py`'s
+`discover_custom_models()` walks every `models/custom/<key>/` **package** (a directory,
+not a flat `.py` file — that's what makes a model "migrated"), imports its `info.py`,
+and collects the `ModelInfo`. `preprocessing/wrapped_models.py`'s `PREPROCESSED_MODELS`
+dict merges these in automatically at import time, so every existing consumer
+(`raman_bench_model_registry`, `create_preprocessed_hyperparameters`, `run_experiment.py`)
+picks up a new model with zero changes elsewhere. Models not yet migrated to this
+per-directory convention (most of the pre-2026-07 roster) keep working exactly as
+before via their existing flat `models/custom/<name>.py` + `wrapped_models.py` entry +
+`models/generate/<name>.py` — migrating them is optional, mechanical follow-up work,
+not a prerequisite for adding a new model the new way.
 
 ### 4. Test it locally
 - Add a test under `tests/models/test_<name>.py` following the existing pattern (fit/predict
@@ -51,6 +75,15 @@ Follow the existing pattern (see `preprocessing/wrapped_models.py` and
       --time-limit 60 --num-bag-folds 2 --results-dir /tmp/smoke/data --cache-dir /tmp/smoke/cache
   ```
   Confirm `metric_error` is sane (not NaN, not wildly off) before submitting real cluster jobs.
+- Run `ruff check --fix` on every new/changed file before considering the model done —
+  matches upstream TabArena's own `add-model` skill convention. `from __future__ import
+  annotations` at the top of every new module is expected (also upstream's convention,
+  and already used throughout `models/custom/ridge/`).
+- Keep any optional/heavy import (a foundation model's own package, torch, etc.) inside
+  the function/method body that needs it, never at module top-level — a missing optional
+  dependency must not break importing the rest of the registry (see the defensive
+  `_OPTIONAL_AG_MODEL_NAMES` handling in `preprocessing/wrapped_models.py` for the
+  existing pattern this follows).
 
 ### 5. Ask about upstream contribution
 Once the model works, ask the user: **should this also be proposed as a PR to the

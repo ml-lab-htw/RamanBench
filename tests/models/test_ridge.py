@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from raman_bench.models.custom.ridge import RidgeModel
+from raman_bench.models.custom.ridge.model import RidgeModel
 
 
 def _clf(n=60, f=30, n_classes=3, seed=0):
