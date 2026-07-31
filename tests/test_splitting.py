@@ -200,3 +200,49 @@ def test_get_n_repeats_matches_tabarena_thresholds():
     assert get_n_repeats(150_000) == 3
     assert get_n_repeats(250_001) == 1
     assert get_n_repeats(748, tabarena_lite=True) == 1
+
+
+def _semi_supervised_dataset(n=50, n_unlabeled=15, problem_type="classification", grouped=False, seed=0):
+    rng = np.random.RandomState(seed)
+    X = pd.DataFrame(rng.randn(n, 8), columns=[f"{100 + i * 5}" for i in range(8)])
+    df = X.copy()
+    if problem_type == "classification":
+        y = rng.choice([0, 1], size=n, p=[0.6, 0.4]).astype(float)
+    else:
+        y = (X.iloc[:, 0] * 2 + rng.randn(n) * 0.1).to_numpy()
+    unlabeled_idx = rng.choice(n, size=n_unlabeled, replace=False)
+    y[unlabeled_idx] = np.nan
+    df["target"] = y
+    if grouped:
+        df[GROUP_COL] = np.repeat(np.arange(n // 4), 4)[:n]
+    return df
+
+
+def test_unlabeled_rows_never_in_test_ungrouped_classification():
+    df = _semi_supervised_dataset(problem_type="classification", grouped=False)
+    _, task_obj = build_user_task(
+        task_name="semi_clf", df=df, label_col="target",
+        problem_type="classification", n_repeats=2, n_splits=3, group_col=None,
+    )
+    wrapper = RamanBenchTaskWrapper(task=task_obj)
+    for repeat in range(2):
+        for fold in range(3):
+            _, y_tr, _, y_te = wrapper.get_train_test_split(fold=fold, repeat=repeat)
+            assert pd.isna(y_te).sum() == 0
+            assert pd.isna(y_tr).sum() == 15  # every unlabeled row lands in every train split
+
+
+def test_unlabeled_rows_never_in_test_grouped_regression_no_group_leak():
+    df = _semi_supervised_dataset(n=40, n_unlabeled=10, problem_type="regression", grouped=True)
+    _, task_obj = build_user_task(
+        task_name="semi_reg_grouped", df=df, label_col="target",
+        problem_type="regression", n_repeats=2, n_splits=3,
+    )
+    wrapper = RamanBenchTaskWrapper(task=task_obj)
+    for repeat in range(2):
+        for fold in range(3):
+            X_tr, _, X_te, y_te = wrapper.get_train_test_split(fold=fold, repeat=repeat)
+            assert pd.isna(y_te).sum() == 0
+            train_groups = set(df.loc[X_tr.index, GROUP_COL])
+            test_groups = set(df.loc[X_te.index, GROUP_COL])
+            assert not (train_groups & test_groups), f"group leak at repeat={repeat} fold={fold}"
