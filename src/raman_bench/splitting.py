@@ -57,6 +57,28 @@ DEFAULT_N_REPEATS = 10
 DEFAULT_N_SPLITS = 3
 
 
+def get_n_repeats(n_instances: int, tabarena_lite: bool = False) -> int:
+    """Dataset-size-adaptive repeat count, matching TabArena's own real protocol exactly.
+
+    Ported from ``tabarena.nips2025_utils.fetch_metadata._get_n_repeats`` (the function
+    behind the actual per-dataset ``tabarena_num_repeats`` values used for their real
+    51-dataset benchmark -- confirmed directly against
+    ``curated_tabarena_dataset_metadata.csv``: crosses from 10 to 3 repeats exactly at the
+    2,500-instance boundary, num_folds is a fixed 3 for every dataset). A uniform
+    ``n_repeats`` for every dataset regardless of size is *not* what the real protocol
+    does -- smaller/noisier datasets get more repeats for statistical power; large ones
+    need fewer since a single evaluation is already stable (and, practically, large
+    datasets are also the ones most likely to hit a job's time limit).
+    """
+    if tabarena_lite:
+        return 1
+    if n_instances < 2_500:
+        return 10
+    if n_instances > 250_000:
+        return 1
+    return 3
+
+
 class TooFewClassesError(ValueError):
     """Raised when rare-class filtering leaves fewer than 2 classes.
 

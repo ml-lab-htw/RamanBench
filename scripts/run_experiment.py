@@ -231,6 +231,13 @@ def run_one(
         time_limit=time_limit,
         num_bag_folds=num_bag_folds,
         fold_fitting_strategy="sequential_local",
+        # Matches TabArena's own real production default (tabflow_slurm/
+        # setup_slurm_base_v2.py's default_seed_config), not
+        # generate_all_bag_experiments' bare "static" default -- gives each
+        # of AutoGluon's internal bag-folds, and each HPO config once
+        # HPO is opted in, a genuinely different internal random seed
+        # instead of all sharing seed 0.
+        add_seed="fold-config-wise",
     )
     if scratch_dir is not None:
         # Deterministic AutoGluon predictor path for this job (default is a

@@ -18,6 +18,7 @@ from raman_bench.splitting import (
     TooFewClassesError,
     build_user_task,
     filter_rare_classes,
+    get_n_repeats,
     infer_group_ids_from_targets,
 )
 
@@ -188,3 +189,14 @@ def test_infer_group_ids_ignores_all_zero_rows():
     assert group_ids is not None
     assert group_ids[1] == group_ids[3]
     assert group_ids[0] != group_ids[2]  # both all-zero, but not grouped with each other
+
+
+def test_get_n_repeats_matches_tabarena_thresholds():
+    # Confirmed directly against curated_tabarena_dataset_metadata.csv: the real
+    # crossover from 10 to 3 repeats sits between 2400 and 2584 instances.
+    assert get_n_repeats(748) == 10
+    assert get_n_repeats(2400) == 10
+    assert get_n_repeats(2500) == 3
+    assert get_n_repeats(150_000) == 3
+    assert get_n_repeats(250_001) == 1
+    assert get_n_repeats(748, tabarena_lite=True) == 1

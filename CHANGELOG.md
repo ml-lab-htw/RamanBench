@@ -52,12 +52,25 @@ directly, rather than reimplementing patterns "inspired by" them.
 
 - Real repeated k-fold cross-validation (`RepeatedStratifiedKFold`/`RepeatedKFold` for
   ungrouped datasets; a manually-repeated `StratifiedGroupKFold`/`GroupKFold` for datasets
-  with physical-replicate structure, since sklearn has no repeated wrapper for those) --
-  matches TabArena's own documented convention for custom datasets
-  (`RepeatedStratifiedKFold(n_repeats=10, n_splits=3)`), replacing the previous scheme of
-  3 independent holdout splits with no folds. `StratifiedGroupKFold` also lifts the old
-  scheme's limitation that a grouped classification split couldn't additionally be
-  class-balanced.
+  with physical-replicate structure, since sklearn has no repeated wrapper for those),
+  replacing the previous scheme of 3 independent holdout splits with no folds.
+  `StratifiedGroupKFold` also lifts the old scheme's limitation that a grouped
+  classification split couldn't additionally be class-balanced.
+- `raman_bench.splitting.get_n_repeats`: dataset-size-adaptive repeat count (10 repeats
+  under 2,500 instances, 3 up to 250,000, 1 above), ported directly from
+  `tabarena.nips2025_utils.fetch_metadata._get_n_repeats` and confirmed against TabArena's
+  own real 51-dataset curated metadata (`num_folds` is a fixed 3 for every dataset there;
+  only `n_repeats` varies by size) -- a uniform repeat count for every dataset regardless
+  of size is not what the actual protocol does.
+- `scripts/build_target_list.py`: builds a (dataset, target) list from dataset-name JSON
+  files, recording each target's real name, instance count, and size-adaptive `n_repeats`;
+  `cluster/submit_full_benchmark.py` now reads each target's own `n_repeats` from this
+  list instead of applying one value to every dataset.
+- `add_seed="fold-config-wise"` on every generated config, matching TabArena's own real
+  production default (`tabflow_slurm/setup_slurm_base_v2.py`'s `default_seed_config`) --
+  the bare library default is `"static"` (every bag-fold and every HPO config shares
+  internal seed 0); this gives each of AutoGluon's internal bag-folds, and each HPO config
+  once HPO is opted in, a genuinely different internal random seed.
 - 2 new datasets: `chlorinated_samples` (binary classification, chloroform detection in
   Raman spectra) and `locust_phase_hemolymph` (binary classification, density-dependent
   phase state in desert locusts -- the first dataset in `raman-data` with `group_ids`

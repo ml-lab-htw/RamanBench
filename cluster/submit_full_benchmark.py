@@ -1,17 +1,24 @@
 #!/usr/bin/env python
 """Submit one array job per (dataset, target) for a given model.
 
-Reads a JSON target list (list of {"dataset": ..., "target_idx": ...,
-"excluded": bool, ...}) and calls cluster/submit_job.py once per
-non-excluded entry -- i.e. one job array per (dataset, target), each array
-covering every (repeat, fold) x config-index combination for that target
-(real repeated k-fold CV, matching TabArena's own documented convention for
-custom datasets -- see raman_bench.splitting). This is the "run this model
-across the whole benchmark" primitive model-agent's workflow describes.
+Reads a JSON target list (as written by ``scripts/build_target_list.py``: list of
+{"dataset": ..., "target_idx": ..., "excluded": bool, "n_repeats": int, ...}) and calls
+cluster/submit_job.py once per non-excluded entry -- i.e. one job array per (dataset,
+target), each array covering every (repeat, fold) x config-index combination for that
+target (real repeated k-fold CV, matching TabArena's own documented protocol -- see
+raman_bench.splitting.get_n_repeats). This is the "run this model across the whole
+benchmark" primitive model-agent's workflow describes.
+
+Each target's own ``n_repeats`` (dataset-size-adaptive, per TabArena's real protocol) is
+used if the target list provides one; ``--n-repeats`` is only a fallback for target lists
+that don't (e.g. hand-written ones), not an override -- don't pass it to force a uniform
+value across every dataset, that's exactly what the per-target value exists to avoid.
 
 Usage:
+    python scripts/build_target_list.py --dataset-list classification_all.json \\
+        --dataset-list regression_all.json --output targets.json
     python cluster/submit_full_benchmark.py --model PLS --targets-file targets.json \\
-        --profile ~/workspace/htw_v1_profile.yaml --n-repeats 10 --n-splits 3 --config-indices 0
+        --profile ~/workspace/htw_v1_profile.yaml --n-splits 3 --config-indices 0
 """
 
 from __future__ import annotations
@@ -31,7 +38,12 @@ def main():
     parser.add_argument("--targets-file", required=True, help="JSON list of {dataset, target_idx, excluded}")
     parser.add_argument("--profile", default=None)
     parser.add_argument("--cluster", default=None, choices=["htw", "tu", "local"])
-    parser.add_argument("--n-repeats", type=int, default=10)
+    parser.add_argument(
+        "--n-repeats", type=int, default=None,
+        help="Fallback only, used for a target lacking its own 'n_repeats' -- the "
+             "per-target value (dataset-size-adaptive, from build_target_list.py) is "
+             "used whenever present. Defaults to 10 if neither is available.",
+    )
     parser.add_argument("--n-splits", type=int, default=3)
     parser.add_argument("--config-indices", type=int, nargs="+", default=[0])
     parser.add_argument("--num-random-configs", type=int, default=50)
@@ -46,17 +58,23 @@ def main():
     with open(args.targets_file) as f:
         targets = json.load(f)
     targets = [t for t in targets if not t.get("excluded")]
+    n_repeats_counts = {}
+    for t in targets:
+        n_repeats_counts[t.get("n_repeats", args.n_repeats or 10)] = (
+            n_repeats_counts.get(t.get("n_repeats", args.n_repeats or 10), 0) + 1
+        )
     print(f"Submitting {len(targets)} target(s) for model {args.model!r} "
-          f"({args.n_repeats} repeat(s) x {args.n_splits} fold(s) x "
+          f"(n_repeats distribution: {n_repeats_counts}, {args.n_splits} fold(s) x "
           f"{len(args.config_indices)} config(s) each)")
 
     ok, failed = 0, []
     for t in targets:
+        n_repeats = t.get("n_repeats", args.n_repeats or 10)
         cmd = [
             sys.executable, str(CLUSTER_DIR / "submit_job.py"),
             "--dataset", t["dataset"], "--target-idx", str(t["target_idx"]),
             "--model", args.model,
-            "--n-repeats", str(args.n_repeats), "--n-splits", str(args.n_splits),
+            "--n-repeats", str(n_repeats), "--n-splits", str(args.n_splits),
             "--config-indices", *[str(c) for c in args.config_indices],
             "--num-random-configs", str(args.num_random_configs),
             "--num-bag-folds", str(args.num_bag_folds),
