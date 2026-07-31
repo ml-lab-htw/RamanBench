@@ -229,6 +229,18 @@ def submit_jobs(
             "--cpus-per-task", str(profile.get("default_cpus_per_task", 16)),
             "--time", profile.get("default_time", "10-00:00:00"),
         ]
+        if profile.get("workspace"):
+            # run_experiment.sbatch's #SBATCH --output/--error paths are relative
+            # (.logs/...) and SLURM resolves those against the job's working
+            # directory at submission time -- NOT wherever the script later `cd`s
+            # to. Without an explicit --chdir, a caller invoked from anywhere other
+            # than the workspace itself (a cron job's default cwd is $HOME, not the
+            # repo) submits a job whose output file can't be created, which SLURM
+            # reports as an immediate FAILED with no log ever written. Confirmed by
+            # a real failure: the opportunistic scheduler's first live submission
+            # (invoked from a login shell's home directory) failed every task this
+            # way before this fix.
+            sbatch_args += ["--chdir", str(Path(profile["workspace"]).expanduser())]
         sbatch_args += resolve_mem_flags(profile, model)
         sbatch_args += resolve_gpu_flags(profile, use_gpu)
         if profile.get("account"):

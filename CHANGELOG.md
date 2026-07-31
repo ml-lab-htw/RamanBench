@@ -191,6 +191,17 @@ directly, rather than reimplementing patterns "inspired by" them.
 
 ### Fixed
 
+- `cluster/submit_job.py` now passes an explicit `--chdir <workspace>` to every `sbatch`
+  call. `run_experiment.sbatch`'s `#SBATCH --output=.logs/...`/`--error=.logs/...` are
+  relative paths, resolved by SLURM against the directory `sbatch` was invoked *from* --
+  not the benchmark workspace the script itself later `cd`s into. This was invisible as
+  long as every submission happened to run from the workspace root (the normal case for a
+  developer manually calling `submit_job.py`), but the opportunistic scheduler's first real
+  submission (run from a login shell's home directory, matching what a cron job's default
+  cwd would also be) failed **every single task** immediately (exit code 2, no log file
+  ever written -- SLURM couldn't create the output file) until this fix. Re-verified after
+  the fix with a real submission: tasks reached `RUNNING` and then `COMPLETED`, with a real
+  `results.pkl` landing in the expected cache path.
 - `run_experiment.sbatch` now propagates the real Python exit code -- previously a crashed
   job could still report SLURM/`sacct` success, hiding real failures.
 - Regression targets with missing (NaN) values are now dropped before fitting instead of
