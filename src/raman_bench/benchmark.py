@@ -57,6 +57,12 @@ def _is_float_col(s: str) -> bool:
         return False
 
 
+# Column written by raman_data's mirror export to carry replicate structure
+# (see raman_data/scripts/mirror_to_huggingface.py and
+# RamanDataset.to_dataframe). It is neither a wavenumber nor a target.
+GROUP_ID_COL = "_group_id"
+
+
 def configure_benchmark(config, init_benchmark: bool = True) -> "RamanBenchmark":
     """Instantiate a :class:`RamanBenchmark` from a loaded config dict.
 
@@ -409,14 +415,16 @@ class RamanBenchmark:
             logger.warning("Failed to read parquet for %s: %s", dataset_name, e)
             return None
 
-        # Separate wavenumber columns (float-parseable) from target columns
+        # Separate wavenumber columns (float-parseable) from target columns.
+        # The group-id column is metadata: it must not be mistaken for a target.
         all_cols = df.columns.tolist()
         shift_cols = sorted([c for c in all_cols if _is_float_col(c)], key=float)
-        target_cols = [c for c in all_cols if not _is_float_col(c)]
+        target_cols = [c for c in all_cols if not _is_float_col(c) and c != GROUP_ID_COL]
 
         # Extract arrays
         spectra = df[shift_cols].values.astype(np.float32)
         raman_shifts = np.array([float(c) for c in shift_cols])
+        group_ids = df[GROUP_ID_COL].to_numpy() if GROUP_ID_COL in all_cols else None
 
         # Try to load metadata from separate metadata.json file
         target_names = None
@@ -478,6 +486,7 @@ class RamanBenchmark:
             raman_shifts=raman_shifts,
             target_names=target_names,
             info=info,
+            group_ids=group_ids,
         )
 
     # ------------------------------------------------------------------
