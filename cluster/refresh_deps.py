@@ -56,6 +56,24 @@ def refresh_pip_package(package: str) -> None:
 
 
 def refresh_workspace_checkout(workspace: str) -> None:
+    """Pull ``workspace`` in place if it's a git checkout. Some real deployments
+    (e.g. HTW's ``RamanBench_v1``) are deliberately rsync'd, not git-cloned --
+    to avoid disturbing another in-progress checkout at deploy time, and because
+    raman-bench itself has no released v1 yet for a plain ``pip install`` to
+    pull from. A hard ``git pull`` there always fails. Confirmed in practice:
+    this crashed unconditionally (``set -e`` in the caller) on every single
+    hourly opportunistic-scheduler cron tick for over a week with nothing
+    submitted, because the workspace it was pointed at is exactly this kind of
+    rsync deployment -- silently, since cron discards stdout unless redirected.
+    Skip cleanly instead of crashing; fixes are deployed there via rsync, not
+    a pull, so there is nothing this step could do for it anyway."""
+    is_git = subprocess.run(
+        ["git", "-C", workspace, "rev-parse", "--is-inside-work-tree"],
+        capture_output=True, text=True,
+    ).returncode == 0
+    if not is_git:
+        print(f"{workspace} is not a git checkout (deployed via rsync) -- skipping pull.")
+        return
     print(f"Pulling {workspace} ...")
     subprocess.run(["git", "-C", workspace, "pull"], check=True)
     result = subprocess.run(
