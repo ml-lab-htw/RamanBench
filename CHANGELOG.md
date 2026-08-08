@@ -204,6 +204,21 @@ directly, rather than reimplementing patterns "inspired by" them.
   recomputed-fresh-every-tick design as the disk-cache check. Verified against the live
   HTW cluster: backlog dropped from the stale 4158 to 3858, with zero overlap between the
   newly picked chunk and the 300 targets already covered by the three duplicate arrays.
+- `cluster/opportunistic_scheduler.py`'s `load_scope()` left `results_dir`/`cache_dir` as
+  given -- relative paths from `scope_default.json`, resolved against whatever cwd the
+  calling process happened to have. Fine for a manual invocation from inside the workspace,
+  but the routine cron tick invokes this script from cron's default cwd (`$HOME`), never
+  the workspace, so every on-disk `results.pkl` check in `compute_backlog()` silently
+  looked in the wrong place and found nothing -- the backlog on the real cron path never
+  shrank even as completions piled up. This is why the in-flight dedup fix above didn't
+  fully stop duplicate submissions there: that fix only excludes still-queued targets, and
+  once an array finishes and drops out of `squeue`, the cache check was the only remaining
+  signal, and it was cwd-blind. Both paths now resolve relative to `submit_job.REPO_ROOT`,
+  the same anchor `submit_job.py` already uses for `JOBSPEC_DIR` and the `--chdir` it
+  passes every SLURM submission -- no new workspace-root concept. Verified: a dry-run from
+  `$HOME` (matching cron's actual invocation cwd) against the unpatched script reported the
+  stale backlog of 4158; the patched script reports 3855 from both `$HOME` and from inside
+  the workspace.
 - `cluster/submit_job.py` now passes an explicit `--chdir <workspace>` to every `sbatch`
   call. `run_experiment.sbatch`'s `#SBATCH --output=.logs/...`/`--error=.logs/...` are
   relative paths, resolved by SLURM against the directory `sbatch` was invoked *from* --
