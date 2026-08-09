@@ -67,31 +67,34 @@ pip install "raman-bench[models]"
 This installs `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, and
 `ramanspy` on top of the core package.  **No AutoGluon required.**
 
-### Option 3 — Full benchmark reproducibility (AutoGluon fork)
+### Option 3 — Full benchmark reproducibility
 
 The paper's benchmark runs all models through AutoGluon's automated
-preprocessing and HPO pipeline.  The fork addresses two limitations of
-standard AutoGluon 1.5:
-
-1. **Feature cap** — AutoGluon caps tabular foundation models (TabPFN v2,
-   TabICL, TabDPT, MITRA) at 500 features; Raman spectra typically have
-   500–4000 wavenumber points.  The fork removes this cap.
-2. **TabICL v2 regression** — AutoGluon 1.5 ships TabICL v1, which supports
-   classification only.  The fork upgrades to TabICL v2, adding regression
-   support.  This limitation is expected to be resolved in AutoGluon 1.6.
-
-A [patched fork](https://github.com/ml-lab-htw/autogluon) incorporates both fixes.
+preprocessing and HPO pipeline, on plain upstream AutoGluon (>=1.6.1, no fork):
 
 ```bash
 git clone https://github.com/ml-lab-htw/RamanBench.git
 cd RamanBench
-pip install -r requirements-autogluon-fork.txt
 pip install -e ".[models]"
 ```
 
-> **The fork is only needed to reproduce the exact paper benchmark.**
-> Options 1 and 2 work with a standard `pip install` and give full access to
-> all datasets, splits, and built-in models.
+RamanBench previously depended on a patched AutoGluon fork here to work around
+two limitations of AutoGluon 1.5:
+
+1. **Feature cap** — AutoGluon caps tabular foundation models (TabPFN v2,
+   TabICL, TabDPT, Mitra) at 500–2000 features (varies by model); Raman
+   spectra typically have 500–4000 wavenumber points. RamanBench now lifts
+   this cap itself, per model, using AutoGluon's own supported
+   `_default_auxiliary_params_extra` subclass extension point — see
+   `Prep_MITRA` / `Prep_TABDPT` / `Prep_TABICL` / `Prep_REALTABPFN_V2` /
+   `Prep_REALTABPFN_V25` in `preprocessing/wrapped_models.py`. No fork needed.
+   Accepted tradeoff: the fork additionally routed >10-class datasets on
+   Mitra/TabPFN through an ECOC many-class wrapper (`tabpfn-extensions`'
+   `ManyClassClassifier`); that extra is not reproduced, so such datasets may
+   now fail on those two models instead of falling back to the wrapper.
+2. **TabICL v2 regression** — AutoGluon 1.5 shipped TabICL v1 (classification
+   only). AutoGluon 1.6 upgraded to TabICL v2 natively, adding regression
+   support — no fork or override needed for this part anymore.
 
 ---
 

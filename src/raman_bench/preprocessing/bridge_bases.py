@@ -111,7 +111,23 @@ def _make_optional_prep_class(name: str, base_model_cls, **class_attrs):
     Returns ``None`` (rather than raising ``TypeError: bases must be types``)
     when ``base_model_cls`` is ``None`` -- i.e. this AutoGluon build doesn't
     carry that foundation-model class.
+
+    Explicitly sets ``__module__`` to the *caller's* module (``wrapped_models.py``,
+    where every current call site lives) rather than leaving it to ``type()``'s
+    default frame-based inference. That default walks up to the immediate caller
+    frame of the underlying ``type.__new__`` -- and since every one of these
+    classes has an ``AbstractModel`` (ABCMeta) base, that caller is
+    ``ABCMeta.__new__`` itself, which lives in the standard library ``abc``
+    module. Without this, every class built here silently gets
+    ``__module__ == "abc"``, which looks harmless (the class still works
+    normally) until something tries to pickle it or an instance of it --
+    exactly what AutoGluon's ``TabularPredictor.save()`` does at the end of every
+    real ``fit()`` call, which then fails with ``PicklingError: Can't pickle
+    <class 'abc.Prep_MITRA'>: attribute lookup Prep_MITRA on abc failed``.
     """
     if base_model_cls is None:
         return None
-    return type(name, (_NoAugBase, base_model_cls), dict(class_attrs))
+    import sys
+
+    caller_module = sys._getframe(1).f_globals.get("__name__", __name__)
+    return type(name, (_NoAugBase, base_model_cls), {"__module__": caller_module, **class_attrs})

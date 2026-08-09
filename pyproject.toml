@@ -47,10 +47,22 @@ dependencies = [
 
 [project.optional-dependencies]
 autogluon = [
-    "autogluon.common>=1.5",
-    "autogluon.core>=1.5",
-    "autogluon.features>=1.5",
-    "autogluon.tabular>=1.5",
+    # Plain upstream AutoGluon (no fork). RamanBench previously depended on a
+    # patched fork (see git history around the AutoGluon 1.6 dependency bump) that
+    # relaxed the max_features/max_rows/max_classes caps AutoGluon puts on the
+    # tabular foundation models (Mitra, TabDPT, TabICL, TabPFN v2) -- Raman spectra
+    # routinely run 500-4000 wavenumber points, above those caps. That relief now
+    # lives in RamanBench's own `preprocessing/wrapped_models.py` (`Prep_MITRA`,
+    # `Prep_TABDPT`, `Prep_TABICL`, `Prep_REALTABPFN_V2`, `Prep_REALTABPFN_V25`),
+    # using AutoGluon's own supported per-subclass `_default_auxiliary_params_extra`
+    # override -- no fork required. >=1.6.1 floor: that's the version this override
+    # and the rest of RamanBench's AutoGluon integration is verified against
+    # (1.6.1 is also where TabICL's own v1->v2 + regression-support gap, the fork's
+    # other original reason to exist, is resolved natively upstream).
+    "autogluon.common>=1.6.1",
+    "autogluon.core>=1.6.1",
+    "autogluon.features>=1.6.1",
+    "autogluon.tabular>=1.6.1",
     "bencheval @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/bencheval",
     "tabarena @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/tabarena",
 ]

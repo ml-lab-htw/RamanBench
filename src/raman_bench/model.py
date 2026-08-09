@@ -30,8 +30,7 @@ try:
     from autogluon.tabular import TabularPredictor
 except ImportError as _ag_err:
     raise ImportError(
-        "raman_bench.model requires autogluon. "
-        "Install with: pip install -r requirements-autogluon-fork.txt && pip install 'raman-bench[autogluon]'"
+        "raman_bench.model requires autogluon. Install with: pip install 'raman-bench[autogluon]'"
     ) from _ag_err
 from raman_bench.models.custom.base import BaseRamanEstimator as BaseCustomModel
 from raman_bench.preprocessing.mixin import (
@@ -153,7 +152,7 @@ class AutoGluonModel:
             # count, which is only known once the training labels arrive, so it is
             # settled in fit() (see _finalize_classification_metric). We align with
             # TabArena: binary -> roc_auc, multiclass -> log_loss (both proba-native,
-            # avoiding the fork's f1_score-on-proba length-mismatch codepath).
+            # avoiding AutoGluon's f1_score-on-proba length-mismatch codepath).
             # Headline F1/bal-acc are recomputed downstream, so this only drives
             # model selection.
             self.metric = "log_loss"
@@ -201,7 +200,7 @@ class AutoGluonModel:
         **binary -> roc_auc, multiclass -> log_loss**. The class count is unknown at
         construction (no data yet), so the __init__ value is a fallback and the real
         choice is made here, then the predictor is rebuilt with it. Both are
-        proba-native, so neither hits the fork's f1_score-on-proba length mismatch.
+        proba-native, so neither hits AutoGluon's f1_score-on-proba length mismatch.
         """
         if self.task_type != TASK_TYPE.Classification:
             return
