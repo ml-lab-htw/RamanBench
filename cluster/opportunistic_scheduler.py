@@ -56,6 +56,7 @@ DEFAULT_CHUNK_SIZE = 300
 DEFAULT_COURTESY_CEILING = 200
 DEFAULT_MIN_IDLE_CPUS = 32
 DEFAULT_THROTTLE = 8
+DEFAULT_TIME_LIMIT = 3600
 
 
 def load_scope(path: str | Path) -> dict:
@@ -255,6 +256,33 @@ def pick_chunk(backlog: dict[str, list[Job]], chunk_size: int) -> tuple[str | No
     return None, []
 
 
+def effective_time_limit(scope: dict, chunk: list[Job]) -> float:
+    """The flat ``scope["time_limit"]`` (default 3600s), bumped up to the largest
+    applicable entry in ``scope["time_limit_overrides"]`` (a dataset-name-keyed
+    dict, same shape as a cluster profile's ``mem_tiers``) among the datasets
+    present in this chunk. One SLURM array submission gets one time_limit -- if
+    a chunk mixes an oversized dataset in with ordinary ones, everyone in that
+    chunk gets the larger budget, which is harmless (a task that finishes early
+    just exits early; this only raises the ceiling, it doesn't force anyone to
+    run longer).
+
+    Confirmed necessary in practice: ``mlrod`` has 130,061 rows -- the largest
+    dataset in the target list by a wide margin (next is 78,500; the median
+    across all 158 targets is 179). AutoGluon's own bagged-fold-fitting
+    strategy extrapolates from how long the first of 8 sequential PLS folds
+    takes and aborts early (TimeLimitExceeded) if it predicts the remaining
+    folds won't fit in what's left of the budget -- observed taking ~950s for
+    fold 1 alone, i.e. needing roughly 950*8 =~ 7600s total against the
+    default 3600s, well before actually running out of wall-clock time."""
+    default = scope.get("time_limit", DEFAULT_TIME_LIMIT)
+    overrides = scope.get("time_limit_overrides", {})
+    if not overrides:
+        return default
+    datasets_in_chunk = {dataset for dataset, *_rest in chunk}
+    applicable = [overrides[ds] for ds in datasets_in_chunk if ds in overrides]
+    return max([default, *applicable])
+
+
 def log_tick(log_path: str | Path | None, entry: dict) -> None:
     if log_path is None:
         return
@@ -301,12 +329,13 @@ def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: b
 
     chunk_size = scope.get("chunk_size", DEFAULT_CHUNK_SIZE)
     model, chunk = pick_chunk(backlog, chunk_size)
+    time_limit = effective_time_limit(scope, chunk)
 
     slug = f"{scope['name']}_{model}_{timestamp.replace(':', '').replace('-', '').split('.')[0]}"
     job_ids = submit_jobs(
         model=model, jobs=chunk, slug=slug,
         n_splits=scope["n_splits"], num_random_configs=scope.get("num_random_configs", 50),
-        num_bag_folds=scope.get("num_bag_folds", 8), time_limit=scope.get("time_limit", 3600),
+        num_bag_folds=scope.get("num_bag_folds", 8), time_limit=time_limit,
         results_dir=scope["results_dir"], cache_dir=scope.get("cache_dir", ".cache_v1"),
         mirror_repo=scope.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench"),
         profile=profile, throttle=scope.get("throttle", DEFAULT_THROTTLE), dry_run=dry_run,
@@ -314,7 +343,7 @@ def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: b
 
     entry = {
         "timestamp": timestamp, "action": "dry_run_submit" if dry_run else "submit",
-        "reason": reason, "model": model, "n_submitted": len(chunk),
+        "reason": reason, "model": model, "n_submitted": len(chunk), "time_limit": time_limit,
         "job_ids": job_ids, "backlog_sizes": backlog_sizes, "total_backlog": total_backlog,
     }
     print(json.dumps(entry, indent=2))

@@ -6,6 +6,9 @@
     "num_random_configs": 50,
     "num_bag_folds": 8,
     "time_limit": 3600,
+    "time_limit_overrides": {
+        "mlrod": 10800
+    },
     "results_dir": "results/v1/data",
     "cache_dir": ".cache_v1",
     "mirror_repo": "HTW-KI-Werkstatt/RamanBench",
