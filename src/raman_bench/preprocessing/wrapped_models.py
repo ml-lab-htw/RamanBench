@@ -420,9 +420,69 @@ Prep_SAP_RPT_OSS = _make_optional_prep_class(
 Prep_ORIONMSP = _make_optional_prep_class("Prep_ORIONMSP", OrionMSPModel, ag_key="ORIONMSP")
 Prep_ILTM = _make_optional_prep_class("Prep_ILTM", ILTMModel, ag_key="ILTM")
 
+
+def _patch_limix_pickle_bug(limix_model_module) -> None:
+    """RamanBench-local workaround for a real upstream ``tabarena`` bug.
+
+    ``tabarena.models.limix.model._nan_clean_encoder_cls()`` is a ``functools.cache``d
+    factory that builds ``_NaNCleanEncoder`` as a class local to the factory's own
+    function body (deliberately -- see that function's docstring -- so importing this
+    module doesn't transitively import ``torch``). A class built inside a function gets
+    the default qualname ``_nan_clean_encoder_cls.<locals>._NaNCleanEncoder``, which
+    ``pickle`` cannot resolve. AutoGluon's bagged-ensemble ``save_child()`` pickles every
+    fold child right after it finishes training, so every LIMIX run crashes at that step
+    -- confirmed on 4/4 real cluster runs (both classification and regression), always
+    *after* training completed successfully::
+
+        AttributeError: Can't pickle local object
+        '_nan_clean_encoder_cls.<locals>._NaNCleanEncoder'
+
+    Reported upstream with a fix (rewrite the produced class's ``__qualname__`` to a
+    plain, module-resolvable name, and add a module-level ``__getattr__`` (PEP 562) that
+    rebuilds/returns the -- ``functools.cache``-stable -- class on demand, so ``pickle``
+    can resolve ``tabarena.models.limix.model._NaNCleanEncoder`` both in the same process
+    that trained the model and in a cold process that never called the factory, e.g. a
+    fresh ``TabularPredictor.load()``): https://github.com/autogluon/tabarena/pull/468.
+
+    This function reproduces that exact fix at runtime, monkeypatching the installed
+    ``tabarena`` package in place, so LIMIX runs don't have to wait for that PR to merge
+    and release. It is idempotent (a no-op if already patched, including once the fix
+    ships upstream and this module already defines its own ``__getattr__``) and verified
+    to round-trip pickle/unpickle both within one process and across a cold process that
+    never touched the factory, without ``torch`` ending up in ``sys.modules`` merely from
+    importing ``tabarena.models.limix.model``.
+
+    Remove once RamanBench's ``tabarena`` pin includes the merged upstream fix.
+    """
+    if "__getattr__" in vars(limix_model_module):
+        return
+
+    original_factory = limix_model_module._nan_clean_encoder_cls
+
+    def _patched_factory():
+        cls = original_factory()
+        cls.__qualname__ = cls.__name__
+        return cls
+
+    limix_model_module._nan_clean_encoder_cls = _patched_factory
+
+    def _module_getattr(name):
+        if name == "_NaNCleanEncoder":
+            return _patched_factory()
+        raise AttributeError(f"module {limix_model_module.__name__!r} has no attribute {name!r}")
+
+    # PEP 562: a module-level `__getattr__` in the module's own namespace dict is enough
+    # -- it doesn't need to be defined with `def __getattr__` syntax at parse time.
+    limix_model_module.__getattr__ = _module_getattr
+
+
 if LimiXModel is None:
     Prep_LIMIX = None
 else:
+    import tabarena.models.limix.model as _limix_model_module
+
+    _patch_limix_pickle_bug(_limix_model_module)
+    del _limix_model_module
 
     class Prep_LIMIX(_NoAugBase, LimiXModel):  # noqa: N801
         """LimiX -- see the batch-3 comment block above for why this can't be built

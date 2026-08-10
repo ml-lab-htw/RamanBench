@@ -249,6 +249,25 @@ directly, rather than reimplementing patterns "inspired by" them.
   Reproduced directly against `HpoExecutor.register_resources()` before/after the change
   (crashes pre-fix, succeeds post-fix); a proper zero-guard fix is being prepared for
   upstream `autogluon/autogluon` (not yet released, so the local sidestep stays).
+- LIMIX crashed on every run, right after training completed, with `AttributeError: Can't
+  pickle local object '_nan_clean_encoder_cls.<locals>._NaNCleanEncoder'` -- confirmed on
+  4/4 real cluster runs (classification and regression alike). Real bug in upstream
+  `tabarena`: `tabarena.models.limix.model._nan_clean_encoder_cls()` builds its NaN-
+  sanitizing `nn.Module` wrapper as a class local to the factory function (deliberately, to
+  keep `torch` off that module's import path for lightweight consumers), which gets the
+  default qualname `_nan_clean_encoder_cls.<locals>._NaNCleanEncoder` -- unresolvable by
+  `pickle`, which AutoGluon's bagged-ensemble `save_child()` triggers on every fold right
+  after it finishes training. Already reported and fixed upstream in
+  https://github.com/autogluon/tabarena/pull/468 (open as of 2026-08-10). Sidestepped
+  locally by `raman_bench.preprocessing.wrapped_models._patch_limix_pickle_bug`, which
+  reproduces that exact upstream fix at runtime (rewrites the produced class's
+  `__qualname__` and adds a module-level `__getattr__` (PEP 562) that rebuilds/returns the
+  same, `functools.cache`-stable class on demand) and is applied automatically at import
+  time. Verified end-to-end with a real `TabularPredictor.fit()`/`.save()`/`.predict()`
+  run (bagged, 2 folds, CPU): crashes pre-patch at exactly `save_child()`, succeeds
+  post-patch, and a saved predictor loads and predicts correctly in a cold process that
+  never called the factory. Remove the patch call once RamanBench's `tabarena` pin
+  includes the merged upstream fix.
 - Fixed 6 real breaks against current upstream `tabarena` (written against the personal
   fork, never updated as upstream's post-fork restructure moved on 224 commits) --
   found by actually installing from upstream fresh and running the real pipeline, not

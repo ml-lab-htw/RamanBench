@@ -47,6 +47,23 @@ environment installing this repo's ``[models]`` extra needs those seven JSON
 files copied into ``site-packages/tabarena/models/limix/_vendor/config/``
 by hand (or a `pip install` from a full source checkout, which keeps
 non-Python files that a wheel build drops) before LIMIX can run at all.
+
+A third real upstream bug, independent of the two above: every LIMIX run
+crashed at save time (``AttributeError: Can't pickle local object
+'_nan_clean_encoder_cls.<locals>._NaNCleanEncoder'``), confirmed on 4/4 real
+cluster runs (classification and regression alike), always right after
+training completed. ``tabarena.models.limix.model._nan_clean_encoder_cls()``
+builds its NaN-sanitizing ``nn.Module`` wrapper as a class local to the
+factory function (deliberately, to keep ``torch`` off this module's import
+path), which gets an unresolvable qualname that AutoGluon's bagged-ensemble
+``save_child()`` cannot pickle. Already reported and fixed upstream in
+https://github.com/autogluon/tabarena/pull/468 (open as of 2026-08-10).
+Patched locally in the meantime by
+``raman_bench.preprocessing.wrapped_models._patch_limix_pickle_bug``, applied
+automatically to the installed ``tabarena`` package at import time -- see
+that function's docstring for the fix itself (mirrors PR #468 exactly) and
+its verification. Remove that patch call once RamanBench's ``tabarena`` pin
+includes the merged fix.
 """
 
 from __future__ import annotations
