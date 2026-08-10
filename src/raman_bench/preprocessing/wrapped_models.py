@@ -34,10 +34,10 @@ except ImportError as _ag_err:
 # The tabular-foundation-model classes below are NOT reliably present across
 # every AutoGluon >=1.5 release/prerelease build -- confirmed in practice on a
 # real deployment: a given dated prerelease snapshot may be missing several of
-# these (observed missing: RealTabPFNv26Model, TabFMModel, TabPFNv3Model), even
-# though the "classic" models imported above have been stable across releases
-# for years. Import defensively so a missing foundation-model class doesn't
-# crash this whole module (and thus every other model, including plain PLS).
+# these (observed missing: RealTabPFNv26Model), even though the "classic"
+# models imported above have been stable across releases for years. Import
+# defensively so a missing foundation-model class doesn't crash this whole
+# module (and thus every other model, including plain PLS).
 import warnings as _warnings
 
 from autogluon.tabular import models as _ag_tabular_models
@@ -59,10 +59,8 @@ _OPTIONAL_AG_MODEL_NAMES = [
     "RealTabPFNv25Model",
     "RealTabPFNv26Model",
     "TabDPTModel",
-    "TabFMModel",
     "TabICLModel",
     "TabMModel",
-    "TabPFNv3Model",
     "TabPFNv3ThinkingModel",
 ]
 _missing_optional_ag_models = []
@@ -79,6 +77,42 @@ if _missing_optional_ag_models:
         stacklevel=2,
     )
 del _name, _ag_tabular_models
+
+# TabFM, TabPFN-3, and TabSwift are a step earlier in that same graduation pipeline:
+# unlike the classes above, they don't exist under *any* name in autogluon.tabular.models
+# at all yet (confirmed against a real installed build -- no tabfm/tabswift submodule
+# anywhere in the autogluon.tabular package tree). They ship only from TabArena's own
+# package, one subpackage per model (tabarena.models.<key>.model). TabPFN-3 is a partial
+# exception: autogluon.tabular.models.tabpfnv2.tabpfn3_model also defines a same-named
+# `TabPFN3Model` -- a *different*, independently-implemented class, not a re-export --
+# which is deliberately NOT used here: tabarena.models.tabpfn_3.hpo's search space (what
+# generate/tabpfn_v3.py rebinds onto Prep_TABPFN_V3) is tuned against TabArena's own class,
+# not AutoGluon's. Imported the same defensively as the block above: TabArena's own
+# package is pulled in via a floating (unpinned) git dependency (see pyproject.toml), so a
+# given snapshot could in principle rename/drop one of these just as an AutoGluon
+# prerelease can.
+_OPTIONAL_TABARENA_MODEL_IMPORTS = {
+    "TabFMModel": "tabarena.models.tabfm.model",
+    "TabPFN3Model": "tabarena.models.tabpfn_3.model",
+    "TabSwiftModel": "tabarena.models.tabswift.model",
+    "ModernNCAModel": "tabarena.models.modernnca.model",
+}
+_missing_optional_tabarena_models = []
+for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
+    try:
+        _module = __import__(_module_path, fromlist=[_name])
+        globals()[_name] = getattr(_module, _name)
+    except ImportError:
+        globals()[_name] = None
+        _missing_optional_tabarena_models.append(_name)
+if _missing_optional_tabarena_models:
+    _warnings.warn(
+        f"This tabarena build is missing model classes: {_missing_optional_tabarena_models}. "
+        "The corresponding RamanBench Prep_* models will be unavailable in this "
+        "environment.",
+        stacklevel=2,
+    )
+del _name, _module_path, _OPTIONAL_TABARENA_MODEL_IMPORTS
 
 from raman_bench.models.discover import discover_custom_models
 from raman_bench.preprocessing.bridge_bases import _make_optional_prep_class, _NoAugBase
@@ -169,6 +203,17 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
 # model x dataset combinations that worked under the fork (e.g. >10-class datasets on
 # Mitra/TabPFN, which the fork routed through an ECOC many-class wrapper) may now fail
 # or be skipped outright -- accepted in favor of depending on plain upstream AutoGluon.
+# TabFM, TabPFN-3, TabSwift, and ModernNCA (added below) were checked against this same
+# issue -- inspected via each class's own `_get_default_auxiliary_params`/
+# `_default_auxiliary_params_extra` in the installed tabarena package -- and, unlike the
+# four above, none of them cap max_features (or max_rows) at all: AutoGluon's own
+# `AbstractModel._get_default_auxiliary_params` base default is already `None` (uncapped)
+# for all three keys, and nothing in any of these four classes' MRO overrides that. TabPFN-3
+# does cap `max_classes` at 160 (`tabarena.models.tabpfn_3.model.TabPFN3Model
+# ._get_default_auxiliary_params`) -- an intentional, unrelated limit on the number of
+# *target classes* a single TabPFN-3 fit supports, not on wavenumber count, so it is left
+# untouched here (Raman classification tasks are essentially never anywhere near 160
+# classes). None of the four get `_NO_FOUNDATION_MODEL_FEATURE_CAP` applied.
 _NO_FOUNDATION_MODEL_FEATURE_CAP = {"max_rows": None, "max_features": None, "max_classes": None}
 
 Prep_REALMLP = _make_optional_prep_class("Prep_REALMLP", RealMLPModel, _supports_augmentation=True)
@@ -179,7 +224,17 @@ Prep_TABM = _make_optional_prep_class("Prep_TABM", TabMModel)
 Prep_TABDPT = _make_optional_prep_class(
     "Prep_TABDPT", TabDPTModel, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
 )
-Prep_TABFM = _make_optional_prep_class("Prep_TABFM", TabFMModel)
+# TabFM/TabPFN-3/TabSwift's ag_key as inherited from their tabarena base class carries a
+# "TA-" prefix (e.g. TabFMModel.ag_key == "TA-TABFM") -- TabArena's own marker for a model
+# that hasn't (yet) graduated into AutoGluon core, unlike e.g. MitraModel/TabDPTModel/
+# TabICLModel, whose ag_key is already the short, unprefixed form these Prep_* classes
+# inherit unmodified. Overriding ag_key here to the short form keeps RamanBench's own
+# model keys (configs/models/*.json, cluster/gpu_models.json, --model CLI values) short
+# and TA-prefix-free like every other model, and -- for TabPFN-3 specifically -- avoids
+# colliding with raman_bench.models.custom.ta_tabpfn_3, which already legitimately owns
+# ag_key "TA-TABPFN-3" for the un-preprocessed TabArena baseline variant (kept as a
+# separate, still-useful registry entry, not superseded by this one).
+Prep_TABFM = _make_optional_prep_class("Prep_TABFM", TabFMModel, ag_key="TABFM")
 Prep_TABICL = _make_optional_prep_class(
     "Prep_TABICL", TabICLModel, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
 )
@@ -190,10 +245,26 @@ Prep_REALTABPFN_V25 = _make_optional_prep_class(
     "Prep_REALTABPFN_V25", RealTabPFNv25Model, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
 )
 Prep_REALTABPFN_V26 = _make_optional_prep_class("Prep_REALTABPFN_V26", RealTabPFNv26Model)
-Prep_TABPFN_V3 = _make_optional_prep_class("Prep_TABPFN_V3", TabPFNv3Model)
+# Wraps tabarena.models.tabpfn_3.model.TabPFN3Model (TabArena's own, actively-maintained
+# TabPFN-3 implementation -- see the _OPTIONAL_TABARENA_MODEL_IMPORTS block above for why
+# this is NOT autogluon.tabular.models.tabpfnv2.tabpfn3_model.TabPFN3Model, a same-named
+# but different class). ag_name is also overridden (not just ag_key): left inherited it
+# would collide with raman_bench.models.custom.ta_tabpfn_3's ag_name ("TA-TabPFN-3"),
+# which shares the same base class -- harmless for lookups by ag_key (still unique) but
+# would make infer_model_cls's ag_name-string branch pick whichever of the two classes
+# happens to be first in the registry's model list, which is fragile.
+Prep_TABPFN_V3 = _make_optional_prep_class(
+    "Prep_TABPFN_V3", TabPFN3Model, ag_key="TABPFN-V3", ag_name="RamanBench-TabPFN-3"
+)
 Prep_TABPFN_V3_THINKING = _make_optional_prep_class(
     "Prep_TABPFN_V3_THINKING", TabPFNv3ThinkingModel
 )
+Prep_TABSWIFT = _make_optional_prep_class("Prep_TABSWIFT", TabSwiftModel, ag_key="TABSWIFT")
+# ModernNCAModel's own ag_key ("MNCA") predates the "TA-" staging-prefix convention (it's
+# an older tabarena model than TabFM/TabPFN-3/TabSwift) -- overridden to the spelled-out
+# "MODERNNCA" purely for readability/consistency with the other three, not to dodge a
+# collision (nothing else in this registry uses "MNCA" or "MODERNNCA").
+Prep_MODERNNCA = _make_optional_prep_class("Prep_MODERNNCA", ModernNCAModel, ag_key="MODERNNCA")
 
 
 class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
@@ -256,6 +327,8 @@ PREPROCESSED_MODELS = {
     "REALTABPFN-V2.6": Prep_REALTABPFN_V26,
     "TABPFN-V3": Prep_TABPFN_V3,
     "TABPFN-V3-THINKING": Prep_TABPFN_V3_THINKING,
+    "TABSWIFT": Prep_TABSWIFT,
+    "MODERNNCA": Prep_MODERNNCA,
 }
 
 # Drop any entry whose AutoGluon base class wasn't available on this build (see

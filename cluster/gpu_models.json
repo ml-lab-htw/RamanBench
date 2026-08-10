@@ -5,6 +5,7 @@
   "FASTAI",
   "FCRESNEXT",
   "MITRA",
+  "MODERNNCA",
   "NN_TORCH",
   "RAMANFORMER",
   "RAMANNET",
@@ -21,5 +22,6 @@
   "TABICL",
   "TABM",
   "TABPFN-V3",
-  "TABPFN-WIDE"
+  "TABPFN-WIDE",
+  "TABSWIFT"
 ]

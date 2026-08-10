@@ -1,12 +1,16 @@
 [
   "FASTAI",
   "MITRA",
+  "MODERNNCA",
   "NN_TORCH",
   "REALMLP",
   "REALTABPFN-V2",
   "REALTABPFN-V2.5",
   "TABDPT",
+  "TABFM",
   "TABICL",
   "TABM",
-  "TABPFN-WIDE"
+  "TABPFN-V3",
+  "TABPFN-WIDE",
+  "TABSWIFT"
 ]

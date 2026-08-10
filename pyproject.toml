@@ -93,6 +93,14 @@ models = [
     "tabpfnwide>=0.1.0",
     "sktime>=0.40.0",
     "numba>=0.63.0",
+    # ModernNCA (Prep_MODERNNCA) -- tabarena.models.modernnca._internal.data imports this
+    # unconditionally at module level, so it's a hard runtime dependency of any ModernNCA
+    # fit, not an optional/rarely-hit one (matches tabarena's own modernnca_info.pip_extra).
+    "category_encoders",
+    # TabFM (Prep_TABFM) -- pinned to the exact commit tabarena's own tabfm_info.pip_extra
+    # uses, so the estimator this wraps stays the one tabarena's search space was tuned
+    # against.
+    "tabfm[pytorch] @ git+https://github.com/google-research/tabfm.git@633cd265f498e1d20c9625be0639f6305d8e2541",
 ]
 full = [
     "raman-bench[autogluon]",
