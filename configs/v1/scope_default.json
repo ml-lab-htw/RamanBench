@@ -1,7 +1,15 @@
 {
     "name": "v1_default",
     "targets_file": "target_list.json",
-    "models": ["PLS"],
+    "_comment_models": "The 30 TabArena-native models onboarded/wired this session (16 previously-listed-but-unwired, fixed in 5c57fe4, plus 14 newly onboarded in 3 batches: 98c44ad/90f49a8/a6a6986), all confirmed to resolve cleanly via raman_bench.models.registry.infer_model_cls as of 0388978 -- see cluster-agent's rollout notes. PLS is listed LAST, not first: pick_chunk() picks the FIRST model in this list with a nonempty backlog and takes a full chunk_size from it before ever looking at the next model (strict priority, not round-robin) -- PLS already has a large in-progress backlog from its long head start, so putting it first would starve all 30 new models of any new submissions until PLS's backlog was fully drained. PLS's own already-queued/running SLURM tasks are unaffected by this ordering (only NEW chunk submissions go through pick_chunk); this only governs which model gets NEW work first going forward. Deliberately excludes: AUTOGLUON (whole-predictor meta-preset, not a per-model ConfigGenerator -- can't be wired into run_experiment.py's one-model-per-job design as-is); the 11 pre-existing RamanBench-native custom architectures (ARSENAL, COATNET, DEEPCNN, FCRESNEXT, GBM, RAMANFORMER, RAMANNET, RAMANTRANSFORMER, REZERONET, ROCKET, SANET) and TABPFN-WIDE -- these were NOT part of this session's TabArena-onboarding/smoke-testing effort, models.json (the project's own 'real-benchmark-ready-under-v1' tracking file) still lists only PLS, and TABPFN-WIDE was explicitly removed from this very file in e726176 (still resolves in Python because infer_model_cls reads the live PREPROCESSED_MODELS registry, not this file -- resolvability alone was never sufficient, see the whole point of 5c57fe4). Adding any of these needs its own explicit go-ahead, not a rider on this change.",
+    "models": [
+        "RF", "CAT", "XGB", "XT", "KNN", "LR", "NN_TORCH", "FASTAI", "DUMMY", "REALMLP",
+        "MITRA", "TABM", "TABDPT", "TABICL", "REALTABPFN-V2", "REALTABPFN-V2.5",
+        "TABFM", "TABPFN-V3", "TABSWIFT", "MODERNNCA",
+        "EBM", "PERPETUAL_BOOSTER", "XRFM", "CHIMERABOOST",
+        "NORI", "SAP_RPT_OSS", "ORIONMSP", "ILTM", "LIMIX", "TABSTAR",
+        "PLS"
+    ],
     "n_splits": 3,
     "num_random_configs": 50,
     "num_bag_folds": 8,
