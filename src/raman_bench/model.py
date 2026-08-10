@@ -65,6 +65,16 @@ def _build_foundation_hyperparameters(num_gpus: int) -> dict:
     # crashes that aborted the whole run (e.g. during refit_full). CatBoost is
     # fast on CPU, so the only cost is a small bit of CPU time. The portfolio is
     # keyed by short model strings ("CAT"), so we patch that key directly.
+    #
+    # "ag.num_cpus" is set alongside "ag.num_gpus": 0 to sidestep a real
+    # ZeroDivisionError in upstream AutoGluon 1.6.1
+    # (autogluon/core/hpo/executors.py, HpoExecutor.register_resources):
+    # when only num_gpus is user-specified in ag_args_fit and it is 0, that
+    # code unconditionally computes `num_gpus // user_specified_trial_num_gpus`
+    # to infer the per-trial cpu count, dividing by zero. Setting num_cpus too
+    # makes both "user-specified" fields non-None, which skips that inference
+    # branch entirely (see the matching upstream bug report/fix). Fix has been
+    # reported upstream; remove once fixed in a released AutoGluon.
     try:
         cat_cfgs = hp.get("CAT")
         if cat_cfgs is not None:
@@ -72,7 +82,11 @@ def _build_foundation_hyperparameters(num_gpus: int) -> dict:
                 cat_cfgs = [cat_cfgs]
             patched = []
             for cfg in cat_cfgs:
-                ag_args_fit = {**cfg.get("ag_args_fit", {}), "ag.num_gpus": 0}
+                ag_args_fit = {
+                    **cfg.get("ag_args_fit", {}),
+                    "ag.num_gpus": 0,
+                    "ag.num_cpus": 1,
+                }
                 patched.append({**cfg, "ag_args_fit": ag_args_fit})
             hp["CAT"] = patched
     except Exception:

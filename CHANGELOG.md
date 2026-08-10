@@ -237,6 +237,18 @@ directly, rather than reimplementing patterns "inspired by" them.
   every analyte, e.g. `fuel_benchtop`'s target 1: 157/179 NaN).
 - `num_bag_folds` now scales down for small datasets/classes, avoiding AutoGluon's internal
   bagging producing a single-class validation fold and crashing ROC AUC computation.
+- `_build_foundation_hyperparameters()` in `src/raman_bench/model.py` pinned CatBoost to
+  CPU via `ag_args_fit={"ag.num_gpus": 0}` alone. Upstream AutoGluon 1.6.1 (and current
+  `autogluon/autogluon` master) has a real, unguarded `ZeroDivisionError` in
+  `autogluon/core/hpo/executors.py`'s `HpoExecutor.register_resources()`: when only
+  `num_gpus` is set in `ag_args_fit` and it's `0`, it unconditionally computes
+  `num_gpus // user_specified_trial_num_gpus` to infer the per-trial cpu count, dividing
+  by zero -- reachable any time the AUTOGLUON meta-preset runs with HPO enabled (the
+  default). Sidestepped locally by also setting `"ag.num_cpus": 1`, which makes both
+  user-specified fields non-`None` and skips the buggy inference branch entirely.
+  Reproduced directly against `HpoExecutor.register_resources()` before/after the change
+  (crashes pre-fix, succeeds post-fix); a proper zero-guard fix is being prepared for
+  upstream `autogluon/autogluon` (not yet released, so the local sidestep stays).
 - Fixed 6 real breaks against current upstream `tabarena` (written against the personal
   fork, never updated as upstream's post-fork restructure moved on 224 commits) --
   found by actually installing from upstream fresh and running the real pipeline, not
