@@ -85,7 +85,21 @@ models = [
     # resolves against *that* instead of this git dependency and conflicts with the
     # `autogluon` extra's URL-pinned "tabarena" below (confirmed via a real pip
     # resolve: ResolutionImpossible over exactly this).
-    "tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm] @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/tabarena",
+    # perpetualboosting/chimeraboost (batch 2 of the TabArena-native onboarding) pull
+    # in their own third-party package below TabArena's own `pip_extra` metadata
+    # (perpetual, chimeraboost>=0.14.1 respectively -- see
+    # tabarena.models.{perpetual_booster,chimeraboost}.info) -- not hard AutoGluon/
+    # tabarena dependencies, only needed once PERPETUAL_BOOSTER/CHIMERABOOST are
+    # actually fit. Deliberately NOT tabarena's own `xrfm` extra here (its
+    # `pip_extra` is `xrfm[cu12]`) -- confirmed via a real pip resolve on a
+    # CUDA-less machine (macOS): `xrfm[cu12]` pulls `kermac[cu12]`, whose `cu12`
+    # extra depends on `cuda-core`, which has no distribution at all for non-Linux/
+    # non-CUDA platforms (ResolutionImpossible). Plain `xrfm` (below, no extra) is
+    # the package's own documented CPU-safe "General Installation" path -- the
+    # `cu12`/`cu11` extras are opt-in GPU-kernel acceleration only, and XRFM already
+    # runs fine without them (falls back to `device="cpu"`, see generate/xrfm.py).
+    "tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost] @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/tabarena",
+    "xrfm",
     "ramanspy>=0.2.10,<0.3.0",
     "imodels>=2.0.4",
     "tabpfn>=6.3.2",

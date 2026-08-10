@@ -41,8 +41,17 @@ except ImportError as _ag_err:
 import warnings as _warnings
 
 from autogluon.tabular import models as _ag_tabular_models
+
+# EBMModel (unlike the foundation-model classes in _OPTIONAL_AG_MODEL_NAMES below)
+# is imported unconditionally here despite also having an optional runtime
+# dependency (the `interpret` package) -- confirmed via a real installed build:
+# autogluon.tabular.models.ebm.ebm_model imports `interpret` lazily inside
+# `_fit`/`get_class_from_problem_type`, never at module top-level, so the class
+# itself is always importable even without `interpret` installed (same shape as
+# CatBoostModel/XGBoostModel above, both also optional-at-fit-time).
 from autogluon.tabular.models import (
     CatBoostModel,
+    EBMModel,
     KNNModel,
     LinearModel,
     NNFastAiTabularModel,
@@ -96,6 +105,16 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "TabPFN3Model": "tabarena.models.tabpfn_3.model",
     "TabSwiftModel": "tabarena.models.tabswift.model",
     "ModernNCAModel": "tabarena.models.modernnca.model",
+    # Batch 2 (EBM, PerpetualBooster, xRFM, ChimeraBoost): same "not yet graduated
+    # into AutoGluon core" situation, EXCEPT EBM, which already lives in
+    # autogluon.tabular.models (imported unconditionally above) -- it graduated
+    # some time ago, unlike these three. None of the three below carry the "TA-"
+    # staging-prefix on their own ag_key (PerpetualBoosterModel.ag_key == "PB",
+    # XRFMModel.ag_key == "XRFM", ChimeraBoostModel.ag_key == "CHIMERA") -- same
+    # as ModernNCAModel above, not TabFM/TabPFN-3/TabSwift.
+    "PerpetualBoosterModel": "tabarena.models.perpetual_booster.model",
+    "XRFMModel": "tabarena.models.xrfm.model",
+    "ChimeraBoostModel": "tabarena.models.chimeraboost.model",
 }
 _missing_optional_tabarena_models = []
 for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
@@ -168,6 +187,50 @@ class Prep_RF(_NoAugBase, RFModel):  # noqa: N801
 
 class Prep_XT(_NoAugBase, XTModel):  # noqa: N801
     pass
+
+
+class Prep_EBM(_NoAugBase, EBMModel):  # noqa: N801
+    """EBM (Explainable Boosting Machine) -- graduated AutoGluon-core model
+    (``autogluon.tabular.models.EBMModel``), not a TabArena-only class, so it's
+    defined here alongside CAT/RF/XT rather than via ``_make_optional_prep_class``.
+    ``ag_key`` is already the short, unprefixed ``"EBM"`` -- no override needed.
+    """
+
+    def _estimate_memory_usage(self, X, y=None, **kwargs):
+        """Strip ``prep_*``/``ag.*`` keys before EBM's own memory estimator sees them.
+
+        Confirmed via a real local run: EBM (unlike CAT/XGB/RF/XT, whose memory
+        estimators are purely arithmetic from ``X``'s shape) actually instantiates
+        the real ``interpret`` estimator inside
+        ``EBMModel._estimate_memory_usage_static`` (``model_cls(**params)``, to
+        call its own ``.estimate_mem()``) -- ``construct_ebm_params`` merges
+        ``hyperparameters`` in unfiltered (``params.update(hyperparameters)``, no
+        allowlist), so any RamanBench-only key raises
+        ``TypeError: ExplainableBoostingClassifier.__init__() got an unexpected
+        keyword argument 'prep_aug_enabled'``.
+
+        ``RamanPreprocessingMixin._fit()`` normally strips ``prep_*`` from
+        ``self.params`` before the underlying library ever sees them, but
+        ``AbstractModel.fit()`` calls memory validation (which calls this method)
+        *before* ``_fit()`` runs, so at this point they're still present. Mirrors
+        ``EBMModel._estimate_memory_usage`` exactly, just with a filtered
+        ``hyperparameters`` copy -- ``self.params`` itself is untouched (the real
+        strip/restore in ``_fit()`` still needs the full dict).
+        """
+        clean_params = {
+            k: v
+            for k, v in self._get_model_params().items()
+            if not k.startswith("prep_") and not k.startswith("ag.") and not k.startswith("_")
+        }
+        return self.estimate_memory_usage_static(
+            X=X,
+            y=y,
+            hyperparameters=clean_params,
+            problem_type=self.problem_type,
+            num_classes=self.num_classes,
+            features=self._features,
+            **kwargs,
+        )
 
 
 class Prep_NN_TORCH(_NoAugBase, TabularNeuralNetTorchModel):  # noqa: N801
@@ -266,6 +329,33 @@ Prep_TABSWIFT = _make_optional_prep_class("Prep_TABSWIFT", TabSwiftModel, ag_key
 # collision (nothing else in this registry uses "MNCA" or "MODERNNCA").
 Prep_MODERNNCA = _make_optional_prep_class("Prep_MODERNNCA", ModernNCAModel, ag_key="MODERNNCA")
 
+# Batch 2 (EBM, PerpetualBooster, xRFM, ChimeraBoost) -- tree/boosting/kernel-family
+# models, not tabular foundation models, so the max_features/max_rows/max_classes cap
+# that forces _NO_FOUNDATION_MODEL_FEATURE_CAP on Mitra/TabDPT/TabICL/RealTabPFN wasn't
+# expected here going in. Verified rather than assumed, the same way as the block above:
+# instantiated each class and inspected `_get_default_auxiliary_params()` directly. None
+# of the four cap any of the three keys -- Prep_EBM (defined above, next to Prep_XT)
+# only overrides `valid_raw_types` via `_default_auxiliary_params_extra`;
+# PerpetualBoosterModel and XRFMModel don't override `_get_default_auxiliary_params` at
+# all; ChimeraBoostModel overrides it too, also only for `valid_raw_types`. None of the
+# four get `_NO_FOUNDATION_MODEL_FEATURE_CAP` applied.
+#
+# ag_key: PerpetualBoosterModel ("PB") and ChimeraBoostModel ("CHIMERA") predate the
+# "TA-" staging-prefix convention too (same situation as ModernNCA above) -- overridden
+# to the spelled-out "PERPETUAL_BOOSTER"/"CHIMERABOOST" purely for readability, not to
+# dodge a collision (nothing else in this registry uses "PB" or "CHIMERA" either; those
+# short keys stay available for TabArena's own un-preprocessed baseline entries in
+# raman_bench_model_registry, coexisting the same way "MNCA" does after Prep_MODERNNCA's
+# override). XRFMModel's ag_key ("XRFM") already matches the desired short form -- no
+# override needed.
+Prep_PERPETUAL_BOOSTER = _make_optional_prep_class(
+    "Prep_PERPETUAL_BOOSTER", PerpetualBoosterModel, ag_key="PERPETUAL_BOOSTER"
+)
+Prep_XRFM = _make_optional_prep_class("Prep_XRFM", XRFMModel)
+Prep_CHIMERABOOST = _make_optional_prep_class(
+    "Prep_CHIMERABOOST", ChimeraBoostModel, ag_key="CHIMERABOOST"
+)
+
 
 class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
     """SNV normalises intensity scale so Euclidean distances reflect spectral shape."""
@@ -329,6 +419,10 @@ PREPROCESSED_MODELS = {
     "TABPFN-V3-THINKING": Prep_TABPFN_V3_THINKING,
     "TABSWIFT": Prep_TABSWIFT,
     "MODERNNCA": Prep_MODERNNCA,
+    "EBM": Prep_EBM,
+    "PERPETUAL_BOOSTER": Prep_PERPETUAL_BOOSTER,
+    "XRFM": Prep_XRFM,
+    "CHIMERABOOST": Prep_CHIMERABOOST,
 }
 
 # Drop any entry whose AutoGluon base class wasn't available on this build (see

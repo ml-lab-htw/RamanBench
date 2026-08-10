@@ -1,9 +1,11 @@
 [
   "ARSENAL",
   "CAT",
+  "CHIMERABOOST",
   "COATNET",
   "DEEPCNN",
   "DUMMY",
+  "EBM",
   "FASTAI",
   "FCRESNEXT",
   "GBM",
@@ -12,6 +14,7 @@
   "MITRA",
   "MODERNNCA",
   "NN_TORCH",
+  "PERPETUAL_BOOSTER",
   "PLS",
   "RAMANFORMER",
   "RAMANNET",
@@ -30,6 +33,7 @@
   "TABPFN-V3",
   "TABSWIFT",
   "XGB",
+  "XRFM",
   "XT",
   "AUTOGLUON"
 ]

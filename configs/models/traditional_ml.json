@@ -1,10 +1,14 @@
 [
   "CAT",
+  "CHIMERABOOST",
+  "EBM",
   "GBM",
   "KNN",
   "LR",
+  "PERPETUAL_BOOSTER",
   "PLS",
   "RF",
   "XGB",
+  "XRFM",
   "XT"
 ]
