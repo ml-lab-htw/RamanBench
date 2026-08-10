@@ -256,30 +256,59 @@ def pick_chunk(backlog: dict[str, list[Job]], chunk_size: int) -> tuple[str | No
     return None, []
 
 
-def effective_time_limit(scope: dict, chunk: list[Job]) -> float:
+def effective_time_limit(scope: dict, model: str, chunk: list[Job]) -> float:
     """The flat ``scope["time_limit"]`` (default 3600s), bumped up to the largest
-    applicable entry in ``scope["time_limit_overrides"]`` (a dataset-name-keyed
-    dict, same shape as a cluster profile's ``mem_tiers``) among the datasets
-    present in this chunk. One SLURM array submission gets one time_limit -- if
-    a chunk mixes an oversized dataset in with ordinary ones, everyone in that
-    chunk gets the larger budget, which is harmless (a task that finishes early
-    just exits early; this only raises the ceiling, it doesn't force anyone to
-    run longer).
+    applicable entry from two override sources among the datasets present in
+    this chunk:
 
-    Confirmed necessary in practice: ``mlrod`` has 130,061 rows -- the largest
-    dataset in the target list by a wide margin (next is 78,500; the median
-    across all 158 targets is 179). AutoGluon's own bagged-fold-fitting
-    strategy extrapolates from how long the first of 8 sequential PLS folds
-    takes and aborts early (TimeLimitExceeded) if it predicts the remaining
-    folds won't fit in what's left of the budget -- observed taking ~950s for
-    fold 1 alone, i.e. needing roughly 950*8 =~ 7600s total against the
-    default 3600s, well before actually running out of wall-clock time."""
+    - ``scope["time_limit_overrides"]``: a dataset-name-keyed dict, same shape
+      as a cluster profile's ``mem_tiers``, applied regardless of which model
+      is running (a dataset property, e.g. row count, that makes ANY model
+      slower -- see ``mlrod`` below).
+    - ``scope["model_time_limit_overrides"]``: a model-name -> dataset-name ->
+      seconds dict, applied only when ``model`` matches (a MODEL-specific
+      slowness on specific datasets, not a dataset property every model
+      shares -- see EBM/ORIONMSP below). A chunk never spans more than one
+      model (``pick_chunk`` guarantees this -- resource flags are resolved
+      once per array submission), so looking up just ``model``'s own
+      sub-dict is enough; no cross-model leakage is possible.
+
+    One SLURM array submission gets one time_limit -- if a chunk mixes an
+    oversized dataset in with ordinary ones, everyone in that chunk gets the
+    larger budget, which is harmless (a task that finishes early just exits
+    early; this only raises the ceiling, it doesn't force anyone to run
+    longer).
+
+    Confirmed necessary in practice (dataset-keyed): ``mlrod`` has 130,061
+    rows -- the largest dataset in the target list by a wide margin (next is
+    78,500; the median across all 158 targets is 179). AutoGluon's own
+    bagged-fold-fitting strategy extrapolates from how long the first of 8
+    sequential PLS folds takes and aborts early (TimeLimitExceeded) if it
+    predicts the remaining folds won't fit in what's left of the budget --
+    observed taking ~950s for fold 1 alone, i.e. needing roughly 950*8 =~
+    7600s total against the default 3600s, well before actually running out
+    of wall-clock time.
+
+    Confirmed necessary in practice (model-keyed): a flat dataset-keyed
+    override can't express "EBM needs more time on wide datasets but other
+    models on the same dataset are fine" -- PLS/RF/etc. finish
+    microgel_synthesis (11,084 features) in seconds, while EBM's own
+    interaction-detection pre-scan (see
+    ``preprocessing.wrapped_models.Prep_EBM._fit``) needs much longer just on
+    that one model. Forcing every model sharing a wide dataset onto EBM's
+    budget would be wasteful (nothing about e.g. PLS gets slower there), and
+    forcing a single global time_limit bump big enough for EBM would apply to
+    every OTHER model in scope too, everywhere -- hence the extra,
+    model-scoped override layer instead of stretching the dataset-only one to
+    do a model-specific job."""
     default = scope.get("time_limit", DEFAULT_TIME_LIMIT)
-    overrides = scope.get("time_limit_overrides", {})
-    if not overrides:
+    dataset_overrides = scope.get("time_limit_overrides", {})
+    model_overrides = scope.get("model_time_limit_overrides", {}).get(model, {})
+    if not dataset_overrides and not model_overrides:
         return default
     datasets_in_chunk = {dataset for dataset, *_rest in chunk}
-    applicable = [overrides[ds] for ds in datasets_in_chunk if ds in overrides]
+    applicable = [dataset_overrides[ds] for ds in datasets_in_chunk if ds in dataset_overrides]
+    applicable += [model_overrides[ds] for ds in datasets_in_chunk if ds in model_overrides]
     return max([default, *applicable])
 
 
@@ -293,7 +322,7 @@ def log_tick(log_path: str | Path | None, entry: dict) -> None:
 
 
 def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: bool) -> dict:
-    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    timestamp = datetime.datetime.now(datetime.UTC).isoformat()
     backlog = compute_backlog(scope, profile)
     backlog_sizes = {model: len(jobs) for model, jobs in backlog.items()}
     total_backlog = sum(backlog_sizes.values())
@@ -329,7 +358,7 @@ def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: b
 
     chunk_size = scope.get("chunk_size", DEFAULT_CHUNK_SIZE)
     model, chunk = pick_chunk(backlog, chunk_size)
-    time_limit = effective_time_limit(scope, chunk)
+    time_limit = effective_time_limit(scope, model, chunk)
 
     slug = f"{scope['name']}_{model}_{timestamp.replace(':', '').replace('-', '').split('.')[0]}"
     job_ids = submit_jobs(

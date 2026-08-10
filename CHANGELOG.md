@@ -323,6 +323,78 @@ directly, rather than reimplementing patterns "inspired by" them.
   foundation model, one bespoke-empty-search-space case), plus a `_import_generator()` +
   `generate_all_bag_experiments()` smoke check for all 16 keys confirming each resolves the
   exact same `Prep_*` class the registry does.
+- 3 resource-tuning issues found during batch-3 verification of the 14-model
+  onboarding effort, before rolling those models into the opportunistic
+  scheduler's routine rotation (rollout itself tracked separately):
+  - **TabSTAR memory scaling.** Confirmed OOM-killed (`RuntimeError("OOM even
+    with batch size 1!")`) on `microgel_synthesis` (11,084 features) -- it
+    builds a per-column LM text embedding, so memory scales with feature
+    count, not row count, matching upstream's own documented warning about
+    >200-column datasets. Characterized against RamanBench's real, current
+    dataset distribution (`configs/v1/target_list.json` cross-referenced with
+    `data/precomputed/dataset_stats.json`): there's a completely dataset-free
+    gap between the widest confirmed-safe target
+    (`pharmaceutical_ingredients`, 3,276 features) and the next-widest target
+    (`bioprocess_analytes_kaiser`, 5,472 features), above which sits the
+    acid-species/microgel cluster (9 targets, 11,084-11,689 features) that
+    produced the OOM. Fixed both ways: (a) `Prep_TABSTAR` now carries
+    `max_features=4,000` (`wrapped_models._TABSTAR_MAX_FEATURES`, sitting in
+    that real gap) via AutoGluon's own constraint mechanism -- the opposite
+    direction from `_NO_FOUNDATION_MODEL_FEATURE_CAP`, which LIFTS this same
+    cap for Mitra/TabDPT/TabICL/RealTabPFN -- plus a job-level clean skip
+    (`wrapped_models.MAX_FEATURES_MODELS`, consumed by
+    `scripts/run_experiment.py::run_one()`) since RamanBench's cluster jobs
+    fit exactly one model at a time, so AutoGluon's own
+    `raise_on_no_models_fitted=True` default would otherwise turn a clean
+    `ConstraintViolationError` skip into a job-crashing `RuntimeError`
+    (confirmed with a real local run); (b) `cluster/profiles/htw.yaml`'s
+    `mem_tiers` gets a `TABSTAR: "128G"` entry (matching
+    MITRA/TABDPT/TABFM/TABSWIFT) for headroom on the sub-cap-but-still-large
+    remainder (`pharmaceutical_ingredients`, the `diabetes_skin_*` family).
+    Verified: a genuinely-too-wide dataset (`microgel_synthesis`) now skips
+    cleanly in 3.6s (exit 0, no results.pkl, no model load attempted) instead
+    of OOM-crashing.
+  - **EBM interaction-detection blowup.** `interpret`'s own default
+    (`interactions="3x"`) triggers a FAST interaction-ranking pre-scan over
+    essentially every candidate feature-pair combination -- confirmed via a
+    real local timed run (`microgel_synthesis`, 11,084 features): the
+    pre-scan alone produced millions of per-pair log lines and hadn't
+    finished after 9+ minutes, well before boosting itself even starts, and
+    -- unlike the boosting rounds, which do respect AutoGluon's own
+    `time_limit`/`EbmCallback` -- this pre-scan isn't bounded by the time
+    budget at all, so a bigger `time_limit` alone can't fix it (this is what
+    was producing the reported `TimeLimitExceeded`, even under a reduced
+    smoke-test budget). `Prep_EBM._fit` now forces `interactions=0` above
+    4,000 features (same threshold/gap as TabSTAR's cap) -- confirmed a small
+    positive count (e.g. `20`) does NOT avoid this: `interpret`'s own
+    `rank_interactions` has to rank every candidate pair before it can keep
+    only the top-N, and only literal `interactions=0` skips the ranking loop
+    entirely (`interpret.glassbox._ebm._ebm.py`: `if interactions == 0:
+    break`, before the ranking call). Verified: a real post-fix run on
+    `microgel_synthesis` (11,084 features, 2 bag folds) now finishes in 426s
+    wall time (400s training) with `metric_error` a sane finite number, well
+    inside even the unmodified 3600s default budget -- no flooding, no
+    timeout.
+  - **Opportunistic scheduler time-budget mechanism.**
+    `cluster/opportunistic_scheduler.py`'s `time_limit_overrides` was
+    dataset-keyed only, unable to express "this model needs more time on this
+    dataset, but other models sharing it are fine" (EBM's fix above; also
+    real evidence that ORIONMSP -- classification-only, so it never actually
+    reaches the ultra-wide regression cluster -- OOM-crashed on
+    `pharmaceutical_ingredients`, its own widest reachable dataset: fitting
+    finished in ~175s but the process crashed right after with ~25-27GB
+    peak RSS on a 36GB machine, i.e. more a memory problem than a time one
+    there). `effective_time_limit()` now also accepts
+    `scope["model_time_limit_overrides"]` (model -> dataset -> seconds),
+    composed with the existing flat dataset-keyed overrides (max of whatever
+    applies). `configs/v1/scope_default.json` carries real,
+    evidence-calibrated values (EBM: 5,400s headroom on the 10-target wide
+    cluster -- comfortably above the ~1,700s extrapolated full-8-bag-fold
+    worst case; ORIONMSP: 7,200s on `pharmaceutical_ingredients`, mostly
+    insurance given the real risk there is memory) even though neither model
+    is in the routine rotation yet (`"models": ["PLS"]`, unchanged --
+    rollout is separate). `cluster/profiles/htw.yaml` also gets an
+    `ORIONMSP: "128G"` mem tier for the same reason.
 
 ### Still planned
 

@@ -202,12 +202,67 @@ class Prep_XT(_NoAugBase, XTModel):  # noqa: N801
     pass
 
 
+_EBM_WIDE_FEATURE_THRESHOLD = 4000
+
+
 class Prep_EBM(_NoAugBase, EBMModel):  # noqa: N801
     """EBM (Explainable Boosting Machine) -- graduated AutoGluon-core model
     (``autogluon.tabular.models.EBMModel``), not a TabArena-only class, so it's
     defined here alongside CAT/RF/XT rather than via ``_make_optional_prep_class``.
     ``ag_key`` is already the short, unprefixed ``"EBM"`` -- no override needed.
     """
+
+    def _fit(self, X, y, **kwargs):
+        """Disable ``interactions`` for wide feature counts (>``_EBM_WIDE_FEATURE_THRESHOLD``).
+
+        ``interpret``'s own default (``interactions="3x"``, i.e. fit ``3 *
+        n_features`` pairwise interaction terms, selected via its own FAST
+        interaction-ranking pre-scan over ALL candidate feature pairs) scales
+        combinatorially with feature count -- confirmed via a real local timed
+        run of the actual pipeline (``run_experiment.py --model EBM --dataset
+        microgel_synthesis``, 11,084 features): the pre-scan alone produced
+        millions of per-pair log lines and had not finished after 9+ minutes
+        wall time, well before boosting itself even starts. Unlike the boosting
+        rounds -- which DO respect ``EbmCallback``/``time_limit`` (see
+        ``autogluon.tabular.models.ebm.ebm_model.construct_ebm_params``) -- this
+        pre-scan does not check the time budget at all, so a bigger
+        ``time_limit`` alone cannot bound it.
+
+        A *small positive* ``interactions`` count does NOT avoid this --
+        confirmed the hard way (a first attempt at this fix set
+        ``interactions=20``, and the "Fast interaction strength" flood
+        continued unchanged against the real pipeline). ``interpret``'s own
+        ``rank_interactions`` FAST algorithm has to rank every candidate pair
+        before it can keep only the top-N; only literal ``interactions=0``
+        skips the ranking loop entirely (see
+        ``interpret.glassbox._ebm._ebm.py``: ``if interactions == 0: break``,
+        *before* the ``rank_interactions`` call -- any other value, however
+        small, still reaches it). So this disables interaction terms outright
+        for wide data rather than merely capping the count -- a real behavior
+        change (EBM becomes a pure additive/GAM model, no pairwise terms, for
+        these datasets specifically), but a legitimate, ``interpret``-supported
+        configuration (not a hack), and the only way to actually remove the
+        blowup. The remaining, much cheaper per-round main-effects boosting
+        cost (roughly linear in feature count, ~1.5-1.8s/round measured at
+        11,084 features) is still bounded normally by ``time_limit``.
+
+        Threshold matches ``wrapped_models._TABSTAR_MAX_FEATURES`` -- both sit in
+        the same real, dataset-free gap in RamanBench's own feature-count
+        distribution (no target in ``configs/v1/target_list.json`` has between
+        ~3,300 and ~5,470 features), so one consistent "wide" boundary applies
+        across both fixes rather than two arbitrarily different numbers.
+
+        Same data-shape-adaptive pattern as ``Prep_KNN._fit``'s ``n_neighbors``
+        clamp -- only kicks in above the threshold; default AutoGluon/interpret
+        behavior (and model quality, including interaction terms) is unchanged
+        for RamanBench's more common narrower spectra.
+        """
+        n_features = X.shape[1]
+        if n_features > _EBM_WIDE_FEATURE_THRESHOLD:
+            interactions = self._get_model_params().get("interactions", "3x")
+            if not (isinstance(interactions, (int, float)) and interactions == 0):
+                self.params["interactions"] = 0
+        super()._fit(X, y, **kwargs)
 
     def _estimate_memory_usage(self, X, y=None, **kwargs):
         """Strip ``prep_*``/``ag.*`` keys before EBM's own memory estimator sees them.
@@ -502,7 +557,70 @@ else:
             default_auxiliary_params.update(_NO_FOUNDATION_MODEL_FEATURE_CAP)
             return default_auxiliary_params
 
-Prep_TABSTAR = _make_optional_prep_class("Prep_TABSTAR", TabSTARModel)
+# TabSTAR builds a per-column LM text embedding (see tabstar/arch/arch.py's
+# get_textual_embedding): memory scales with FEATURE count, not row count --
+# matches upstream's own documented warning about >200-column datasets. Confirmed
+# via real batch-3 verification: fine on diabetes_skin_ear_lobe (2,803-3,160
+# features depending on how post-preprocessing columns are counted -- see below),
+# OOM-killed (`RuntimeError("OOM even with batch size 1!")`) on microgel_synthesis
+# (11,084 features), both on the same ~36GB machine, even though
+# microgel_synthesis has FEWER rows (14 vs 20) -- ruling out row count as the
+# driver. Reproduced directly against tabstar.arch.arch.TabStarModel in
+# isolation (synthetic per-cell text, same LoRA freeze scheme as
+# tabstar/training/lora.py's `to_freeze = range(6)`, CPU, gradient tracking
+# enabled to match real fine-tuning): memory grows steeply with feature count
+# even at a few hundred to ~1,000 features (into the tens of GB) -- confirming
+# the mechanism (materializing a (batch_rows x n_features x d_model) embedding
+# tensor per forward pass, GRADIENT-tracked, not released until backward())
+# is real and severe, well beyond what "a bit more time/memory" would fix.
+#
+# `_NO_FOUNDATION_MODEL_FEATURE_CAP` (used above to LIFT AutoGluon's default
+# max_features cap for Mitra/TabDPT/TabICL/RealTabPFN, which top out around
+# 500-2000) is the wrong direction here: TabSTAR genuinely cannot handle
+# RamanBench's widest spectra, so this goes the other way -- an actual cap,
+# using the SAME AutoGluon mechanism (`ag.max_features`, which produces a
+# clean `ConstraintViolationError` one-line skip, not a crash -- see
+# `autogluon.core.models.abstract.abstract_model.AbstractModel
+# .validate_fit_args`/`autogluon.core.utils.exceptions.ConstraintViolationError`).
+#
+# Cap value (4,000) is chosen from RamanBench's real, current dataset
+# distribution (`configs/v1/target_list.json`, cross-referenced against
+# `data/precomputed/dataset_stats.json`), not a guess: the 66-target v1 scope
+# has a completely dataset-free gap between the widest confirmed-safe target
+# (pharmaceutical_ingredients, 3,276 features) and the next-widest target
+# (bioprocess_analytes_kaiser, 5,472 features) -- above which sits the
+# acid-species/microgel cluster (9 targets, 11,084-11,689 features) that
+# actually produced the OOM. 4,000 sits in that empty gap: ~22% of headroom
+# above the highest confirmed-working real target, ~27% of margin below the
+# next real target, cleanly separating "confirmed-safe-plus-margin" (56 of 66
+# targets stay eligible) from "genuinely too wide for this model" (10 of 66:
+# bioprocess_analytes_kaiser + the 9-target ultra-wide cluster) without
+# guessing at any dataset in between (there isn't one). See
+# `wrapped_models.MAX_FEATURES_MODELS` (consumed by
+# `scripts/run_experiment.py::run_one()`, mirroring how
+# `CLASSIFICATION_ONLY_MODELS`/`REGRESSION_ONLY_MODELS` are consumed) for the
+# job-level clean skip -- belt-and-suspenders with the AutoGluon-level
+# `max_features` cap below, since RamanBench's own cluster jobs fit exactly one
+# model at a time (no other model for AutoGluon to fall back on), and
+# AutoGluon's `raise_on_no_models_fitted` default would otherwise turn "the one
+# model was cleanly constraint-skipped" into a job-crashing `RuntimeError`.
+#
+# For the sub-cap-but-still-large cases (pharmaceutical_ingredients at 3,276,
+# the diabetes_skin_* family at 3,160), `cluster/profiles/htw.yaml`'s
+# `mem_tiers` gets a TABSTAR entry bumped to 128G (matching the other
+# foundation models in its tier -- MITRA/TABDPT/TABFM/TABSWIFT) rather than the
+# 64G `default_mem`, for headroom beyond what the ~36GB laptop where the
+# original OOM was found provides. The 10 excluded-by-cap targets are NOT
+# expected to become feasible merely by throwing more memory at them --
+# unlike the sub-cap cases, that's not a "needs a bit more headroom" gap, it's
+# the regime that produced "OOM even with batch size 1" -- so no amount of
+# memory tier is substituted for the cap itself there (see issue writeup /
+# CHANGELOG for the full reasoning).
+_TABSTAR_MAX_FEATURES = 4000
+
+Prep_TABSTAR = _make_optional_prep_class(
+    "Prep_TABSTAR", TabSTARModel, _default_auxiliary_params_extra={"max_features": _TABSTAR_MAX_FEATURES}
+)
 
 
 class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
@@ -609,6 +727,26 @@ CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL", "TABPFN-WIDE", "ORIONMSP"}
 # before batch 3 -- predictions.py's classification-only skip already had a home
 # (CLASSIFICATION_ONLY_MODELS); this is the first model needing the reverse.
 REGRESSION_ONLY_MODELS = {"NORI"}
+
+# A model this registry has confirmed genuinely cannot handle RamanBench's widest
+# spectra (as opposed to CLASSIFICATION_ONLY_MODELS/REGRESSION_ONLY_MODELS'
+# problem-type mismatch) -- keyed by model name -> max feature count. Consumed by
+# scripts/run_experiment.py::run_one() as a clean, job-level skip (return None,
+# log a message, exit 0 -- no results.pkl written, same convention as the
+# rare-class-filtering / all-NaN-label skips already there), mirroring exactly how
+# CLASSIFICATION_ONLY_MODELS/REGRESSION_ONLY_MODELS are consumed by
+# predictions.py. This is belt-and-suspenders with the AutoGluon-level
+# `max_features` cap set on the model class itself (see Prep_TABSTAR above): the
+# AutoGluon-level cap alone produces a clean `ConstraintViolationError` skip
+# in a multi-model `TabularPredictor.fit()` call, but RamanBench's own cluster
+# jobs always fit exactly one model, so with no other model to fall back on,
+# AutoGluon's `raise_on_no_models_fitted=True` default (see
+# `autogluon.tabular.predictor.predictor.TabularPredictor._post_fit`) turns that
+# same clean skip into a job-crashing `RuntimeError: No models were trained
+# successfully during fit()` -- confirmed with a real local run against a
+# too-wide dataset. This dict lets `run_experiment.py` catch that case BEFORE
+# ever calling into AutoGluon, for a real clean exit instead.
+MAX_FEATURES_MODELS = {"TABSTAR": _TABSTAR_MAX_FEATURES}
 
 
 def create_preprocessed_hyperparameters(

@@ -122,8 +122,11 @@ def run_one(
 
     Returns ``None`` (a clean, expected skip -- not an error) if this target
     fails rare-class filtering (classification only, matching how the old
-    ``RamanBenchmark`` silently excluded such keys from the benchmark) or if
-    every row for this target has a missing (NaN) label.
+    ``RamanBenchmark`` silently excluded such keys from the benchmark), if
+    every row for this target has a missing (NaN) label, if ``model_key`` only
+    supports the other problem type (``wrapped_models.CLASSIFICATION_ONLY_MODELS``/
+    ``REGRESSION_ONLY_MODELS``), or if ``model_key`` is capped below this
+    dataset's feature count (``wrapped_models.MAX_FEATURES_MODELS``, e.g. TABSTAR).
 
     ``filter_unlabeled`` (default ``True``) drops rows with a missing (NaN)
     target before splitting -- today's models all require a real training
@@ -139,10 +142,16 @@ def run_one(
     inside AutoGluon's own fit call, with AutoGluon's own clear "NaN in
     label" error, which is expected until such a model exists.
     """
+    from raman_data import TASK_TYPE
     from tabarena.utils.cache import CacheFunctionPickle
 
     from raman_bench.benchmark import RamanBenchmark
     from raman_bench.models.registry import infer_model_cls
+    from raman_bench.preprocessing.wrapped_models import (
+        CLASSIFICATION_ONLY_MODELS,
+        MAX_FEATURES_MODELS,
+        REGRESSION_ONLY_MODELS,
+    )
     from raman_bench.splitting import (
         GROUP_COL,
         RamanBenchTaskWrapper,
@@ -151,7 +160,6 @@ def run_one(
         filter_rare_classes,
         infer_group_ids_from_targets,
     )
-    from raman_data import TASK_TYPE
 
     num_cpus = _resolve_num_cpus()
     num_gpus = _resolve_num_gpus(use_gpu)
@@ -178,6 +186,52 @@ def run_one(
     problem_type = (
         "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
     )
+
+    # Model/dataset compatibility checks that AutoGluon itself would also
+    # reject (via a clean `ConstraintViolationError` skip -- see
+    # `wrapped_models.CLASSIFICATION_ONLY_MODELS`/`REGRESSION_ONLY_MODELS`/
+    # `MAX_FEATURES_MODELS`'s own docstrings), but RamanBench's own cluster
+    # jobs always fit exactly one model per `TabularPredictor.fit()` call, with
+    # no other model for AutoGluon to fall back on -- so its own
+    # `raise_on_no_models_fitted=True` default turns that same clean skip into
+    # a job-crashing `RuntimeError: No models were trained successfully during
+    # fit()` instead (confirmed with a real local run: ORIONMSP, a
+    # classification-only model, against a regression dataset). Checked here,
+    # before any of the (comparatively expensive) split/task-building work
+    # below, for a real clean exit -- same convention as the rare-class/
+    # all-NaN-label skips further down (log a message, return None, no
+    # results.pkl written, exit 0).
+    model_key_upper = model_key.upper()
+    if problem_type == "regression" and model_key_upper in CLASSIFICATION_ONLY_MODELS:
+        logger.info(
+            "Skipping %s target %d: %s only supports classification tasks",
+            dataset_name,
+            target_idx,
+            model_key,
+        )
+        return None
+    if problem_type == "classification" and model_key_upper in REGRESSION_ONLY_MODELS:
+        logger.info(
+            "Skipping %s target %d: %s only supports regression tasks",
+            dataset_name,
+            target_idx,
+            model_key,
+        )
+        return None
+    if model_key_upper in MAX_FEATURES_MODELS:
+        max_features = MAX_FEATURES_MODELS[model_key_upper]
+        n_features = df.shape[1] - 1  # exclude label_col; group_id (if any) isn't added yet here
+        if n_features > max_features:
+            logger.info(
+                "Skipping %s target %d: %s is capped at max_features=%d, but this "
+                "dataset has %d features",
+                dataset_name,
+                target_idx,
+                model_key,
+                max_features,
+                n_features,
+            )
+            return None
 
     # Explicit per-spectrum group ids (from a loader that knows the dataset's
     # replicate structure, e.g. locust_phase_hemolymph's real Sample column)
@@ -444,7 +498,7 @@ def main():
         filter_unlabeled=not args.keep_unlabeled,
     )
     if out is None:
-        logger.info("Target skipped (rare-class filtering) -- clean exit, not an error.")
+        logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")
 
 
 if __name__ == "__main__":
