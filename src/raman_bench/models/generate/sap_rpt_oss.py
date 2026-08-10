@@ -16,22 +16,13 @@ is available" way as XRFM/ModernNCA/RealMLP -- ``SAPRPTOSSModel._fit`` only
 raises if more GPUs are *requested* than are actually available, not merely
 because none are present, so it's listed in ``cluster/gpu_models.json``.
 
-Real end-to-end verification (``run_experiment.py --model SAP_RPT_OSS``) could
-NOT be completed locally: the default checkpoint (``prefetch_weights`` /
-``SAPRPTOSSModel._fit``, hardcoded to
-``"2025-11-04_sap-rpt-one-oss.pt"`` from the ``SAP/sap-rpt-1-oss`` HF repo) is
-gated (``huggingface_hub.errors.GatedRepoError: 403``) -- confirmed the
-RamanBench HF service account (which already has ``canReadGatedRepos: True``
-as a general fine-grained scope, and already has access to gated repos like
-TabPFN's) has NOT been granted per-repo access to this specific one, on both
-this machine and the HTW cluster login node (same account, same result: no
-cached weights, same 403). Gating type is ``"auto"`` (self-serve, not manual
-review) per ``HfApi().model_info("SAP/sap-rpt-1-oss").gated`` -- unblocking it
-is a one-time, ~30-second "Agree and access repository" click at
-https://huggingface.co/SAP/sap-rpt-1-oss by whoever owns that HF account, not
-a code fix. Registry/generator wiring (this module, ``Prep_SAP_RPT_OSS``) is
-still fully verified via ``tests/test_generate_tabarena_foundation_models_batch3.py``;
-only the real weight-loading fit itself is blocked pending that access grant.
+The default checkpoint (``prefetch_weights`` / ``SAPRPTOSSModel._fit``,
+hardcoded to ``"2025-11-04_sap-rpt-one-oss.pt"`` from the ``SAP/sap-rpt-1-oss``
+HF repo) was originally gated (``huggingface_hub.errors.GatedRepoError: 403``)
+for the RamanBench HF service account. Access was granted via the repo's
+self-serve "Agree and access repository" click and confirmed end to end on
+2026-08-10: real weight download, fit, save, and predict all succeed, both
+locally and on the HTW cluster (``results/v1/smoke_batch3/data/SAP-RPT-OSS_c1_BAG_L1/``).
 """
 
 from __future__ import annotations
