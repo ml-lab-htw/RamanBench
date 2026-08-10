@@ -85,6 +85,24 @@ def _atomic_to_csv(df: pd.DataFrame, path: str) -> None:
         raise
 
 
+def _atomic_write_json(path: str, data: dict) -> None:
+    """Same rationale as :func:`_atomic_to_csv`, for the split_info sidecar
+    (see #6) -- concurrent array tasks for the same key can race to write it."""
+    directory = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=os.path.basename(path) + ".", suffix=".tmp")
+    os.close(fd)
+    try:
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 # ---------------------------------------------------------------------------
 # Reproducibility
 # ---------------------------------------------------------------------------
@@ -511,6 +529,18 @@ def compute_predictions(
                 if data_train is None or data_test is None:
                     pbar.update(1)
                     continue
+
+                # Record which split regime this key used (see #6) -- written
+                # here, before any per-model skip check below, so it's never
+                # gated behind an "already_complete" prediction file. It's the
+                # same for every model on a given key (the benchmark only
+                # splits once per key/seed), so write it once and skip on
+                # repeat model iterations rather than re-writing it N times.
+                split_info_path = os.path.join(predictions_dir, f"{key}_split_info.json")
+                if not os.path.exists(split_info_path):
+                    split_info = benchmark.get_split_info(key)
+                    if split_info is not None:
+                        _atomic_write_json(split_info_path, split_info)
 
                 # Skip classification-only models for regression datasets
                 if task_type == TASK_TYPE.Regression and model_name in CLASSIFICATION_ONLY_MODELS:

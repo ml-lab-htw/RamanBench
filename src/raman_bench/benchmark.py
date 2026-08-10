@@ -222,9 +222,9 @@ class RamanBenchmark:
         if self._has_dataset_in_cache(key):
             data_train, data_test = self._load_dataset_from_cache(key)
         else:
-            data_train, data_test = self._load_dataset_from_key(key)
+            data_train, data_test, split_info = self._load_dataset_from_key(key)
             if data_train is not None:
-                self._save_dataset(key, data_train, data_test)
+                self._save_dataset(key, data_train, data_test, split_info)
 
         return data_train, data_test, key, task_type
 
@@ -307,14 +307,40 @@ class RamanBenchmark:
         test = f"{self.cache_dir_processed}/{key}_test.pkl"
         return train, test
 
+    def _split_info_path(self, key: str) -> str:
+        return f"{self.cache_dir_processed}/{key}_split_info.json"
+
     def _has_dataset_in_cache(self, key: str) -> bool:
         train, test = self._get_cache_paths(key)
         return os.path.exists(train) and os.path.exists(test)
 
-    def _save_dataset(self, key: str, train: DataFrame, test: DataFrame):
+    def get_split_info(self, key: str) -> dict | None:
+        """Return the persisted split-regime metadata for *key*, or ``None``.
+
+        ``split_info`` is ``{"split_type": "iid"|"grouped"|"stratified",
+        "n_groups": int|None, "largest_group_size": int|None, "n_train": int,
+        "n_test": int}``. Written once, next to the cached train/test split,
+        the first time *key* is split (see ``_save_dataset``) -- reading it
+        back never re-derives the split. Returns ``None`` for a key that was
+        cached before this field existed; use ``scripts/backfill_split_type.py``
+        to populate it for an existing run without recomputing predictions.
+        """
+        path = self._split_info_path(key)
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    def _save_dataset(self, key: str, train: DataFrame, test: DataFrame, split_info: dict | None = None):
         train_path, test_path = self._get_cache_paths(key)
         train.to_pickle(train_path)
         test.to_pickle(test_path)
+        if split_info is not None:
+            with open(self._split_info_path(key), "w") as f:
+                json.dump(split_info, f)
 
     def _load_dataset_from_cache(self, key: str) -> tuple[DataFrame | None, DataFrame | None]:
         train_path, test_path = self._get_cache_paths(key)
@@ -511,11 +537,13 @@ class RamanBenchmark:
             for target_idx in range(num_targets):
                 key = self.get_key(dataset_name, target_idx)
                 if not self._has_dataset_in_cache(key):
-                    data_train, data_test = self._load_dataset_from_key(key)
+                    data_train, data_test, split_info = self._load_dataset_from_key(key)
                     if data_train is not None:
-                        self._save_dataset(key, data_train, data_test)
+                        self._save_dataset(key, data_train, data_test, split_info)
 
-    def _load_dataset_from_key(self, key: str) -> tuple[DataFrame | None, DataFrame | None]:
+    def _load_dataset_from_key(
+        self, key: str
+    ) -> tuple[DataFrame | None, DataFrame | None, dict | None]:
         dataset_name, target_idx = self.split_key(key)
         dataset = self._load_raman_dataset(dataset_name)
 
@@ -534,11 +562,11 @@ class RamanBenchmark:
 
         if len(data_df) == 0:
             logger.warning("Dataset %s has 0 samples after dropping NaNs.", key)
-            return None, None
+            return None, None, None
 
         data_df, _ = self._filter_rare_classes(data_df, key)
         if data_df is None:
-            return None, None
+            return None, None, None
 
         is_regression = dataset_name in self.dataset_names_regression
         if is_regression and self.group_regression_splits:
@@ -546,17 +574,34 @@ class RamanBenchmark:
                 all_targets_df = pd.DataFrame(dataset.targets, columns=dataset.target_names).loc[
                     data_df.index
                 ]
-                return self._grouped_train_test_split(data_df, group_by_df=all_targets_df)
-            return self._grouped_train_test_split(data_df)
+                train, test, split_info = self._grouped_train_test_split(
+                    data_df, group_by_df=all_targets_df
+                )
+            else:
+                train, test, split_info = self._grouped_train_test_split(data_df)
+            return train, test, split_info
 
         label_col = data_df.columns[-1]
         stratify = data_df[label_col] if not is_regression else None
-        return train_test_split(
+        train, test = train_test_split(
             data_df,
             test_size=self.test_size,
             random_state=self.random_state,
             stratify=stratify,
         )
+        # Classification always stratifies on the label; a regression dataset
+        # only reaches here with group_regression_splits=False (config opt-out),
+        # so it never has real group structure attempted -- distinct from
+        # "grouped" (real replicate structure) and from "stratified" (only
+        # possible for classification), per the split_type design in #6.
+        split_info = {
+            "split_type": "stratified" if not is_regression else "iid",
+            "n_groups": None,
+            "largest_group_size": None,
+            "n_train": len(train),
+            "n_test": len(test),
+        }
+        return train, test, split_info
 
     # ------------------------------------------------------------------
     # Rare-class filtering
@@ -607,7 +652,7 @@ class RamanBenchmark:
 
     def _grouped_train_test_split(
         self, data_df: DataFrame, group_by_df: DataFrame | None = None
-    ) -> tuple[DataFrame, DataFrame]:
+    ) -> tuple[DataFrame, DataFrame, dict]:
         """Split while keeping co-measured samples in the same partition.
 
         Two rows are considered the same physical measurement when their
@@ -626,6 +671,15 @@ class RamanBenchmark:
         therefore selects a different test set from identical data and an
         identical ``random_state``. Sorting the items makes the label a pure
         function of the values, so the split is reproducible across processes.
+
+        Returns
+        -------
+        (train_df, test_df, split_info) : the split, plus a dict recording
+        which regime was actually used -- ``split_info["split_type"]`` is
+        ``"grouped"`` when real replicate structure was found, or ``"iid"``
+        when every row turned out to be its own group (the plain-split
+        fallback below), matching #6's ``n_groups == n_rows`` definition of
+        the fallback.
         """
         target_col = data_df.columns[-1]
         target_values = group_by_df if group_by_df is not None else data_df[[target_col]]
@@ -649,13 +703,28 @@ class RamanBenchmark:
                 group_labels.append(seen[k])
 
         groups = np.array(group_labels)
-        if len(np.unique(groups)) == len(data_df):
-            return train_test_split(
+        _, group_counts = np.unique(groups, return_counts=True)
+        n_groups = len(group_counts)
+        largest_group_size = int(group_counts.max()) if n_groups else 0
+
+        if n_groups == len(data_df):
+            train, test = train_test_split(
                 data_df, test_size=self.test_size, random_state=self.random_state
             )
+            split_type = "iid"
+        else:
+            gss = GroupShuffleSplit(
+                n_splits=1, test_size=self.test_size, random_state=self.random_state
+            )
+            train_idx, test_idx = next(gss.split(data_df, groups=groups))
+            train, test = data_df.iloc[train_idx], data_df.iloc[test_idx]
+            split_type = "grouped"
 
-        gss = GroupShuffleSplit(
-            n_splits=1, test_size=self.test_size, random_state=self.random_state
-        )
-        train_idx, test_idx = next(gss.split(data_df, groups=groups))
-        return data_df.iloc[train_idx], data_df.iloc[test_idx]
+        split_info = {
+            "split_type": split_type,
+            "n_groups": n_groups,
+            "largest_group_size": largest_group_size,
+            "n_train": len(train),
+            "n_test": len(test),
+        }
+        return train, test, split_info
