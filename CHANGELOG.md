@@ -276,6 +276,34 @@ directly, rather than reimplementing patterns "inspired by" them.
   - Verified end-to-end, not just import-checked: a real `run_experiment.py` ->
     `aggregate_results.py` round trip reproduced the same `metric_error` through both
     the raw cache and the aggregated `hpo_results` row.
+- None of the 16 "built-in" TabArena-native models listed in `configs/models/all.json`
+  (RF, CAT, XGB, XT, KNN, LR, NN_TORCH, FASTAI, DUMMY, REALMLP, MITRA, TABM, TABDPT,
+  TABICL, REALTABPFN-V2, REALTABPFN-V2.5) could actually be submitted through the real v1
+  pipeline: `scripts/run_experiment.py::_import_generator` requires every model key to
+  resolve to a `ConfigGenerator` under `models/custom/<key>/hpo.py` or
+  `models/generate/<key>.py`, and neither existed for any of them -- the "Migrate remaining
+  14 models" per-directory migration only ever covered RamanBench's own bespoke
+  architectures, never the plain AutoGluon-backed `Prep_*` classes already hand-listed in
+  `preprocessing/wrapped_models.py`. Fixed by populating `models/generate/<key>.py` for all
+  16 (a new `raman_bench_model_registry` key, `XT`, was pulled in by the exact same gap and
+  fixed alongside the reported 15) as thin one-liners around a new shared
+  `models/generate/_tabarena_adapter.py::rebind_tabarena_generator()`, which reuses TabArena's
+  own maintained search space (`tabarena.models.<key>.hpo.gen_<key>`, installed via the
+  `tabarena[...,search_spaces,...]` extra) and just retargets it at RamanBench's `Prep_*`
+  class instead of hand-writing 16 near-duplicate HPO configs. Two models needed bespoke
+  handling instead of a straight rebind: `KNN`'s upstream generator turned out to be bound to
+  a different, incompatible TabArena-only model subclass (`KNNNewModel`, with `scaler`/
+  `cat_threshold` knobs plain AutoGluon `KNNModel` doesn't accept) -- reuses only the subset
+  of the search space genuinely shared with plain `KNNModel`; `DUMMY` and `REALTABPFN-V2`
+  have no upstream TabArena generator to reuse at all (`DummyModel` isn't part of TabArena's
+  benchmarked roster; TabArena's own package has moved past plain TabPFN v2 in favor of
+  v2.5/v2.6) and get an empty (default-config-only) search space instead, matching the same
+  convention TabArena itself uses for its own HPO-less models (e.g. Mitra). Verified
+  end-to-end, not just import-checked: real `run_experiment.py` runs against a small real
+  dataset for KNN, XGB, TABICL, and DUMMY (one simple/classical, one boosted-tree, one
+  foundation model, one bespoke-empty-search-space case), plus a `_import_generator()` +
+  `generate_all_bag_experiments()` smoke check for all 16 keys confirming each resolves the
+  exact same `Prep_*` class the registry does.
 
 ### Still planned
 
