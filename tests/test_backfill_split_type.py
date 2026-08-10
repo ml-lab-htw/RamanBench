@@ -13,6 +13,11 @@ from raman_data.types import DatasetInfo
 
 from raman_bench.benchmark import RamanBenchmark
 
+# backfill_split_type.py imports raman_bench.predictions, which unconditionally
+# requires autogluon (not part of the `dev` extra CI installs) -- see
+# test_split_info_predictions.py for the same guard.
+pytest.importorskip("autogluon")
+
 _SPEC = importlib.util.spec_from_file_location(
     "backfill_split_type",
     os.path.join(os.path.dirname(__file__), "..", "scripts", "backfill_split_type.py"),
