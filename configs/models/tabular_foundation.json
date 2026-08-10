@@ -1,16 +1,22 @@
 [
   "FASTAI",
+  "ILTM",
+  "LIMIX",
   "MITRA",
   "MODERNNCA",
   "NN_TORCH",
+  "NORI",
+  "ORIONMSP",
   "REALMLP",
   "REALTABPFN-V2",
   "REALTABPFN-V2.5",
+  "SAP_RPT_OSS",
   "TABDPT",
   "TABFM",
   "TABICL",
   "TABM",
   "TABPFN-V3",
   "TABPFN-WIDE",
+  "TABSTAR",
   "TABSWIFT"
 ]

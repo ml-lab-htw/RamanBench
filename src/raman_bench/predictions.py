@@ -31,13 +31,17 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from raman_bench.benchmark import configure_benchmark
-from raman_bench.logging_utils import LOG_FORMAT, run_file_logger
-from raman_bench.preprocessing.wrapped_models import CLASSIFICATION_ONLY_MODELS
-from raman_bench.seeds import get_seeds
 from raman_data import TASK_TYPE
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+
+from raman_bench.benchmark import configure_benchmark
+from raman_bench.logging_utils import LOG_FORMAT, run_file_logger
+from raman_bench.preprocessing.wrapped_models import (
+    CLASSIFICATION_ONLY_MODELS,
+    REGRESSION_ONLY_MODELS,
+)
+from raman_bench.seeds import get_seeds
 
 try:
     from raman_bench.model import AutoGluonModel
@@ -521,6 +525,21 @@ def compute_predictions(
                         len(data_train),
                         len(data_test),
                         f"{model_name} only supports classification tasks",
+                    )
+                    pbar.update(1)
+                    continue
+
+                # Skip regression-only models for classification datasets (mirror of
+                # the classification-only skip above -- see REGRESSION_ONLY_MODELS's
+                # docstring in wrapped_models.py).
+                if task_type == TASK_TYPE.Classification and model_name in REGRESSION_ONLY_MODELS:
+                    _write_skip_record(
+                        stats_dir,
+                        key,
+                        model_name,
+                        len(data_train),
+                        len(data_test),
+                        f"{model_name} only supports regression tasks",
                     )
                     pbar.update(1)
                     continue

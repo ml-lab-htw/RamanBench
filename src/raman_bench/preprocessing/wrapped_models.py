@@ -115,6 +115,19 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "PerpetualBoosterModel": "tabarena.models.perpetual_booster.model",
     "XRFMModel": "tabarena.models.xrfm.model",
     "ChimeraBoostModel": "tabarena.models.chimeraboost.model",
+    # Batch 3 (NORI, SAP_RPT_OSS, ORIONMSP, ILTM, LIMIX, TABSTAR) -- the final batch
+    # of the 14-model TabArena-native onboarding effort (batches 1/2 above). Same
+    # "TabArena-package-only, not (yet) graduated into AutoGluon core" situation as
+    # every entry above -- confirmed against a real installed build, none of these
+    # six exist under any name in autogluon.tabular.models. All six are pretrained/
+    # fine-tuned tabular *foundation* models (in-context learning or LoRA
+    # fine-tuning), unlike batch 2's tree/boosting family.
+    "NoriModel": "tabarena.models.nori.model",
+    "SAPRPTOSSModel": "tabarena.models.sap_rpt_oss.model",
+    "OrionMSPModel": "tabarena.models.orionmsp.model",
+    "ILTMModel": "tabarena.models.iltm.model",
+    "LimiXModel": "tabarena.models.limix.model",
+    "TabSTARModel": "tabarena.models.tabstar.model",
 }
 _missing_optional_tabarena_models = []
 for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
@@ -356,6 +369,81 @@ Prep_CHIMERABOOST = _make_optional_prep_class(
     "Prep_CHIMERABOOST", ChimeraBoostModel, ag_key="CHIMERABOOST"
 )
 
+# Batch 3 (NORI, SAP_RPT_OSS, ORIONMSP, ILTM, LIMIX, TABSTAR) -- the final batch of
+# the 14-model TabArena-native onboarding effort. All six are tabular *foundation*
+# models. Checked the same way as every batch above: instantiated each class and
+# inspected `_get_default_auxiliary_params()` directly against the installed
+# tabarena build, rather than assuming from the class name.
+#
+# - NoriModel caps `max_rows` at 100_000 (its in-context-learning context-window
+#   limit; NORI only supports regression -- see CLASSIFICATION_ONLY_MODELS's mirror
+#   below). Checked against RamanBench's own precomputed dataset stats
+#   (`data/precomputed/dataset_stats.json`): the largest regression dataset
+#   (`sugar_mixtures_low_snr`) has 7,840 rows, nowhere near the cap. No override.
+# - SAPRPTOSSModel, OrionMSPModel, ILTMModel, TabSTARModel cap none of
+#   max_rows/max_features/max_classes at all.
+# - LimiXModel caps `max_classes` at 10 -- and unlike NoriModel's max_rows headroom,
+#   this DOES collide with real RamanBench classification datasets: confirmed via
+#   `data/precomputed/dataset_stats.json`, `bacteria_identification` (30 classes),
+#   `pharmaceutical_ingredients` (32), `rruff_mineral_raw` (79), `mlrod` (16), and
+#   the `cancer_cell_*` trio (12 each) all exceed it. UNLIKE Mitra/TabDPT/TabICL/
+#   RealTabPFN's cap, though, this one can't be lifted by simply passing
+#   `_default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP` to
+#   `_make_optional_prep_class` -- confirmed via a real local check (instantiating
+#   Prep_LIMIX and calling `_get_default_auxiliary_params()` still returned
+#   `max_classes: 10` with that kwarg in place). `LimiXModel._get_default_auxiliary_params`
+#   (`tabarena/models/limix/model.py`) doesn't rely on the declarative
+#   `_default_auxiliary_params_extra` class-attribute merge
+#   `AbstractModel._get_default_auxiliary_params` performs over `type(self).__mro__`
+#   at all -- it fully overrides the method itself, calling `super()` and then
+#   unconditionally `dict.update()`-ing `max_classes=10` back in, which clobbers
+#   any subclass's declared `_default_auxiliary_params_extra` no matter where it
+#   sits in the MRO. Same *class* of bug as `Prep_EBM._estimate_memory_usage` in
+#   batch 2 (a tabarena model class doing something non-declarative that the
+#   generic override hook can't see) -- fixed the same way, with a real method
+#   override below instead of a declarative kwarg.
+#
+# ag_key: NoriModel ("TA-NORI"), OrionMSPModel ("TA-ORION-MSP"), ILTMModel
+# ("TA-ILTM"), and LimiXModel ("TA-LIMIX") inherit the "TA-" staging-prefix from
+# their tabarena base class (same situation as TabFM/TabPFN-3/TabSwift in batch 1)
+# -- overridden to a short form below. SAPRPTOSSModel's own ag_key ("SAP-RPT-OSS")
+# already matches RamanBench's naming except for its hyphens -- every other
+# multi-word key in this registry uses underscores (PERPETUAL_BOOSTER, NN_TORCH),
+# so it's overridden to "SAP_RPT_OSS" purely for that consistency, not to dodge a
+# collision. TabSTARModel's own ag_key ("TABSTAR") already matches exactly -- no
+# override needed (nor is ag_name: "TabSTAR" doesn't collide with anything already
+# in this registry).
+Prep_NORI = _make_optional_prep_class("Prep_NORI", NoriModel, ag_key="NORI")
+Prep_SAP_RPT_OSS = _make_optional_prep_class(
+    "Prep_SAP_RPT_OSS", SAPRPTOSSModel, ag_key="SAP_RPT_OSS"
+)
+Prep_ORIONMSP = _make_optional_prep_class("Prep_ORIONMSP", OrionMSPModel, ag_key="ORIONMSP")
+Prep_ILTM = _make_optional_prep_class("Prep_ILTM", ILTMModel, ag_key="ILTM")
+
+if LimiXModel is None:
+    Prep_LIMIX = None
+else:
+
+    class Prep_LIMIX(_NoAugBase, LimiXModel):  # noqa: N801
+        """LimiX -- see the batch-3 comment block above for why this can't be built
+        via ``_make_optional_prep_class`` like the other five models in this batch.
+        """
+
+        ag_key = "LIMIX"
+
+        def _get_default_auxiliary_params(self) -> dict:
+            """Re-clobber ``LimiXModel``'s own hardcoded ``max_classes=10`` back to
+            uncapped, after it (unconditionally, un-overridably via the normal
+            declarative hook) sets it. See the batch-3 comment block above for the
+            full explanation; mirrors ``Prep_EBM._estimate_memory_usage``'s shape
+            for a different non-declarative override in batch 2.
+            """
+            default_auxiliary_params = super()._get_default_auxiliary_params()
+            default_auxiliary_params.update(_NO_FOUNDATION_MODEL_FEATURE_CAP)
+            return default_auxiliary_params
+
+Prep_TABSTAR = _make_optional_prep_class("Prep_TABSTAR", TabSTARModel)
+
 
 class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
     """SNV normalises intensity scale so Euclidean distances reflect spectral shape."""
@@ -423,6 +511,12 @@ PREPROCESSED_MODELS = {
     "PERPETUAL_BOOSTER": Prep_PERPETUAL_BOOSTER,
     "XRFM": Prep_XRFM,
     "CHIMERABOOST": Prep_CHIMERABOOST,
+    "NORI": Prep_NORI,
+    "SAP_RPT_OSS": Prep_SAP_RPT_OSS,
+    "ORIONMSP": Prep_ORIONMSP,
+    "ILTM": Prep_ILTM,
+    "LIMIX": Prep_LIMIX,
+    "TABSTAR": Prep_TABSTAR,
 }
 
 # Drop any entry whose AutoGluon base class wasn't available on this build (see
@@ -446,7 +540,15 @@ for _key, _info in discover_custom_models().items():
     PREPROCESSED_MODELS[_key] = _info.model_cls
 del _key, _info
 
-CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL", "TABPFN-WIDE"}
+CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL", "TABPFN-WIDE", "ORIONMSP"}
+
+# Mirror of CLASSIFICATION_ONLY_MODELS: NORI (OrionMSPModel's opposite number in
+# batch 3) wraps NoriModel, whose own supported_problem_types() returns only
+# ["regression"] (tabarena.models.nori.model.NoriModel._fit raises AssertionError
+# for anything else). Nothing in this registry needed a regression-only entry
+# before batch 3 -- predictions.py's classification-only skip already had a home
+# (CLASSIFICATION_ONLY_MODELS); this is the first model needing the reverse.
+REGRESSION_ONLY_MODELS = {"NORI"}
 
 
 def create_preprocessed_hyperparameters(

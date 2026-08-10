@@ -115,6 +115,24 @@ models = [
     # uses, so the estimator this wraps stays the one tabarena's search space was tuned
     # against.
     "tabfm[pytorch] @ git+https://github.com/google-research/tabfm.git@633cd265f498e1d20c9625be0639f6305d8e2541",
+    # Batch 3 (NORI, SAP_RPT_OSS, ORIONMSP, ILTM, LIMIX, TABSTAR) -- the final batch
+    # of the TabArena-native onboarding effort. Every pin below matches tabarena's
+    # own pip_extra metadata (tabarena.models.<key>.info) exactly, same rationale as
+    # perpetualboosting/chimeraboost/xrfm/tabfm above: these estimators stay the same
+    # ones tabarena's own search spaces were tuned against.
+    #
+    # NOTE: iLTM's own floor (`numpy>=2.3.3`) forces a NumPy 1.x -> 2.x bump in this
+    # environment -- confirmed compatible with the rest of the `models` stack via a
+    # real local `pytest tests/` run after installing it (numpy resolved to 2.3.5,
+    # satisfying both iLTM's floor and sktime's own `numpy<2.4,>=1.21` ceiling
+    # simultaneously; the full suite passed, no other model regressed).
+    "synthefy-nori>=0.7.0",
+    "sap_rpt_oss @ git+https://github.com/SAP-samples/sap-rpt-1-oss.git@a323a0aff976fda4ac43c3196a92406de7689aaa",
+    "tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git",
+    "iltm>=0.1.1",
+    "einops",
+    "kditransform",
+    "tabstar==1.1.15",
 ]
 full = [
     "raman-bench[autogluon]",
