@@ -54,7 +54,8 @@ directly, rather than reimplementing patterns "inspired by" them.
   `datasets/{classification,regression}_all.json` (the curated 66-dataset scope),
   `target_list.json` (one row per (dataset, target), built by
   `scripts/build_target_list.py`; currently 154 runnable targets), `models.json` (the
-  roster of models validated end-to-end on the new pipeline; currently just `PLS`), and
+  roster of models validated end-to-end on the new pipeline; started as just `PLS`, now
+  also the 10 pre-existing custom architectures and TABPFN-WIDE -- see "Fixed" below), and
   `scope_default.json` (the opportunistic scheduler's default scope -- see below). No
   institution-specific values live here; only the SLURM profile
   (`raman_bench_paper/cluster/profiles/{htw,tu}.yaml`) stays private.
@@ -395,6 +396,68 @@ directly, rather than reimplementing patterns "inspired by" them.
     is in the routine rotation yet (`"models": ["PLS"]`, unchanged --
     rollout is separate). `cluster/profiles/htw.yaml` also gets an
     `ORIONMSP: "128G"` mem tier for the same reason.
+- **10 pre-existing custom architectures verified against the v1 pipeline.** RamanBench's
+  own bespoke models (as opposed to the TabArena-native ones onboarded above) predate
+  `scripts/run_experiment.py` and had never actually been exercised through it -- only
+  through the older `raman_bench.predictions`/v0.1 path. Real local smoke tests
+  (`diabetes_skin_ear_lobe`, classification, 20 samples/2,803-3,160 features after
+  feature pruning) confirmed all 10 run cleanly end-to-end with a sane finite
+  `metric_error`: ARSENAL, ROCKET (sktime-based, classification-only --
+  `wrapped_models.CLASSIFICATION_ONLY_MODELS`), DEEPCNN, FCRESNEXT, RAMANFORMER,
+  RAMANNET, RAMANTRANSFORMER, REZERONET, SANET, COATNET (from-scratch PyTorch, GPU-tagged
+  but auto-fall back to CPU on this dev machine via `BaseRamanEstimator._setup_device()`
+  -- correctly so, unlike TABPFN-WIDE below). No code changes needed; all 10 added to
+  `configs/v1/models.json`. On this CPU-only dev machine, several of the transformer-family
+  models (RAMANTRANSFORMER, COATNET, SANET) only completed 1-10 epochs within a 60s smoke
+  budget before AutoGluon's own `time_limit` cut them off -- expected on CPU, not a bug;
+  real cluster runs get the GPU node these are tagged for.
+  - Investigated (not integrated) two side-leads on ARSENAL/ROCKET, at the user's request,
+    to check for a faster/regression-capable alternative to the current sktime-based
+    wrapper: (a) `aeon` (sktime's actively-maintained TSC/TSER fork) ships
+    `RocketRegressor` but no Arsenal or HIVE-COTE regressor -- sktime already has the
+    identical `RocketRegressor` (`sktime.regression.kernel_based`), so `aeon` adds a new
+    dependency without adding regression coverage sktime doesn't already offer; (b)
+    `sktime.classification.hybrid.HIVECOTEV2` (the full 4-component meta-ensemble Arsenal
+    is one part of) is real and already installed, but confirmed genuinely heavy even at
+    trivial scale -- a real local timed run (20 synthetic samples, 500 features, a 1-minute
+    `time_limit_in_minutes` budget) still took 42s, and its ShapeletTransformClassifier
+    component alone defaults to a 2-hour contract with no budget set; classification-only,
+    no regression variant in sktime or aeon either. Neither integrated; recommendation
+    (aeon: skip, no net new capability; HIVE-COTE: skip for routine rotation, cluster-budget
+    heavy for a 4x-the-cost-of-Arsenal-alone ensemble) reported back rather than applied
+    unilaterally, since it's an architecture-replacement decision, not a wiring fix.
+- **TABPFN-WIDE re-added after fixing a real CPU-fallback bug** (previously removed in
+  `e726176` for being "extremely slow", no root cause recorded at the time). Root-caused
+  via `cProfile` on a real local fit/predict (`diabetes_skin_ear_lobe`): wall time is
+  genuinely dominated by `torch._C._nn.scaled_dot_product_attention` inside the
+  transformer's attention-between-features layers (3.7s of a 6.3s predict call) --
+  legitimate model compute, not a Python-level bug (no accidental O(n^2) loop, no
+  redundant recomputation/reloading found). The actual bug: unlike every other GPU-tagged
+  model in this codebase (from-scratch DL models auto-detect CUDA via
+  `BaseRamanEstimator._setup_device()`; TabArena-native foundation models thread
+  AutoGluon's allocated `num_gpus` through `AbstractTorchModel`), both
+  `custom/tabpfn_wide/model.py` classes hardcoded `device="cpu"` as their constructor
+  default -- and `SklearnAutoGluonBridge._fit()` (this model's bridge) never reads or
+  forwards AutoGluon's `num_gpus` resource kwarg at all. So despite `info.py` tagging
+  `compute="gpu"` (reserving a GPU node on the cluster), the model silently ran on CPU
+  every time. Fixed: `device` now defaults to `None` ("auto"), resolved at fit time via
+  the same CUDA-availability check `_setup_device()` uses elsewhere
+  (`raman_bench.models.custom.tabpfn_wide.model._resolve_device`); explicit
+  `"cpu"`/`"cuda"` still accepted. Verified no regression on this CPU-only dev machine
+  (before: 1.01s fit/4.49s predict; after, same data: 1.08s fit/4.63s predict -- within
+  noise, both resolve to `device="cpu"` since there's no CUDA here) and a real
+  `run_experiment.py` end-to-end run (`metric_error=0.5`, sane). A synthetic scaling probe
+  (still CPU-only, no accidental blowup found: 20 total rows -> 5.7s, 120 rows -> 28.9s,
+  350 rows -> 88.2s, roughly linear in this range) combined with real dataset sizes in
+  `data/precomputed/datasets.csv` (three classification datasets -- `mlrod` 130,061 rows,
+  `bacteria_identification` 78,500 rows, `wheat_lines` 53,134 rows -- far larger than any
+  smoke test) makes CPU-forced fitting on one of those a plausible real-world explanation
+  for "extremely slow", on top of simply never getting the GPU it's tagged for. The actual
+  GPU speedup this fix should produce could not be verified locally (this dev machine has
+  no CUDA GPU) -- flagged as a follow-up to confirm on an actual HTW/TU GPU node. Re-added
+  to `configs/models/all.json` and `configs/v1/models.json`; new
+  `tests/models/test_tabpfn_wide.py` covers `_resolve_device()` plus fit/predict on
+  synthetic data.
 
 ### Still planned
 

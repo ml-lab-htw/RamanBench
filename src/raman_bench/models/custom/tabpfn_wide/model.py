@@ -17,6 +17,36 @@ def _infer_problem_type(y) -> str:
     return "binary" if len(np.unique(arr)) == 2 else "multiclass"
 
 
+def _resolve_device(device: str | None) -> str:
+    """Resolve an explicit device, or auto-detect CUDA if ``None``.
+
+    Previously both ``TabPFNWideModel`` and ``_CloneSafeTabPFNWide`` hardcoded
+    ``device="cpu"`` as their constructor default -- unlike the upstream
+    ``tabpfnwide.classifier.TabPFNWideClassifier`` itself (whose own default is
+    ``device="cuda"``) and unlike every other GPU-tagged model in this
+    codebase (the from-scratch DL models auto-detect via
+    ``BaseRamanEstimator._setup_device()``; TabArena-native foundation models
+    like TabICL/Mitra/RealTabPFN thread AutoGluon's allocated ``num_gpus``
+    resource through ``AbstractTorchModel``). Because ``SklearnAutoGluonBridge``
+    (this model's AutoGluon bridge) never reads or forwards AutoGluon's
+    ``num_gpus`` resource kwarg, that hardcoded "cpu" meant TABPFN-WIDE always
+    ran on CPU even on a GPU-provisioned cluster node (``info.py`` tags
+    ``compute="gpu"``) -- real profiling (``cProfile`` on a local CPU-only
+    fit/predict) showed the wall time genuinely dominated by
+    ``torch._C._nn.scaled_dot_product_attention`` inside the transformer's
+    attention-between-features layers, i.e. legitimate model compute that a
+    GPU would substantially speed up, not a Python-level bug. Default is now
+    ``None`` ("auto"), matching ``_setup_device()``'s own CUDA-availability
+    check -- explicit ``"cpu"``/``"cuda"`` are still accepted for the search
+    space / manual overrides.
+    """
+    if device is not None:
+        return device
+    import torch
+
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 class _CloneSafeTabPFNWide(BaseEstimator):
     """sklearn-clone-safe wrapper around TabPFNWideClassifier.
 
@@ -28,14 +58,15 @@ class _CloneSafeTabPFNWide(BaseEstimator):
     clones the base estimator per ECOC sub-task.
     """
 
-    def __init__(self, model_name: str = "wide-v2-5k", device: str = "cpu"):
+    def __init__(self, model_name: str = "wide-v2-5k", device: str | None = None):
         self.model_name = model_name
         self.device = device
 
     def fit(self, X, y):
         from tabpfnwide.classifier import TabPFNWideClassifier
 
-        self._estimator = TabPFNWideClassifier(model_name=self.model_name, device=self.device)
+        resolved_device = _resolve_device(self.device)
+        self._estimator = TabPFNWideClassifier(model_name=self.model_name, device=resolved_device)
         self._estimator.fit(X, y)
         self.classes_ = self._estimator.classes_
         return self
@@ -64,7 +95,7 @@ class TabPFNWideModel(BaseEstimator):
     def __init__(
         self,
         model_name: str = "wide-v2-5k",
-        device: str = "cpu",
+        device: str | None = None,
         many_class_threshold: int = 10,
     ):
         self.model_name = model_name
