@@ -48,7 +48,7 @@ def test_split_is_stable_across_hash_seeds():
         df = pd.DataFrame([dict(zip(list("abcde"), base[i % 6])) for i in range(12)])
         b = RamanBenchmark.__new__(RamanBenchmark)
         b.test_size, b.random_state = 0.34, 0
-        _, te = b._grouped_train_test_split(df, group_by_df=df)
+        _, te, _ = b._grouped_train_test_split(df, group_by_df=df)
         print(sorted(te.index.tolist()))
         """
     )
@@ -70,7 +70,7 @@ def test_replicates_never_span_train_and_test():
     df = _replicated_df()
     pairs = [(i, i + 6) for i in range(6)]
     for random_state in range(5):
-        _, test = _bench(random_state=random_state)._grouped_train_test_split(df, group_by_df=df)
+        _, test, _ = _bench(random_state=random_state)._grouped_train_test_split(df, group_by_df=df)
         in_test = set(test.index)
         for lo, hi in pairs:
             assert (lo in in_test) == (hi in in_test), (
@@ -92,6 +92,26 @@ def test_all_unique_groups_fall_back_to_plain_split():
     """With no replicates there is nothing to group; must match train_test_split."""
     rng = np.random.RandomState(1)
     df = pd.DataFrame(rng.rand(10, 3).round(4))
-    _, test = _bench(test_size=0.2)._grouped_train_test_split(df, group_by_df=df)
+    _, test, split_info = _bench(test_size=0.2)._grouped_train_test_split(df, group_by_df=df)
     _, expected = train_test_split(df, test_size=0.2, random_state=0)
     assert sorted(test.index) == sorted(expected.index)
+    assert split_info["split_type"] == "iid"
+    assert split_info["n_groups"] == len(df)
+    assert split_info["largest_group_size"] == 1
+
+
+def test_split_info_reports_grouped_regime():
+    """A dataset with real replicate structure must be classified 'grouped'."""
+    df = _replicated_df()
+    _, _, split_info = _bench()._grouped_train_test_split(df, group_by_df=df)
+    assert split_info["split_type"] == "grouped"
+    assert split_info["n_groups"] == 6  # 6 replicate pairs
+    assert split_info["largest_group_size"] == 2
+    assert split_info["n_train"] + split_info["n_test"] == len(df)
+
+
+def test_split_info_n_train_n_test_match_actual_split():
+    df = _replicated_df()
+    train, test, split_info = _bench()._grouped_train_test_split(df, group_by_df=df)
+    assert split_info["n_train"] == len(train)
+    assert split_info["n_test"] == len(test)
