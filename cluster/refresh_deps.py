@@ -66,7 +66,27 @@ def refresh_workspace_checkout(workspace: str) -> None:
     submitted, because the workspace it was pointed at is exactly this kind of
     rsync deployment -- silently, since cron discards stdout unless redirected.
     Skip cleanly instead of crashing; fixes are deployed there via rsync, not
-    a pull, so there is nothing this step could do for it anyway."""
+    a pull, so there is nothing this step could do for it anyway.
+
+    For real git checkouts, the pull always passes ``--no-rebase`` explicitly
+    rather than relying on a bare ``git pull``. Confirmed in practice again,
+    separately: on hosts where ``pull.rebase``/``pull.ff`` are unset in git
+    config (true of at least one real cluster login node, git >= 2.27ish),
+    a bare ``git pull`` is fatal ("Need to specify how to reconcile divergent
+    branches") the moment the checkout has *any* local-only commit -- which
+    it always will here after the very first pull, since a non-fast-forward
+    pull with no configured strategy still creates a local merge commit that
+    is never pushed anywhere. That leaves the checkout permanently one commit
+    "ahead" of origin, so the next pull that also has anything new to bring in
+    is simultaneously ahead and behind -- i.e. diverged -- and fails the same
+    way again. This recurred every single hourly tick once new commits landed
+    upstream, submitting nothing each time, until reconciled by hand. Passing
+    the strategy on the command line makes this deterministic regardless of
+    git version/config on whatever host runs this, instead of depending on
+    a config default nobody deliberately set. Using merge (not rebase) here
+    deliberately, matching every prior successful pull on record for this
+    checkout, since rebase would rewrite local-only commits some deployments
+    may have relied on already having a fixed hash."""
     is_git = subprocess.run(
         ["git", "-C", workspace, "rev-parse", "--is-inside-work-tree"],
         capture_output=True, text=True,
@@ -75,7 +95,7 @@ def refresh_workspace_checkout(workspace: str) -> None:
         print(f"{workspace} is not a git checkout (deployed via rsync) -- skipping pull.")
         return
     print(f"Pulling {workspace} ...")
-    subprocess.run(["git", "-C", workspace, "pull"], check=True)
+    subprocess.run(["git", "-C", workspace, "pull", "--no-rebase"], check=True)
     result = subprocess.run(
         ["git", "-C", workspace, "rev-parse", "HEAD"], check=True, capture_output=True, text=True
     )
