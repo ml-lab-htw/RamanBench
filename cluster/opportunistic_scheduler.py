@@ -50,12 +50,20 @@ from pathlib import Path
 CLUSTER_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(CLUSTER_DIR))
 
-from submit_job import JOBSPEC_DIR, REPO_ROOT, Job, resolve_profile, submit_jobs  # noqa: E402
+from submit_job import GPU_MODELS, JOBSPEC_DIR, REPO_ROOT, Job, resolve_profile, submit_jobs  # noqa: E402
 
 DEFAULT_CHUNK_SIZE = 300
 DEFAULT_COURTESY_CEILING = 200
 DEFAULT_MIN_IDLE_CPUS = 32
 DEFAULT_THROTTLE = 8
+# CPU-only models aren't bounded by the cluster's 4-GPU ceiling the way GPU-tier
+# models are, so a flat throttle=8 for everything leaves real idle CPU capacity
+# unused once a CPU-only model's array is running -- e.g. RF at 16 cpus-per-task
+# only ever occupies 128 of a node's 256 CPUs under throttle=8. Doubled, still
+# well under check_capacity()'s independent min_idle_cpus/courtesy_ceiling gates
+# (which govern whether/how much to submit at all, not concurrency within an
+# already-submitted array), so this doesn't erode those protections.
+DEFAULT_CPU_THROTTLE = 16
 DEFAULT_TIME_LIMIT = 3600
 
 
@@ -359,6 +367,11 @@ def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: b
     chunk_size = scope.get("chunk_size", DEFAULT_CHUNK_SIZE)
     model, chunk = pick_chunk(backlog, chunk_size)
     time_limit = effective_time_limit(scope, model, chunk)
+    throttle = (
+        scope.get("throttle", DEFAULT_THROTTLE)
+        if model in GPU_MODELS
+        else scope.get("cpu_throttle", DEFAULT_CPU_THROTTLE)
+    )
 
     slug = f"{scope['name']}_{model}_{timestamp.replace(':', '').replace('-', '').split('.')[0]}"
     job_ids = submit_jobs(
@@ -367,13 +380,14 @@ def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: b
         num_bag_folds=scope.get("num_bag_folds", 8), time_limit=time_limit,
         results_dir=scope["results_dir"], cache_dir=scope.get("cache_dir", ".cache_v1"),
         mirror_repo=scope.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench"),
-        profile=profile, throttle=scope.get("throttle", DEFAULT_THROTTLE), dry_run=dry_run,
+        profile=profile, throttle=throttle, dry_run=dry_run,
     )
 
     entry = {
         "timestamp": timestamp, "action": "dry_run_submit" if dry_run else "submit",
         "reason": reason, "model": model, "n_submitted": len(chunk), "time_limit": time_limit,
-        "job_ids": job_ids, "backlog_sizes": backlog_sizes, "total_backlog": total_backlog,
+        "throttle": throttle, "job_ids": job_ids, "backlog_sizes": backlog_sizes,
+        "total_backlog": total_backlog,
     }
     print(json.dumps(entry, indent=2))
     log_tick(log_path, entry)
