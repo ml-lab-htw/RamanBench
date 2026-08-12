@@ -50,7 +50,15 @@ from pathlib import Path
 CLUSTER_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(CLUSTER_DIR))
 
-from submit_job import GPU_MODELS, JOBSPEC_DIR, REPO_ROOT, Job, resolve_profile, submit_jobs  # noqa: E402
+from submit_job import (  # noqa: E402
+    GPU_MODELS,
+    JOBSPEC_DIR,
+    REPO_ROOT,
+    Job,
+    resolve_profile,
+    resolve_time_limit,
+    submit_jobs,
+)
 
 DEFAULT_CHUNK_SIZE = 300
 DEFAULT_COURTESY_CEILING = 200
@@ -160,10 +168,15 @@ def _in_flight_targets(model: str, user: str) -> set[tuple[str, int, int, int]]:
             continue
         with open(jobspec_path) as f:
             for line in f:
+                # 6 fields = pre-per-task-time_limit jobspec (still valid --
+                # any array submitted before this field existed may still be
+                # queued/running); 7 = current format with the trailing
+                # per-task time_limit (see write_jobspec). Only the first 6
+                # are needed here either way.
                 parts = line.split()
-                if len(parts) != 6:
+                if len(parts) not in (6, 7):
                     continue
-                dataset, target_idx, repeat, fold, config_index, _n_repeats = parts
+                dataset, target_idx, repeat, fold, config_index, _n_repeats = parts[:6]
                 if int(config_index) != 0:
                     continue
                 targets.add((dataset, int(target_idx), int(repeat), int(fold)))
@@ -281,11 +294,18 @@ def effective_time_limit(scope: dict, model: str, chunk: list[Job]) -> float:
       once per array submission), so looking up just ``model``'s own
       sub-dict is enough; no cross-model leakage is possible.
 
-    One SLURM array submission gets one time_limit -- if a chunk mixes an
-    oversized dataset in with ordinary ones, everyone in that chunk gets the
-    larger budget, which is harmless (a task that finishes early just exits
-    early; this only raises the ceiling, it doesn't force anyone to run
-    longer).
+    This whole-chunk max is no longer what each task actually runs with --
+    ``submit_jobs``/``write_jobspec`` resolve a PER-TASK time_limit from each
+    task's own dataset (``submit_job.resolve_time_limit``), so a chunk mixing
+    an oversized dataset (e.g. mlrod) in with ordinary ones no longer forces
+    every task in that chunk onto mlrod's budget -- confirmed as a real,
+    wasted-throughput problem in practice (job 36545: a small/fast
+    `alzheimer` task sat at the full ~1350s/fold slice implied by mlrod's
+    10800s override despite never needing anywhere near that). This
+    function's return value is still meaningful, though, as the array-wide
+    ``--export TIME_LIMIT=...`` fallback (used by ``run_experiment.sbatch``
+    only for jobspec lines that predate the per-task field) -- i.e. still a
+    ceiling, just no longer the value every task actually runs with.
 
     Confirmed necessary in practice (dataset-keyed): ``mlrod`` has 130,061
     rows -- the largest dataset in the target list by a wide margin (next is
@@ -366,7 +386,16 @@ def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: b
 
     chunk_size = scope.get("chunk_size", DEFAULT_CHUNK_SIZE)
     model, chunk = pick_chunk(backlog, chunk_size)
-    time_limit = effective_time_limit(scope, model, chunk)
+    time_limit = effective_time_limit(scope, model, chunk)  # whole-chunk ceiling/export-fallback -- see its docstring
+    # Deliberately NOT `time_limit` above -- that's already maxed up over
+    # every dataset in the chunk (e.g. inflated to 10800 by a single mlrod
+    # task), and using it as the per-task baseline would mean every task's
+    # own resolve_time_limit floors at that ceiling regardless of its own
+    # dataset, silently reproducing the exact bug this fix removes. This is
+    # the FLAT scope default each task's own override lookup bumps up from.
+    flat_default_time_limit = scope.get("time_limit", DEFAULT_TIME_LIMIT)
+    dataset_time_limit_overrides = scope.get("time_limit_overrides", {})
+    model_time_limit_overrides = scope.get("model_time_limit_overrides", {}).get(model, {})
     throttle = (
         scope.get("throttle", DEFAULT_THROTTLE)
         if model in GPU_MODELS
@@ -381,11 +410,26 @@ def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: b
         results_dir=scope["results_dir"], cache_dir=scope.get("cache_dir", ".cache_v1"),
         mirror_repo=scope.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench"),
         profile=profile, throttle=throttle, dry_run=dry_run,
+        dataset_time_limit_overrides=dataset_time_limit_overrides,
+        model_time_limit_overrides=model_time_limit_overrides,
+        default_time_limit=flat_default_time_limit,
     )
+
+    # Per-task values actually written to the jobspec (see write_jobspec) --
+    # surfaced here, distinct from the single whole-chunk `time_limit` above,
+    # so a tick log entry makes it directly observable that a mixed chunk got
+    # more than one budget instead of one inflated value for everyone.
+    per_task_time_limits = sorted({
+        resolve_time_limit(
+            flat_default_time_limit, dataset, dataset_time_limit_overrides, model_time_limit_overrides,
+        )
+        for dataset, *_rest in chunk
+    })
 
     entry = {
         "timestamp": timestamp, "action": "dry_run_submit" if dry_run else "submit",
-        "reason": reason, "model": model, "n_submitted": len(chunk), "time_limit": time_limit,
+        "reason": reason, "model": model, "n_submitted": len(chunk),
+        "time_limit": time_limit, "per_task_time_limits": per_task_time_limits,
         "throttle": throttle, "job_ids": job_ids, "backlog_sizes": backlog_sizes,
         "total_backlog": total_backlog,
     }

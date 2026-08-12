@@ -17,6 +17,15 @@
 # the same MODEL (a single sbatch call's resource flags are per-model, not per-task,
 # so MODEL itself must stay array-wide), not just multiple (repeat, fold, config)
 # tuples for one fixed (dataset, target).
+#
+# TIME_LIMIT (the env var above) is now only a FALLBACK: submit_job.py's
+# write_jobspec resolves a per-task time_limit from each task's own dataset
+# and writes it as this line's 7th field, so tasks in the same array/chunk
+# can get different budgets (e.g. a fast dataset no longer inherits a slow
+# sibling dataset's inflated override just for sharing an array with it --
+# see submit_job.resolve_time_limit / opportunistic_scheduler.effective_time_limit
+# for the full reasoning). Older-format 6-field jobspec lines (no 7th field)
+# fall back to the env var, unchanged from before this field existed.
 
 echo "SLURM Job ID:        $SLURM_JOB_ID"
 echo "SLURM Array Task ID: ${SLURM_ARRAY_TASK_ID:-0}"
@@ -104,13 +113,19 @@ if [ "${USE_GPU:-0}" = "0" ]; then
     export CUDA_VISIBLE_DEVICES=""
 fi
 
-# --- Read this array task's (dataset, target, seed, config_index) from the
-#     jobspec line -- dataset/target_idx/n_repeats are per-line rather than
-#     --export env vars so one array can cover many (dataset, target) pairs
-#     for this MODEL, not just many (repeat, fold, config) tuples for one. ---
+# --- Read this array task's (dataset, target, seed, config_index, time_limit)
+#     from the jobspec line -- dataset/target_idx/n_repeats/time_limit are
+#     per-line rather than --export env vars so one array can cover many
+#     (dataset, target) pairs for this MODEL, not just many (repeat, fold,
+#     config) tuples for one, AND so each task's time_limit can be resolved
+#     from ITS OWN dataset rather than the max needed by any dataset in the
+#     whole array. TASK_TIME_LIMIT is the line's 7th field; older-format
+#     6-field lines leave it unset by `read`, so ${TASK_TIME_LIMIT:-...}
+#     below falls back to the array-wide TIME_LIMIT env var unchanged. ---
 LINE_NO=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
-read -r DATASET TARGET_IDX REPEAT FOLD CONFIG_INDEX N_REPEATS <<< "$(sed -n "${LINE_NO}p" "${JOBSPEC}")"
-echo "Task line ${LINE_NO} of ${JOBSPEC}: dataset=${DATASET} target_idx=${TARGET_IDX} repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX}"
+read -r DATASET TARGET_IDX REPEAT FOLD CONFIG_INDEX N_REPEATS TASK_TIME_LIMIT <<< "$(sed -n "${LINE_NO}p" "${JOBSPEC}")"
+EFFECTIVE_TIME_LIMIT="${TASK_TIME_LIMIT:-${TIME_LIMIT}}"
+echo "Task line ${LINE_NO} of ${JOBSPEC}: dataset=${DATASET} target_idx=${TARGET_IDX} repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX} time_limit=${EFFECTIVE_TIME_LIMIT}"
 
 cat > "${SCRATCH_DIR}/job.json" <<JOBMETA
 {"job_id": "${SLURM_JOB_ID}", "array_task_id": "${SLURM_ARRAY_TASK_ID:-0}", "model": "${MODEL}", "dataset": "${DATASET}", "target_idx": "${TARGET_IDX}", "started": "$(date -Iseconds)"}
@@ -130,7 +145,7 @@ python scripts/run_experiment.py \
     --config-index "${CONFIG_INDEX}" \
     --num-random-configs "${NUM_RANDOM_CONFIGS}" \
     --num-bag-folds "${NUM_BAG_FOLDS}" \
-    --time-limit "${TIME_LIMIT}" \
+    --time-limit "${EFFECTIVE_TIME_LIMIT}" \
     --results-dir "${RESULTS_DIR}" \
     --cache-dir "${CACHE_DIR}" \
     --mirror-repo "${MIRROR_REPO}" \

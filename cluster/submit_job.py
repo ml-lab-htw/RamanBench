@@ -134,14 +134,67 @@ def resolve_gpu_flags(profile: dict, use_gpu: bool) -> list[str]:
 Job = tuple[str, int, int, int, int, int]
 
 
-def write_jobspec(jobs: list[Job], slug: str) -> Path:
-    """One line per (dataset, target_idx, repeat, fold, config_index, n_repeats)
-    task; array task N reads line N+1."""
+def resolve_time_limit(
+    default: float,
+    dataset: str,
+    dataset_time_limit_overrides: dict[str, float] | None = None,
+    model_time_limit_overrides: dict[str, float] | None = None,
+) -> float:
+    """The time_limit for ONE task, resolved from its own dataset -- the
+    per-task counterpart to ``opportunistic_scheduler.effective_time_limit``,
+    which computes a single value for an entire chunk (the max needed by ANY
+    dataset present in it). That whole-chunk max is still used as the
+    array-wide ``--export TIME_LIMIT=...`` fallback (see ``submit_jobs``
+    below), but applying it to every task regardless of that task's own
+    dataset means a fast task sharing a chunk with e.g. an ``mlrod`` task
+    inherits mlrod's inflated budget for no reason -- confirmed live on the
+    cluster (job 36545: an `alzheimer` task sat at the full ~1350s/fold slice
+    implied by mlrod's 10800s override despite alzheimer needing nowhere near
+    that). This function is what lets ``write_jobspec`` give each line its
+    own, dataset-appropriate value instead.
+
+    Same override semantics as ``effective_time_limit`` (bump the default up,
+    never down; dataset-keyed and model-keyed overrides both apply and the
+    larger wins), just resolved for one dataset instead of maxed over a whole
+    chunk's worth of datasets.
+    """
+    candidates = [default]
+    if dataset_time_limit_overrides and dataset in dataset_time_limit_overrides:
+        candidates.append(dataset_time_limit_overrides[dataset])
+    if model_time_limit_overrides and dataset in model_time_limit_overrides:
+        candidates.append(model_time_limit_overrides[dataset])
+    return max(candidates)
+
+
+def write_jobspec(
+    jobs: list[Job],
+    slug: str,
+    *,
+    default_time_limit: float,
+    dataset_time_limit_overrides: dict[str, float] | None = None,
+    model_time_limit_overrides: dict[str, float] | None = None,
+) -> Path:
+    """One line per (dataset, target_idx, repeat, fold, config_index,
+    n_repeats, time_limit) task; array task N reads line N+1. ``time_limit``
+    (the 7th field) is resolved PER TASK from its own dataset via
+    ``resolve_time_limit`` -- not one flat value for the whole array -- so a
+    chunk mixing an oversized dataset (e.g. ``mlrod``) in with ordinary ones
+    no longer forces every task in that chunk onto the oversized dataset's
+    budget. ``run_experiment.sbatch`` reads this field directly; the
+    array-wide ``--export TIME_LIMIT=...`` env var (still the whole-chunk max
+    -- see ``submit_jobs``) is kept only as a fallback for jobspec lines
+    without this field (backward compat with any already-queued array whose
+    jobspec predates this field)."""
     JOBSPEC_DIR.mkdir(exist_ok=True)
     path = JOBSPEC_DIR / f"{slug}.txt"
     with open(path, "w") as f:
         for dataset, target_idx, repeat, fold, config_index, n_repeats in jobs:
-            f.write(f"{dataset} {target_idx} {repeat} {fold} {config_index} {n_repeats}\n")
+            task_time_limit = resolve_time_limit(
+                default_time_limit, dataset, dataset_time_limit_overrides, model_time_limit_overrides,
+            )
+            f.write(
+                f"{dataset} {target_idx} {repeat} {fold} {config_index} {n_repeats} {task_time_limit}\n"
+            )
     return path
 
 
@@ -170,11 +223,39 @@ def submit_jobs(
     profile: dict,
     throttle: int,
     dry_run: bool,
+    dataset_time_limit_overrides: dict[str, float] | None = None,
+    model_time_limit_overrides: dict[str, float] | None = None,
+    default_time_limit: float | None = None,
 ) -> list[str]:
     """Submit ``jobs`` (all for one ``model`` -- resource flags are resolved once per
     call, so every task in an array must share the same GPU/CPU and memory tier) as
     one or more SLURM array jobs, chunked at the profile's MaxArraySize. Returns the
     list of submitted SLURM job IDs (empty on a dry run or a non-SLURM profile).
+
+    ``time_limit`` is used ONLY for the array-wide ``--export TIME_LIMIT=...``
+    fallback (read by ``run_experiment.sbatch`` only for a jobspec line that
+    somehow lacks the per-task 7th field -- e.g. an older-format jobspec).
+    Callers that pre-compute a whole-chunk ceiling (e.g.
+    ``opportunistic_scheduler.effective_time_limit``, which folds in the max
+    override needed by ANY dataset in the chunk) should pass that ceiling
+    here.
+
+    ``default_time_limit`` is the FLAT baseline each task's own
+    ``resolve_time_limit`` call bumps up from -- deliberately a separate
+    parameter from ``time_limit`` above: if the whole-chunk ceiling were used
+    as this baseline instead, every task would inherit at least that ceiling
+    (``max(ceiling, ...)`` can never go below ``ceiling``), silently
+    reproducing the exact per-chunk-not-per-task bug this parameter exists to
+    fix. Defaults to ``time_limit`` when omitted, which is correct for the
+    single-(dataset,target) CLI path below (no chunk-wide inflation to worry
+    about there -- every task already shares one dataset, so there's only
+    ever one flat value in play, and ``dataset_time_limit_overrides``/
+    ``model_time_limit_overrides`` are both None there too).
+
+    ``dataset_time_limit_overrides``/``model_time_limit_overrides`` (both
+    optional) let each task's own dataset bump ``default_time_limit`` up via
+    ``resolve_time_limit``, so one array/chunk spanning multiple datasets
+    doesn't force a fast dataset onto a slow dataset's budget.
 
     Shared by the single-(dataset,target) CLI path (``submit()`` below) and
     ``opportunistic_scheduler.py``'s multi-(dataset,target) backlog submission --
@@ -182,11 +263,17 @@ def submit_jobs(
     """
     use_gpu = model in GPU_MODELS
     job_ids: list[str] = []
+    # See the docstring above for why this must NOT be `time_limit` itself
+    # when a caller passes a pre-inflated whole-chunk ceiling there.
+    base_time_limit = time_limit if default_time_limit is None else default_time_limit
 
     if not profile.get("slurm", True):
         # No SLURM -- run every job as a local subprocess.
         print(f"Profile {profile['name']!r} has no SLURM -- running {len(jobs)} job(s) locally.")
         for dataset, target_idx, repeat, fold, cfg, n_repeats in jobs:
+            task_time_limit = resolve_time_limit(
+                base_time_limit, dataset, dataset_time_limit_overrides, model_time_limit_overrides,
+            )
             task_slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
             scratch_dir = str(REPO_ROOT / ".scratch_v1" / f"local_{task_slug}_{repeat}_{fold}_{cfg}")
             cmd = [
@@ -195,7 +282,7 @@ def submit_jobs(
                 "--repeat", str(repeat), "--fold", str(fold),
                 "--n-repeats", str(n_repeats), "--n-splits", str(n_splits),
                 "--config-index", str(cfg), "--num-random-configs", str(num_random_configs),
-                "--num-bag-folds", str(num_bag_folds), "--time-limit", str(time_limit),
+                "--num-bag-folds", str(num_bag_folds), "--time-limit", str(task_time_limit),
                 "--results-dir", results_dir, "--cache-dir", cache_dir, "--mirror-repo", mirror_repo,
                 "--scratch-dir", scratch_dir,
             ]
@@ -220,7 +307,12 @@ def submit_jobs(
 
     for part, chunk_jobs in enumerate(chunks):
         part_slug = f"{slug}_p{part}" if multi_part else slug
-        jobspec_path = write_jobspec(chunk_jobs, part_slug)
+        jobspec_path = write_jobspec(
+            chunk_jobs, part_slug,
+            default_time_limit=base_time_limit,
+            dataset_time_limit_overrides=dataset_time_limit_overrides,
+            model_time_limit_overrides=model_time_limit_overrides,
+        )
 
         sbatch_args = [
             "sbatch",
@@ -258,6 +350,10 @@ def submit_jobs(
             f"N_SPLITS={n_splits}",
             f"NUM_RANDOM_CONFIGS={num_random_configs}",
             f"NUM_BAG_FOLDS={num_bag_folds}",
+            # Array-wide fallback only -- run_experiment.sbatch prefers the
+            # per-task 7th jobspec field (see write_jobspec/resolve_time_limit
+            # above) and falls back to this env var just for jobspec lines
+            # that don't have it (older-format jobspecs already queued).
             f"TIME_LIMIT={time_limit}",
             f"RESULTS_DIR={results_dir}",
             f"CACHE_DIR={cache_dir}",
