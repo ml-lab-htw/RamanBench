@@ -204,6 +204,24 @@ def compute_metrics_from_predictions(config):
             is_excluded = key in excluded_keys
             dataset_name, target_idx = benchmark.split_key(key)
 
+            # `items` comes from the ground-truth files on disk, which outlive the
+            # dataset registry: a dataset that is renamed or dropped leaves its old
+            # *_ground_truth.csv behind, and pretty_name() then raises. That used to
+            # abort the whole run — and since the metrics CSVs are only written at
+            # the very end, one stale file discarded every arm's work. Skip the key
+            # instead; it is by definition not part of the current benchmark.
+            try:
+                dataset_label = pretty_name(dataset_name)
+            except ValueError:
+                logger.warning(
+                    "Skipping %s: dataset %r is not in the registry (stale "
+                    "ground-truth file from a renamed or removed dataset).",
+                    key,
+                    dataset_name,
+                )
+                pbar.update(len(model_names))
+                continue
+
             for model_name in model_names:
                 pbar.set_description(f"Seed {seed} | {key} | {model_name}")
                 pred_path = os.path.join(predictions_dir, f"{key}_{model_name}_predictions.csv")
@@ -260,7 +278,7 @@ def compute_metrics_from_predictions(config):
                 row = {
                     "seed": seed,
                     "key": key,
-                    "dataset": pretty_name(dataset_name),
+                    "dataset": dataset_label,
                     "task_type": task_type,
                     "target_idx": target_idx,
                     "model": model_name,
