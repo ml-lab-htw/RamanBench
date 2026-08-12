@@ -384,16 +384,16 @@ class RamanPreprocessingMixin:
             # models, TabPFN, the tree models) each arm of a preprocessing
             # ablation ran as if it were the "none" arm and produced identical
             # predictions.
-            restriction = getattr(self, "_prep_restriction", None) or {}
-            requested = {
-                STEP_ENABLED_PARAMS[step_key]
-                for step_key, want in restriction.items()
-                if want and step_key in STEP_ENABLED_PARAMS
-            }
-            if restriction.get("standard_scaling"):
-                requested.add("prep_scaling_enabled")
+            # _user_params holds only what was passed in as hyperparameters, i.e.
+            # exactly the flags _build_model_hyperparameters derived from
+            # preprocessing_config. Class defaults and HPO samples are not in it,
+            # so clearing everything else keeps the HPO defence intact.
+            # Note _build_model_hyperparameters *pops* _prep_restriction before
+            # constructing the model, so self._prep_restriction is unset here and
+            # cannot be used to recover the intent.
+            user_params = getattr(self, "_user_params", None) or {}
             for k in _TRANSFORM_ENABLED_PARAMS:
-                if k not in requested:
+                if k not in user_params:
                     self.params[k] = False
 
         # Augmentation gate is unconditional — applies to _optimize_preprocessing
