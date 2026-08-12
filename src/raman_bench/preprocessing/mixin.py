@@ -375,8 +375,26 @@ class RamanPreprocessingMixin:
         # set by _set_default_params) into the search space dict.  Enforcing here is
         # the only reliable defence.
         if not getattr(self, "_optimize_preprocessing", False):
+            # Steps the config explicitly asked for must survive this gate. It
+            # exists to stop HPO from *sampling* prep params, but blanket-clearing
+            # every step also erased preprocessing that preprocessing_config had
+            # deliberately enabled — silently, since the mixin still logged
+            # "Start Preprocessing" for the augmentation step. Only PLS/KNN/LR set
+            # _optimize_preprocessing, so for every other model (all Raman DL
+            # models, TabPFN, the tree models) each arm of a preprocessing
+            # ablation ran as if it were the "none" arm and produced identical
+            # predictions.
+            restriction = getattr(self, "_prep_restriction", None) or {}
+            requested = {
+                STEP_ENABLED_PARAMS[step_key]
+                for step_key, want in restriction.items()
+                if want and step_key in STEP_ENABLED_PARAMS
+            }
+            if restriction.get("standard_scaling"):
+                requested.add("prep_scaling_enabled")
             for k in _TRANSFORM_ENABLED_PARAMS:
-                self.params[k] = False
+                if k not in requested:
+                    self.params[k] = False
 
         # Augmentation gate is unconditional — applies to _optimize_preprocessing
         # models (PLS, KNN, LR) as well as all others.  Without this, HPO can
