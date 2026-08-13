@@ -81,6 +81,59 @@ directly, rather than reimplementing patterns "inspired by" them.
   replacing the previous scheme of 3 independent holdout splits with no folds.
   `StratifiedGroupKFold` also lifts the old scheme's limitation that a grouped
   classification split couldn't additionally be class-balanced.
+- `num_bag_folds` (AutoGluon's bagging knob -- fit N models on N different folds of the
+  training data and ensemble them, independent of the outer k-fold CV above) is now a
+  fixed `8` for every model: `DEFAULT_NUM_BAG_FOLDS` in `scripts/run_experiment.py:51`,
+  threaded through `cluster/opportunistic_scheduler.py`'s
+  `num_bag_folds=scope.get("num_bag_folds", 8)` and `cluster/submit_job.py` (downscaled
+  per-target only for very small datasets/classes -- see the `effective_bag_folds` fix
+  below). This matches TabArena's own real default: `AGModelBagExperiment.__init__`
+  (`tabarena/benchmark/experiment/experiment_constructor.py`, confirmed by reading the
+  class directly under this repo's `ramanbench_1` env) declares `num_bag_folds: int = 8`
+  as its own default.
+- v0.1's bagging behavior, by contrast, was never a fixed number -- and for most models it
+  was not used at all. `AutoGluonModel` (`src/raman_bench/model.py`) had
+  `ensemble: bool = True` as its constructor default (docstring: "Enable AutoGluon
+  bagging/stacking"), but `fit()` only ever sets an explicit fold count in the
+  `ensemble=False` branch (`fit_args["num_bag_folds"] = 0`, `num_stack_levels = 0`); an
+  `ensemble=True` fit passed no `num_bag_folds` at all, deferring entirely to AutoGluon's
+  own `best_quality`-preset default (`presets_configs.py`:
+  `{"auto_stack": True, "dynamic_stacking": "auto", "hyperparameters": "zeroshot"}`, no
+  `num_bag_folds` key) -- which is itself not a fixed number but a data-size curve,
+  confirmed in the currently-installed AutoGluon 1.6.1's `get_validation_and_stacking_method`
+  (`autogluon/tabular/configs/pipeline_presets.py`):
+  `DEFAULT_VALIDATION_SIZE_CURVES["num_bag_folds"] = [[59, 5], [69, 6], [79, 7], 8]`, i.e. 5
+  folds at <=59 training rows, rising to 8 above 79. Critically, the config that actually
+  produced the published v0.1.0 leaderboard, `configs/benchmark_v0.1.json` (present at the
+  `v0.1.0` git tag, commit `3884c01`), sets `"ensemble": false` explicitly (`"optimize":
+  false` too) -- so bagging was fully *disabled*, `num_bag_folds=0`, not any
+  AutoGluon-chosen count, for 27 of the 28 published baselines. The one exception is the
+  native `AUTOGLUON` baseline (`models=["AUTOGLUON"]`): `fit()` only applies the
+  `ensemble=False` override inside `if not self._autogluon_native:`, so that one model's
+  fit was never forced to `num_bag_folds=0` and did get `best_quality`'s auto_stack-driven
+  bagging, at whichever fold count the AutoGluon version installed at the time resolved to
+  -- the `pyproject.toml` pin at the `v0.1.0` tag is a floor (`autogluon.tabular>=1.5`),
+  not an exact version, so that one historical count is not independently recoverable from
+  this repo.
+- "3 seeds each" (the v0.1.0 entry above) is a separate, unrelated mechanism from bagging,
+  not a second stacked layer of ensembling on top of it: `n_repetitions: 3` in the same
+  `configs/benchmark_v0.1.json` resolves via `raman_bench.seeds.get_seeds` to `[0, 1, 2]`,
+  and `predictions.py`'s per-seed loop sets `config["random_state"] = seed` and rebuilds
+  the benchmark from scratch each iteration -- `configure_benchmark`/`RamanBenchmark`
+  (`src/raman_bench/benchmark.py`) draws one `train_test_split`/`GroupShuffleSplit` 80/20
+  holdout per seed (`test_size: 0.2`), not a k-fold split. So v0.1's "3 seeds" meant 3
+  independent single train/test holdouts, each running one un-bagged, un-tuned
+  (`"optimize": false`) `TabularPredictor.fit()` per model -- not "3 seeds x AutoGluon
+  bag-folds" for every model except `AUTOGLUON`. This is a real protocol difference, not a
+  default that "used to be implicit and is now explicit": v1's per-model scores now come
+  from a genuinely bagged, out-of-fold-aggregated fit (8-way, or downscaled) on every
+  repeated-k-fold split, while v0.1's published numbers for 27/28 models came from single
+  non-bagged fits repeated across 3 holdout splits. It is part of why v1 job durations for
+  the same model differ from v0.1's, and it means v0.1-vs-v1 comparisons for any model
+  other than `AUTOGLUON` are not "same bagging, different outer splitting" -- v0.1 had no
+  bagging there at all. It also explains why "AutoGluon ensemble (AUTOGLUON)" was called
+  out as its own distinct baseline in the v0.1.0 "Added" list above: it was the only model
+  in that lineup whose published numbers ever touched AutoGluon's bagging machinery.
 - `raman_bench.splitting.get_n_repeats`: dataset-size-adaptive repeat count (10 repeats
   under 2,500 instances, 3 up to 250,000, 1 above), ported directly from
   `tabarena.nips2025_utils.fetch_metadata._get_n_repeats` and confirmed against TabArena's
