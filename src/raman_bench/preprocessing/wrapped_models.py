@@ -22,6 +22,8 @@ migrated there yet, plus the merge point that combines both conventions into
 one :data:`PREPROCESSED_MODELS` dict.
 """
 
+import math
+
 import numpy as np
 
 try:
@@ -618,9 +620,111 @@ else:
 # CHANGELOG for the full reasoning).
 _TABSTAR_MAX_FEATURES = 4000
 
-Prep_TABSTAR = _make_optional_prep_class(
-    "Prep_TABSTAR", TabSTARModel, _default_auxiliary_params_extra={"max_features": _TABSTAR_MAX_FEATURES}
-)
+# GPU memory does NOT reset between AutoGluon's sequential bagged folds -- confirmed as a
+# real production failure, not a hypothetical: a real HTW cluster run (job 33535, RamanBench
+# default `num_bag_folds=8`) OOM-killed 6/6 tasks on `diabetes_skin_ear_lobe`
+# (2,803-3,160 features, 20 rows -- comfortably under the 4,000 cap above, and the exact
+# dataset the batch-3 memory characterization above called "confirmed-safe") with
+# `torch.OutOfMemoryError: ... 76.32 GiB is allocated by PyTorch` on a 79.25 GiB GPU, for a
+# 20-row fit. Cross-job GPU contention was independently ruled out first (4 concurrent
+# diagnostic SLURM jobs confirmed SLURM cgroup-isolates each job to its own distinct
+# physical GPU).
+#
+# Root cause: `TabSTARModel._get_default_ag_args_ensemble` (tabarena) forces
+# `fold_fitting_strategy: "sequential_local"` (parallel folding isn't safe here yet -- see
+# that method's own docstring/TODO: "switch to parallel fitting on one GPU once VRAM memory
+# estimation is supported"; `_class_tags` also declares
+# `can_estimate_memory_usage_static: False`), so all `num_bag_folds` child fits happen
+# sequentially inside ONE process. Each fold's `BaseTabSTAR.fit()`
+# (`tabstar/tabstar_model.py`) builds a `TabStarTrainer` (`tabstar/training/trainer.py`)
+# whose `self.optimizer`/`self.scheduler`/`self.scaler` hold live references to that fold's
+# full parameter set (frozen backbone + LoRA adapters) for the duration of the local
+# `trainer` variable's lifetime inside `BaseTabSTAR.fit()`. `TabStarTrainer.load_model()`
+# *does* call `gc.collect()`/`torch.cuda.empty_cache()` -- but before the optimizer holding
+# the old (pre-averaging) model's tensors is dropped, so that call is a no-op for the
+# fold's actual training-time footprint; nothing downstream (`TabSTARModel._fit`, nor
+# AutoGluon's own `SequentialLocalFoldFittingStrategy`/`_predict_oof`/
+# `_update_bagged_ensemble`, which only plain-dereferences via `fold_model.model = None`)
+# ever forces a cyclic-GC sweep after a fold's `trainer` object itself goes out of scope --
+# and `nn.Module`/PEFT/autograd object graphs are exactly the kind that commonly form
+# reference cycles CPython's refcounting alone won't free promptly, deferring reclamation
+# to whenever the interpreter's generational collector happens to run (which is not tied to
+# GPU memory pressure at all). Net effect: each sequential fold leaves a growing amount of
+# genuinely still-"allocated" (not merely cached) GPU memory behind, accumulating fold over
+# fold within the one process instead of staying bounded to ~1 fold's footprint.
+#
+# This is exactly why earlier batch-3 verification (`results/v1/smoke_resource_fixes/data/
+# TabSTAR_c1_BAG_L1/kaiser_ecoli_fermentation__0/0_0/results.pkl`) missed it: that smoke run
+# used `num_bag_folds=2` (not RamanBench's real `DEFAULT_NUM_BAG_FOLDS=8` from
+# `cluster/submit_job.py`/`scripts/run_experiment.py`) on CPU (`gpu_tracking_enabled:
+# False`), where host RAM headroom absorbed 2 folds' worth of un-released memory
+# (`peak_mem_cpu` there: 21,076,115,456 bytes = 19.63 GiB, i.e. ~9.81 GiB/fold) without
+# incident. Extrapolated *linearly* to production's 8 folds: 9.81 * 8 = 78.51 GiB -- versus
+# the real OOM's 76.32 GiB allocated + 2.38 GiB reserved-unallocated = 78.70 GiB. That is a
+# <0.3% match on an entirely independent dataset/run, strong quantitative confirmation this
+# is genuine per-fold accumulation (roughly linear in fold count), not dataset-specific bad
+# luck -- and explains the uniform 6/6 failure (every array task shares the same
+# `num_bag_folds=8` default, so all six are equally exposed).
+#
+# Fix: force a real release point around each fold's own `_fit()` call -- `gc.collect()`
+# (to break whatever reference cycle is deferring reclamation) THEN
+# `torch.cuda.empty_cache()` (to return the now-actually-freed blocks to the allocator, sos
+# fragmentation from differently-shaped folds can't compound either), both before AND after
+# `super()._fit()`: the "before" call cleans up whatever the *previous* fold left behind
+# before this fold starts consuming budget (the one that actually caps cross-fold growth);
+# the "after" call reclaims this fold's own training-time garbage (the `trainer`/`optimizer`
+# cycle) before OOF prediction and the next fold begin. This is RamanBench-side only (no
+# tabarena/tabstar patching, unlike the LIMIX pickling workaround above) since the hook
+# point is a plain method override -- same shape as `Prep_EBM._fit`'s wide-feature
+# `interactions=0` override and `Prep_LIMIX._get_default_auxiliary_params`'s re-clobber,
+# just at `_fit` instead. No local GPU was available to instrument peak VRAM directly across
+# folds; verification is the real before/after cluster run recorded in CHANGELOG.md.
+#
+# Not filed upstream (yet, pending user sign-off): no existing tabarena or tabstar issue
+# covers this (checked both repos' issue trackers). A draft upstream report is warranted --
+# real GPU-memory-budget projects (RamanBench included) hit this the moment they combine
+# TabSTAR with `num_bag_folds` > ~2-3 on real VRAM limits, and the ~9-10 GiB/fold footprint
+# this uncovers is itself worth flagging even independent of the reference-cycle angle,
+# since it's far larger than a 20-row fit should plausibly need. See CHANGELOG.md for the
+# decision on whether/how it was filed.
+
+
+if TabSTARModel is None:
+    Prep_TABSTAR = None
+else:
+
+    class Prep_TABSTAR(_NoAugBase, TabSTARModel):  # noqa: N801
+        """TabSTAR -- see the comment block above for why this can't be built via
+        ``_make_optional_prep_class`` like most other batch-3 models (needs a real
+        ``_fit`` override, not just a declarative ``_default_auxiliary_params_extra``
+        merge -- same *class* of exception as ``Prep_LIMIX`` above, for an
+        unrelated reason).
+        """
+
+        ag_key = "TABSTAR"
+        _default_auxiliary_params_extra = {"max_features": _TABSTAR_MAX_FEATURES}
+
+        def _fit(self, X, y, **kwargs):
+            """Force a real GPU-memory release point around each bagged fold's fit.
+
+            See the module-level comment block above ``Prep_TABSTAR`` for the full
+            root-cause writeup and the quantitative evidence tying this to
+            cross-fold GPU memory accumulation under AutoGluon's
+            ``sequential_local`` fold-fitting strategy specifically (not a
+            single-fit memory *ceiling* problem -- that's what
+            ``_TABSTAR_MAX_FEATURES`` already guards against).
+            """
+            import gc
+
+            import torch
+
+            if torch.cuda.is_available():
+                gc.collect()
+                torch.cuda.empty_cache()
+            super()._fit(X, y, **kwargs)
+            if torch.cuda.is_available():
+                gc.collect()
+                torch.cuda.empty_cache()
 
 
 class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
@@ -747,6 +851,130 @@ REGRESSION_ONLY_MODELS = {"NORI"}
 # too-wide dataset. This dict lets `run_experiment.py` catch that case BEFORE
 # ever calling into AutoGluon, for a real clean exit instead.
 MAX_FEATURES_MODELS = {"TABSTAR": _TABSTAR_MAX_FEATURES}
+
+# ORIONMSP: a real production CUDA OOM (`pharmaceutical_ingredients`, 3,276
+# features, 2,340 train rows, on a 79.25 GiB GPU: "Tried to allocate 94.47
+# GiB. ... 63.84 GiB is free") looked at first like the same shape of problem
+# as TabSTAR above -- but it is NOT a single-number `max_features` situation,
+# confirmed by reading the actual source rather than assuming from the
+# traceback alone (`tabtune.models.orionmsp_v15.model.{interaction,
+# attention}.py`, installed alongside `tabarena`'s own
+# `tabarena.models.orionmsp.model.OrionMSPModel`, which is what
+# `Prep_ORIONMSP` above wraps):
+#
+# - `OrionMSPv15._train_forward` (`orionmsp_v15.py`) feeds the ENTIRE
+#   training partition through `RowInteraction` (`interaction.py`) in one
+#   forward pass, with no row-chunking at all -- chunking
+#   (`InferenceManager`/`mgr_config`) only exists on the separate
+#   `_inference_forward` path, used for predict, not fit.
+# - `RowInteraction._run_one_scale` builds a per-row attention sequence of
+#   length `L = num_special (6 = row_num_cls=4 + row_num_global=2) +
+#   ceil(n_features / features_per_group=2)` and runs it through
+#   `Encoder`/`multi_head_attention_forward` (`attention.py`), which -- for
+#   the arbitrary boolean sparse mask this model builds
+#   (`_build_block_sparse_mask`) -- falls back to PyTorch SDPA's dense
+#   "math" backend and materializes a full `(n_rows, nhead, L, L)` score
+#   tensor. `n_rows` here is `batch_shape[1]` in `multi_head_attention_
+#   forward` -- i.e. every row in the forward call is an independent batch
+#   element for this attention, not part of a shared L-length sequence, so
+#   this allocation scales LINEARLY in row count on top of QUADRATICALLY in
+#   feature count. None of OrionMSP's hyperparameters are tunable through
+#   this integration (`tabarena.models.orionmsp.hpo.gen_orionmsp`:
+#   `search_space={}`, `manual_configs=[{}]`), so `embed_dim=128` ->
+#   `row_nhead=8`, `features_per_group=2`, `row_num_cls=4`,
+#   `row_num_global=2` are fixed constants for every real config, not
+#   defaults that might vary.
+#
+# Reproducing this formula (`n_rows * nhead(8) * L**2 * 2 bytes` -- 2 bytes
+# because `use_amp=True` by default, i.e. fp16 during this forward) against
+# the real failure: `L = 6 + ceil(3276/2) = 1644`, predicted
+# `2340 * 8 * 1644**2 * 2 / 1024**3 = 94.24 GiB` -- 0.24% off the actual
+# "Tried to allocate 94.47 GiB" in the traceback. That is close enough to be
+# the literal tensor that failed to allocate, not a coincidental
+# order-of-magnitude match, so this formula (not a features-only guess) is
+# what the cap below is built from.
+#
+# Upstream's own `OrionMSPModel._fit` (`tabarena/models/orionmsp/model.py`)
+# already carries a real, verified-in-source mitigation -- not a secondhand
+# paraphrase, confirmed by reading it directly: `if X.shape[1] > 500:
+# hps["batch_size"] = 1  # avoid OOM for wide datasets`, next to the comment
+# "Needs up to 400GB VRAM for datasets with 1k features." `batch_size`
+# controls how many of the classifier's `n_estimators=64` ensemble members
+# are processed together at inference time -- a real lever, but for a
+# DIFFERENT dimension (ensemble width) than the one that actually OOM'd here
+# (row count during `_train_forward`, which never consults `batch_size` at
+# all). Confirmed insufficient by the failure itself: `pharmaceutical_
+# ingredients` has 3,276 > 500 features, so this fallback was already
+# active, and it still OOM'd.
+#
+# A TabSTAR-style single `max_features` cap would also be the wrong
+# mechanism here, not just an unnecessary extra dimension -- confirmed by
+# cross-referencing `configs/v1/target_list.json` against
+# `data/precomputed/dataset_stats.json` for all 152 real v1 targets with
+# known dataset stats:
+# - `mlrod` (1,836 features, 130,061 rows), `wheat_lines` (1,748 features,
+#   53,134 rows), and `bacteria_identification` (1,000 features, 78,500
+#   rows) all have FEWER features than the already-OOMing `pharmaceutical_
+#   ingredients` (3,276), yet predict far larger attention buffers (1,103 /
+#   409 / 200 GiB respectively) from row count alone -- a features-only cap
+#   set anywhere near 3,276 would let all three straight through to a GPU
+#   job that predictably OOMs far worse than the one that triggered this
+#   investigation.
+# - `sugar_mixtures_high_snr` and `sugar_mixtures_low_snr` share the exact
+#   same 2,000 features but differ 4x in row count (1,960 vs 7,840 total
+#   instances) and land on opposite sides of any reasonable budget (19.7 vs
+#   78.8 GiB predicted) -- proof row count is genuinely load-bearing here,
+#   not just noise around a feature-count signal.
+#
+# So the cap below is a joint predicate (features AND rows), not a second
+# `MAX_FEATURES_MODELS` entry. The budget (40 GiB) is chosen the same way
+# TabSTAR's 4,000 was: it sits in a real, wide, dataset-free gap in the
+# predicted-GiB distribution across all 152 real v1 targets -- nothing
+# between 26.30 GiB (`flow_microgel_synthesis`, kept) and 61.22 GiB
+# (`bioprocess_substrates`, excluded), so any budget from ~27-60 GiB
+# produces the IDENTICAL partition (7 of ~72 real datasets / 17 of 152
+# targets excluded: `mlrod`, `wheat_lines`, `bacteria_identification`,
+# `pharmaceutical_ingredients`, `sugar_mixtures_low_snr`, `microgel_size_
+# raw_global`, `bioprocess_substrates`) -- 40 is not a fragile choice. It
+# also leaves real margin below the empirically-observed ceiling: the real
+# OOM reported 63.84 GiB free (of 79.25 GiB total) at the moment of
+# failure, and this formula deliberately only models the single dominant
+# attention-buffer allocation, not the smaller baseline overhead (checkpoint
+# weights, the column-embedding activation tensor, CUDA context -- ~15.4 GiB
+# in the real failure) that also grows mildly with n_rows/n_features -- 40
+# GiB leaves roughly 24 GiB of headroom below 63.84 for that.
+_ORIONMSP_ROW_NHEAD = 8
+_ORIONMSP_ROW_NUM_SPECIAL = 6  # row_num_cls (4) + row_num_global (2)
+_ORIONMSP_FEATURES_PER_GROUP = 2
+_ORIONMSP_ATTN_BYTES_PER_ELEMENT = 2  # fp16 (use_amp=True by default)
+_ORIONMSP_MAX_PREDICTED_ATTN_GIB = 40.0
+
+
+def _orionmsp_predicted_attn_gib(n_features: int, n_rows: int) -> float:
+    """Predicted peak size (GiB) of OrionMSP's ``RowInteraction`` attention buffer.
+
+    See the comment block above this function for the full derivation and
+    the real-failure calibration (94.24 GiB predicted vs. 94.47 GiB actually
+    attempted, 0.24% off, for ``pharmaceutical_ingredients``).
+    """
+    seq_len = _ORIONMSP_ROW_NUM_SPECIAL + math.ceil(n_features / _ORIONMSP_FEATURES_PER_GROUP)
+    n_bytes = n_rows * _ORIONMSP_ROW_NHEAD * seq_len * seq_len * _ORIONMSP_ATTN_BYTES_PER_ELEMENT
+    return n_bytes / 1024**3
+
+
+def _orionmsp_exceeds_vram_budget(n_features: int, n_rows: int) -> bool:
+    return _orionmsp_predicted_attn_gib(n_features, n_rows) > _ORIONMSP_MAX_PREDICTED_ATTN_GIB
+
+
+# Joint (features AND rows) counterpart to `MAX_FEATURES_MODELS` -- keyed by
+# model name -> a `(n_features, n_rows) -> bool` predicate (True = skip)
+# instead of a single int, since (see the comment block above) a single
+# number can't express OrionMSP's real constraint. Consumed the same way by
+# `scripts/run_experiment.py::run_one()`: a clean, job-level skip (return
+# `None`, log, exit 0) BEFORE ever calling into AutoGluon/CUDA, for the same
+# `raise_on_no_models_fitted=True` reason `MAX_FEATURES_MODELS`'s own
+# docstring explains.
+VRAM_CAPPED_MODELS = {"ORIONMSP": _orionmsp_exceeds_vram_budget}
 
 
 def create_preprocessed_hyperparameters(
