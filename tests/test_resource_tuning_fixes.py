@@ -23,9 +23,25 @@ verification of the 14-model TabArena onboarding effort:
    was dataset-keyed only, unable to express "this model needs more time on
    this dataset, but other models sharing it are fine" -- extended with a
    parallel ``model_time_limit_overrides`` (model -> dataset -> seconds) layer.
+4. ORIONMSP OOMs on GPU VRAM (not host RAM) above a real, joint feature-count
+   AND row-count threshold -- confirmed real on the cluster: "Tried to
+   allocate 94.47 GiB" on a 79.25 GiB GPU for ``pharmaceutical_ingredients``
+   (3,276 features, 2,340 train rows), traced to
+   ``tabtune.models.orionmsp_v15.model.interaction.RowInteraction``'s
+   per-row feature attention, whose score-buffer allocation is
+   ``n_rows * nhead * L**2 * 2 bytes`` (``L = 6 + ceil(n_features/2)``) --
+   confirmed by reproducing that formula almost exactly (94.24 GiB predicted,
+   0.24% off the real failure). Unlike TabSTAR, a single ``max_features``
+   number can't express this (row count is independently load-bearing --
+   e.g. ``mlrod``, 1,836 features but 130,061 rows, predicts a *worse* OOM
+   than the dataset that triggered this investigation). Fixed with a joint
+   ``(n_features, n_rows) -> bool`` predicate
+   (``wrapped_models.VRAM_CAPPED_MODELS``), the row-and-feature-aware
+   counterpart to ``MAX_FEATURES_MODELS``, consumed the same way by
+   ``scripts/run_experiment.py::run_one()``.
 
 See ``wrapped_models.py``'s own comment blocks (``_TABSTAR_MAX_FEATURES``,
-``Prep_EBM._fit``, ``MAX_FEATURES_MODELS``) and
+``Prep_EBM._fit``, ``MAX_FEATURES_MODELS``, ``VRAM_CAPPED_MODELS``) and
 ``cluster/opportunistic_scheduler.py::effective_time_limit`` for the full
 evidence/reasoning behind each fix -- this file only locks the resulting
 behavior in.
@@ -265,6 +281,126 @@ def test_run_one_skips_regression_only_model_on_classification_dataset(run_exper
             config_index=0,
         )
     assert out is None
+
+
+def test_orionmsp_formula_matches_real_production_failure():
+    """The predicted-VRAM formula must reproduce the real cluster OOM almost
+    exactly, not just be in the right order of magnitude: pharmaceutical_
+    ingredients (3,276 features, 2,340 train rows) attempted to allocate
+    94.47 GiB on a 79.25 GiB GPU."""
+    from raman_bench.preprocessing.wrapped_models import _orionmsp_predicted_attn_gib
+
+    predicted = _orionmsp_predicted_attn_gib(n_features=3276, n_rows=2340)
+    assert predicted == pytest.approx(94.47, rel=0.01)
+
+
+def test_orionmsp_vram_cap_known_real_datapoints():
+    """Real, confirmed data points from the v1 target distribution -- not
+    synthetic ones -- must land on the expected side of the cap:
+
+    - pharmaceutical_ingredients (3,276 features, 2,340 train rows): the
+      real production OOM. Must be flagged.
+    - diabetes_skin_ear_lobe (2,803 processed features, ~13 train rows):
+      confirmed working on GPU. Must NOT be flagged, despite having a
+      similar feature count to pharmaceutical_ingredients -- proof the cap
+      is row-aware, not just a max_features check in disguise.
+    - mlrod (1,836 features, ~86,707 train rows) and wheat_lines (1,748
+      features, ~35,423 train rows): FEWER features than pharmaceutical_
+      ingredients but far more rows -- both must be flagged, which a
+      features-only cap could never do (both are narrower than the known
+      failure point).
+    - sugar_mixtures_high_snr vs. sugar_mixtures_low_snr: identical 2,000
+      features, but low_snr has ~5,227 train rows vs. high_snr's ~1,307 --
+      must land on opposite sides of the cap, proving row count is
+      independently load-bearing and not just a proxy for feature count.
+    """
+    from raman_bench.preprocessing.wrapped_models import VRAM_CAPPED_MODELS
+
+    exceeds = VRAM_CAPPED_MODELS["ORIONMSP"]
+
+    assert exceeds(3276, 2340) is True  # pharmaceutical_ingredients: real OOM
+    assert exceeds(2803, 13) is False  # diabetes_skin_ear_lobe: confirmed working
+    assert exceeds(1836, 86707) is True  # mlrod: fewer features, far more rows
+    assert exceeds(1748, 35423) is True  # wheat_lines: same story
+    assert exceeds(2000, 5227) is True  # sugar_mixtures_low_snr
+    assert exceeds(2000, 1307) is False  # sugar_mixtures_high_snr: same features, fewer rows
+
+
+def test_run_one_skips_orionmsp_above_vram_budget(run_experiment):
+    """Regression test for the real cluster OOM: a dataset whose predicted
+    OrionMSP attention buffer exceeds the VRAM budget must clean-skip
+    (return None, no crash) before any model/CUDA code ever runs."""
+    from raman_data import TASK_TYPE
+
+    # n_features=5000, n_rows=700 -> n_rows_estimate = round(700 * 2/3) = 467,
+    # comfortably above the ~428-row threshold at which 5,000 features alone
+    # crosses the 40 GiB budget (see VRAM_CAPPED_MODELS's docstring).
+    df = _make_df(n_features=5000, n_rows=700)
+    fake = _FakeDataset(TASK_TYPE.Classification, df)
+
+    with patch(
+        "raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake
+    ):
+        out = run_experiment.run_one(
+            dataset_name="fake_wide_and_tall_dataset",
+            target_idx=0,
+            model_key="ORIONMSP",
+            repeat=0,
+            fold=0,
+            config_index=0,
+        )
+    assert out is None
+
+
+def test_run_one_does_not_skip_orionmsp_below_vram_budget(run_experiment):
+    """A dataset well under the VRAM budget (e.g. diabetes_skin_ear_lobe's
+    real shape: ~2,800 features, tiny row count) must NOT be caught by the
+    new clean-skip -- it should proceed exactly as before this fix. Patches
+    OrionMSPModel._fit itself (not just the dataset load) so this stays a
+    fast, real check of the skip *predicate*, not a full model fit."""
+    from raman_data import TASK_TYPE
+
+    from raman_bench.preprocessing.wrapped_models import Prep_ORIONMSP
+
+    if Prep_ORIONMSP is None:
+        pytest.skip("OrionMSPModel unavailable in this tabarena build")
+
+    df = _make_df(n_features=2803, n_rows=20, label_col="target")
+    # ORIONMSP is classification-only -- make the label look categorical.
+    df["target"] = [0, 1] * 10
+    fake = _FakeDataset(TASK_TYPE.Classification, df)
+
+    reached_fit = {"called": False}
+
+    def _fake_fit(self, X, y, **kwargs):
+        reached_fit["called"] = True
+        raise RuntimeError("stop before any real (CUDA/CPU) model work")
+
+    with (
+        patch(
+            "raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake
+        ),
+        patch(
+            "raman_bench.preprocessing.wrapped_models.OrionMSPModel._fit", _fake_fit
+        ),
+        pytest.raises(RuntimeError, match="stop before any real"),
+    ):
+        run_experiment.run_one(
+            dataset_name="fake_narrow_dataset",
+            target_idx=0,
+            model_key="ORIONMSP",
+            repeat=0,
+            fold=0,
+            config_index=0,
+            # ORIONMSP has an empty AutoGluon search space (gen_orionmsp:
+            # search_space={}, manual_configs=[{}]) -- requesting more than 1
+            # random config from an empty space raises AutoGluon's own
+            # ExhaustedSearchSpaceError before ever reaching _fit, unrelated
+            # to this test. Matches the real single-config smoke-test
+            # convention (see model-agent's own reference command).
+            num_random_configs=1,
+        )
+    assert reached_fit["called"], "run_one() should have reached the real _fit call, not skipped"
 
 
 def test_run_one_skips_tabstar_above_max_features(run_experiment):
