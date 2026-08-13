@@ -125,8 +125,11 @@ def run_one(
     ``RamanBenchmark`` silently excluded such keys from the benchmark), if
     every row for this target has a missing (NaN) label, if ``model_key`` only
     supports the other problem type (``wrapped_models.CLASSIFICATION_ONLY_MODELS``/
-    ``REGRESSION_ONLY_MODELS``), or if ``model_key`` is capped below this
-    dataset's feature count (``wrapped_models.MAX_FEATURES_MODELS``, e.g. TABSTAR).
+    ``REGRESSION_ONLY_MODELS``), if ``model_key`` is capped below this dataset's
+    feature count (``wrapped_models.MAX_FEATURES_MODELS``, e.g. TABSTAR), or if
+    ``model_key`` is predicted to exceed its VRAM budget on this dataset's
+    feature-count/row-count combination (``wrapped_models.VRAM_CAPPED_MODELS``,
+    e.g. ORIONMSP).
 
     ``filter_unlabeled`` (default ``True``) drops rows with a missing (NaN)
     target before splitting -- today's models all require a real training
@@ -151,6 +154,7 @@ def run_one(
         CLASSIFICATION_ONLY_MODELS,
         MAX_FEATURES_MODELS,
         REGRESSION_ONLY_MODELS,
+        VRAM_CAPPED_MODELS,
     )
     from raman_bench.splitting import (
         GROUP_COL,
@@ -230,6 +234,27 @@ def run_one(
                 model_key,
                 max_features,
                 n_features,
+            )
+            return None
+    if model_key_upper in VRAM_CAPPED_MODELS:
+        # Joint (features AND rows) counterpart to the MAX_FEATURES_MODELS check
+        # above -- see wrapped_models.VRAM_CAPPED_MODELS's own docstring for why
+        # a single max_features number can't express this model's real
+        # constraint. `n_rows` mirrors the outer-CV train partition size this
+        # job will actually fit on (n_splits-1/n_splits of the full dataset,
+        # BEFORE any rare-class/NaN-label filtering below -- a slight
+        # over-estimate, i.e. conservative in the skip direction).
+        n_features = df.shape[1] - 1
+        n_rows_estimate = round(len(df) * (n_splits - 1) / n_splits)
+        if VRAM_CAPPED_MODELS[model_key_upper](n_features, n_rows_estimate):
+            logger.info(
+                "Skipping %s target %d: %s is predicted to exceed its VRAM "
+                "budget at %d features x ~%d rows",
+                dataset_name,
+                target_idx,
+                model_key,
+                n_features,
+                n_rows_estimate,
             )
             return None
 
