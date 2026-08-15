@@ -73,6 +73,22 @@ DEFAULT_THROTTLE = 8
 # already-submitted array), so this doesn't erode those protections.
 DEFAULT_CPU_THROTTLE = 16
 DEFAULT_TIME_LIMIT = 3600
+# check_capacity()'s idle-CPU check only reflects what `sinfo` reports at that
+# instant -- it says nothing about whether SLURM will actually schedule OUR
+# jobs against it. Confirmed as a real, live production failure: `sinfo`
+# reported 128 idle CPUs on every tick for 18+ hours straight while every one
+# of the scheduler's own submitted array-jobs sat 100% PENDING the entire
+# time (reason: "Priority" -- some cluster-side scheduling factor, e.g.
+# fairshare decay from this account's own sustained prior usage, was holding
+# them back regardless of raw idle capacity). Because idle_total alone still
+# looked fine, the scheduler kept submitting a fresh 300-task chunk every
+# hour on top of an already-completely-stalled queue -- 22 array-jobs
+# accumulated, cancelled by hand once discovered. DEFAULT_MAX_PENDING caps how
+# many of the user's OWN array-job entries are allowed to sit fully PENDING
+# before the scheduler treats that as "no real room" and backs off, matching
+# the tool's own stated design goal (back off by not submitting more, never
+# by cancelling) instead of blindly trusting sinfo.
+DEFAULT_MAX_PENDING = 5
 
 
 def load_scope(path: str | Path) -> dict:
@@ -221,12 +237,29 @@ def compute_backlog(scope: dict, profile: dict) -> dict[str, list[Job]]:
     return backlog
 
 
-def check_capacity(profile: dict, min_idle_cpus: int, courtesy_ceiling: int) -> tuple[bool, str]:
-    """Return (has_room, reason). ``has_room`` requires BOTH idle cluster capacity
-    (this partition isn't busy with other users' work) AND this user's own
-    resident (pending+running) task count staying under a courtesy ceiling (so
-    the scheduler itself never grows into "occupying the whole cluster" even if
-    the partition looks idle to everyone else too)."""
+def check_capacity(
+    profile: dict, min_idle_cpus: int, courtesy_ceiling: int, max_pending: int = DEFAULT_MAX_PENDING
+) -> tuple[bool, str]:
+    """Return (has_room, reason). ``has_room`` requires ALL THREE:
+    (1) idle cluster capacity (this partition isn't busy with other users' work),
+    (2) this user's own resident (pending+running) task count staying under a
+    courtesy ceiling (so the scheduler itself never grows into "occupying the
+    whole cluster" even if the partition looks idle to everyone else too), AND
+    (3) this user's own PENDING count staying under ``max_pending`` -- idle CPU
+    capacity as reported by ``sinfo`` does not guarantee SLURM will actually
+    schedule OUR jobs against it (confirmed in practice: 128 idle CPUs reported
+    every tick for 18+ hours while every one of the scheduler's own submitted
+    array-jobs sat 100% PENDING the whole time, reason "Priority" -- see
+    DEFAULT_MAX_PENDING's comment for the full incident). Check (2) alone
+    doesn't catch this, since ``courtesy_ceiling`` (default 200) is sized to
+    cap total occupancy, not to notice that already-submitted work isn't
+    actually starting -- a queue can be miles under that ceiling and still be
+    completely stalled. If a substantial number of the user's own array-jobs
+    are already sitting PENDING with zero of them progressing to RUNNING,
+    that's a direct signal something (fairshare, a reservation, cluster
+    policy) is blocking real scheduling regardless of what ``sinfo`` claims,
+    and submitting more just piles additional stuck work onto the same
+    problem instead of backing off the way this tool is designed to."""
     partition = profile.get("partition")
     sinfo_cmd = ["sinfo", "-h", "-o", "%C"]
     if partition:
@@ -247,17 +280,26 @@ def check_capacity(profile: dict, min_idle_cpus: int, courtesy_ceiling: int) -> 
 
     try:
         squeue_out = subprocess.run(
-            ["squeue", "-h", "-u", profile.get("cron_user") or _current_user(), "-t", "pending,running"],
+            ["squeue", "-h", "-u", profile.get("cron_user") or _current_user(),
+             "-t", "pending,running", "-o", "%T"],
             capture_output=True, text=True, check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         return False, f"squeue failed ({e}) -- treating as at ceiling, conservatively"
-    my_resident = len([line for line in squeue_out.splitlines() if line.strip()])
+    states = [line.strip() for line in squeue_out.splitlines() if line.strip()]
+    my_resident = len(states)
+    my_pending = sum(1 for s in states if s == "PENDING")
 
     if idle_total < min_idle_cpus:
         return False, f"only {idle_total} idle CPU(s) on partition {partition!r} (need >={min_idle_cpus})"
     if my_resident >= courtesy_ceiling:
         return False, f"already have {my_resident} resident task(s) (courtesy ceiling {courtesy_ceiling})"
+    if my_pending >= max_pending:
+        return False, (
+            f"already have {my_pending} of my own PENDING array-job(s) not yet RUNNING "
+            f"(max_pending {max_pending}) -- sinfo reports idle capacity, but my own "
+            f"queued work isn't actually starting, so backing off instead of piling on more"
+        )
     return True, f"{idle_total} idle CPU(s), {my_resident} resident task(s) -- room to submit"
 
 
@@ -373,7 +415,8 @@ def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: b
 
     min_idle_cpus = scope.get("min_idle_cpus", DEFAULT_MIN_IDLE_CPUS)
     courtesy_ceiling = scope.get("courtesy_ceiling", DEFAULT_COURTESY_CEILING)
-    has_room, reason = check_capacity(profile, min_idle_cpus, courtesy_ceiling)
+    max_pending = scope.get("max_pending", DEFAULT_MAX_PENDING)
+    has_room, reason = check_capacity(profile, min_idle_cpus, courtesy_ceiling, max_pending)
 
     if not has_room:
         entry = {
