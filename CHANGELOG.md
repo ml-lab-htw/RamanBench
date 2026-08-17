@@ -174,6 +174,121 @@ directly, rather than reimplementing patterns "inspired by" them.
 - `DatasetInfo.has_missing_labels` (in `raman-data`): a filterable field marking whether
   a dataset has confirmed NaN values in its target column(s), mirroring `is_grouped`'s
   True/False/None semantics.
+- `raman_bench.filters` (`TrivialFilterConfig`, `compute_trivial_keys`, `get_trivial_keys`,
+  `get_trivial_keys_from_dir`, `filter_trivial_keys`; `tests/test_filters.py`, 29 cases):
+  a v1-native port of the trivial-dataset filter previously only implemented in the private
+  `raman_bench_paper` repo (`raman_bench_paper/filters.py`), now a real feature of the
+  RamanBench package itself -- usable by anyone running the benchmark against `results.pkl`
+  output, not just paper plotting scripts. Flags a (dataset, target) *key* as "trivial" --
+  carrying no real discriminative signal between models -- using the same two-criterion
+  definition TabArena (NeurIPS 2025, arXiv:2506.16791) uses to curate its own benchmark
+  suite. Appendix B.1, "Dataset Selection Criteria", quoted verbatim: "We exclude datasets
+  that are trivial to solve... We define trivial datasets as datasets where one of the
+  following criteria applies: (1) at least one of the models in our scope is consistently
+  able to achieve perfect performance; (2) multiple models achieve exactly the same highest
+  performance." (This is TabArena's own two-criterion version, confirmed against the real
+  paper PDF; TabRepo, arXiv:2311.02971, has an earlier, simpler single-numeric-threshold
+  ancestor of this idea -- AUC>0.999/logloss<0.001/r2>0.999 against one default Random
+  Forest -- that is deliberately *not* what got ported.) TabArena applies this once, at
+  dataset-curation time, deciding which datasets enter its fixed suite at all, before any
+  leaderboard numbers exist. RamanBench's port applies it differently and more narrowly:
+  post-hoc, per (dataset, target) key, against already-computed `hpo_results`, opt-in and
+  off by default (`TrivialFilterConfig.enabled=False`). Nothing in this module excludes a
+  dataset from being *run* -- it only flags keys whose results a downstream
+  leaderboard/plot/table may want to drop.
+  - **Data shape, not a copy-paste port.** `raman_bench_paper.filters` reads v0.1's
+    `metrics/{classification,regression}_metrics.csv` and iterates per-*seed* rows. v1 has
+    no such CSV or "seed" column -- `scripts/run_experiment.py` caches one `results.pkl`
+    per `(model, dataset, target, repeat, fold)`, and `scripts/aggregate_results.py` turns
+    every cached result into `hpo_results`/`model_results` via TabArena's own
+    `EndToEnd.from_raw`. Read `tabarena.benchmark.result.baseline_result.BaselineResult`
+    and `tabarena.benchmark.task.utils.get_split_idx` directly (installed under this repo's
+    `ramanbench_1` env) to confirm the right mapping: TabArena's own pipeline already
+    flattens `(repeat, fold)` into a single `split_idx = n_folds * n_samples * repeat +
+    n_samples * fold + sample`, and writes that out as `hpo_results`/`model_results`'s
+    `fold` column (`BaselineResult.compute_df_result`: `"fold": self.split_idx`) -- so that
+    column is already exactly the old per-seed granularity, independently corroborated by
+    `scripts/plot_v1_results.py`'s own comment ("Each (dataset, method) has one row per
+    (repeat, fold)"). `compute_trivial_keys` defaults to `hpo_results` (one row per
+    (key, model, fold), recycled default/tuned/tuned+ensemble) over the more granular
+    `model_results` (one row per raw hyperparameter config) for the same reason
+    `raman_bench_paper` iterated per-*model*, not per-config: criterion 2 needs to count
+    distinct architectures, not HPO variants of the same one. `method_subtype="default"`
+    (this module's own default) enforces that by restricting to one row per architecture
+    per key/fold before either criterion runs.
+  - **`perfect_clf`/`perfect_reg` default `0.0`/`0.0` here, not the paper config's
+    `1.0`/`0.0`.** v0.1's per-seed metrics were F1 (higher-is-better, ceiling 1.0) for
+    classification and RMSE (lower-is-better, floor 0.0) for regression -- opposite
+    directions, hence the old asymmetric defaults. v1's `metric_error` column is *always*
+    an error (TabArena/AutoGluon's own problem-type-appropriate metric -- ROC AUC for
+    binary, log loss for multiclass, RMSE for regression -- via `Scorer.error()`, e.g.
+    `1 - roc_auc`), uniformly lower-is-better with `0.0` as the shared theoretical perfect
+    floor for both problem types. Copying the old `perfect_clf=1.0` forward would have
+    silently matched nothing, since a v1 classification error essentially never sits at or
+    above `1.0`. Kept as two separate config keys anyway (not one shared `perfect_error`)
+    for config-shape continuity with `raman_bench_paper/configs/*.json`'s `trivial_filter`
+    block and to let classification/regression thresholds still be tuned independently.
+    `problem_type` itself is read using AutoGluon's own stored convention (`"binary"` /
+    `"multiclass"` / `"regression"`, confirmed by reading
+    `tabarena.benchmark.task.wrapper.RamanBenchTaskWrapper`'s docstring and its
+    `self.problem_type = metadata.problem_type` assignment directly), not the
+    `"classification"`/`"regression"` strings `run_experiment.py` uses internally before
+    task construction.
+  - **Tie detection (criterion 2) reuses the `tie_decimals` rounding convention from
+    `autogluon/tabarena#311`, but not its code.** That PR -- by this project's own
+    maintainer, already merged upstream -- added an opt-in `tie_decimals: int | None` to
+    `bencheval.winrate_utils.compute_winrate_matrix`/`compute_winrate`, motivated (per the
+    PR's own description) by exactly this porting effort: "While porting the
+    trivial-dataset criterion to our benchmark, we noticed [strict `==` tie detection was
+    too conservative for floating-point noise]". `bencheval` is already a RamanBench
+    dependency (`pyproject.toml`'s `autogluon` extra), so it was evaluated as the natural
+    home for tie detection here -- and rejected, deliberately: `compute_winrate_matrix`
+    computes a pairwise win-rate matrix (or its per-method average) aggregated *across*
+    every task in its input, a single leaderboard-style summary over many datasets at once;
+    this module needs the opposite shape, an independent True/False decision *per key*,
+    gated on a condition holding on *every single fold* for that key (an AND across folds,
+    not an average). Reusing it would mean calling it once per key just to reverse-engineer
+    "was every fold tied" out of one blended win-rate number. More fundamentally, criterion
+    1 (a model reaching a perfect *absolute* score) has no equivalent in
+    `compute_winrate_matrix` at all -- win-rate is purely relative, never compared against
+    an absolute threshold -- so at least half of this filter needed an independent
+    implementation regardless. `raman_bench.filters` therefore keeps a small,
+    self-contained, directly testable groupby-round-compare implementation (mirroring
+    `raman_bench_paper.filters.compute_trivial_keys`'s own structure), reusing only the
+    `tie_decimals` name and round-before-compare technique from the upstream PR. Full
+    reasoning recorded in the module's own "Why not bencheval" docstring section.
+  - **Wired into `scripts/aggregate_results.py`** as the natural post-aggregation step
+    (`--trivial-filter`, plus `--trivial-filter-perfect-clf/-perfect-reg/-min-tie-models/
+    -tie-decimals/-exclude-model`): when enabled, writes `trivial_keys.csv` (key, reason)
+    unconditionally, and, when any keys are flagged, additionally writes
+    `model_results_nontrivial.csv`/`hpo_results_nontrivial.csv` (the same tables with
+    flagged keys dropped via `filter_trivial_keys`) alongside the always-written, unfiltered
+    `model_results.csv`/`hpo_results.csv` -- purely additive, default `aggregate_results.py`
+    runs are byte-identical to before. Deliberately does not carry forward
+    `raman_bench_paper.filters`'s process-wide `activate()`/`filter_keys()` global-state
+    pattern (built for many paper plotting scripts implicitly sharing one active filter);
+    explicit function calls fit a library used by arbitrary external callers better.
+  - **Verified against real and realistic v1 data, not just synthetic unit fixtures.** Ran
+    the real `scripts/aggregate_results.py` (unmodified default path) against the one real
+    cached result in this repo (`results/v1/smoke_resource_fixes/data/TabSTAR_c1_BAG_L1/
+    kaiser_ecoli_fermentation__0/0_0/results.pkl`) with `--trivial-filter` on: correctly
+    wrote an empty `trivial_keys.csv` (only one model exists in that fixture, so neither
+    criterion can fire). Then built a second, realistic multi-model fixture by deep-copying
+    that same real `results.pkl` (preserving its real `simulation_artifacts`/`method_metadata`
+    shape, rekeying the `pred_proba_dict_{val,test}` entries to each synthetic framework
+    name so `ConfigResult._align_result_input_format` accepts them) into three synthetic
+    (model, task) combinations -- a "tie" task (2 models at identical `metric_error` on
+    every fold, 1 clearly worse), a "perfect" task (1 model at `metric_error=0.0` on every
+    fold), and a "normal" task (no perfect score, no tie) -- and ran the real, unmodified
+    `EndToEnd.from_raw` pipeline over all of it. Confirmed the CLI correctly flagged exactly
+    `tie_task__0` (`tie:2`) and `perfect_task__0` (`perfect:ModelA`), left `normal_task__0`
+    unflagged, and that `hpo_results_nontrivial.csv`/`model_results_nontrivial.csv`
+    contained only `normal_task__0`'s 6 rows -- end to end through real TabArena machinery,
+    not a mocked shortcut. All 29 `tests/test_filters.py` cases pass (both criteria, the
+    off-by-default gate, `tie_decimals` floating-point-noise absorption, `method_subtype`
+    filtering, `exclude_models`, empty/`None`/single-model/missing-column/mixed-problem-type
+    edge cases), and the full existing `tests/` suite was re-run afterward to confirm no
+    regressions.
 
 ### Changed
 

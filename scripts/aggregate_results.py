@@ -16,8 +16,22 @@ Writes two CSVs:
     when more than the default (``_c1``) config was actually run for that
     model on that task.
 
+Optionally also applies the TabArena-derived trivial-dataset filter
+(``raman_bench.filters``, off by default) with ``--trivial-filter``: flags
+(dataset, target) keys whose results carry no discriminative signal (a model
+scores perfect on every fold, or 2+ models tie for the top score on every
+fold) and, when any are found, additionally writes
+``model_results_nontrivial.csv``/``hpo_results_nontrivial.csv`` (the same
+tables with flagged keys dropped) alongside a ``trivial_keys.csv``
+(key, reason) listing what was excluded and why. The unfiltered
+``model_results.csv``/``hpo_results.csv`` are always written regardless, so
+this is purely additive.
+
 Usage:
     python scripts/aggregate_results.py --results-dir results/v1/data --output-dir results/v1/aggregated
+
+    # Also flag and drop trivial (dataset, target) keys:
+    python scripts/aggregate_results.py --trivial-filter --trivial-filter-min-tie-models 2
 """
 
 from __future__ import annotations
@@ -137,10 +151,100 @@ def aggregate(results_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     return model_results, hpo_results
 
 
+def apply_trivial_filter(
+    model_results: pd.DataFrame,
+    hpo_results: pd.DataFrame,
+    output_dir: str,
+    args: argparse.Namespace,
+) -> None:
+    """Compute and write the trivial-dataset filter's output (see module docstring).
+
+    No-op (nothing computed, nothing written) unless ``args.trivial_filter`` is set --
+    keeps the default ``aggregate_results.py`` run byte-identical to before this was
+    added.
+    """
+    from raman_bench.filters import compute_trivial_keys, filter_trivial_keys
+
+    if not args.trivial_filter:
+        return
+
+    flagged = compute_trivial_keys(
+        hpo_results,
+        perfect_clf=args.trivial_filter_perfect_clf,
+        perfect_reg=args.trivial_filter_perfect_reg,
+        min_tie_models=args.trivial_filter_min_tie_models,
+        tie_decimals=args.trivial_filter_tie_decimals,
+        exclude_models=args.trivial_filter_exclude_model,
+    )
+    trivial_keys = set(flagged.keys())
+    if flagged:
+        logger.info("[trivial-filter] excluding %d dataset key(s):", len(flagged))
+        for key, reason in sorted(flagged.items()):
+            logger.info("  - %s  (%s)", key, reason)
+
+    trivial_keys_path = os.path.join(output_dir, "trivial_keys.csv")
+    # Always write trivial_keys.csv when the filter is enabled, even if empty,
+    # so a downstream consumer can distinguish "filter ran, found nothing" from
+    # "filter never ran".
+    trivial_df = pd.DataFrame(sorted(flagged.items()), columns=["dataset", "reason"])
+    trivial_df.to_csv(trivial_keys_path, index=False)
+    logger.info("Wrote %d trivial key(s) to %s", len(trivial_keys), trivial_keys_path)
+
+    if not trivial_keys:
+        return
+
+    model_nontrivial = filter_trivial_keys(model_results, trivial_keys)
+    hpo_nontrivial = filter_trivial_keys(hpo_results, trivial_keys)
+    model_nontrivial_path = os.path.join(output_dir, "model_results_nontrivial.csv")
+    hpo_nontrivial_path = os.path.join(output_dir, "hpo_results_nontrivial.csv")
+    model_nontrivial.to_csv(model_nontrivial_path, index=False)
+    hpo_nontrivial.to_csv(hpo_nontrivial_path, index=False)
+    logger.info("Wrote %d row(s) to %s", len(model_nontrivial), model_nontrivial_path)
+    logger.info("Wrote %d row(s) to %s", len(hpo_nontrivial), hpo_nontrivial_path)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", default="results/v1/data")
     parser.add_argument("--output-dir", default="results/v1/aggregated")
+    parser.add_argument(
+        "--trivial-filter",
+        action="store_true",
+        help=(
+            "Also flag TabArena-trivial (dataset, target) keys (raman_bench.filters, "
+            "off by default) and write *_nontrivial.csv / trivial_keys.csv."
+        ),
+    )
+    parser.add_argument(
+        "--trivial-filter-perfect-clf",
+        type=float,
+        default=0.0,
+        help="Criterion-1 threshold for classification keys: metric_error <= this counts as perfect (default 0.0).",
+    )
+    parser.add_argument(
+        "--trivial-filter-perfect-reg",
+        type=float,
+        default=0.0,
+        help="Criterion-1 threshold for regression keys: metric_error <= this counts as perfect (default 0.0).",
+    )
+    parser.add_argument(
+        "--trivial-filter-min-tie-models",
+        type=int,
+        default=2,
+        help="Criterion-2: how many models must tie for the top score on every fold (default 2).",
+    )
+    parser.add_argument(
+        "--trivial-filter-tie-decimals",
+        type=int,
+        default=4,
+        help="Round metric_error to this many decimals before tie comparison (default 4).",
+    )
+    parser.add_argument(
+        "--trivial-filter-exclude-model",
+        action="append",
+        default=[],
+        help="Model (ta_name) to exclude before evaluating either criterion; repeatable.",
+    )
     args = parser.parse_args()
 
     model_results, hpo_results = aggregate(args.results_dir)
@@ -156,6 +260,8 @@ def main():
     if not hpo_results.empty:
         with pd.option_context("display.max_columns", None, "display.width", 200):
             logger.info("\n%s", hpo_results.to_string(index=False))
+
+    apply_trivial_filter(model_results, hpo_results, args.output_dir, args)
 
 
 if __name__ == "__main__":
