@@ -47,7 +47,6 @@ from autogluon.tabular.models import (
     RealTabPFNv26Model,
     RFModel,
     TabDPTModel,
-    TabFMModel,
     TabICLModel,
     TabMModel,
     TabPFNv3Model,
@@ -67,7 +66,7 @@ from raman_bench.models.custom.ramantransformer import RamanTransformerModel
 from raman_bench.models.custom.rezeronet import ReZeroNetModel
 from raman_bench.models.custom.sanet import SANetModel
 from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
-from raman_bench.models.custom.tabular_foundation import TabPFNWideModel
+from raman_bench.models.custom.tabular_foundation import TabFMModel, TabPFNWideModel
 from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
 
 # ---------------------------------------------------------------------------
@@ -330,6 +329,10 @@ class _TabPFNWideBridge(SklearnAutoGluonBridge):
     _sklearn_cls = TabPFNWideModel
 
 
+class _TabFMBridge(SklearnAutoGluonBridge):
+    _sklearn_cls = TabFMModel
+
+
 class _ArsenalBridge(SklearnAutoGluonBridge):
     _sklearn_cls = ArsenalModel
 
@@ -409,7 +412,7 @@ class Prep_TABDPT(_NoAugBase, TabDPTModel):  # noqa: N801
     pass
 
 
-class Prep_TABFM(_NoAugBase, TabFMModel):  # noqa: N801
+class Prep_TABFM(_NoAugBase, _TabFMBridge):  # noqa: N801
     pass
 
 
