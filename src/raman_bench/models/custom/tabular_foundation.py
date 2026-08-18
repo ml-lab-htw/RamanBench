@@ -8,7 +8,7 @@ Required extras::
 
     pip install 'raman-bench[models]'
 
-which installs ``tabpfn``, ``pytabkit``, and ``tabdpt``.
+which installs ``tabpfn``, ``pytabkit``, ``tabdpt``, and ``tabfm``.
 """
 
 from __future__ import annotations
@@ -28,6 +28,72 @@ def _infer_problem_type(y) -> str:
     if np.issubdtype(arr.dtype, np.floating):
         return "regression"
     return "binary" if len(np.unique(arr)) == 2 else "multiclass"
+
+
+class TabFMModel(BaseEstimator):
+    """Google TabFM v1 — zero-shot classification and regression.
+
+    TabFM uses the training table as an in-context prompt.  Its default
+    500-feature limit is deliberate: wider Raman spectra are subsampled per
+    ensemble member, rather than being passed to a model trained for a shorter
+    context.  Raise ``max_num_features`` only when you explicitly accept that
+    memory/quality trade-off.
+
+    The default pretrained weights are non-commercial; see the TabFM licence
+    before using this model outside research.
+    """
+
+    def __init__(
+        self,
+        n_estimators: int = 32,
+        max_num_features: int | None = 500,
+        max_num_rows: int | None = None,
+        backend: str = "pytorch",
+    ):
+        self.n_estimators = n_estimators
+        self.max_num_features = max_num_features
+        self.max_num_rows = max_num_rows
+        self.backend = backend
+
+    def fit(self, X, y):
+        try:
+            from tabfm import TabFMClassifier, TabFMRegressor
+        except ImportError as e:
+            raise ImportError(f"TabFMModel requires tabfm. Install with: {_DEEP_INSTALL}") from e
+
+        if self.backend == "pytorch":
+            from tabfm import tabfm_v1_0_0_pytorch as loader
+        elif self.backend == "jax":
+            from tabfm import tabfm_v1_0_0_jax as loader
+        else:
+            raise ValueError("backend must be 'pytorch' or 'jax'.")
+
+        X_arr, y_arr = _to_numpy(X), np.asarray(y)
+        self.problem_type_ = _infer_problem_type(y_arr)
+        model_type = "regression" if self.problem_type_ == "regression" else "classification"
+        model = loader.load(model_type=model_type)
+        kwargs = {
+            "model": model,
+            "n_estimators": self.n_estimators,
+            "max_num_features": self.max_num_features,
+            "max_num_rows": self.max_num_rows,
+        }
+        if self.problem_type_ == "regression":
+            self.model_ = TabFMRegressor(**kwargs)
+        else:
+            self.classes_ = np.unique(y_arr)
+            self.model_ = TabFMClassifier(**kwargs)
+        self.model_.fit(X_arr, y_arr)
+        return self
+
+    def predict(self, X):
+        return self.model_.predict(_to_numpy(X))
+
+    def predict_proba(self, X):
+        if self.problem_type_ == "regression":
+            raise ValueError("predict_proba is not available for regression.")
+        proba = self.model_.predict_proba(_to_numpy(X))
+        return proba[:, 1] if self.problem_type_ == "binary" else proba
 
 
 class TabPFNModel(BaseEstimator):
