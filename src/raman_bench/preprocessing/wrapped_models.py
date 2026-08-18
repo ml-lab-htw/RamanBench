@@ -44,13 +44,10 @@ from autogluon.tabular.models import (
     RealMLPModel,
     RealTabPFNv2Model,
     RealTabPFNv25Model,
-    RealTabPFNv26Model,
     RFModel,
     TabDPTModel,
     TabICLModel,
     TabMModel,
-    TabPFNv3Model,
-    TabPFNv3ThinkingModel,
     TabularNeuralNetTorchModel,
     XGBoostModel,
     XTModel,
@@ -428,18 +425,6 @@ class Prep_REALTABPFN_V25(_NoAugBase, RealTabPFNv25Model):  # noqa: N801
     pass
 
 
-class Prep_REALTABPFN_V26(_NoAugBase, RealTabPFNv26Model):  # noqa: N801
-    pass
-
-
-class Prep_TABPFN_V3(_NoAugBase, TabPFNv3Model):  # noqa: N801
-    pass
-
-
-class Prep_TABPFN_V3_THINKING(_NoAugBase, TabPFNv3ThinkingModel):  # noqa: N801
-    pass
-
-
 class Prep_TABPFN_WIDE(_NoAugBase, _TabPFNWideBridge):  # noqa: N801
     """TabPFN-Wide — classification-only, targets wide datasets (many features, few samples).
 
@@ -573,9 +558,6 @@ PREPROCESSED_MODELS = {
     "TABICL": Prep_TABICL,
     "REALTABPFN-V2": Prep_REALTABPFN_V2,
     "REALTABPFN-V2.5": Prep_REALTABPFN_V25,
-    "REALTABPFN-V2.6": Prep_REALTABPFN_V26,
-    "TABPFN-V3": Prep_TABPFN_V3,
-    "TABPFN-V3-THINKING": Prep_TABPFN_V3_THINKING,
     "TABPFN-WIDE": Prep_TABPFN_WIDE,
     # Custom spectroscopy models
     "PLS": Prep_PLS,
