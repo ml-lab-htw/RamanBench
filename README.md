@@ -64,7 +64,7 @@ all with a standard `fit(X, y)` / `predict(X)` interface:
 pip install "raman-bench[models]"
 ```
 
-This installs `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, and
+This installs `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `tabfm`, `sktime`, and
 `ramanspy` on top of the core package.  **No AutoGluon required.**
 
 ### Option 3 — Full benchmark reproducibility (AutoGluon fork)
@@ -233,9 +233,13 @@ algorithms and are well-suited for building and evaluating new models.
 | `RealMLPModel` | RealMLP-TD | `pytabkit` |
 | `TabMModel` | TabM-D | `pytabkit` |
 | `TabDPTModel` | TabDPT | `tabdpt` |
+| `TabFMModel` | Google TabFM v1 (zero-shot) | `tabfm` |
 
 All classes support classification and regression and auto-detect the task from
-`y`.  All package dependencies are included in `raman-bench[models]`.
+`y`.  All package dependencies are included in `raman-bench[models]`. TabFM
+uses at most 500 features per context by default, so wide Raman spectra are
+subsampled rather than fully consumed in one pass. Its published weights are
+restricted to non-commercial research use.
 
 ---
 
