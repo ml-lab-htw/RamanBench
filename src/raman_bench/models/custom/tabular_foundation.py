@@ -63,15 +63,26 @@ class TabFMModel(BaseEstimator):
 
         if self.backend == "pytorch":
             from tabfm import tabfm_v1_0_0_pytorch as loader
+
+            # TabFM's PyTorch loader defaults to CPU even when CUDA is
+            # available.  Select CUDA explicitly so benchmark runs on GPU
+            # machines (for example, Colab A100), while remaining usable on
+            # CPU-only systems.
+            import torch
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         elif self.backend == "jax":
             from tabfm import tabfm_v1_0_0_jax as loader
+
+            device = None
         else:
             raise ValueError("backend must be 'pytorch' or 'jax'.")
 
         X_arr, y_arr = _to_numpy(X), np.asarray(y)
         self.problem_type_ = _infer_problem_type(y_arr)
         model_type = "regression" if self.problem_type_ == "regression" else "classification"
-        model = loader.load(model_type=model_type)
+        loader_kwargs = {"device": device} if device is not None else {}
+        model = loader.load(model_type=model_type, **loader_kwargs)
         kwargs = {
             "model": model,
             "n_estimators": self.n_estimators,
