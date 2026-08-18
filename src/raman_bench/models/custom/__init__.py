@@ -20,6 +20,7 @@ from raman_bench.models.custom.sktime_models import ArsenalModel, RocketModel
 from raman_bench.models.custom.tabular_foundation import (
     RealMLPModel,
     TabDPTModel,
+    TabFMModel,
     TabMModel,
     TabPFNModel,
 )
@@ -40,6 +41,7 @@ CUSTOM_MODELS = {
     "REALMLP": RealMLPModel,
     "TABM": TabMModel,
     "TABDPT": TabDPTModel,
+    "TABFM": TabFMModel,
 }
 
 __all__ = [
@@ -59,5 +61,6 @@ __all__ = [
     "RealMLPModel",
     "TabMModel",
     "TabDPTModel",
+    "TabFMModel",
     "CUSTOM_MODELS",
 ]
