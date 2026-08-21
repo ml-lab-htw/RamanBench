@@ -114,6 +114,36 @@ Versions follow [Semantic Versioning](https://semver.org/).
     keys, and `_STATEFUL_PREP_ATTRS` entries so the ensemble mechanism
     (Task 3) also fold-safely isolates GCU/LVSE fit state per block.
 
+### Fixed
+
+- Fixed a `KeyError: "None of [Index([...])] are in the [columns]"` crash for
+  every shape-changing preprocessing mechanism (`prep_crop_enabled`,
+  `prep_gcu_enabled`, `prep_lvse_enabled`, `prep_ensemble_enabled`) whenever
+  the wrapped model's own `_fit`/`_predict_proba` calls AutoGluon's
+  `self.preprocess(X)` internally (e.g. `KNNModel`, tree models, `NN_TORCH`).
+  Root cause: `AbstractModel.fit()` snapshots `self.features` /
+  `self.feature_metadata` from the *original*, pre-preprocessing `X.columns`
+  before `RamanPreprocessingMixin._fit()` ever runs; once a shape-changing
+  step replaced `X`'s columns (fewer/renamed, per `_output_feature_cols`),
+  any later `self.preprocess(X)` call — inside the model's own `_fit`, or
+  inside `AbstractModel._predict_proba` at inference time — did `X[self.features]`
+  against the *stale* original column list and raised `KeyError`. Caught
+  before this preprocessing work ever ran a real experiment: reproduced
+  first via `PREPROCESSED_MODELS['KNN'](...).fit(X=..., y=...)` directly, and
+  confirmed identically at the full `scripts/run_benchmark.py` pipeline level
+  for GCU+LVSE. Fixed by adding
+  `RamanPreprocessingMixin._resync_autogluon_features`, which recomputes
+  `self.features`/`self._features_internal`/`self.feature_metadata` (by
+  rerunning AutoGluon's own `_preprocess_set_features`) against the
+  transformed `X` whenever a step actually changed the column set, so every
+  later `self.preprocess(X)` call — at fit and inference time — sees a
+  column list matching what the mixin now feeds it. Verified against `KNN`,
+  `PLS`, and `DEEPCNN` (a torch-based model) for all four mechanisms; added
+  `tests/test_preprocessing_mixin_real_fit.py`, which exercises the real
+  `AbstractModel.fit()` -> internal `self.preprocess()` path (the previous
+  shape tests only covered the pure `_preprocess_fit`/`_preprocess_transform`
+  functions, which never touch `self.features` and so passed throughout).
+
 ## [0.1.0] — 2026-04-14
 
 ### Added

@@ -944,6 +944,49 @@ class RamanPreprocessingMixin:
             return X
         return np.concatenate(block_outputs, axis=1)
 
+    def _resync_autogluon_features(self, X: pd.DataFrame) -> None:
+        """Resync AutoGluon's cached feature/column bookkeeping to a reshaped ``X``.
+
+        Root cause of the ``KeyError: "None of [Index([...])] are in the
+        [columns]"`` crash that ``crop``/``gcu``/``lvse``/the preprocessing
+        ensemble produced: ``AbstractModel.fit()`` calls
+        ``self.initialize()`` -> ``_initialize()`` ->
+        ``_preprocess_set_features(X)`` on the *original*, pre-preprocessing
+        ``X`` *before* ``self._fit()`` (our override, below) ever runs. That
+        call is what sets ``self.features`` / ``self._features_internal`` /
+        ``self._features_internal_to_align`` / ``self.feature_metadata`` /
+        ``self._feature_metadata`` — captured against the original column
+        set. Many models' own ``_fit``/``_predict_proba`` then call
+        ``self.preprocess(X)`` (e.g. ``KNNModel._fit`` -> ``self.preprocess``
+        -> ``AbstractModel._preprocess_nonadaptive`` -> ``X[self.features]``,
+        and ``AbstractModel._predict_proba`` does the same via
+        ``self.preprocess(X)``) using that stale column list against our
+        already width-changed ``X`` — hence the ``KeyError``.
+
+        Fix: once a shape-changing step has produced the final transformed
+        ``X`` (post crop/gcu/lvse/ensemble, pre model-library ``_fit``),
+        recompute the same bookkeeping AutoGluon itself would have produced
+        had it seen this ``X`` from the start — by rerunning its own
+        ``_preprocess_set_features`` (reusing its valid-feature /
+        drop-unique / feature_metadata inference rather than reimplementing
+        it here) instead of leaving the pre-preprocessing snapshot in place.
+        This keeps every later ``self.preprocess(X)`` call — at fit time
+        (e.g. KNN, tree models) and at inference time via
+        ``_predict``/``_predict_proba`` below, which always feeds
+        ``super()._predict*`` an already-transformed ``X`` of the same
+        (new) shape — consistent with what ``self.features``/
+        ``self.feature_metadata`` expect.
+
+        Only called when the preprocessed column set actually differs from
+        the original one (see call site in ``_fit``), so shape-preserving
+        steps (SNV, baseline correction, denoising, ...) are unaffected and
+        keep relying on AutoGluon's own original-X-derived bookkeeping,
+        exactly as before this fix.
+        """
+        self.features = list(X.columns)
+        self.feature_metadata = None
+        self._preprocess_set_features(X)
+
     def _fit(self, X, y, **kwargs):
         # Pop _prep_restriction so it doesn't reach underlying library constructors.
         prep_restriction = self.params.pop("_prep_restriction", None)
@@ -1056,6 +1099,14 @@ class RamanPreprocessingMixin:
                     y = pd.Series(y_np, name=y_name)
 
             X = pd.DataFrame(X_np, columns=_output_feature_cols(feature_cols, X_np.shape[1]))
+
+            if list(X.columns) != feature_cols:
+                # Shape-changing step (crop / gcu / lvse / ensemble) — AutoGluon's
+                # self.features/self.feature_metadata were captured against the
+                # original (pre-preprocessing) columns before this _fit() ran; see
+                # _resync_autogluon_features's docstring for the full root-cause
+                # explanation of the KeyError this prevents.
+                self._resync_autogluon_features(X)
 
         # Strip prep_* params before forwarding to the underlying library
         # constructor (e.g. CatBoostClassifier raises on unknown kwargs).
