@@ -7,6 +7,33 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Six new tunable preprocessing steps in `RamanPreprocessingMixin`, each with
+  a pure NumPy/SciPy (or PyWavelets) implementation in
+  `raman_bench.preprocessing.raman_preprocessing` and its own AutoGluon HPO
+  search space:
+  - **airPLS** baseline correction (`baseline_correction_airpls`) — Zhang,
+    Chen & Liang, *Analyst* 135(5):1138-1146, 2010.
+  - **arPLS** baseline correction (`baseline_correction_arpls`) — Baek, Park,
+    Ahn & Choo, *Analyst* 140:250-257, 2015.
+  - **Rubberband** (convex-hull) baseline correction
+    (`rubberband_correction`) — classical, zero-hyperparameter.
+  - **EMSC** (Extended Multiplicative Scatter Correction, `emsc_fit` /
+    `emsc_transform`) — Martens & Stark, 1991; Liland et al., *J. Raman
+    Spectrosc.*, 2016. Generalizes the existing MSC step with a polynomial
+    baseline term; follows the same fold-safe fit-once/transform-reuse
+    pattern as MSC.
+  - **Savitzky-Golay derivative** preprocessing (`savgol_derivative`) — 1st
+    or 2nd derivative, distinct from the existing SG smoothing step.
+  - **Wavelet-threshold denoising** (`wavelet_denoise`) — universal
+    soft-threshold (Donoho & Johnstone) via PyWavelets; new optional
+    `PyWavelets` dependency (imported defensively).
+- New `_prep_restriction` / `preprocessing_config` step keys: `airpls`,
+  `arpls`, `rubberband`, `emsc`, `wavelet_denoise`, `derivative`.
+
 ## [0.1.0] — 2026-04-14
 
 ### Added

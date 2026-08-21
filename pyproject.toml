@@ -63,6 +63,10 @@ autogluon = [
     "autogluon.core>=1.6.1",
     "autogluon.features>=1.6.1",
     "autogluon.tabular>=1.6.1",
+    # Wavelet-threshold denoising (RamanPreprocessingMixin's wavelet_denoise step)
+    # is imported defensively inside that function, but the tunable preprocessing
+    # pipeline itself only ships as part of the `autogluon` extra, so pin it here.
+    "PyWavelets>=1.4",
     "bencheval @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/bencheval",
     "tabarena @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/tabarena",
 ]
