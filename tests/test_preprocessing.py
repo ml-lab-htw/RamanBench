@@ -12,6 +12,10 @@ from raman_bench.preprocessing import (
     denoise_savgol,
     emsc_fit,
     emsc_transform,
+    gcu_fit,
+    gcu_transform,
+    lvse_fit,
+    lvse_transform,
     multiplicative_scatter_correction_fit,
     multiplicative_scatter_correction_transform,
     rubberband_correction,
@@ -321,3 +325,123 @@ def test_vecnorm_zero_row_no_nan():
     out = vector_normalize(X)
     assert not np.isnan(out).any()
     np.testing.assert_allclose(out[0], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# GCU (Global Compositional Unmixing)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def gcu_spectra():
+    rng = np.random.default_rng(42)
+    n_samples, n_features, rho_true = 30, 60, 5
+    W_true = rng.uniform(0, 1, size=(n_samples, rho_true))
+    H_true = rng.uniform(0, 1, size=(rho_true, n_features))
+    return (W_true @ H_true) + rng.normal(0, 0.01, size=(n_samples, n_features)) + 3.0
+
+
+def test_gcu_fit_output_width(gcu_spectra):
+    shift, nmf, W = gcu_fit(gcu_spectra, rho=8, random_state=0)
+    assert W.shape == (gcu_spectra.shape[0], 8)
+
+
+def test_gcu_output_nonnegative(gcu_spectra):
+    _, _, W = gcu_fit(gcu_spectra, rho=8, random_state=0)
+    assert (W >= -1e-8).all()
+
+
+def test_gcu_transform_matches_fixed_components(gcu_spectra):
+    train, test = gcu_spectra[:20], gcu_spectra[20:]
+    shift, nmf, W_train = gcu_fit(train, rho=6, random_state=0)
+    W_test = gcu_transform(test, shift, nmf)
+    assert W_test.shape == (test.shape[0], 6)
+    # H (nmf.components_) is frozen at transform time — reconstructing the
+    # training data through gcu_transform's projection (a fresh W solve
+    # against the same fixed H) must reconstruct it about as well as the
+    # fit-time W did, confirming H was reused rather than refit.
+    H = nmf.components_
+    train_shifted = np.clip(train - shift, a_min=0.0, a_max=None)
+    W_train_replayed = gcu_transform(train, shift, nmf)
+    err_fit = np.mean((train_shifted - W_train @ H) ** 2)
+    err_replay = np.mean((train_shifted - W_train_replayed @ H) ** 2)
+    assert err_replay < err_fit * 1.5 + 1e-6
+
+
+def test_gcu_deterministic_with_fixed_random_state(gcu_spectra):
+    _, _, W1 = gcu_fit(gcu_spectra, rho=8, random_state=0)
+    _, _, W2 = gcu_fit(gcu_spectra, rho=8, random_state=0)
+    np.testing.assert_allclose(W1, W2)
+
+
+def test_gcu_no_nan_on_clean_input(gcu_spectra):
+    assert not np.isnan(gcu_spectra).any()
+    _, _, W = gcu_fit(gcu_spectra, rho=8, random_state=0)
+    assert not np.isnan(W).any()
+
+
+def test_gcu_rho_clipped_to_valid_range():
+    """rho larger than min(n_samples, n_features) must be clipped, not crash."""
+    X = np.random.default_rng(0).uniform(0, 1, size=(5, 8)) + 1.0
+    shift, nmf, W = gcu_fit(X, rho=64, random_state=0)
+    assert W.shape[1] <= min(X.shape)
+
+
+# ---------------------------------------------------------------------------
+# LVSE (Local Vibrational Subspace Encoding)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def lvse_spectra():
+    rng = np.random.default_rng(7)
+    return rng.standard_normal((25, 64)).astype(np.float64) + 2.0
+
+
+def test_lvse_fit_output_width(lvse_spectra):
+    fit_state, scores = lvse_fit(lvse_spectra, n_regions=8, k_per_region=4)
+    assert scores.shape == (lvse_spectra.shape[0], 8 * 4)
+
+
+def test_lvse_transform_output_width_matches_fit(lvse_spectra):
+    train, test = lvse_spectra[:18], lvse_spectra[18:]
+    fit_state, train_scores = lvse_fit(train, n_regions=8, k_per_region=4)
+    test_scores = lvse_transform(test, fit_state)
+    assert test_scores.shape == (test.shape[0], train_scores.shape[1])
+
+
+def test_lvse_k_clipped_when_region_narrower_than_k():
+    """A region narrower than k_per_region must clip k, not crash, and the
+    output width must be <= n_regions * k_per_region."""
+    X = np.random.default_rng(0).standard_normal((10, 20))
+    fit_state, scores = lvse_fit(X, n_regions=16, k_per_region=8)
+    assert scores.shape[1] <= 16 * 8
+    assert scores.shape[0] == 10
+
+
+def test_lvse_deterministic_given_fixed_input():
+    X = np.random.default_rng(3).standard_normal((12, 40))
+    _, scores1 = lvse_fit(X, n_regions=8, k_per_region=4)
+    _, scores2 = lvse_fit(X, n_regions=8, k_per_region=4)
+    np.testing.assert_allclose(scores1, scores2)
+
+
+def test_lvse_no_nan_on_clean_input(lvse_spectra):
+    assert not np.isnan(lvse_spectra).any()
+    _, scores = lvse_fit(lvse_spectra, n_regions=8, k_per_region=4)
+    assert not np.isnan(scores).any()
+
+
+def test_lvse_transform_reuses_fitted_projection_no_refit(lvse_spectra):
+    """Transform-time scores must come from the fitted mean/std/V, not a
+    fresh fit on the transform-time data (which would differ)."""
+    train, test = lvse_spectra[:18], lvse_spectra[18:]
+    fit_state, _ = lvse_fit(train, n_regions=4, k_per_region=3)
+    scores_via_transform = lvse_transform(test, fit_state)
+
+    # Manually replay the first region's fitted projection and compare.
+    idx0 = fit_state["region_indices"][0]
+    mean0, std0, V0 = fit_state["means"][0], fit_state["stds"][0], fit_state["components"][0]
+    region_scaled = (test[:, idx0] - mean0) / std0
+    expected_region0 = region_scaled @ V0.T
+    np.testing.assert_allclose(scores_via_transform[:, : V0.shape[0]], expected_region0)

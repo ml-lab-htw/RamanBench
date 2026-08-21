@@ -81,6 +81,38 @@ Versions follow [Semantic Versioning](https://semver.org/).
   helped?) for a strong upper-bound baseline, per prior spectroscopy
   ensembling work (PROSAC/SPORT-style block ensembles reported ~5-25% error
   reduction on NIR data).
+- **GCU** (Global Compositional Unmixing, `gcu_fit`/`gcu_transform`) and
+  **LVSE** (Local Vibrational Subspace Encoding, `lvse_fit`/`lvse_transform`)
+  — the RamanPFN preprocessing/feature-representation steps from Pan et al.,
+  "RamanPFN: learning from Raman spectral structure with a tabular
+  foundation model", arXiv:2608.02157:
+  - **GCU**: fits a per-dataset non-negativity shift (`X - X_train.min()`,
+    clipped at 0) then `sklearn.decomposition.NMF(init="nndsvd",
+    solver="cd")` with `n_components=rho` (`prep_gcu_rho`, Categorical
+    8/16/32/64, default 16) on training data only; new spectra are
+    projected onto the frozen `H` via `NMF.transform`. Coordinate descent
+    substitutes for the paper's HALS solver (not exposed by scikit-learn);
+    `rho` simplifies the paper's OOF multiresolution-rank selection to a
+    single tunable hyperparameter.
+  - **LVSE**: splits the feature axis into `n_regions` contiguous blocks
+    (`prep_lvse_n_regions`, Categorical 8/16/24/32, default 16), and per
+    region fits training-only center/scale + top-`k_per_region`
+    (`prep_lvse_k_per_region`, Categorical 2/4/6/8, default 4, clipped down
+    if a region is narrower) SVD components, concatenating all regions'
+    scores.
+  - Both are **representation-replacing** (output width != `n_features`,
+    like `crop`/PCA) and, unlike every other step, are architecturally
+    **terminal**: `_preprocess_fit`/`_preprocess_transform` always run them
+    last (after standard scaling, before augmentation), regardless of
+    `_PREP_STEP_DEFINITIONS` dict order, so no later step can ever consume
+    their output. Enabling both runs them as independent blocks on the same
+    input and concatenates outputs (mirrors the Task-3 ensemble's parallel
+    design; not chained). A combination that wastes a fitted
+    `StandardScaler` (scaling + GCU/LVSE) is logged as a warning rather than
+    hard-erroring — see the design-rationale comment in `mixin.py`.
+  - New `_PREP_STEP_DEFINITIONS` entries `gcu`/`lvse`, `_ALL_PREPROCESSING_STEPS`
+    keys, and `_STATEFUL_PREP_ATTRS` entries so the ensemble mechanism
+    (Task 3) also fold-safely isolates GCU/LVSE fit state per block.
 
 ## [0.1.0] — 2026-04-14
 

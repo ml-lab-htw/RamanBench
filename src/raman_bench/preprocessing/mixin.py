@@ -45,10 +45,17 @@ Preprocessing order (when enabled) — matches the sequential wiring in
 
 GCU and LVSE (see ``gcu``/``lvse`` step definitions below) are a different
 kind of step: they *replace* the feature representation (like PCA) rather
-than transform it in place, so they are architecturally last — when
-enabled, they run after every step above and everything downstream sees
-only their output. See their docstrings in ``raman_preprocessing.py`` and
-the composition-order enforcement (hard error) near the end of
+than transform it in place, so they are architecturally last within
+``_preprocess_fit``/``_preprocess_transform`` — after step 14 (standard
+scaling) and before augmentation (which then operates on whatever GCU/LVSE
+produced, same as it would on any other preprocessed representation). When
+enabled, they run after every shape-preserving step above and everything
+downstream sees only their output. If both are enabled, each runs as an
+independent block on the same pre-GCU/LVSE input and their outputs are
+concatenated column-wise (the paper's "separate forward pass" design) —
+LVSE does not chain on top of GCU's output. See their docstrings in
+``raman_preprocessing.py`` and the composition-order design note (a logged
+warning, not a hard error — see the rationale in the code) near the end of
 ``_preprocess_fit``/``_preprocess_transform`` below.
 
 The preprocessing-ensemble mechanism (``prep_ensemble_enabled`` /
@@ -82,6 +89,10 @@ from raman_bench.preprocessing.raman_preprocessing import (
     denoise_savgol,
     emsc_fit,
     emsc_transform,
+    gcu_fit,
+    gcu_transform,
+    lvse_fit,
+    lvse_transform,
     multiplicative_scatter_correction_fit,
     multiplicative_scatter_correction_transform,
     rubberband_correction,
@@ -247,6 +258,28 @@ _PREP_STEP_DEFINITIONS = {
             "prep_vecnorm_enabled": False,
         },
     },
+    "gcu": {
+        "search_params": {
+            "prep_gcu_enabled": space.Categorical(True, False),
+            "prep_gcu_rho": space.Categorical(8, 16, 32, 64),
+        },
+        "defaults": {
+            "prep_gcu_enabled": False,
+            "prep_gcu_rho": 16,
+        },
+    },
+    "lvse": {
+        "search_params": {
+            "prep_lvse_enabled": space.Categorical(True, False),
+            "prep_lvse_n_regions": space.Categorical(8, 16, 24, 32),
+            "prep_lvse_k_per_region": space.Categorical(2, 4, 6, 8),
+        },
+        "defaults": {
+            "prep_lvse_enabled": False,
+            "prep_lvse_n_regions": 16,
+            "prep_lvse_k_per_region": 4,
+        },
+    },
     "augmentation": {
         "search_params": {
             "prep_aug_enabled": space.Categorical(True, False),
@@ -282,6 +315,8 @@ _TRANSFORM_ENABLED_PARAMS = [
     "prep_snv_enabled",
     "prep_vecnorm_enabled",
     "prep_scaling_enabled",
+    "prep_gcu_enabled",
+    "prep_lvse_enabled",
 ]
 _ALL_ENABLED_PARAMS = _TRANSFORM_ENABLED_PARAMS + ["prep_aug_enabled"]
 
@@ -326,7 +361,6 @@ _STATEFUL_PREP_ATTRS = (
     "_emsc_reference",
     "scaler",
     "_gcu_shift",
-    "_gcu_scale",
     "_gcu_nmf",
     "_lvse_region_bounds",
     "_lvse_means",
@@ -547,6 +581,61 @@ class RamanPreprocessingMixin:
             self.scaler = StandardScaler()
             X = self.scaler.fit_transform(X)
 
+        # GCU / LVSE — representation-replacing, terminal steps. See the
+        # module docstring ("GCU/LVSE ... run last and replace the feature
+        # representation for everything downstream") and gcu_fit/lvse_fit's
+        # docstrings in raman_preprocessing.py for what "representation-
+        # replacing" means. Design decision (documented, not enforced as a
+        # hard error): because these unconditionally run last, right before
+        # augmentation, nothing in this pipeline ever runs "after" them on
+        # their output, so no step ordering here can actually corrupt
+        # shapes — every earlier step (including prep_scaling_enabled)
+        # simply becomes part of GCU/LVSE's input. A hard error was
+        # considered (per the task spec) but rejected: it would only break
+        # legitimate ablation-grid cells (e.g. "scaling + GCU") without
+        # preventing any real bug, since there is no code path where a
+        # later step consumes GCU/LVSE's replaced representation. The one
+        # thing worth flagging is *wasted* computation — a fitted
+        # StandardScaler whose output is immediately discarded — so that is
+        # logged, not raised. If GCU and LVSE are enabled together, they run
+        # as independent ("separate forward pass", per the paper) blocks on
+        # the *same* pre-GCU/LVSE input and their outputs are concatenated
+        # column-wise — mirroring the ensemble mechanism's parallel-blocks
+        # design (Task 3) rather than chaining LVSE on top of GCU's output.
+        gcu_enabled = params.get("prep_gcu_enabled", False)
+        lvse_enabled = params.get("prep_lvse_enabled", False)
+        if (gcu_enabled or lvse_enabled) and params.get("prep_scaling_enabled", False):
+            logger.warning(
+                "GCU/LVSE is enabled together with standard scaling; the "
+                "fitted StandardScaler's output is discarded, since "
+                "GCU/LVSE always run last and replace the feature "
+                "representation entirely."
+            )
+
+        gcu_out = None
+        if gcu_enabled:
+            rho = params.get("prep_gcu_rho", 16)
+            logger.debug("Fit — GCU: rho=%s", rho)
+            self._gcu_shift, self._gcu_nmf, gcu_out = gcu_fit(X, rho=rho)
+
+        lvse_out = None
+        if lvse_enabled:
+            n_regions = params.get("prep_lvse_n_regions", 16)
+            k_per_region = params.get("prep_lvse_k_per_region", 4)
+            logger.debug(
+                "Fit — LVSE: n_regions=%s, k_per_region=%s", n_regions, k_per_region
+            )
+            lvse_state, lvse_out = lvse_fit(
+                X, n_regions=n_regions, k_per_region=k_per_region
+            )
+            self._lvse_region_bounds = lvse_state["region_indices"]
+            self._lvse_means = lvse_state["means"]
+            self._lvse_stds = lvse_state["stds"]
+            self._lvse_components = lvse_state["components"]
+
+        if gcu_out is not None or lvse_out is not None:
+            X = np.concatenate([p for p in (gcu_out, lvse_out) if p is not None], axis=1)
+
         if np.isnan(X).any():
             n_nan = int(np.isnan(X).sum())
             logger.warning(
@@ -692,6 +781,27 @@ class RamanPreprocessingMixin:
         if params.get("prep_scaling_enabled", False) and hasattr(self, "scaler"):
             logger.debug("Transform — standard scaling: applying fitted StandardScaler")
             X = self.scaler.transform(X)
+
+        # GCU / LVSE — see the matching block in _preprocess_fit for the
+        # composition-order design rationale.
+        gcu_out = None
+        if params.get("prep_gcu_enabled", False) and hasattr(self, "_gcu_nmf"):
+            logger.debug("Transform — GCU: applying fitted NMF projection")
+            gcu_out = gcu_transform(X, self._gcu_shift, self._gcu_nmf)
+
+        lvse_out = None
+        if params.get("prep_lvse_enabled", False) and hasattr(self, "_lvse_components"):
+            logger.debug("Transform — LVSE: applying fitted per-region projections")
+            lvse_state = {
+                "region_indices": self._lvse_region_bounds,
+                "means": self._lvse_means,
+                "stds": self._lvse_stds,
+                "components": self._lvse_components,
+            }
+            lvse_out = lvse_transform(X, lvse_state)
+
+        if gcu_out is not None or lvse_out is not None:
+            X = np.concatenate([p for p in (gcu_out, lvse_out) if p is not None], axis=1)
 
         if np.isnan(X).any():
             n_nan = int(np.isnan(X).sum())

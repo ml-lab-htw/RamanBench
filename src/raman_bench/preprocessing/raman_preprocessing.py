@@ -698,6 +698,234 @@ def vector_normalize(X):
     return X / norms
 
 
+def gcu_fit(X, rho=16, random_state=None, max_iter=500):
+    """Global Compositional Unmixing (GCU) — fit on training data.
+
+    Reproduces the GCU representation from Pan et al. (RamanPFN,
+    arXiv:2608.02157) as a **representation-replacing** preprocessing step:
+    unlike every shape-preserving step above, its output does not have
+    ``n_features`` columns — it REPLACES the spectrum with a
+    ``rho``-dimensional non-negative-matrix-factorization ("compositional
+    unmixing") coordinate vector, the same way PCA replaces a spectrum with
+    a coordinate in a lower-dimensional score space.
+
+    Two fit-once, training-data-only steps:
+
+    1. **Non-negativity mapping.** NMF requires a non-negative input matrix,
+       but SNV/derivative/baseline-corrected spectra are not guaranteed
+       non-negative. A single global affine shift is fit on the training
+       data and reused unchanged at transform time:
+       ``shift = X_train.min()``, ``X_shifted = clip(X - shift, min=0)``.
+       The clip at transform time only bites if a held-out spectrum's
+       minimum is below the training minimum (an out-of-distribution edge
+       case); training data by construction never needs it since ``shift``
+       is exactly its global min.
+    2. **NMF.** ``sklearn.decomposition.NMF(init="nndsvd", solver="cd")`` is
+       fit on ``X_shifted`` with ``n_components=rho``. The paper uses HALS
+       (hierarchical alternating least squares); scikit-learn does not
+       expose HALS directly, so coordinate-descent ("cd") is used as the
+       closest practical substitute — both are block-coordinate NMF solvers
+       that alternately update ``W`` and ``H`` to minimize
+       ``||X - W @ H||_F``, differing only in the per-block update rule.
+       The paper additionally selects a *multiresolution family* of ranks
+       via out-of-fold (OOF) predictions; this implementation simplifies
+       that to a single ``rho`` exposed as an ordinary tunable
+       hyperparameter (``prep_gcu_rho``, default 16) rather than an
+       automatically-selected multiresolution ensemble.
+
+    ``rho`` is clipped to ``min(rho, n_samples, n_features)`` — sklearn's
+    NMF requires ``n_components <= min(n_samples, n_features)``.
+
+    References
+    ----------
+    Pan et al., "RamanPFN: learning from Raman spectral structure with a
+    tabular foundation model", arXiv:2608.02157.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Training spectra (post any earlier preprocessing steps).
+    rho : int
+        Number of NMF components ("compositional endmembers"). Typical: 8,
+        16, 32, 64.
+    random_state : int | None
+        Passed to ``sklearn.decomposition.NMF`` for reproducibility (the
+        "nndsvd" init is itself deterministic, so this mainly affects the
+        coordinate-descent solver's tie-breaking).
+    max_iter : int
+        Maximum NMF solver iterations.
+
+    Returns
+    -------
+    shift : float
+        The fitted global non-negativity shift. Store and reuse unchanged
+        at transform time (fold-safe — never refit on new data).
+    nmf : sklearn.decomposition.NMF
+        The fitted NMF model (holds ``H`` == ``nmf.components_`` fixed).
+        Store and reuse via :func:`gcu_transform`.
+    W : np.ndarray, shape (n_samples, rho_effective)
+        The GCU representation of *X* (training-time output of
+        ``nmf.fit_transform``).
+    """
+    from sklearn.decomposition import NMF
+
+    n_samples, n_features = X.shape
+    rho_effective = max(1, min(int(rho), n_samples, n_features))
+
+    shift = float(np.min(X))
+    X_shifted = np.clip(X - shift, a_min=0.0, a_max=None)
+
+    nmf = NMF(
+        n_components=rho_effective,
+        init="nndsvd",
+        solver="cd",
+        random_state=random_state,
+        max_iter=max_iter,
+    )
+    W = nmf.fit_transform(X_shifted)
+    return shift, nmf, W
+
+
+def gcu_transform(X, shift, nmf):
+    """Apply a fitted GCU (Global Compositional Unmixing) representation.
+
+    Projects new spectra onto the fixed ``H`` (``nmf.components_``) learned
+    by :func:`gcu_fit` — never refit. Uses ``NMF.transform``, which solves
+    for ``W`` given the already-fitted (frozen) components.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        New spectra (same preprocessing state as the training call).
+    shift : float
+        Fitted non-negativity shift from :func:`gcu_fit`.
+    nmf : sklearn.decomposition.NMF
+        Fitted NMF model from :func:`gcu_fit`.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, rho_effective)
+        GCU representation of *X*.
+    """
+    X_shifted = np.clip(X - shift, a_min=0.0, a_max=None)
+    return nmf.transform(X_shifted)
+
+
+def lvse_fit(X, n_regions=16, k_per_region=4):
+    """Local Vibrational Subspace Encoding (LVSE) — fit on training data.
+
+    Reproduces the LVSE representation from Pan et al. (RamanPFN,
+    arXiv:2608.02157): another **representation-replacing** step (see
+    :func:`gcu_fit`'s docstring for what that means for this pipeline). The
+    (post-any-earlier-steps) feature axis is split into ``n_regions``
+    contiguous, roughly-equal-size blocks (``np.array_split``, so a
+    non-divisible ``n_features`` yields blocks differing in width by at
+    most one column). Per region, on training data only:
+
+    1. **Center + scale.** Per-feature mean/std within the region, fit on
+       training data only (fold-safe fit state). A zero-std feature is
+       mapped to std=1 (leaves it at its centered value, avoiding a 0/0
+       ``NaN``).
+    2. **SVD.** ``np.linalg.svd`` of the centered+scaled region, keeping the
+       top ``k_per_region`` right-singular vectors (``V``) as the region's
+       fixed projection. If a region is narrower than ``k_per_region`` (or
+       has fewer training rows), ``k`` is clipped down to
+       ``min(k_per_region, region_width, n_samples)`` for that region —
+       this only differs from the ``n_regions``/``k_per_region``-implied
+       output width in the pathological case of a very short spectrum
+       split into many regions.
+
+    Region scores are concatenated into one ``(n_samples, sum(k_i))``
+    matrix — exactly ``n_regions * k_per_region`` wide unless some region
+    had its ``k`` clipped.
+
+    References
+    ----------
+    Pan et al., "RamanPFN: learning from Raman spectral structure with a
+    tabular foundation model", arXiv:2608.02157.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Training spectra (post any earlier preprocessing steps).
+    n_regions : int
+        Number of contiguous feature-axis regions. Typical: 8, 16, 24, 32
+        (the paper's example partition was 32-way).
+    k_per_region : int
+        Number of SVD components kept per region. Typical: 2, 4, 6, 8.
+
+    Returns
+    -------
+    fit_state : dict
+        ``{"region_indices": list[np.ndarray], "means": list[np.ndarray],
+        "stds": list[np.ndarray], "components": list[np.ndarray]}`` — one
+        entry per region. Store and reuse unchanged via :func:`lvse_transform`.
+    scores : np.ndarray, shape (n_samples, sum(k_i))
+        The LVSE representation of *X*.
+    """
+    n_samples, n_features = X.shape
+    n_regions_effective = max(1, min(int(n_regions), n_features))
+    region_indices = np.array_split(np.arange(n_features), n_regions_effective)
+
+    means, stds, components, scores_list = [], [], [], []
+    for idx in region_indices:
+        region = X[:, idx]
+        mean = region.mean(axis=0)
+        std = region.std(axis=0)
+        std_safe = np.where(std == 0, 1.0, std)
+        region_scaled = (region - mean) / std_safe
+
+        k_effective = max(1, min(int(k_per_region), region.shape[1], n_samples))
+        U, S, Vt = np.linalg.svd(region_scaled, full_matrices=False)
+        V = Vt[:k_effective]  # shape (k_effective, region_width)
+        scores = region_scaled @ V.T  # shape (n_samples, k_effective)
+
+        means.append(mean)
+        stds.append(std_safe)
+        components.append(V)
+        scores_list.append(scores)
+
+    fit_state = {
+        "region_indices": region_indices,
+        "means": means,
+        "stds": stds,
+        "components": components,
+    }
+    return fit_state, np.concatenate(scores_list, axis=1)
+
+
+def lvse_transform(X, fit_state):
+    """Apply a fitted LVSE (Local Vibrational Subspace Encoding) representation.
+
+    Applies each region's fitted mean/std and SVD projection (``V``) from
+    :func:`lvse_fit` — never refit.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        New spectra (same preprocessing state and feature-axis width as the
+        training call).
+    fit_state : dict
+        Output of :func:`lvse_fit`.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, sum(k_i))
+        LVSE representation of *X*.
+    """
+    scores_list = []
+    for idx, mean, std, V in zip(
+        fit_state["region_indices"],
+        fit_state["means"],
+        fit_state["stds"],
+        fit_state["components"],
+    ):
+        region = X[:, idx]
+        region_scaled = (region - mean) / std
+        scores_list.append(region_scaled @ V.T)
+    return np.concatenate(scores_list, axis=1)
+
+
 def augment_spectra(
     X,
     y,

@@ -17,6 +17,8 @@ _ALL_PREPROCESSING_STEPS = {
     "derivative": True,
     "snv": True,
     "vecnorm": True,
+    "gcu": True,
+    "lvse": True,
     "augmentation": True,
     "standard_scaling": True,
 }

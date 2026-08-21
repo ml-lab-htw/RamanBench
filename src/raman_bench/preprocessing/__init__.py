@@ -29,6 +29,10 @@ Available preprocessing steps
 13. Spectral augmentation (noise + shift + mixup; training only)
 14. Fingerprint-region cropping (fractional-index proxy)
 15. L2 (Euclidean) vector normalization
+16. GCU (Global Compositional Unmixing, representation-replacing) — RamanPFN,
+    arXiv:2608.02157
+17. LVSE (Local Vibrational Subspace Encoding, representation-replacing) —
+    RamanPFN, arXiv:2608.02157
 
 """
 
@@ -43,6 +47,10 @@ from raman_bench.preprocessing.raman_preprocessing import (
     denoise_savgol,
     emsc_fit,
     emsc_transform,
+    gcu_fit,
+    gcu_transform,
+    lvse_fit,
+    lvse_transform,
     multiplicative_scatter_correction_fit,
     multiplicative_scatter_correction_transform,
     rubberband_correction,
@@ -63,6 +71,10 @@ __all__ = [
     "denoise_savgol",
     "emsc_fit",
     "emsc_transform",
+    "gcu_fit",
+    "gcu_transform",
+    "lvse_fit",
+    "lvse_transform",
     "multiplicative_scatter_correction_fit",
     "multiplicative_scatter_correction_transform",
     "rubberband_correction",
