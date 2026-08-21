@@ -128,6 +128,190 @@ def baseline_correction_asls(X, lam=1e5, p=0.01, n_iter=10):
     return X_corrected
 
 
+def baseline_correction_airpls(X, lam=1e5, max_iter=15, tol=1e-3):
+    """Adaptive Iteratively Reweighted Penalized Least Squares (airPLS) baseline correction.
+
+    Reuses the same penalized-least-squares scaffold as
+    :func:`baseline_correction_asls` (second-order difference penalty matrix),
+    but the reweighting scheme differs: at each iteration ``t`` (1-indexed),
+    points with a negative residual (``y_i < z_i``, i.e. the signal lies below
+    the current baseline estimate — the true spectral peaks) receive weight
+    ``exp(t * (y_i - z_i) / |sum(negative residuals)|)``; all other points are
+    fully excluded from the next fit (weight 0). Iteration stops early once
+    the (absolute) sum of negative residuals falls below ``tol`` relative to
+    the total signal magnitude, or after ``max_iter`` iterations.
+
+    References
+    ----------
+    Zhang, Z.M., Chen, S. and Liang, Y.Z., 2010. Baseline correction using
+    adaptive iteratively reweighted penalized least squares. Analyst,
+    135(5), pp.1138-1146.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+    lam : float
+        Smoothness parameter (1e2-1e6). Higher = smoother baseline.
+    max_iter : int
+        Maximum number of reweighting iterations (10-20).
+    tol : float
+        Relative convergence tolerance on the sum of negative residuals.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features)
+        Baseline-corrected spectra.
+    """
+    n = X.shape[1]
+    D = diags([1, -2, 1], [0, 1, 2], shape=(n - 2, n))
+    H = csc_matrix(lam * D.T.dot(D))
+
+    X_corrected = np.empty_like(X)
+    for i in range(X.shape[0]):
+        y = X[i]
+        w = np.ones(n)
+        z = y.copy()
+        y_abs_sum = np.sum(np.abs(y))
+        for t in range(1, max_iter + 1):
+            W = diags(w, 0, shape=(n, n))
+            Z = W + H
+            z = spsolve(Z, w * y)
+            d = y - z
+            neg_mask = d < 0
+            d_neg_sum = d[neg_mask].sum() if neg_mask.any() else 0.0
+
+            if abs(d_neg_sum) < tol * y_abs_sum or t == max_iter:
+                break
+
+            w = np.zeros(n)
+            w[neg_mask] = np.exp(t * d[neg_mask] / abs(d_neg_sum))
+
+        X_corrected[i] = y - z
+
+    return X_corrected
+
+
+def baseline_correction_arpls(X, lam=1e5, max_iter=15):
+    """Asymmetrically Reweighted Penalized Least Squares (arPLS) baseline correction.
+
+    Reuses the same penalized-least-squares scaffold as
+    :func:`baseline_correction_asls`, but reweights using a smooth logistic
+    function of the residuals rather than a hard asymmetric split. At each
+    iteration, residuals ``d = y - z`` are computed, the mean ``m`` and
+    standard deviation ``s`` of the *negative* residuals are estimated, and
+    every point (not just the negative ones) is reweighted as
+    ``w_i = 1 / (1 + exp(2 * (d_i - (-m + 2*s)) / s))``.
+
+    References
+    ----------
+    Baek, S.J., Park, A., Ahn, Y.J. and Choo, J., 2015. Baseline correction
+    using asymmetrically reweighted penalized least squares smoothing.
+    Analyst, 140(1), pp.250-257.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+    lam : float
+        Smoothness parameter (1e2-1e8). Higher = smoother baseline.
+    max_iter : int
+        Number of reweighting iterations (10-20).
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features)
+        Baseline-corrected spectra.
+    """
+    n = X.shape[1]
+    D = diags([1, -2, 1], [0, 1, 2], shape=(n - 2, n))
+    H = csc_matrix(lam * D.T.dot(D))
+
+    X_corrected = np.empty_like(X)
+    for i in range(X.shape[0]):
+        y = X[i]
+        w = np.ones(n)
+        z = y.copy()
+        for _ in range(max_iter):
+            W = diags(w, 0, shape=(n, n))
+            Z = W + H
+            z = spsolve(Z, w * y)
+            d = y - z
+
+            neg = d[d < 0]
+            if neg.size:
+                m = neg.mean()
+                s = neg.std()
+            else:
+                m, s = 0.0, 0.0
+            if s <= 0:
+                s = 1e-12
+
+            w = 1.0 / (1.0 + np.exp(2.0 * (d - (-m + 2.0 * s)) / s))
+
+        X_corrected[i] = y - z
+
+    return X_corrected
+
+
+def _lower_convex_hull_indices(x, y):
+    """Indices of the vertices of the lower convex hull of (x, y) points.
+
+    Monotonic-chain (Andrew's) algorithm, restricted to the lower hull.
+    Assumes ``x`` is sorted ascending (true for a wavenumber/index axis).
+    """
+    n = len(x)
+    hull = []  # list of point indices
+    for i in range(n):
+        while len(hull) >= 2:
+            o, a = hull[-2], hull[-1]
+            cross = (x[a] - x[o]) * (y[i] - y[o]) - (y[a] - y[o]) * (x[i] - x[o])
+            if cross <= 0:
+                hull.pop()
+            else:
+                break
+        hull.append(i)
+    return np.array(hull, dtype=int)
+
+
+def rubberband_correction(X):
+    """Convex-hull ("rubberband") baseline correction.
+
+    For each spectrum, computes the lower convex hull of the
+    (wavenumber-index, intensity) point cloud, linearly interpolates the hull
+    vertices across the full axis to obtain a piecewise-linear baseline, and
+    subtracts it. Classical, zero-hyperparameter baseline removal method.
+
+    References
+    ----------
+    Classical technique widely used in spectroscopy; see e.g. Mazet, V. et
+    al., 2005. Background removal from spectra by designing and minimising a
+    non-quadratic cost function. Chemometrics and Intelligent Laboratory
+    Systems, 76(2), pp.121-133.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features)
+        Baseline-corrected spectra.
+    """
+    n_samples, n_features = X.shape
+    x = np.arange(n_features, dtype=np.float64)
+
+    X_corrected = np.empty_like(X)
+    for i in range(n_samples):
+        y = X[i]
+        hull_idx = _lower_convex_hull_indices(x, y)
+        baseline = np.interp(x, x[hull_idx], y[hull_idx])
+        X_corrected[i] = y - baseline
+
+    return X_corrected
+
+
 def multiplicative_scatter_correction_fit(X):
     """Compute the MSC reference spectrum (mean of training data).
 
@@ -185,6 +369,205 @@ def multiplicative_scatter_correction_transform(X, reference, start=0.0, end=1.0
         coef = np.polyfit(ref_region, X[i, i_start:i_end], 1)
         X_corrected[i] = (X[i] - coef[1]) / coef[0]
     return X_corrected
+
+
+def emsc_fit(X):
+    """Compute the EMSC reference spectrum (mean of training data).
+
+    Identical in spirit to :func:`multiplicative_scatter_correction_fit` —
+    the reference used by Extended MSC is the training-set mean spectrum,
+    fitted once and reused (never refit) at transform time.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Training spectra.
+
+    Returns
+    -------
+    np.ndarray, shape (n_features,)
+        Reference spectrum.
+    """
+    return np.mean(X, axis=0)
+
+
+def emsc_transform(X, reference, poly_order=4):
+    """Apply Extended Multiplicative Scatter Correction using a fitted reference.
+
+    Generalizes :func:`multiplicative_scatter_correction_transform` by
+    modelling each spectrum as a linear combination of an intercept, the
+    reference spectrum, and a polynomial of the (normalized) wavenumber
+    axis: ``spectrum ~ a0 + a1*reference + a2*w + a3*w^2 + ... + a_{p+1}*w^p``,
+    fitted via least squares. The corrected spectrum removes the additive
+    (intercept + polynomial baseline) and multiplicative (reference
+    coefficient) scatter effects: ``corrected = (spectrum - a0 - poly(w)) / a1``.
+
+    The wavenumber axis is not threaded through this preprocessing pipeline
+    (unlike MSC's ``start``/``end`` region, which only uses fractional
+    positions), so a normalized index axis ``np.linspace(-1, 1, n_features)``
+    is used in place of true wavenumber values — an accepted substitute for
+    EMSC's polynomial term, whose role is only to absorb smooth additive
+    baseline drift, not to encode physical wavenumber units.
+
+    References
+    ----------
+    Martens, H. and Stark, E., 1991. Extended multiplicative signal
+    correction and spectral interference subtraction: new preprocessing
+    methods for near infrared spectroscopy. Journal of Pharmaceutical and
+    Biomedical Analysis, 9(8), pp.625-635.
+
+    Liland, K.H., Almoy, T. and Mevik, B.H., 2016. Optimal choice of
+    baseline correction for multivariate calibration of spectra. Journal of
+    Raman Spectroscopy, 47(5), pp.489-498 (relevant EMSC review/extension).
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+    reference : np.ndarray, shape (n_features,)
+        Reference spectrum from fit.
+    poly_order : int
+        Order of the polynomial baseline term (2, 4, or 6).
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features)
+        EMSC-corrected spectra.
+    """
+    n_features = X.shape[1]
+    axis = np.linspace(-1.0, 1.0, n_features)
+
+    columns = [np.ones(n_features), reference]
+    columns += [axis**k for k in range(1, poly_order + 1)]
+    A = np.vstack(columns).T  # shape (n_features, 2 + poly_order)
+
+    X_corrected = np.empty_like(X)
+    for i in range(X.shape[0]):
+        coef, *_ = np.linalg.lstsq(A, X[i], rcond=None)
+        intercept = coef[0]
+        ref_coef = coef[1]
+        poly_coefs = coef[2:]
+
+        poly_component = np.zeros(n_features)
+        for k, c in enumerate(poly_coefs, start=1):
+            poly_component += c * axis**k
+
+        if ref_coef == 0:
+            ref_coef = 1e-12
+
+        X_corrected[i] = (X[i] - intercept - poly_component) / ref_coef
+
+    return X_corrected
+
+
+def savgol_derivative(X, window_length=11, polyorder=2, deriv=1):
+    """Savitzky-Golay derivative.
+
+    Reuses ``scipy.signal.savgol_filter`` like :func:`denoise_savgol`, but
+    with ``deriv >= 1`` to compute a smoothed first or second derivative of
+    each spectrum instead of a smoothed (``deriv=0``) copy. Derivatives
+    suppress additive/multiplicative baseline offsets and slowly-varying
+    scatter effects, and are a distinct step from ``denoise_savgol`` — both
+    may in principle be enabled simultaneously (smoothing first, then a
+    derivative of the smoothed spectrum).
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+    window_length : int
+        Filter window length (must be odd, and > polyorder). Typical: 9, 11,
+        15, 21.
+    polyorder : int
+        Polynomial order. Must be < window_length and >= deriv. Typical: 2, 3.
+    deriv : int
+        Order of the derivative (1 or 2).
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features)
+        Derivative spectra.
+    """
+    window_length = int(window_length)
+    polyorder = int(polyorder)
+    deriv = int(deriv)
+
+    if window_length % 2 == 0:
+        window_length += 1
+    if polyorder >= window_length:
+        polyorder = window_length - 1
+    if polyorder < deriv:
+        polyorder = deriv
+
+    return savgol_filter(X, window_length=window_length, polyorder=polyorder, deriv=deriv, axis=1)
+
+
+def wavelet_denoise(X, wavelet="sym7", level=4):
+    """Wavelet-threshold denoising.
+
+    Decomposes each spectrum with a discrete wavelet transform
+    (``pywt.wavedec``), soft-thresholds the detail coefficients using the
+    universal threshold ``sigma * sqrt(2 * ln(n))`` (Donoho & Johnstone),
+    where ``sigma`` is estimated from the finest-level detail coefficients
+    via the median absolute deviation (``MAD / 0.6745``), and reconstructs
+    the denoised spectrum (``pywt.waverec``).
+
+    Requires the optional ``pywt`` (PyWavelets) dependency; imported
+    defensively here so its absence does not crash the rest of the
+    preprocessing module (same pattern as the ``interpret`` import used for
+    the EBM model in ``wrapped_models.py``) — only calling this function
+    requires it to be installed.
+
+    References
+    ----------
+    Donoho, D.L. and Johnstone, I.M., 1994. Ideal spatial adaptation by
+    wavelet shrinkage. Biometrika, 81(3), pp.425-455.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+    wavelet : str
+        Wavelet family name ("sym7", "sym8", "db6").
+    level : int
+        Decomposition level (3, 4, or 5); automatically capped to the
+        maximum level supported by the spectrum length.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features)
+        Denoised spectra.
+    """
+    try:
+        import pywt
+    except ImportError as exc:
+        raise ImportError(
+            "wavelet_denoise requires PyWavelets. Install with: "
+            "pip install 'raman-bench[autogluon]'"
+        ) from exc
+
+    n_samples, n_features = X.shape
+    level = int(level)
+
+    max_level = pywt.dwt_max_level(n_features, pywt.Wavelet(wavelet).dec_len)
+    effective_level = max(1, min(level, max_level)) if max_level > 0 else 1
+
+    X_denoised = np.empty_like(X)
+    for i in range(n_samples):
+        y = X[i]
+        coeffs = pywt.wavedec(y, wavelet, level=effective_level)
+
+        finest_detail = coeffs[-1]
+        sigma = np.median(np.abs(finest_detail)) / 0.6745
+        uthresh = sigma * np.sqrt(2.0 * np.log(n_features))
+
+        coeffs = [coeffs[0]] + [
+            pywt.threshold(c, uthresh, mode="soft") for c in coeffs[1:]
+        ]
+        rec = pywt.waverec(coeffs, wavelet)
+        X_denoised[i] = rec[:n_features]
+
+    return X_denoised
 
 
 def denoise_savgol(X, window_length=9, polyorder=3):

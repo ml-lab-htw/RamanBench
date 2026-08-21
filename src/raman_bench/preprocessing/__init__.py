@@ -15,32 +15,52 @@ This module provides:
 Available preprocessing steps
 ------------------------------
 1. Cosmic-ray removal (Whitaker-Hayes algorithm)
-2. Baseline correction (asymmetric least squares / ALS)
-3. Multiplicative scatter correction (MSC)
-4. Denoising (Savitzky-Golay filter)
-5. Standard Normal Variate (SNV)
-6. Standard scaling (zero-mean / unit-variance per feature)
-7. Spectral augmentation (noise + shift + mixup; training only)
+2. Denoising (Savitzky-Golay filter)
+3. Denoising (wavelet threshold, requires PyWavelets)
+4. Baseline correction (asymmetric least squares / ALS)
+5. Baseline correction (airPLS)
+6. Baseline correction (arPLS)
+7. Baseline correction (rubberband / convex hull)
+8. Multiplicative scatter correction (MSC)
+9. Extended multiplicative scatter correction (EMSC)
+10. Derivative (Savitzky-Golay 1st/2nd derivative)
+11. Standard Normal Variate (SNV)
+12. Standard scaling (zero-mean / unit-variance per feature)
+13. Spectral augmentation (noise + shift + mixup; training only)
 """
 
 from raman_bench.preprocessing.raman_preprocessing import (
     augment_spectra,
     augment_spectra_torch,
+    baseline_correction_airpls,
+    baseline_correction_arpls,
     baseline_correction_asls,
     cosmic_ray_removal,
     denoise_savgol,
+    emsc_fit,
+    emsc_transform,
     multiplicative_scatter_correction_fit,
     multiplicative_scatter_correction_transform,
+    rubberband_correction,
+    savgol_derivative,
     snv,
+    wavelet_denoise,
 )
 
 __all__ = [
     "augment_spectra",
     "augment_spectra_torch",
+    "baseline_correction_airpls",
+    "baseline_correction_arpls",
     "baseline_correction_asls",
     "cosmic_ray_removal",
     "denoise_savgol",
+    "emsc_fit",
+    "emsc_transform",
     "multiplicative_scatter_correction_fit",
     "multiplicative_scatter_correction_transform",
+    "rubberband_correction",
+    "savgol_derivative",
     "snv",
+    "wavelet_denoise",
 ]
