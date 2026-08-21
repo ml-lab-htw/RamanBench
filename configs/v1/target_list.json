@@ -1270,5 +1270,13 @@
     "num_instances": 325,
     "n_repeats": 10,
     "excluded": false
+  },
+  {
+    "dataset": "ait_glucose_blood_sers",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 35,
+    "n_repeats": 10,
+    "excluded": false
   }
 ]

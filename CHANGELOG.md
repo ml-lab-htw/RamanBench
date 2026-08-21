@@ -51,9 +51,9 @@ directly, rather than reimplementing patterns "inspired by" them.
 ### Added
 
 - `configs/v1/`: the public, canonical definition of what the v1 benchmark runs --
-  `datasets/{classification,regression}_all.json` (the curated 66-dataset scope),
+  `datasets/{classification,regression}_all.json` (the curated 68-dataset scope),
   `target_list.json` (one row per (dataset, target), built by
-  `scripts/build_target_list.py`; currently 154 runnable targets), `models.json` (the
+  `scripts/build_target_list.py`; currently 156 runnable targets), `models.json` (the
   roster of models validated end-to-end on the new pipeline; started as just `PLS`, now
   also the 10 pre-existing custom architectures and TABPFN-WIDE -- see "Fixed" below), and
   `scope_default.json` (the opportunistic scheduler's default scope -- see below). No
@@ -153,6 +153,26 @@ directly, rather than reimplementing patterns "inspired by" them.
   Raman spectra) and `locust_phase_hemolymph` (binary classification, density-dependent
   phase state in desert locusts -- the first dataset in `raman-data` with `group_ids`
   populated from real source metadata rather than inferred from target values).
+- `cspp_serum_metabolites` (3-class classification, Zenodo 5644790): a serum metabolite
+  SERS subset, `raman-data` v1.5.0.
+- `ait_glucose_blood_sers` (regression, GitHub `AIT-brainlab/raman-for-glucose-measurement`,
+  `bloodSERs/5x` subset): 35 spectra, 6 distinct glucose concentrations, `raman-data`
+  v1.6.0. **Provenance caveat, please read before reusing**: no informed-consent, IRB, or
+  ethics-review documentation was found anywhere associated with this real human
+  blood/glucose data (source repo README, wiki, predecessor repo, or lab project pages);
+  the source repo's predecessor states no journal paper was ever produced from this work,
+  so this dataset does not meet `raman-data`'s own stated citable-reference inclusion
+  criterion. A paper citing data matching this description (arXiv:2608.14227) attributes it
+  to "AIT brainlab and MIT" -- the "MIT" half could not be verified and is likely erroneous
+  (the source repo's actual copyright holder is "Future Lab", an AIT x BUPT joint facility,
+  not Massachusetts Institute of Technology). Included at the explicit direction of the
+  RamanBench maintainer, who intends to follow up directly with the originating lab
+  regarding consent/ethics documentation -- not a routine inclusion, not a template for
+  skipping the citable-reference or consent checks on future datasets. Also has a real
+  scientific limitation independent of the above: a PLS smoke test returns RMSE ~230
+  against a target range of only 80, a consequence of only 6 distinct concentration levels
+  combined with group-aware splitting forcing extrapolation to unseen concentrations every
+  fold.
 - `DatasetInfo.is_grouped` (in `raman-data`): a filterable field marking whether a dataset
   has confirmed physical-replicate structure.
 - Public, cluster-agnostic `cluster/` job-submission tooling: `submit_job.py`,
