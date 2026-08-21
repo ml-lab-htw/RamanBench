@@ -39,23 +39,57 @@ from autogluon.tabular.models import (
     KNNModel,
     LGBModel,
     LinearModel,
-    MitraModel,
     NNFastAiTabularModel,
-    RealMLPModel,
-    RealTabPFNv2Model,
-    RealTabPFNv25Model,
-    RealTabPFNv26Model,
     RFModel,
-    TabDPTModel,
-    TabFMModel,
-    TabICLModel,
-    TabMModel,
-    TabPFNv3Model,
-    TabPFNv3ThinkingModel,
     TabularNeuralNetTorchModel,
     XGBoostModel,
     XTModel,
 )
+
+# The tabular-foundation-model classes below are NOT reliably present across
+# every AutoGluon >=1.5 release/prerelease build: requirements-autogluon-fork.txt
+# installs the fork's latest commit unpinned, and a given snapshot can lag behind
+# or rename these bleeding-edge classes even though the "classic" models
+# imported above have been stable for years. Reported in #12 as a crash on
+# RealTabPFNv26Model alone -- but a fresh install can hit any subset of these
+# missing, one ImportError at a time (Python's `from X import (a, b, ...)` stops
+# at the first missing name, so a single reported traceback doesn't rule out
+# others also being absent from the same build; confirmed directly against a
+# real environment where 4 of these 11 were simultaneously missing). Import all
+# of them defensively so a missing foundation-model class doesn't crash this
+# whole module -- and thus every other model, including plain PLS -- at
+# package-import time.
+import warnings as _warnings
+
+from autogluon.tabular import models as _ag_tabular_models
+
+_OPTIONAL_AG_MODEL_NAMES = [
+    "MitraModel",
+    "RealMLPModel",
+    "RealTabPFNv2Model",
+    "RealTabPFNv25Model",
+    "RealTabPFNv26Model",
+    "TabDPTModel",
+    "TabFMModel",
+    "TabICLModel",
+    "TabMModel",
+    "TabPFNv3Model",
+    "TabPFNv3ThinkingModel",
+]
+_missing_optional_ag_models = []
+for _name in _OPTIONAL_AG_MODEL_NAMES:
+    globals()[_name] = getattr(_ag_tabular_models, _name, None)
+    if globals()[_name] is None:
+        _missing_optional_ag_models.append(_name)
+if _missing_optional_ag_models:
+    _warnings.warn(
+        f"This AutoGluon build is missing model classes: {_missing_optional_ag_models}. "
+        "The corresponding RamanBench Prep_* models will be unavailable in this "
+        "environment (expected -- different AutoGluon releases/prereleases carry "
+        "different bleeding-edge model classes).",
+        stacklevel=2,
+    )
+del _name, _ag_tabular_models
 
 from raman_bench.models.custom.coatnet import CoAtNetModel
 from raman_bench.models.custom.deepcnn import DeepCNNModel
@@ -356,6 +390,18 @@ class _NoAugBase(RamanPreprocessingMixin):
         super()._set_default_params()
 
 
+def _make_optional_prep_class(name: str, base_model_cls, **class_attrs):
+    """Build a ``Prep_*`` class for a possibly-unavailable AutoGluon model class.
+
+    Returns ``None`` (rather than raising ``TypeError: bases must be types``)
+    when ``base_model_cls`` is ``None`` -- i.e. this AutoGluon build doesn't
+    carry that foundation-model class (see the defensive import above, #12).
+    """
+    if base_model_cls is None:
+        return None
+    return type(name, (_NoAugBase, base_model_cls), {"__module__": __name__, **class_attrs})
+
+
 # ---------------------------------------------------------------------------
 # Built-in AutoGluon models
 # ---------------------------------------------------------------------------
@@ -393,48 +439,21 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
     pass
 
 
-class Prep_REALMLP(_NoAugBase, RealMLPModel):  # noqa: N801
-    _supports_augmentation: bool = True
-
-
-class Prep_MITRA(_NoAugBase, MitraModel):  # noqa: N801
-    pass
-
-
-class Prep_TABM(_NoAugBase, TabMModel):  # noqa: N801
-    pass
-
-
-class Prep_TABDPT(_NoAugBase, TabDPTModel):  # noqa: N801
-    pass
-
-
-class Prep_TABFM(_NoAugBase, TabFMModel):  # noqa: N801
-    pass
-
-
-class Prep_TABICL(_NoAugBase, TabICLModel):  # noqa: N801
-    pass
-
-
-class Prep_REALTABPFN_V2(_NoAugBase, RealTabPFNv2Model):  # noqa: N801
-    pass
-
-
-class Prep_REALTABPFN_V25(_NoAugBase, RealTabPFNv25Model):  # noqa: N801
-    pass
-
-
-class Prep_REALTABPFN_V26(_NoAugBase, RealTabPFNv26Model):  # noqa: N801
-    pass
-
-
-class Prep_TABPFN_V3(_NoAugBase, TabPFNv3Model):  # noqa: N801
-    pass
-
-
-class Prep_TABPFN_V3_THINKING(_NoAugBase, TabPFNv3ThinkingModel):  # noqa: N801
-    pass
+Prep_REALMLP = _make_optional_prep_class(
+    "Prep_REALMLP", RealMLPModel, _supports_augmentation=True
+)
+Prep_MITRA = _make_optional_prep_class("Prep_MITRA", MitraModel)
+Prep_TABM = _make_optional_prep_class("Prep_TABM", TabMModel)
+Prep_TABDPT = _make_optional_prep_class("Prep_TABDPT", TabDPTModel)
+Prep_TABFM = _make_optional_prep_class("Prep_TABFM", TabFMModel)
+Prep_TABICL = _make_optional_prep_class("Prep_TABICL", TabICLModel)
+Prep_REALTABPFN_V2 = _make_optional_prep_class("Prep_REALTABPFN_V2", RealTabPFNv2Model)
+Prep_REALTABPFN_V25 = _make_optional_prep_class("Prep_REALTABPFN_V25", RealTabPFNv25Model)
+Prep_REALTABPFN_V26 = _make_optional_prep_class("Prep_REALTABPFN_V26", RealTabPFNv26Model)
+Prep_TABPFN_V3 = _make_optional_prep_class("Prep_TABPFN_V3", TabPFNv3Model)
+Prep_TABPFN_V3_THINKING = _make_optional_prep_class(
+    "Prep_TABPFN_V3_THINKING", TabPFNv3ThinkingModel
+)
 
 
 class Prep_TABPFN_WIDE(_NoAugBase, _TabPFNWideBridge):  # noqa: N801
@@ -587,6 +606,18 @@ PREPROCESSED_MODELS = {
     "ROCKET": Prep_ROCKET,
     "ARSENAL": Prep_ARSENAL,
 }
+
+# Drop any entry whose AutoGluon base class wasn't available on this build (see
+# the defensive import above, #12) rather than exposing a None-valued model class.
+_unavailable_models = [key for key, cls in PREPROCESSED_MODELS.items() if cls is None]
+for _key in _unavailable_models:
+    del PREPROCESSED_MODELS[_key]
+if _unavailable_models:
+    _warnings.warn(
+        f"Skipping model(s) unavailable in this AutoGluon build: {_unavailable_models}",
+        stacklevel=2,
+    )
+del _unavailable_models
 
 CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL", "TABPFN-WIDE"}
 
