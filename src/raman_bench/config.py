@@ -5,9 +5,15 @@ import os
 
 _ALL_PREPROCESSING_STEPS = {
     "baseline_correction": True,
+    "airpls": True,
+    "arpls": True,
+    "rubberband": True,
     "cosmic_ray_removal": True,
     "msc": True,
+    "emsc": True,
     "denoising": True,
+    "wavelet_denoise": True,
+    "derivative": True,
     "snv": True,
     "augmentation": True,
     "standard_scaling": True,

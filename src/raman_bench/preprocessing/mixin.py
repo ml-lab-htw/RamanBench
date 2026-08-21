@@ -10,14 +10,31 @@ The optional _prep_restriction attribute (a dict of {step_key: bool}) narrows
 the HPO search space to physically meaningful steps for the current dataset.
 When absent, all steps are included in the search space.
 
-Preprocessing order (when enabled):
-1. Cosmic ray removal
-2. Baseline correction (ASLS)
-3. MSC (multiplicative scatter correction)
-4. Denoising (Savitzky-Golay)
-5. SNV (Standard Normal Variate)
-6. Standard scaling
-7. Augmentation (training only)
+Preprocessing order (when enabled) — matches the sequential wiring in
+``_preprocess_fit``/``_preprocess_transform`` below:
+1. Cosmic ray removal — spikes must be removed before any smoothing/baseline
+   step, or they get spread/baked into neighbouring points.
+2. Denoising (Savitzky-Golay smoothing) — smooth before baseline estimation
+   so baseline fits aren't thrown off by high-frequency noise.
+3. Denoising (wavelet threshold) — an alternative/complementary smoothing
+   method to Savitzky-Golay; placed alongside it, still before baseline
+   correction for the same reason.
+4. Baseline correction (ASLS)
+5. Baseline correction (airPLS) — same penalized-least-squares family as
+   ASLS, placed immediately after it.
+6. Baseline correction (arPLS) — likewise part of the ASLS/airPLS family.
+7. Baseline correction (rubberband / convex hull) — a non-iterative
+   baseline alternative, grouped with the other baseline methods.
+8. MSC (multiplicative scatter correction) — scatter correction runs after
+   baseline correction so it isn't biased by additive baseline drift.
+9. EMSC (extended MSC) — generalizes MSC, so it sits right after it.
+10. Derivative (Savitzky-Golay 1st/2nd derivative) — applied after
+    baseline/scatter correction (derivatives amplify baseline noise if taken
+    too early) but before SNV/scaling (derivatives should be normalized like
+    any other preprocessed spectrum).
+11. SNV (Standard Normal Variate)
+12. Standard scaling
+13. Augmentation (training only)
 """
 
 import logging
@@ -35,12 +52,19 @@ except ImportError as _ag_err:
 
 from raman_bench.preprocessing.raman_preprocessing import (
     augment_spectra,
+    baseline_correction_airpls,
+    baseline_correction_arpls,
     baseline_correction_asls,  # also covers fluorescence removal at high lam / low p
     cosmic_ray_removal,
     denoise_savgol,
+    emsc_fit,
+    emsc_transform,
     multiplicative_scatter_correction_fit,
     multiplicative_scatter_correction_transform,
+    rubberband_correction,
+    savgol_derivative,
     snv,
+    wavelet_denoise,
 )
 
 logger = logging.getLogger(__name__)
@@ -81,12 +105,56 @@ _PREP_STEP_DEFINITIONS = {
             "prep_bl_p": 0.01,
         },
     },
+    "airpls": {
+        "search_params": {
+            "prep_airpls_enabled": space.Categorical(True, False),
+            "prep_airpls_lam": space.Real(lower=1e2, upper=1e6, log=True),
+            "prep_airpls_max_iter": space.Categorical(10, 12, 15, 18, 20),
+            "prep_airpls_tol": space.Real(lower=1e-4, upper=1e-2, log=True),
+        },
+        "defaults": {
+            "prep_airpls_enabled": False,
+            "prep_airpls_lam": 1e5,
+            "prep_airpls_max_iter": 15,
+            "prep_airpls_tol": 1e-3,
+        },
+    },
+    "arpls": {
+        "search_params": {
+            "prep_arpls_enabled": space.Categorical(True, False),
+            "prep_arpls_lam": space.Real(lower=1e2, upper=1e8, log=True),
+            "prep_arpls_max_iter": space.Categorical(10, 12, 15, 18, 20),
+        },
+        "defaults": {
+            "prep_arpls_enabled": False,
+            "prep_arpls_lam": 1e5,
+            "prep_arpls_max_iter": 15,
+        },
+    },
+    "rubberband": {
+        "search_params": {
+            "prep_rubberband_enabled": space.Categorical(True, False),
+        },
+        "defaults": {
+            "prep_rubberband_enabled": False,
+        },
+    },
     "msc": {
         "search_params": {
             "prep_msc_enabled": space.Categorical(True, False),
         },
         "defaults": {
             "prep_msc_enabled": False,
+        },
+    },
+    "emsc": {
+        "search_params": {
+            "prep_emsc_enabled": space.Categorical(True, False),
+            "prep_emsc_poly_order": space.Categorical(2, 4, 6),
+        },
+        "defaults": {
+            "prep_emsc_enabled": False,
+            "prep_emsc_poly_order": 4,
         },
     },
     "denoising": {
@@ -99,6 +167,32 @@ _PREP_STEP_DEFINITIONS = {
             "prep_denoise_enabled": False,
             "prep_denoise_wl": 9,
             "prep_denoise_po": 3,
+        },
+    },
+    "wavelet_denoise": {
+        "search_params": {
+            "prep_wavelet_enabled": space.Categorical(True, False),
+            "prep_wavelet_name": space.Categorical("sym7", "sym8", "db6"),
+            "prep_wavelet_level": space.Categorical(3, 4, 5),
+        },
+        "defaults": {
+            "prep_wavelet_enabled": False,
+            "prep_wavelet_name": "sym7",
+            "prep_wavelet_level": 4,
+        },
+    },
+    "derivative": {
+        "search_params": {
+            "prep_deriv_enabled": space.Categorical(True, False),
+            "prep_deriv_order": space.Categorical(1, 2),
+            "prep_deriv_wl": space.Categorical(9, 11, 15, 21),
+            "prep_deriv_po": space.Categorical(2, 3),
+        },
+        "defaults": {
+            "prep_deriv_enabled": False,
+            "prep_deriv_order": 1,
+            "prep_deriv_wl": 11,
+            "prep_deriv_po": 2,
         },
     },
     "snv": {
@@ -132,8 +226,14 @@ _PREP_STEP_DEFINITIONS = {
 _TRANSFORM_ENABLED_PARAMS = [
     "prep_crr_enabled",
     "prep_bl_enabled",
+    "prep_airpls_enabled",
+    "prep_arpls_enabled",
+    "prep_rubberband_enabled",
     "prep_msc_enabled",
+    "prep_emsc_enabled",
     "prep_denoise_enabled",
+    "prep_wavelet_enabled",
+    "prep_deriv_enabled",
     "prep_snv_enabled",
     "prep_scaling_enabled",
 ]
@@ -247,6 +347,16 @@ class RamanPreprocessingMixin:
             )
             X = denoise_savgol(X, window_length=window_length, polyorder=polyorder)
 
+        if params.get("prep_wavelet_enabled", False):
+            wavelet_name = params.get("prep_wavelet_name", "sym7")
+            wavelet_level = params.get("prep_wavelet_level", 4)
+            logger.debug(
+                "Fit — denoising (wavelet threshold): wavelet=%s, level=%s",
+                wavelet_name,
+                wavelet_level,
+            )
+            X = wavelet_denoise(X, wavelet=wavelet_name, level=wavelet_level)
+
         if params.get("prep_bl_enabled", False):
             lam = params.get("prep_bl_lam", 1e5)
             p = params.get("prep_bl_p", 0.01)
@@ -258,6 +368,32 @@ class RamanPreprocessingMixin:
                 )
                 X = baseline_correction_asls(X, lam=lam, p=p)
 
+        if params.get("prep_airpls_enabled", False):
+            lam = params.get("prep_airpls_lam", 1e5)
+            max_iter = params.get("prep_airpls_max_iter", 15)
+            tol = params.get("prep_airpls_tol", 1e-3)
+            logger.debug(
+                "Fit — baseline correction (airPLS): lam=%s, max_iter=%s, tol=%s",
+                lam,
+                max_iter,
+                tol,
+            )
+            X = baseline_correction_airpls(X, lam=lam, max_iter=max_iter, tol=tol)
+
+        if params.get("prep_arpls_enabled", False):
+            lam = params.get("prep_arpls_lam", 1e5)
+            max_iter = params.get("prep_arpls_max_iter", 15)
+            logger.debug(
+                "Fit — baseline correction (arPLS): lam=%s, max_iter=%s",
+                lam,
+                max_iter,
+            )
+            X = baseline_correction_arpls(X, lam=lam, max_iter=max_iter)
+
+        if params.get("prep_rubberband_enabled", False):
+            logger.debug("Fit — baseline correction (rubberband / convex hull)")
+            X = rubberband_correction(X)
+
         if params.get("prep_msc_enabled", False):
             logger.debug("Fit — MSC: fitting reference spectrum and transforming")
             self._msc_reference = multiplicative_scatter_correction_fit(X)
@@ -266,6 +402,29 @@ class RamanPreprocessingMixin:
                 self._msc_reference,
                 start=0.0,
                 end=1.0,
+            )
+
+        if params.get("prep_emsc_enabled", False):
+            poly_order = params.get("prep_emsc_poly_order", 4)
+            logger.debug(
+                "Fit — EMSC: fitting reference spectrum and transforming, poly_order=%s",
+                poly_order,
+            )
+            self._emsc_reference = emsc_fit(X)
+            X = emsc_transform(X, self._emsc_reference, poly_order=poly_order)
+
+        if params.get("prep_deriv_enabled", False):
+            deriv_order = params.get("prep_deriv_order", 1)
+            window_length = params.get("prep_deriv_wl", 11)
+            polyorder = params.get("prep_deriv_po", 2)
+            logger.debug(
+                "Fit — derivative (Savitzky-Golay): deriv=%s, window_length=%s, polyorder=%s",
+                deriv_order,
+                window_length,
+                polyorder,
+            )
+            X = savgol_derivative(
+                X, window_length=window_length, polyorder=polyorder, deriv=deriv_order
             )
 
         if params.get("prep_snv_enabled", False):
@@ -323,6 +482,16 @@ class RamanPreprocessingMixin:
             )
             X = denoise_savgol(X, window_length=window_length, polyorder=polyorder)
 
+        if params.get("prep_wavelet_enabled", False):
+            wavelet_name = params.get("prep_wavelet_name", "sym7")
+            wavelet_level = params.get("prep_wavelet_level", 4)
+            logger.debug(
+                "Transform — denoising (wavelet threshold): wavelet=%s, level=%s",
+                wavelet_name,
+                wavelet_level,
+            )
+            X = wavelet_denoise(X, wavelet=wavelet_name, level=wavelet_level)
+
         if params.get("prep_bl_enabled", False):
             lam = params.get("prep_bl_lam", 1e5)
             p = params.get("prep_bl_p", 0.01)
@@ -334,6 +503,32 @@ class RamanPreprocessingMixin:
                 )
                 X = baseline_correction_asls(X, lam=lam, p=p)
 
+        if params.get("prep_airpls_enabled", False):
+            lam = params.get("prep_airpls_lam", 1e5)
+            max_iter = params.get("prep_airpls_max_iter", 15)
+            tol = params.get("prep_airpls_tol", 1e-3)
+            logger.debug(
+                "Transform — baseline correction (airPLS): lam=%s, max_iter=%s, tol=%s",
+                lam,
+                max_iter,
+                tol,
+            )
+            X = baseline_correction_airpls(X, lam=lam, max_iter=max_iter, tol=tol)
+
+        if params.get("prep_arpls_enabled", False):
+            lam = params.get("prep_arpls_lam", 1e5)
+            max_iter = params.get("prep_arpls_max_iter", 15)
+            logger.debug(
+                "Transform — baseline correction (arPLS): lam=%s, max_iter=%s",
+                lam,
+                max_iter,
+            )
+            X = baseline_correction_arpls(X, lam=lam, max_iter=max_iter)
+
+        if params.get("prep_rubberband_enabled", False):
+            logger.debug("Transform — baseline correction (rubberband / convex hull)")
+            X = rubberband_correction(X)
+
         if params.get("prep_msc_enabled", False) and hasattr(self, "_msc_reference"):
             logger.debug("Transform — MSC: applying transform with fitted reference spectrum")
             X = multiplicative_scatter_correction_transform(
@@ -341,6 +536,30 @@ class RamanPreprocessingMixin:
                 self._msc_reference,
                 start=0.0,
                 end=1.0,
+            )
+
+        if params.get("prep_emsc_enabled", False) and hasattr(self, "_emsc_reference"):
+            poly_order = params.get("prep_emsc_poly_order", 4)
+            logger.debug(
+                "Transform — EMSC: applying transform with fitted reference spectrum, "
+                "poly_order=%s",
+                poly_order,
+            )
+            X = emsc_transform(X, self._emsc_reference, poly_order=poly_order)
+
+        if params.get("prep_deriv_enabled", False):
+            deriv_order = params.get("prep_deriv_order", 1)
+            window_length = params.get("prep_deriv_wl", 11)
+            polyorder = params.get("prep_deriv_po", 2)
+            logger.debug(
+                "Transform — derivative (Savitzky-Golay): deriv=%s, window_length=%s, "
+                "polyorder=%s",
+                deriv_order,
+                window_length,
+                polyorder,
+            )
+            X = savgol_derivative(
+                X, window_length=window_length, polyorder=polyorder, deriv=deriv_order
             )
 
         if params.get("prep_snv_enabled", False):
