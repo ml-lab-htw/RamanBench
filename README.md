@@ -506,6 +506,13 @@ If you use RamanBench in your research, please cite:
 }
 ```
 
+---
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ml-lab-htw/RamanBench&type=Date&...)](
+https://star-history.com/#ml-lab-htw/RamanBench&Date
+)
 
 ---
 
