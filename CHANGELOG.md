@@ -33,6 +33,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
     `PyWavelets` dependency (imported defensively).
 - New `_prep_restriction` / `preprocessing_config` step keys: `airpls`,
   `arpls`, `rubberband`, `emsc`, `wavelet_denoise`, `derivative`.
+- New top-level `preprocessing_params` config field: a flat
+  `param_name -> value` override dict (e.g. `{"prep_deriv_order": 2}`) for
+  tuning a step's own hyperparameters directly from the benchmark config,
+  independent of the `preprocessing`/`preprocessing_config` enable/disable
+  restriction. Validated in `config.py::_normalize_preprocessing_params`
+  against the pooled `prep_*` param names from `_PREP_STEP_DEFINITIONS`
+  (typos raise `ValueError` at config-load time), threaded through
+  `predictions.py` alongside `preprocessing_config`, and merged into each
+  model's hyperparameters in
+  `model.py::AutoGluonModel._build_model_hyperparameters` *after* the
+  restriction's enable/disable logic — overrides win over class defaults
+  and the HPO search space, but cannot flip an `*_enabled` flag the
+  restriction has an explicit opinion on (the restriction alone decides
+  which steps run at all).
 
 ## [0.1.0] — 2026-04-14
 

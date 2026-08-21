@@ -43,6 +43,62 @@ def _normalize_preprocessing_config(config):
     return config
 
 
+def _collect_known_prep_param_names():
+    """Collect every known ``prep_*`` hyperparameter name across all steps.
+
+    Pools the keys of each step's ``defaults`` dict in
+    ``_PREP_STEP_DEFINITIONS`` (mixin.py) into one lookup set. Imported
+    lazily (only when ``preprocessing_params`` overrides are actually being
+    validated) since the mixin module requires autogluon, and config.py
+    otherwise has no autogluon dependency.
+    """
+    from raman_bench.preprocessing.mixin import _PREP_STEP_DEFINITIONS
+
+    names = set()
+    for step_def in _PREP_STEP_DEFINITIONS.values():
+        names.update(step_def["defaults"].keys())
+    return names
+
+
+def _normalize_preprocessing_params(config):
+    """Normalize/validate the optional ``preprocessing_params`` override dict.
+
+    ``preprocessing_params`` is a flat ``param_name -> value`` dict (e.g.
+    ``{"prep_deriv_order": 2, "prep_deriv_wl": 15}``) that overrides a
+    step's own hyperparameter values, independently of the ``preprocessing``
+    / ``preprocessing_config`` enable/disable restriction. It is threaded
+    through to ``AutoGluonModel`` and merged into each model's
+    hyperparameters in ``model.py::_build_model_hyperparameters`` *after*
+    the restriction enable/disable logic, so it can, e.g., force
+    ``prep_deriv_order=2`` for a model whose class default (or the
+    restriction) would otherwise leave it at 1 — but it cannot use an
+    ``*_enabled`` key to flip a step on/off behind the restriction's back
+    (see ``model.py`` for the exact precedence).
+
+    Only names present in some step's ``defaults`` dict (collected via
+    :func:`_collect_known_prep_param_names`) are accepted; anything else
+    (most likely a typo) raises a clear ``ValueError`` at config-load time.
+    """
+    raw = config.get("preprocessing_params")
+    if raw is None:
+        config["preprocessing_params"] = None
+        return config
+    if not isinstance(raw, dict):
+        raise TypeError(f"preprocessing_params must be a dict, got {type(raw)}")
+
+    known = _collect_known_prep_param_names()
+    unknown = sorted(set(raw) - known)
+    if unknown:
+        raise ValueError(
+            f"Unknown preprocessing_params key(s): {unknown}. "
+            f"Must be one of the known prep_* hyperparameter names, e.g. "
+            f"{sorted(known)[:8]}..."
+        )
+
+    config["preprocessing_params"] = dict(raw)
+    return config
+
+
 def _resolve_list_config(value, config_dir):
     """Resolve a list specification to a Python list or ``None``.
 
@@ -98,6 +154,7 @@ def load_config(config_path=None):
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
     config = _normalize_preprocessing_config(config)
+    config = _normalize_preprocessing_params(config)
 
     config_dir = os.path.dirname(os.path.abspath(config_path))
     for key, resolved_key in [

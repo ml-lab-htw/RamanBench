@@ -434,6 +434,7 @@ def compute_predictions(
     autogluon_time_limit = config["autogluon_time_limit"]
     autogluon_presets = config["autogluon_presets"]
     preprocessing_config = config.get("preprocessing_config")
+    preprocessing_params = config.get("preprocessing_params")
     optimize = config.get("optimize", True)
     ensemble = config.get("ensemble", True)
     num_hpo_trials = config.get("num_hpo_trials", 0)
@@ -583,6 +584,7 @@ def compute_predictions(
                         autogluon_presets=autogluon_presets,
                         autogluon_path=os.path.join(autogluon_path, key),
                         preprocessing_config=preprocessing_config,
+                        preprocessing_params=preprocessing_params,
                         model_extra_params=model_extra_params or None,
                         num_hpo_trials=num_hpo_trials,
                     )
