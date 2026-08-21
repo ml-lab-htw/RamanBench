@@ -184,6 +184,14 @@
     "excluded": false
   },
   {
+    "dataset": "cspp_serum_metabolites",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 150,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
     "dataset": "amino_acids_glycine",
     "target_idx": 0,
     "target_name": "target",

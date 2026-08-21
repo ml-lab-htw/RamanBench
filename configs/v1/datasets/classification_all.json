@@ -21,5 +21,6 @@
   "serum_prostate_cancer",
   "rruff_mineral_raw",
   "mlrod",
-  "bacteria_identification"
+  "bacteria_identification",
+  "cspp_serum_metabolites"
 ]
