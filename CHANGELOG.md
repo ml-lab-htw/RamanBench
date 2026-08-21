@@ -64,6 +64,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
   - **`vecnorm`** (`vector_normalize`) — L2 (Euclidean) row normalization,
     no parameters beyond `prep_vecnorm_enabled`. Runs alongside SNV near the
     end of the pipeline.
+- **Preprocessing ensemble** mechanism: `prep_ensemble_enabled` +
+  `prep_ensemble_blocks` (a list of `preprocessing_config`-shaped dicts,
+  e.g. `[{"snv": true}, {"emsc": true}, {"airpls": true, "snv": true}]`).
+  Runs each block through the existing `_preprocess_fit`/
+  `_preprocess_transform` pipeline independently (fold-safe: each block's
+  stateful fit, e.g. MSC/EMSC reference spectra, is fit once on training
+  data only, exactly like the single-recipe path) and concatenates the
+  blocks' outputs column-wise into one wide feature matrix fed to the
+  underlying model. New `RamanPreprocessingMixin` methods
+  `_preprocess_fit_ensemble`/`_preprocess_transform_ensemble`, orthogonal to
+  `_PREP_STEP_DEFINITIONS` (not one more sequential step — a parallel
+  fan-out/concatenate mechanism), gated by `prep_ensemble_enabled` and
+  settable via `preprocessing_params` (validated against the new
+  `ENSEMBLE_PARAM_NAMES`). Trades interpretability (which single recipe
+  helped?) for a strong upper-bound baseline, per prior spectroscopy
+  ensembling work (PROSAC/SPORT-style block ensembles reported ~5-25% error
+  reduction on NIR data).
 
 ## [0.1.0] — 2026-04-14
 

@@ -315,6 +315,34 @@ def build_restricted_searchspace(restriction: dict | None) -> dict:
     return ss
 
 
+# Instance-attribute names used to carry stateful fit results between fit and
+# transform (MSC/EMSC reference spectra, the fitted StandardScaler; GCU/LVSE
+# add their own — see the "gcu"/"lvse" step handling further below). The
+# preprocessing-ensemble mechanism needs to snapshot/restore these per block,
+# since each block fits its own independent copy of this state on the same
+# training data.
+_STATEFUL_PREP_ATTRS = (
+    "_msc_reference",
+    "_emsc_reference",
+    "scaler",
+    "_gcu_shift",
+    "_gcu_scale",
+    "_gcu_nmf",
+    "_lvse_region_bounds",
+    "_lvse_means",
+    "_lvse_stds",
+    "_lvse_components",
+)
+
+# Ensemble-mechanism param names. Deliberately NOT part of
+# _PREP_STEP_DEFINITIONS: the ensemble is an orthogonal fan-out/concatenate
+# mechanism rather than one more step in the sequential pipeline (see the
+# module docstring), so it has no single "search_params"/"defaults" entry
+# and no per-step HPO search space of its own. Exposed here so config.py's
+# preprocessing_params validation (Task 1) can also accept these two names.
+ENSEMBLE_PARAM_NAMES = ("prep_ensemble_enabled", "prep_ensemble_blocks")
+
+
 def _output_feature_cols(original_cols: list, n_out: int) -> list:
     """Column names for a preprocessed feature matrix that may have changed width.
 
@@ -368,6 +396,10 @@ class RamanPreprocessingMixin:
         for step_def in _PREP_STEP_DEFINITIONS.values():
             for param, val in step_def["defaults"].items():
                 self._set_default_param_value(param, val)
+        # Ensemble mechanism defaults (orthogonal to _PREP_STEP_DEFINITIONS,
+        # see ENSEMBLE_PARAM_NAMES / _preprocess_fit_ensemble docstring).
+        self._set_default_param_value("prep_ensemble_enabled", False)
+        self._set_default_param_value("prep_ensemble_blocks", None)
 
     def _get_default_searchspace(self):
         if not getattr(self, "_optimize_preprocessing", False):
@@ -672,6 +704,136 @@ class RamanPreprocessingMixin:
 
         return X
 
+    def _preprocess_fit_ensemble(self, X: np.ndarray, blocks: list) -> np.ndarray:
+        """Fit each preprocessing *block* independently and concatenate columns.
+
+        A "preprocessing ensemble" is a different kind of mechanism than the
+        single ordered pipeline in ``_preprocess_fit``: rather than one
+        recipe applied once, several independent recipes ("blocks", each a
+        ``preprocessing_config``-shaped dict of ``step_key -> bool``, e.g.
+        ``{"snv": True}``) are each run to completion — reusing
+        :meth:`_preprocess_fit` internally, never reimplementing a
+        transform — and their outputs are concatenated column-wise into one
+        wide feature matrix. This is the "ensemble of preprocessings as
+        parallel blocks" design used as a strong (if less interpretable)
+        baseline in prior spectroscopy/chemometrics work (e.g. PROSAC/SPORT
+        report roughly 5-25% error reduction on NIR data from exactly this
+        kind of block ensembling): you trade away the ability to point at
+        *which* single recipe helped in exchange for an upper-bound-ish
+        result. This method and :meth:`_preprocess_transform_ensemble` are
+        gated behind ``prep_ensemble_enabled`` + ``prep_ensemble_blocks`` and
+        are orthogonal to (not one more entry in) ``_PREP_STEP_DEFINITIONS``.
+
+        Fold-safety: each block's stateful fit (MSC/EMSC reference spectrum,
+        StandardScaler, ...) is fit **once per block, on training data only**
+        — exactly the same fold-safety contract as the single-recipe path —
+        by temporarily swapping ``self.params`` to that block's flags,
+        calling the ordinary :meth:`_preprocess_fit`, then snapshotting
+        whichever of ``_STATEFUL_PREP_ATTRS`` got set before moving to the
+        next block (so blocks cannot leak fit state into one another). The
+        snapshots are stored on ``self`` (``_ensemble_block_params`` /
+        ``_ensemble_block_fit_state``) for :meth:`_preprocess_transform_ensemble`
+        to replay at inference time.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_features)
+            Input spectra (already past any steps that ran before the
+            ensemble in the base pipeline, if any).
+        blocks : list[dict]
+            List of ``preprocessing_config``-shaped dicts, one per block.
+            Each is interpreted the same way as a top-level restriction:
+            steps present and truthy are enabled for that block, everything
+            else is disabled for that block (independent of the base
+            model's own ``prep_*_enabled`` settings).
+
+        Returns
+        -------
+        np.ndarray, shape (n_samples, n_blocks * n_features_per_block)
+            Column-wise concatenation of every block's transformed output.
+            Like ``crop``/``gcu``/``lvse``, this changes the feature count.
+        """
+        base_params = dict(self.params)
+        block_param_overlays = []
+        block_fit_states = []
+        block_outputs = []
+
+        for block in blocks:
+            block_params = dict(base_params)
+            for step_key, enabled_param in STEP_ENABLED_PARAMS.items():
+                block_params[enabled_param] = bool(block.get(step_key, False))
+            self.params = block_params
+
+            # Clear stateful attrs left over from the previous block so this
+            # block starts from a clean slate (a step that this block leaves
+            # disabled must not inherit another block's fitted state).
+            for attr in _STATEFUL_PREP_ATTRS:
+                if hasattr(self, attr):
+                    delattr(self, attr)
+
+            logger.debug("Fit — ensemble block %d: %s", len(block_outputs), block)
+            X_block = self._preprocess_fit(X)
+            block_outputs.append(X_block)
+            block_param_overlays.append(block_params)
+            block_fit_states.append(
+                {attr: getattr(self, attr) for attr in _STATEFUL_PREP_ATTRS if hasattr(self, attr)}
+            )
+
+        self.params = base_params
+        for attr in _STATEFUL_PREP_ATTRS:
+            if hasattr(self, attr):
+                delattr(self, attr)
+
+        self._ensemble_block_params = block_param_overlays
+        self._ensemble_block_fit_state = block_fit_states
+
+        if not block_outputs:
+            return X
+        return np.concatenate(block_outputs, axis=1)
+
+    def _preprocess_transform_ensemble(self, X: np.ndarray) -> np.ndarray:
+        """Transform through each fitted preprocessing block, then concatenate.
+
+        Mirrors :meth:`_preprocess_fit_ensemble` at inference time: replays
+        each block's snapshotted params + fitted state (``self.params`` and
+        ``_STATEFUL_PREP_ATTRS`` set by ``_preprocess_fit_ensemble``) and
+        calls the ordinary :meth:`_preprocess_transform` — never refitting
+        anything.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_features)
+
+        Returns
+        -------
+        np.ndarray, shape (n_samples, n_blocks * n_features_per_block)
+        """
+        base_params = dict(self.params)
+        block_outputs = []
+
+        block_param_overlays = getattr(self, "_ensemble_block_params", [])
+        block_fit_states = getattr(self, "_ensemble_block_fit_state", [])
+
+        for block_params, fit_state in zip(block_param_overlays, block_fit_states):
+            self.params = block_params
+            for attr in _STATEFUL_PREP_ATTRS:
+                if hasattr(self, attr):
+                    delattr(self, attr)
+            for attr, value in fit_state.items():
+                setattr(self, attr, value)
+
+            X_block = self._preprocess_transform(X)
+            block_outputs.append(X_block)
+
+        self.params = base_params
+        for attr in _STATEFUL_PREP_ATTRS:
+            if hasattr(self, attr):
+                delattr(self, attr)
+
+        if not block_outputs:
+            return X
+        return np.concatenate(block_outputs, axis=1)
+
     def _fit(self, X, y, **kwargs):
         # Pop _prep_restriction so it doesn't reach underlying library constructors.
         prep_restriction = self.params.pop("_prep_restriction", None)
@@ -715,7 +877,12 @@ class RamanPreprocessingMixin:
             self.params["prep_aug_enabled"] = False
 
         params = self._get_model_params()
-        has_preprocessing = any(params.get(k, False) for k in _ALL_ENABLED_PARAMS)
+        ensemble_enabled = params.get("prep_ensemble_enabled", False) and params.get(
+            "prep_ensemble_blocks"
+        )
+        has_preprocessing = (
+            any(params.get(k, False) for k in _ALL_ENABLED_PARAMS) or ensemble_enabled
+        )
 
         logger.debug("Has preprocessing: %s", has_preprocessing)
 
@@ -727,7 +894,16 @@ class RamanPreprocessingMixin:
                 len(X_np),
                 self.__class__.__name__,
             )
-            X_np = self._preprocess_fit(X_np)
+            if ensemble_enabled:
+                blocks = params.get("prep_ensemble_blocks")
+                logger.info(
+                    "Fit — preprocessing ensemble: %d block(s) (%s)",
+                    len(blocks),
+                    self.__class__.__name__,
+                )
+                X_np = self._preprocess_fit_ensemble(X_np, blocks)
+            else:
+                X_np = self._preprocess_fit(X_np)
 
             if params.get("prep_aug_enabled", False):
                 noise_sigma = params.get("prep_aug_noise", 0.01)
@@ -792,7 +968,10 @@ class RamanPreprocessingMixin:
         should be passed through unchanged.
         """
         params = self._get_model_params()
-        if any(params.get(k, False) for k in _TRANSFORM_ENABLED_PARAMS):
+        ensemble_enabled = params.get("prep_ensemble_enabled", False) and params.get(
+            "prep_ensemble_blocks"
+        )
+        if any(params.get(k, False) for k in _TRANSFORM_ENABLED_PARAMS) or ensemble_enabled:
             if isinstance(X, pd.DataFrame):
                 logger.info(
                     "Start Preprocessing for Inference — %d spectra (%s)",
@@ -801,7 +980,10 @@ class RamanPreprocessingMixin:
                 )
                 feature_cols = X.columns.tolist()
                 X_np = X.values.astype(np.float64)
-                X_np = self._preprocess_transform(X_np)
+                if ensemble_enabled:
+                    X_np = self._preprocess_transform_ensemble(X_np)
+                else:
+                    X_np = self._preprocess_transform(X_np)
                 X = pd.DataFrame(X_np, columns=_output_feature_cols(feature_cols, X_np.shape[1]))
         return X
 

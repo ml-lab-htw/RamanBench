@@ -54,11 +54,16 @@ def _collect_known_prep_param_names():
     validated) since the mixin module requires autogluon, and config.py
     otherwise has no autogluon dependency.
     """
-    from raman_bench.preprocessing.mixin import _PREP_STEP_DEFINITIONS
+    from raman_bench.preprocessing.mixin import _PREP_STEP_DEFINITIONS, ENSEMBLE_PARAM_NAMES
 
     names = set()
     for step_def in _PREP_STEP_DEFINITIONS.values():
         names.update(step_def["defaults"].keys())
+    # The preprocessing-ensemble mechanism (Task 3) is deliberately not one
+    # more _PREP_STEP_DEFINITIONS entry, but its two params should still be
+    # settable/validated through preprocessing_params like every other
+    # prep_* hyperparameter.
+    names.update(ENSEMBLE_PARAM_NAMES)
     return names
 
 
