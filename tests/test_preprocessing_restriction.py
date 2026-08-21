@@ -59,6 +59,48 @@ def test_msc_force_enabled_on_tree_model():
     assert params.get("prep_msc_enabled") is True
 
 
+def test_airpls_force_enabled_on_tree_model():
+    params = _params_for("RF", _prep_config(airpls=True))
+    assert params.get("prep_airpls_enabled") is True
+
+
+def test_arpls_force_enabled_on_tree_model():
+    params = _params_for("RF", _prep_config(arpls=True))
+    assert params.get("prep_arpls_enabled") is True
+
+
+def test_rubberband_force_enabled_on_tree_model():
+    params = _params_for("RF", _prep_config(rubberband=True))
+    assert params.get("prep_rubberband_enabled") is True
+
+
+def test_emsc_force_enabled_on_tree_model():
+    params = _params_for("RF", _prep_config(emsc=True))
+    assert params.get("prep_emsc_enabled") is True
+
+
+def test_wavelet_denoise_force_enabled_on_tree_model():
+    params = _params_for("RF", _prep_config(wavelet_denoise=True))
+    assert params.get("prep_wavelet_enabled") is True
+
+
+def test_derivative_force_enabled_on_tree_model():
+    params = _params_for("RF", _prep_config(derivative=True))
+    assert params.get("prep_deriv_enabled") is True
+
+
+def test_new_steps_disabled_by_default_config():
+    # None of the new steps are on any model's class default, so an
+    # SNV-only config must leave them all off.
+    params = _params_for("PLS", _prep_config(snv=True))
+    assert params.get("prep_airpls_enabled") is False
+    assert params.get("prep_arpls_enabled") is False
+    assert params.get("prep_rubberband_enabled") is False
+    assert params.get("prep_emsc_enabled") is False
+    assert params.get("prep_wavelet_enabled") is False
+    assert params.get("prep_deriv_enabled") is False
+
+
 def test_none_disables_all_pls_defaults():
     params = _params_for("PLS", _prep_config())
     assert params.get("prep_bl_enabled") is False
