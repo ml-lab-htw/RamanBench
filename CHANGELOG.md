@@ -47,6 +47,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
   and the HPO search space, but cannot flip an `*_enabled` flag the
   restriction has an explicit opinion on (the restriction alone decides
   which steps run at all).
+- Two more tunable preprocessing steps, wired into `RamanPreprocessingMixin`
+  and `config.py::_ALL_PREPROCESSING_STEPS` the same way as the six above:
+  - **`crop`** (`crop_spectra`) — fingerprint-region cropping, implemented
+    as a **fractional-index proxy** (`prep_crop_start_frac`/
+    `prep_crop_end_frac`, defaults 0.15/0.75) since the real wavenumber axis
+    is not threaded through this pipeline (same limitation as EMSC's
+    normalized index axis). Runs first in `_preprocess_fit`/
+    `_preprocess_transform` because it changes the feature count. Fixed a
+    latent bug this exposed: `_fit`/`_preprocess_if_dataframe` previously
+    reused the pre-preprocessing DataFrame column names unconditionally when
+    rebuilding `X` after preprocessing, which raises on a length mismatch
+    once a step changes `n_features`; extracted a small
+    `_output_feature_cols` helper that falls back to positional
+    `feature_0..feature_{n-1}` names when the width changed.
+  - **`vecnorm`** (`vector_normalize`) — L2 (Euclidean) row normalization,
+    no parameters beyond `prep_vecnorm_enabled`. Runs alongside SNV near the
+    end of the pipeline.
 
 ## [0.1.0] — 2026-04-14
 

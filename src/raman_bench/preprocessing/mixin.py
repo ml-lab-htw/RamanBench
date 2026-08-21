@@ -12,29 +12,51 @@ When absent, all steps are included in the search space.
 
 Preprocessing order (when enabled) — matches the sequential wiring in
 ``_preprocess_fit``/``_preprocess_transform`` below:
-1. Cosmic ray removal — spikes must be removed before any smoothing/baseline
+1. Crop (fingerprint-region, fractional-index proxy) — runs first because it
+   changes the array's feature count; every later step must see the final
+   (cropped) width, so cropping before smoothing/baseline/etc. keeps the
+   window-length-relative-to-n_features logic in those steps consistent.
+2. Cosmic ray removal — spikes must be removed before any smoothing/baseline
    step, or they get spread/baked into neighbouring points.
-2. Denoising (Savitzky-Golay smoothing) — smooth before baseline estimation
+3. Denoising (Savitzky-Golay smoothing) — smooth before baseline estimation
    so baseline fits aren't thrown off by high-frequency noise.
-3. Denoising (wavelet threshold) — an alternative/complementary smoothing
+4. Denoising (wavelet threshold) — an alternative/complementary smoothing
    method to Savitzky-Golay; placed alongside it, still before baseline
    correction for the same reason.
-4. Baseline correction (ASLS)
-5. Baseline correction (airPLS) — same penalized-least-squares family as
+5. Baseline correction (ASLS)
+6. Baseline correction (airPLS) — same penalized-least-squares family as
    ASLS, placed immediately after it.
-6. Baseline correction (arPLS) — likewise part of the ASLS/airPLS family.
-7. Baseline correction (rubberband / convex hull) — a non-iterative
+7. Baseline correction (arPLS) — likewise part of the ASLS/airPLS family.
+8. Baseline correction (rubberband / convex hull) — a non-iterative
    baseline alternative, grouped with the other baseline methods.
-8. MSC (multiplicative scatter correction) — scatter correction runs after
+9. MSC (multiplicative scatter correction) — scatter correction runs after
    baseline correction so it isn't biased by additive baseline drift.
-9. EMSC (extended MSC) — generalizes MSC, so it sits right after it.
-10. Derivative (Savitzky-Golay 1st/2nd derivative) — applied after
+10. EMSC (extended MSC) — generalizes MSC, so it sits right after it.
+11. Derivative (Savitzky-Golay 1st/2nd derivative) — applied after
     baseline/scatter correction (derivatives amplify baseline noise if taken
     too early) but before SNV/scaling (derivatives should be normalized like
     any other preprocessed spectrum).
-11. SNV (Standard Normal Variate)
-12. Standard scaling
-13. Augmentation (training only)
+12. SNV (Standard Normal Variate)
+13. Vector normalization (L2) — alongside SNV/scaling, since like them it is
+    a per-spectrum normalization step best applied once the spectrum shape
+    has been fully cleaned up.
+14. Standard scaling
+15. Augmentation (training only)
+
+GCU and LVSE (see ``gcu``/``lvse`` step definitions below) are a different
+kind of step: they *replace* the feature representation (like PCA) rather
+than transform it in place, so they are architecturally last — when
+enabled, they run after every step above and everything downstream sees
+only their output. See their docstrings in ``raman_preprocessing.py`` and
+the composition-order enforcement (hard error) near the end of
+``_preprocess_fit``/``_preprocess_transform`` below.
+
+The preprocessing-ensemble mechanism (``prep_ensemble_enabled`` /
+``prep_ensemble_blocks``) is orthogonal to this ordered pipeline: it fans
+out into several independent copies of the pipeline above (one per block),
+run in parallel and concatenated column-wise, rather than being one more
+step within the sequence. See ``_preprocess_fit_ensemble`` /
+``_preprocess_transform_ensemble``.
 """
 
 import logging
@@ -56,6 +78,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     baseline_correction_arpls,
     baseline_correction_asls,  # also covers fluorescence removal at high lam / low p
     cosmic_ray_removal,
+    crop_spectra,
     denoise_savgol,
     emsc_fit,
     emsc_transform,
@@ -64,6 +87,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     rubberband_correction,
     savgol_derivative,
     snv,
+    vector_normalize,
     wavelet_denoise,
 )
 
@@ -81,6 +105,18 @@ logger = logging.getLogger(__name__)
 # step (not HPO-tunable).
 
 _PREP_STEP_DEFINITIONS = {
+    "crop": {
+        "search_params": {
+            "prep_crop_enabled": space.Categorical(True, False),
+            "prep_crop_start_frac": space.Real(lower=0.0, upper=0.3),
+            "prep_crop_end_frac": space.Real(lower=0.5, upper=1.0),
+        },
+        "defaults": {
+            "prep_crop_enabled": False,
+            "prep_crop_start_frac": 0.15,
+            "prep_crop_end_frac": 0.75,
+        },
+    },
     "cosmic_ray_removal": {
         "search_params": {
             "prep_crr_enabled": space.Categorical(True, False),
@@ -203,6 +239,14 @@ _PREP_STEP_DEFINITIONS = {
             "prep_snv_enabled": False,
         },
     },
+    "vecnorm": {
+        "search_params": {
+            "prep_vecnorm_enabled": space.Categorical(True, False),
+        },
+        "defaults": {
+            "prep_vecnorm_enabled": False,
+        },
+    },
     "augmentation": {
         "search_params": {
             "prep_aug_enabled": space.Categorical(True, False),
@@ -224,6 +268,7 @@ _PREP_STEP_DEFINITIONS = {
 
 # Params that control transform-path steps (not augmentation)
 _TRANSFORM_ENABLED_PARAMS = [
+    "prep_crop_enabled",
     "prep_crr_enabled",
     "prep_bl_enabled",
     "prep_airpls_enabled",
@@ -235,6 +280,7 @@ _TRANSFORM_ENABLED_PARAMS = [
     "prep_wavelet_enabled",
     "prep_deriv_enabled",
     "prep_snv_enabled",
+    "prep_vecnorm_enabled",
     "prep_scaling_enabled",
 ]
 _ALL_ENABLED_PARAMS = _TRANSFORM_ENABLED_PARAMS + ["prep_aug_enabled"]
@@ -267,6 +313,23 @@ def build_restricted_searchspace(restriction: dict | None) -> dict:
         if restriction is None or restriction.get(step_key, False):
             ss.update(step_def["search_params"])
     return ss
+
+
+def _output_feature_cols(original_cols: list, n_out: int) -> list:
+    """Column names for a preprocessed feature matrix that may have changed width.
+
+    Most steps preserve ``n_features``, so the common case is simply
+    returning *original_cols* unchanged. But shape-changing steps — ``crop``
+    (Task 2), and the representation-replacing ``gcu``/``lvse`` steps — alter
+    the column count, and reusing the pre-preprocessing column names would
+    raise inside ``pd.DataFrame(..., columns=...)`` (length mismatch) or
+    silently truncate/pad. When the width has changed, fall back to
+    positional ``feature_0..feature_{n_out-1}`` names instead of the original
+    (now meaningless) wavenumber/index labels.
+    """
+    if n_out == len(original_cols):
+        return original_cols
+    return [f"feature_{i}" for i in range(n_out)]
 
 
 class RamanPreprocessingMixin:
@@ -326,6 +389,16 @@ class RamanPreprocessingMixin:
         np.ndarray, shape (n_samples, n_features)
         """
         params = self._get_model_params()
+
+        if params.get("prep_crop_enabled", False):
+            start_frac = params.get("prep_crop_start_frac", 0.15)
+            end_frac = params.get("prep_crop_end_frac", 0.75)
+            logger.debug(
+                "Fit — crop (fingerprint-region proxy): start_frac=%s, end_frac=%s",
+                start_frac,
+                end_frac,
+            )
+            X = crop_spectra(X, start_frac=start_frac, end_frac=end_frac)
 
         if params.get("prep_crr_enabled", False):
             threshold = params.get("prep_crr_threshold", 6)
@@ -431,6 +504,10 @@ class RamanPreprocessingMixin:
             logger.debug("Fit — SNV: applying Standard Normal Variate")
             X = snv(X)
 
+        if params.get("prep_vecnorm_enabled", False):
+            logger.debug("Fit — vector normalization: applying L2 normalization")
+            X = vector_normalize(X)
+
         if params.get("prep_scaling_enabled", False):
             from sklearn.preprocessing import StandardScaler
 
@@ -461,6 +538,16 @@ class RamanPreprocessingMixin:
         np.ndarray, shape (n_samples, n_features)
         """
         params = self._get_model_params()
+
+        if params.get("prep_crop_enabled", False):
+            start_frac = params.get("prep_crop_start_frac", 0.15)
+            end_frac = params.get("prep_crop_end_frac", 0.75)
+            logger.debug(
+                "Transform — crop (fingerprint-region proxy): start_frac=%s, end_frac=%s",
+                start_frac,
+                end_frac,
+            )
+            X = crop_spectra(X, start_frac=start_frac, end_frac=end_frac)
 
         if params.get("prep_crr_enabled", False):
             threshold = params.get("prep_crr_threshold", 6)
@@ -565,6 +652,10 @@ class RamanPreprocessingMixin:
         if params.get("prep_snv_enabled", False):
             logger.debug("Transform — SNV: applying Standard Normal Variate")
             X = snv(X)
+
+        if params.get("prep_vecnorm_enabled", False):
+            logger.debug("Transform — vector normalization: applying L2 normalization")
+            X = vector_normalize(X)
 
         if params.get("prep_scaling_enabled", False) and hasattr(self, "scaler"):
             logger.debug("Transform — standard scaling: applying fitted StandardScaler")
@@ -678,7 +769,7 @@ class RamanPreprocessingMixin:
                     y_name = y.name if hasattr(y, "name") else "target"
                     y = pd.Series(y_np, name=y_name)
 
-            X = pd.DataFrame(X_np, columns=feature_cols)
+            X = pd.DataFrame(X_np, columns=_output_feature_cols(feature_cols, X_np.shape[1]))
 
         # Strip prep_* params before forwarding to the underlying library
         # constructor (e.g. CatBoostClassifier raises on unknown kwargs).
@@ -711,7 +802,7 @@ class RamanPreprocessingMixin:
                 feature_cols = X.columns.tolist()
                 X_np = X.values.astype(np.float64)
                 X_np = self._preprocess_transform(X_np)
-                X = pd.DataFrame(X_np, columns=feature_cols)
+                X = pd.DataFrame(X_np, columns=_output_feature_cols(feature_cols, X_np.shape[1]))
         return X
 
     def _predict(self, X, **kwargs):

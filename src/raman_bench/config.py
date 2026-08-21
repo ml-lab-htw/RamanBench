@@ -4,6 +4,7 @@ import json
 import os
 
 _ALL_PREPROCESSING_STEPS = {
+    "crop": True,
     "baseline_correction": True,
     "airpls": True,
     "arpls": True,
@@ -15,6 +16,7 @@ _ALL_PREPROCESSING_STEPS = {
     "wavelet_denoise": True,
     "derivative": True,
     "snv": True,
+    "vecnorm": True,
     "augmentation": True,
     "standard_scaling": True,
 }

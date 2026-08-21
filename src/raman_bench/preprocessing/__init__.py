@@ -27,6 +27,9 @@ Available preprocessing steps
 11. Standard Normal Variate (SNV)
 12. Standard scaling (zero-mean / unit-variance per feature)
 13. Spectral augmentation (noise + shift + mixup; training only)
+14. Fingerprint-region cropping (fractional-index proxy)
+15. L2 (Euclidean) vector normalization
+
 """
 
 from raman_bench.preprocessing.raman_preprocessing import (
@@ -36,6 +39,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     baseline_correction_arpls,
     baseline_correction_asls,
     cosmic_ray_removal,
+    crop_spectra,
     denoise_savgol,
     emsc_fit,
     emsc_transform,
@@ -44,6 +48,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     rubberband_correction,
     savgol_derivative,
     snv,
+    vector_normalize,
     wavelet_denoise,
 )
 
@@ -54,6 +59,7 @@ __all__ = [
     "baseline_correction_arpls",
     "baseline_correction_asls",
     "cosmic_ray_removal",
+    "crop_spectra",
     "denoise_savgol",
     "emsc_fit",
     "emsc_transform",
@@ -62,5 +68,6 @@ __all__ = [
     "rubberband_correction",
     "savgol_derivative",
     "snv",
+    "vector_normalize",
     "wavelet_denoise",
 ]

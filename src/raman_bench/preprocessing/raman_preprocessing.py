@@ -622,6 +622,82 @@ def snv(X):
     return X_snv
 
 
+def crop_spectra(X, start_frac=0.15, end_frac=0.75):
+    """Crop spectra to a fractional-index sub-range of the feature axis.
+
+    This is a **naive proxy for fingerprint-region (wavenumber) cropping**,
+    not a wavenumber-aware crop. The fit/transform call path in this
+    pipeline does not thread the real wavenumber axis through (the same
+    limitation noted in :func:`emsc_transform`'s docstring, which uses a
+    normalized index axis for the same reason), so this function crops by
+    **fractional index position** instead: it keeps columns in
+    ``[round(start_frac * n_features), round(end_frac * n_features))``.
+
+    The defaults (``start_frac=0.15``, ``end_frac=0.75``) are a rough,
+    dataset-agnostic approximation of the Raman "fingerprint region"
+    (roughly 700-1800 cm^-1) as a fraction of a typical full acquisition
+    window (roughly 100-3200 cm^-1 for many benchmark datasets here) —
+    ``(700-100)/(3200-100) ~= 0.19`` and ``(1800-100)/(3200-100) ~= 0.55``
+    rounded outward to be a bit permissive. **This is only a coarse proxy**:
+    without per-dataset wavenumber calibration, the true fingerprint window
+    may fall anywhere in the cropped (or discarded) fraction depending on
+    each dataset's actual acquisition range. A rigorous version would need
+    the real wavenumber axis threaded through ``_preprocess_fit``/
+    ``_preprocess_transform`` and per-dataset calibration.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+    start_frac : float
+        Start of the kept range, as a fraction of ``n_features`` (0.0-1.0).
+    end_frac : float
+        End of the kept range, as a fraction of ``n_features`` (0.0-1.0).
+        Must be greater than ``start_frac``.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_kept_features)
+        Cropped spectra. ``n_kept_features <= n_features`` — this step
+        changes the feature count, unlike every other step in this module,
+        which is shape-preserving. It must therefore run once, early, in
+        ``_preprocess_fit``/``_preprocess_transform`` before any
+        fixed-shape assumption is made; nothing in this module caches
+        ``n_features`` ahead of preprocessing, so the change of shape is
+        safe within this pipeline as long as ``crop`` stays first.
+    """
+    n_features = X.shape[1]
+    i_start = int(round(start_frac * n_features))
+    i_end = int(round(end_frac * n_features))
+    i_start = max(0, min(i_start, n_features - 1))
+    i_end = max(i_start + 1, min(i_end, n_features))
+    return X[:, i_start:i_end]
+
+
+def vector_normalize(X):
+    """L2 (Euclidean) vector normalization of spectra.
+
+    Each spectrum (row) is divided by its own L2 norm, i.e.
+    ``X / np.linalg.norm(X, axis=1, keepdims=True)``, so every output row
+    has unit L2 norm. Stateless and parameter-free, in the same spirit as
+    :func:`snv` but normalizing by vector magnitude rather than by
+    per-spectrum mean/standard deviation.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features)
+        Vector-normalized spectra (unit L2 norm per row).
+    """
+    norms = np.linalg.norm(X, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1.0, norms)
+    return X / norms
+
+
 def augment_spectra(
     X,
     y,

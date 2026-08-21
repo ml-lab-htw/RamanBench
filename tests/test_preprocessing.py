@@ -8,6 +8,7 @@ from raman_bench.preprocessing import (
     baseline_correction_arpls,
     baseline_correction_asls,
     cosmic_ray_removal,
+    crop_spectra,
     denoise_savgol,
     emsc_fit,
     emsc_transform,
@@ -16,6 +17,7 @@ from raman_bench.preprocessing import (
     rubberband_correction,
     savgol_derivative,
     snv,
+    vector_normalize,
     wavelet_denoise,
 )
 
@@ -259,3 +261,63 @@ def test_wavelet_denoise_reduces_noise():
     err_noisy = np.mean((noisy - clean[None, :]) ** 2)
     err_denoised = np.mean((out - clean[None, :]) ** 2)
     assert err_denoised < err_noisy
+
+
+# ---------------------------------------------------------------------------
+# Crop (fingerprint-region, fractional-index proxy)
+# ---------------------------------------------------------------------------
+
+
+def test_crop_fewer_features(spectra):
+    out = crop_spectra(spectra, start_frac=0.15, end_frac=0.75)
+    assert out.shape[1] < spectra.shape[1]
+    assert out.shape[0] == spectra.shape[0]
+
+
+def test_crop_indices_within_bounds():
+    n_features = 100
+    x = np.arange(n_features, dtype=np.float64)[None, :]
+    out = crop_spectra(x, start_frac=0.15, end_frac=0.75)
+    assert out.min() >= 0
+    assert out.max() < n_features
+    # Values are a contiguous sub-range matching the fractional bounds.
+    expected_start = int(round(0.15 * n_features))
+    expected_end = int(round(0.75 * n_features))
+    np.testing.assert_array_equal(out[0], x[0, expected_start:expected_end])
+
+
+def test_crop_full_range_default_no_op_bounds():
+    out = crop_spectra(np.ones((3, 20)), start_frac=0.0, end_frac=1.0)
+    assert out.shape == (3, 20)
+
+
+def test_crop_clips_degenerate_fractions():
+    """start_frac >= end_frac must still return at least one column, not crash."""
+    out = crop_spectra(np.ones((2, 10)), start_frac=0.9, end_frac=0.1)
+    assert out.shape[0] == 2
+    assert out.shape[1] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Vector normalization (L2)
+# ---------------------------------------------------------------------------
+
+
+def test_vecnorm_unit_norm(spectra):
+    out = vector_normalize(spectra)
+    norms = np.linalg.norm(out, axis=1)
+    np.testing.assert_allclose(norms, 1.0, atol=1e-10)
+
+
+def test_vecnorm_shape(spectra):
+    out = vector_normalize(spectra)
+    assert out.shape == spectra.shape
+
+
+def test_vecnorm_zero_row_no_nan():
+    """An all-zero row must not produce NaN (0/0)."""
+    X = np.zeros((2, 10))
+    X[1] = 1.0
+    out = vector_normalize(X)
+    assert not np.isnan(out).any()
+    np.testing.assert_allclose(out[0], 0.0)
