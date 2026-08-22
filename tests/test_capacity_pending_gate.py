@@ -147,7 +147,10 @@ def test_run_tick_threads_max_pending_from_scope(scheduler, monkeypatch):
         captured["max_pending"] = max_pending
         return False, "stopped for test"
 
-    monkeypatch.setattr(scheduler, "compute_backlog", lambda scope, profile: {"PLS": [("wheat_lines", 0, 0, 0, 0, 10)]})
+    monkeypatch.setattr(
+        scheduler, "compute_backlog",
+        lambda scope, profile, **kwargs: {"PLS": [("wheat_lines", 0, 0, 0, 0, 10)]},
+    )
     monkeypatch.setattr(scheduler, "check_capacity", fake_check_capacity)
 
     scope = {
