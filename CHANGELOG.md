@@ -7,6 +7,143 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Six new tunable preprocessing steps in `RamanPreprocessingMixin`, each with
+  a pure NumPy/SciPy (or PyWavelets) implementation in
+  `raman_bench.preprocessing.raman_preprocessing` and its own AutoGluon HPO
+  search space:
+  - **airPLS** baseline correction (`baseline_correction_airpls`) — Zhang,
+    Chen & Liang, *Analyst* 135(5):1138-1146, 2010.
+  - **arPLS** baseline correction (`baseline_correction_arpls`) — Baek, Park,
+    Ahn & Choo, *Analyst* 140:250-257, 2015.
+  - **Rubberband** (convex-hull) baseline correction
+    (`rubberband_correction`) — classical, zero-hyperparameter.
+  - **EMSC** (Extended Multiplicative Scatter Correction, `emsc_fit` /
+    `emsc_transform`) — Martens & Stark, 1991; Liland et al., *J. Raman
+    Spectrosc.*, 2016. Generalizes the existing MSC step with a polynomial
+    baseline term; follows the same fold-safe fit-once/transform-reuse
+    pattern as MSC.
+  - **Savitzky-Golay derivative** preprocessing (`savgol_derivative`) — 1st
+    or 2nd derivative, distinct from the existing SG smoothing step.
+  - **Wavelet-threshold denoising** (`wavelet_denoise`) — universal
+    soft-threshold (Donoho & Johnstone) via PyWavelets; new optional
+    `PyWavelets` dependency (imported defensively).
+- New `_prep_restriction` / `preprocessing_config` step keys: `airpls`,
+  `arpls`, `rubberband`, `emsc`, `wavelet_denoise`, `derivative`.
+- New top-level `preprocessing_params` config field: a flat
+  `param_name -> value` override dict (e.g. `{"prep_deriv_order": 2}`) for
+  tuning a step's own hyperparameters directly from the benchmark config,
+  independent of the `preprocessing`/`preprocessing_config` enable/disable
+  restriction. Validated in `config.py::_normalize_preprocessing_params`
+  against the pooled `prep_*` param names from `_PREP_STEP_DEFINITIONS`
+  (typos raise `ValueError` at config-load time), threaded through
+  `predictions.py` alongside `preprocessing_config`, and merged into each
+  model's hyperparameters in
+  `model.py::AutoGluonModel._build_model_hyperparameters` *after* the
+  restriction's enable/disable logic — overrides win over class defaults
+  and the HPO search space, but cannot flip an `*_enabled` flag the
+  restriction has an explicit opinion on (the restriction alone decides
+  which steps run at all).
+- Two more tunable preprocessing steps, wired into `RamanPreprocessingMixin`
+  and `config.py::_ALL_PREPROCESSING_STEPS` the same way as the six above:
+  - **`crop`** (`crop_spectra`) — fingerprint-region cropping, implemented
+    as a **fractional-index proxy** (`prep_crop_start_frac`/
+    `prep_crop_end_frac`, defaults 0.15/0.75) since the real wavenumber axis
+    is not threaded through this pipeline (same limitation as EMSC's
+    normalized index axis). Runs first in `_preprocess_fit`/
+    `_preprocess_transform` because it changes the feature count. Fixed a
+    latent bug this exposed: `_fit`/`_preprocess_if_dataframe` previously
+    reused the pre-preprocessing DataFrame column names unconditionally when
+    rebuilding `X` after preprocessing, which raises on a length mismatch
+    once a step changes `n_features`; extracted a small
+    `_output_feature_cols` helper that falls back to positional
+    `feature_0..feature_{n-1}` names when the width changed.
+  - **`vecnorm`** (`vector_normalize`) — L2 (Euclidean) row normalization,
+    no parameters beyond `prep_vecnorm_enabled`. Runs alongside SNV near the
+    end of the pipeline.
+- **Preprocessing ensemble** mechanism: `prep_ensemble_enabled` +
+  `prep_ensemble_blocks` (a list of `preprocessing_config`-shaped dicts,
+  e.g. `[{"snv": true}, {"emsc": true}, {"airpls": true, "snv": true}]`).
+  Runs each block through the existing `_preprocess_fit`/
+  `_preprocess_transform` pipeline independently (fold-safe: each block's
+  stateful fit, e.g. MSC/EMSC reference spectra, is fit once on training
+  data only, exactly like the single-recipe path) and concatenates the
+  blocks' outputs column-wise into one wide feature matrix fed to the
+  underlying model. New `RamanPreprocessingMixin` methods
+  `_preprocess_fit_ensemble`/`_preprocess_transform_ensemble`, orthogonal to
+  `_PREP_STEP_DEFINITIONS` (not one more sequential step — a parallel
+  fan-out/concatenate mechanism), gated by `prep_ensemble_enabled` and
+  settable via `preprocessing_params` (validated against the new
+  `ENSEMBLE_PARAM_NAMES`). Trades interpretability (which single recipe
+  helped?) for a strong upper-bound baseline, per prior spectroscopy
+  ensembling work (PROSAC/SPORT-style block ensembles reported ~5-25% error
+  reduction on NIR data).
+- **GCU** (Global Compositional Unmixing, `gcu_fit`/`gcu_transform`) and
+  **LVSE** (Local Vibrational Subspace Encoding, `lvse_fit`/`lvse_transform`)
+  — the RamanPFN preprocessing/feature-representation steps from Pan et al.,
+  "RamanPFN: learning from Raman spectral structure with a tabular
+  foundation model", arXiv:2608.02157:
+  - **GCU**: fits a per-dataset non-negativity shift (`X - X_train.min()`,
+    clipped at 0) then `sklearn.decomposition.NMF(init="nndsvd",
+    solver="cd")` with `n_components=rho` (`prep_gcu_rho`, Categorical
+    8/16/32/64, default 16) on training data only; new spectra are
+    projected onto the frozen `H` via `NMF.transform`. Coordinate descent
+    substitutes for the paper's HALS solver (not exposed by scikit-learn);
+    `rho` simplifies the paper's OOF multiresolution-rank selection to a
+    single tunable hyperparameter.
+  - **LVSE**: splits the feature axis into `n_regions` contiguous blocks
+    (`prep_lvse_n_regions`, Categorical 8/16/24/32, default 16), and per
+    region fits training-only center/scale + top-`k_per_region`
+    (`prep_lvse_k_per_region`, Categorical 2/4/6/8, default 4, clipped down
+    if a region is narrower) SVD components, concatenating all regions'
+    scores.
+  - Both are **representation-replacing** (output width != `n_features`,
+    like `crop`/PCA) and, unlike every other step, are architecturally
+    **terminal**: `_preprocess_fit`/`_preprocess_transform` always run them
+    last (after standard scaling, before augmentation), regardless of
+    `_PREP_STEP_DEFINITIONS` dict order, so no later step can ever consume
+    their output. Enabling both runs them as independent blocks on the same
+    input and concatenates outputs (mirrors the Task-3 ensemble's parallel
+    design; not chained). A combination that wastes a fitted
+    `StandardScaler` (scaling + GCU/LVSE) is logged as a warning rather than
+    hard-erroring — see the design-rationale comment in `mixin.py`.
+  - New `_PREP_STEP_DEFINITIONS` entries `gcu`/`lvse`, `_ALL_PREPROCESSING_STEPS`
+    keys, and `_STATEFUL_PREP_ATTRS` entries so the ensemble mechanism
+    (Task 3) also fold-safely isolates GCU/LVSE fit state per block.
+
+### Fixed
+
+- Fixed a `KeyError: "None of [Index([...])] are in the [columns]"` crash for
+  every shape-changing preprocessing mechanism (`prep_crop_enabled`,
+  `prep_gcu_enabled`, `prep_lvse_enabled`, `prep_ensemble_enabled`) whenever
+  the wrapped model's own `_fit`/`_predict_proba` calls AutoGluon's
+  `self.preprocess(X)` internally (e.g. `KNNModel`, tree models, `NN_TORCH`).
+  Root cause: `AbstractModel.fit()` snapshots `self.features` /
+  `self.feature_metadata` from the *original*, pre-preprocessing `X.columns`
+  before `RamanPreprocessingMixin._fit()` ever runs; once a shape-changing
+  step replaced `X`'s columns (fewer/renamed, per `_output_feature_cols`),
+  any later `self.preprocess(X)` call — inside the model's own `_fit`, or
+  inside `AbstractModel._predict_proba` at inference time — did `X[self.features]`
+  against the *stale* original column list and raised `KeyError`. Caught
+  before this preprocessing work ever ran a real experiment: reproduced
+  first via `PREPROCESSED_MODELS['KNN'](...).fit(X=..., y=...)` directly, and
+  confirmed identically at the full `scripts/run_benchmark.py` pipeline level
+  for GCU+LVSE. Fixed by adding
+  `RamanPreprocessingMixin._resync_autogluon_features`, which recomputes
+  `self.features`/`self._features_internal`/`self.feature_metadata` (by
+  rerunning AutoGluon's own `_preprocess_set_features`) against the
+  transformed `X` whenever a step actually changed the column set, so every
+  later `self.preprocess(X)` call — at fit and inference time — sees a
+  column list matching what the mixin now feeds it. Verified against `KNN`,
+  `PLS`, and `DEEPCNN` (a torch-based model) for all four mechanisms; added
+  `tests/test_preprocessing_mixin_real_fit.py`, which exercises the real
+  `AbstractModel.fit()` -> internal `self.preprocess()` path (the previous
+  shape tests only covered the pure `_preprocess_fit`/`_preprocess_transform`
+  functions, which never touch `self.features` and so passed throughout).
+
 ## [0.1.0] — 2026-04-14
 
 ### Added

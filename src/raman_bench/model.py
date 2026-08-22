@@ -123,6 +123,14 @@ class AutoGluonModel:
         Base directory for AutoGluon model artefacts.
     preprocessing_config : dict | None
         Preprocessing restriction dict from the benchmark config.
+    preprocessing_params : dict | None
+        Flat ``param_name -> value`` override dict from the benchmark
+        config's ``preprocessing_params`` field (e.g.
+        ``{"prep_deriv_order": 2}``). Merged into each model's
+        hyperparameters *after* the ``preprocessing_config`` restriction's
+        enable/disable logic, so overrides win over class defaults, but the
+        restriction dict still controls which steps are on at all. See
+        ``_build_model_hyperparameters``.
     model_extra_params : dict | None
         Extra parameters forwarded to custom neural-network models
         (e.g. ``{"per_epoch_augmentation": True}``).
@@ -151,10 +159,12 @@ class AutoGluonModel:
         autogluon_presets: str = "best_quality",
         autogluon_path: str | None = None,
         preprocessing_config: dict | None = None,
+        preprocessing_params: dict | None = None,
         model_extra_params: dict | None = None,
     ) -> None:
         self.task_type = task_type
         self.preprocessing_config = preprocessing_config
+        self.preprocessing_params = preprocessing_params
 
         self._autogluon_native = "AUTOGLUON" in [m.upper() for m in models]
 
@@ -290,6 +300,32 @@ class AutoGluonModel:
                     ):
                         merged[enabled_param] = True
 
+            # Apply preprocessing_params overrides (config-level per-param
+            # tuning, e.g. {"prep_deriv_order": 2}) *after* the restriction's
+            # enable/disable logic above, so overrides win over both the
+            # model-class defaults and (for non-"_enabled" params) the
+            # restriction. An "_enabled" key that the restriction dict has
+            # an explicit opinion on (want is not None, handled above) is
+            # deliberately NOT overridable here — the restriction alone
+            # decides which steps are on; preprocessing_params only tunes
+            # the parameters of steps once their on/off state is settled.
+            if self.preprocessing_params:
+                restriction_owned_enabled_params = set()
+                if restriction is not None:
+                    for step_key, enabled_param in STEP_ENABLED_PARAMS.items():
+                        if restriction.get(step_key) is not None:
+                            restriction_owned_enabled_params.add(enabled_param)
+                for param_name, value in self.preprocessing_params.items():
+                    if param_name in restriction_owned_enabled_params:
+                        logger.warning(
+                            "preprocessing_params override for %r ignored: "
+                            "preprocessing_config already decides this step's "
+                            "enabled state.",
+                            param_name,
+                        )
+                        continue
+                    merged[param_name] = value
+
             if self.optimize:
                 optimize_prep = getattr(cls, "_optimize_preprocessing", False)
                 search_space = build_restricted_searchspace(restriction) if optimize_prep else {}
@@ -315,6 +351,15 @@ class AutoGluonModel:
                             pass
                         break
                 merged = {**merged, **search_space}
+                # Re-pin preprocessing_params overrides so they win over the
+                # HPO search space too (a Space object for the same param
+                # would otherwise silently clobber the fixed override just
+                # applied above, since search_space is merged in last).
+                if self.preprocessing_params:
+                    for param_name, value in self.preprocessing_params.items():
+                        if param_name in restriction_owned_enabled_params:
+                            continue
+                        merged[param_name] = value
                 hyperparameters[cls] = merged
             else:
                 hyperparameters[cls] = {k: v for k, v in merged.items() if not isinstance(v, Space)}
