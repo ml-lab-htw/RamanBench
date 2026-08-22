@@ -113,6 +113,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
   - New `_PREP_STEP_DEFINITIONS` entries `gcu`/`lvse`, `_ALL_PREPROCESSING_STEPS`
     keys, and `_STATEFUL_PREP_ATTRS` entries so the ensemble mechanism
     (Task 3) also fold-safely isolates GCU/LVSE fit state per block.
+- **RamanPFN** (`RAMANPFN`, `models/custom/ramanpfn/`) -- reproduces the
+  paper's frozen-TabPFN dual-view (GCU + LVSE) architecture. Merge formula
+  ported from the paper's signed triplet integration
+  (`p_triplet = -lambda*p_- + lambda*p_l + p_h`), reduced to a documented
+  single-triplet simplification (2 views instead of the paper's 8-candidate
+  multiresolution ensemble) since this repo's `gcu`/`lvse` already simplify
+  multiresolution rank selection to one tunable rank -- see `model.py`'s
+  module docstring for the full paper-vs-implementation mapping, including
+  what the paper itself leaves unspecified (triplet role assignment, alpha).
+  Wired into the v1 rotation (`configs/v1/scope_default.json`, GPU tier,
+  128G mem tier matching the other frozen-TabPFN-family models) after a real
+  local `run_experiment.py` smoke test (`alzheimer`, config_index 0): 0.9998
+  validation ROC AUC, `metric_error~0.001`.
 
 ### Fixed
 
