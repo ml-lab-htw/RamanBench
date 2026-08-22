@@ -138,7 +138,7 @@ def resolve_time_limit(
     default: float,
     dataset: str,
     dataset_time_limit_overrides: dict[str, float] | None = None,
-    model_time_limit_overrides: dict[str, float] | None = None,
+    model_time_limit_overrides: dict[str, float] | float | None = None,
 ) -> float:
     """The time_limit for ONE task, resolved from its own dataset -- the
     per-task counterpart to ``opportunistic_scheduler.effective_time_limit``,
@@ -157,11 +157,29 @@ def resolve_time_limit(
     never down; dataset-keyed and model-keyed overrides both apply and the
     larger wins), just resolved for one dataset instead of maxed over a whole
     chunk's worth of datasets.
+
+    ``model_time_limit_overrides`` is normally a dataset-keyed dict (EBM/
+    ORIONMSP: "this model needs more time, but only on these specific wide
+    datasets"). It may instead be a bare number, applied regardless of
+    ``dataset`` -- for a model that's fast/deterministic enough that no
+    single-fit HPO search ever runs against it under the routine
+    config_index=0 backlog, a time cap doesn't bound anything meaningful; it
+    only risks AutoGluon's bagged-fold-fitting strategy extrapolating from an
+    early fold and aborting with ``TimeLimitExceeded`` before the (finite,
+    just slower-than-guessed) remaining folds get a chance to finish --
+    confirmed in practice for LR on wide/large datasets (wheat_lines,
+    bacteria_identification: ~530-560s/fold x 8 sequential folds, well past
+    the 3600s default, same failure mode already seen for PLS on mlrod). The
+    real backstop in that case is the SLURM array's own ``--time`` (the
+    profile's ``default_time``, e.g. 10 days) -- entirely independent of this
+    value.
     """
     candidates = [default]
     if dataset_time_limit_overrides and dataset in dataset_time_limit_overrides:
         candidates.append(dataset_time_limit_overrides[dataset])
-    if model_time_limit_overrides and dataset in model_time_limit_overrides:
+    if isinstance(model_time_limit_overrides, (int, float)):
+        candidates.append(model_time_limit_overrides)
+    elif model_time_limit_overrides and dataset in model_time_limit_overrides:
         candidates.append(model_time_limit_overrides[dataset])
     return max(candidates)
 
@@ -172,7 +190,7 @@ def write_jobspec(
     *,
     default_time_limit: float,
     dataset_time_limit_overrides: dict[str, float] | None = None,
-    model_time_limit_overrides: dict[str, float] | None = None,
+    model_time_limit_overrides: dict[str, float] | float | None = None,
 ) -> Path:
     """One line per (dataset, target_idx, repeat, fold, config_index,
     n_repeats, time_limit) task; array task N reads line N+1. ``time_limit``
@@ -224,7 +242,7 @@ def submit_jobs(
     throttle: int,
     dry_run: bool,
     dataset_time_limit_overrides: dict[str, float] | None = None,
-    model_time_limit_overrides: dict[str, float] | None = None,
+    model_time_limit_overrides: dict[str, float] | float | None = None,
     default_time_limit: float | None = None,
 ) -> list[str]:
     """Submit ``jobs`` (all for one ``model`` -- resource flags are resolved once per

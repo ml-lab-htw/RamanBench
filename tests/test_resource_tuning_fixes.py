@@ -199,6 +199,18 @@ def test_effective_time_limit_combines_both_override_sources(opportunistic_sched
     assert opportunistic_scheduler.effective_time_limit(scope, "EBM", chunk) == 10800
 
 
+def test_effective_time_limit_model_override_scalar_applies_regardless_of_dataset(opportunistic_scheduler):
+    """A model_time_limit_overrides entry may be a bare number instead of a
+    dataset-keyed dict -- a blanket override for a model that's fast/
+    deterministic enough that no time cap bounds anything meaningful (LR:
+    no per-dataset variation, just don't cap it at all)."""
+    scope = {"time_limit": 3600, "model_time_limit_overrides": {"LR": 800000}}
+    assert opportunistic_scheduler.effective_time_limit(scope, "LR", [("wheat_lines", 0, 0, 0, 0, 10)]) == 800000
+    assert opportunistic_scheduler.effective_time_limit(scope, "LR", [("alzheimer", 0, 0, 0, 0, 10)]) == 800000
+    # Another model without a scalar entry is unaffected.
+    assert opportunistic_scheduler.effective_time_limit(scope, "PLS", [("wheat_lines", 0, 0, 0, 0, 10)]) == 3600
+
+
 def test_effective_time_limit_no_overrides(opportunistic_scheduler):
     scope = {"time_limit": 3600}
     chunk = [("wheat_lines", 0, 0, 0, 0, 10)]

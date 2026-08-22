@@ -380,6 +380,37 @@ directly, rather than reimplementing patterns "inspired by" them.
 
 ### Fixed
 
+- LR crashed with `autogluon.core.utils.exceptions.TimeLimitExceeded` on
+  `wheat_lines`/`bacteria_identification` (~530-560s/fold x 8 sequential bag
+  folds, past the 3600s default -- AutoGluon's fold-fitting strategy
+  extrapolated from an early fold and aborted before the slower-than-guessed
+  but finite remaining folds got a chance, same failure mode already known
+  for PLS on `mlrod`). Since `pick_chunk()` picks models in strict priority
+  order and only advances past one once its backlog hits zero, these 18
+  permanently-failing tasks silently starved every model listed after LR
+  (~30,000+ backlog across NN_TORCH/FASTAI/DUMMY/...) for 19+ consecutive
+  hourly ticks despite a fully idle second node the whole time. Fixed at the
+  root: `cluster/submit_job.py::resolve_time_limit` and
+  `cluster/opportunistic_scheduler.py::effective_time_limit` now accept a
+  bare number (not just a dataset-keyed dict) for a `model_time_limit_overrides`
+  entry, applied regardless of dataset; `configs/v1/scope_default.json` sets
+  `"LR": 800000` (~9.3 days, comfortably under the real backstop -- the SLURM
+  array's own 10-day `--time`) since no HPO search runs under the routine
+  config_index=0 backlog, so a time cap on LR doesn't bound anything
+  meaningful in the first place.
+- Added general defense against the same starvation pattern recurring for
+  any other model, for any other reason: `cluster/opportunistic_scheduler.py`
+  now tracks each task's recent failed SLURM attempts (`sacct`, resolved back
+  to `(dataset, target_idx, repeat, fold)` via the jobspec file) in a
+  persistent per-profile JSON state file
+  (`cluster/.scheduler_state/<profile>_failures.json`); `compute_backlog()`
+  excludes any task with >= 3 distinct failures within the last 24h from the
+  backlog instead of resubmitting it forever, logging a clear warning so it's
+  investigated rather than silently looping. A single transient failure (a
+  real cluster hiccup) does not get excluded after just one occurrence --
+  only persistent, repeated failure does. New `--failure-state` CLI flag
+  (`opportunistic_scheduler.py`), defaults on automatically, disable with
+  `--failure-state ""`.
 - `cluster/opportunistic_scheduler.py`'s `compute_backlog()` only excluded targets with an
   on-disk `results.pkl`, never targets that already had a queued/running SLURM task for
   them. Since `pick_chunk()` deterministically takes the first `chunk_size` items, any tick

@@ -199,12 +199,175 @@ def _in_flight_targets(model: str, user: str) -> set[tuple[str, int, int, int]]:
     return targets
 
 
-def compute_backlog(scope: dict, profile: dict) -> dict[str, list[Job]]:
+# --- Persistent failure tracking -- lets compute_backlog() notice a task that
+# keeps failing (not just currently in flight) and stop resubmitting it, so one
+# permanently-broken (model, dataset) pair can't silently starve every other
+# model behind it in pick_chunk()'s strict priority order forever. Confirmed as
+# a real, live incident: LR's entire remaining backlog (18 tasks, wheat_lines +
+# bacteria_identification) hit AutoGluon's TimeLimitExceeded on every single
+# hourly resubmission for 19+ consecutive ticks -- since LR sits ahead of
+# NN_TORCH/FASTAI/DUMMY/... (each with a ~4,200-task backlog) in
+# configs/v1/scope_default.json's model list, pick_chunk() never once advanced
+# past LR in that entire window, despite a fully idle second node. That
+# specific case is also fixed at the root (LR's own time_limit, see
+# submit_job.resolve_time_limit's scalar-override handling) -- this mechanism
+# is the general defense: ANY model could wedge the same way for an unrelated
+# reason (a real code bug, a bad dataset, a cluster-side issue) with nothing
+# else in the scheduler noticing or logging it.
+STUCK_FAILURE_THRESHOLD = 3
+STUCK_FAILURE_WINDOW_HOURS = 24
+FAILURE_STATE_RETENTION_DAYS = 14
+
+
+def _sacct_failed_tasks(user: str, since_days: int) -> dict[str, str]:
+    """``{'{job_name}_{array_idx}': 'FAILED'|'TIMEOUT'|'OUT_OF_MEMORY'|
+    'NODE_FAIL'|'CANCELLED'}`` for this user's SLURM accounting history within
+    the lookback window, one entry per individual array task. ``-X`` restricts
+    to job (not job-step, i.e. no .batch/.extern noise) records -- for an
+    array job each array index is still its own top-level record, so this
+    alone gives one line per array task."""
+    cutoff = (datetime.datetime.now() - datetime.timedelta(days=since_days)).strftime("%Y-%m-%dT%H:%M:%S")
+    try:
+        out = subprocess.run(
+            ["sacct", "-h", "-n", "-X", "-u", user, "--starttime", cutoff,
+             "--state", "FAILED,TIMEOUT,OUT_OF_MEMORY,NODE_FAIL,CANCELLED",
+             "-o", "JobID,JobName%200,State", "-P"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return {}
+    states: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.strip().split("|")
+        if len(parts) != 3:
+            continue
+        job_id, name, state = parts
+        if "_" not in job_id:
+            continue  # not an array-task record (e.g. a lone non-array job)
+        states[f"{name}_{job_id.rsplit('_', 1)[1]}"] = state
+    return states
+
+
+def _resolve_array_task(model: str, key: str) -> tuple[str, int, int, int] | None:
+    """Reverse a ``{job_name}_{array_idx}`` key (as returned by
+    ``_sacct_failed_tasks``) back to (dataset, target_idx, repeat, fold) via
+    the jobspec file, using the same ``LINE_NO = array_idx + 1`` convention
+    ``run_experiment.sbatch`` itself uses."""
+    prefix = f"RB_{model}_"
+    if not key.startswith(prefix):
+        return None
+    rest = key[len(prefix):]
+    part_slug, _, array_idx_str = rest.rpartition("_")
+    if not part_slug or not array_idx_str.isdigit():
+        return None
+    jobspec_path = JOBSPEC_DIR / f"{part_slug}.txt"
+    if not jobspec_path.exists():
+        return None
+    lines = jobspec_path.read_text().splitlines()
+    array_idx = int(array_idx_str)
+    if array_idx >= len(lines):
+        return None
+    parts = lines[array_idx].split()
+    if len(parts) not in (6, 7):
+        return None
+    dataset, target_idx, repeat, fold = parts[0], int(parts[1]), int(parts[2]), int(parts[3])
+    return (dataset, target_idx, repeat, fold)
+
+
+def _load_failure_state(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
+def _save_failure_state(path: Path, state: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(state, f, indent=2, sort_keys=True)
+
+
+def update_failure_state(state_path: Path, model: str, user: str) -> dict[str, dict[str, str]]:
+    """Query recent SLURM accounting for ``model``'s FAILED/TIMEOUT/
+    OUT_OF_MEMORY/NODE_FAIL/CANCELLED tasks, record each newly-seen failed
+    SLURM task attempt against its own ``"dataset|target_idx|repeat|fold"``
+    key in a persistent per-profile JSON state file (so failures accumulate
+    across ticks -- a single tick only sees whatever's in ``sacct``'s own
+    lookback window, not this task's full history), and return the updated
+    per-task attempt log for ``model`` (``{task_key: {job_ref: observed_at_iso}}``).
+
+    Purely additive record-keeping -- ``stuck_tasks`` below decides what
+    actually counts as "stuck" from this. Entries older than
+    ``FAILURE_STATE_RETENTION_DAYS`` are pruned on every call so the file
+    can't grow unbounded; a task that stops failing (succeeds, or simply
+    isn't attempted again) ages out of this file on its own, nothing else
+    needs to explicitly clear it.
+    """
+    state = _load_failure_state(state_path)
+    model_state = state.setdefault(model, {})
+    now_iso = datetime.datetime.now().isoformat()
+
+    for job_ref in _sacct_failed_tasks(user, since_days=FAILURE_STATE_RETENTION_DAYS):
+        task = _resolve_array_task(model, job_ref)
+        if task is None:
+            continue
+        task_key = "|".join(str(part) for part in task)
+        attempts = model_state.setdefault(task_key, {})
+        # job_ref ("{job_name}_{array_idx}") uniquely identifies one SLURM
+        # task attempt -- re-observing the same one on a later tick (it's
+        # still within sacct's own lookback window) must not inflate the
+        # count, only genuinely new attempts should.
+        attempts.setdefault(job_ref, now_iso)
+
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=FAILURE_STATE_RETENTION_DAYS)
+    for task_key in list(model_state.keys()):
+        attempts = model_state[task_key]
+        for job_ref in list(attempts.keys()):
+            if datetime.datetime.fromisoformat(attempts[job_ref]) < cutoff:
+                del attempts[job_ref]
+        if not attempts:
+            del model_state[task_key]
+
+    _save_failure_state(state_path, state)
+    return model_state
+
+
+def stuck_tasks(
+    model_failure_state: dict[str, dict[str, str]],
+    threshold: int = STUCK_FAILURE_THRESHOLD,
+    window_hours: int = STUCK_FAILURE_WINDOW_HOURS,
+) -> set[tuple[str, int, int, int]]:
+    """Tasks with at least ``threshold`` distinct failed attempts within the
+    last ``window_hours`` -- i.e. persistently broken, not a one-off transient
+    failure (a real cluster hiccup, a single bad node) that doesn't deserve to
+    be permanently excluded after just one occurrence."""
+    cutoff = datetime.datetime.now() - datetime.timedelta(hours=window_hours)
+    stuck: set[tuple[str, int, int, int]] = set()
+    for task_key, attempts in model_failure_state.items():
+        recent = [ts for ts in attempts.values() if datetime.datetime.fromisoformat(ts) >= cutoff]
+        if len(recent) >= threshold:
+            dataset, target_idx, repeat, fold = task_key.split("|")
+            stuck.add((dataset, int(target_idx), int(repeat), int(fold)))
+    return stuck
+
+
+def compute_backlog(scope: dict, profile: dict, failure_state_path: Path | str | None = None) -> dict[str, list[Job]]:
     """Return ``{model: [(dataset, target_idx, repeat, fold, config_index=0, n_repeats), ...]}``
     for every not-yet-cached AND not-already-queued/running task in scope. Only
     the routine default config (config_index 0) is considered -- per the plan's
     Decision 3, HPO sweeps are opted into per model separately, not part of the
     routine opportunistic backlog.
+
+    ``failure_state_path``, if given, additionally excludes tasks flagged
+    "stuck" by ``stuck_tasks`` (>= ``STUCK_FAILURE_THRESHOLD`` distinct failed
+    attempts within ``STUCK_FAILURE_WINDOW_HOURS``) -- see the module-level
+    comment above ``STUCK_FAILURE_THRESHOLD`` for why this exists: without it,
+    a persistently-failing task keeps reappearing in the backlog every tick
+    forever, and since ``pick_chunk`` is strict-priority (not round-robin), it
+    can starve every model listed after it in ``scope["models"]`` indefinitely.
+    ``None`` (the default) disables this check entirely -- e.g. for callers
+    without real SLURM accounting to query (tests, ``--dry-run`` probes
+    against a scope with no matching cluster).
     """
     results_dir = Path(scope["results_dir"])
     n_splits = scope["n_splits"]
@@ -218,7 +381,12 @@ def compute_backlog(scope: dict, profile: dict) -> dict[str, list[Job]]:
         ag_name = _ag_name(model)
         experiment_name = f"{ag_name}_c1_BAG_L1"
         in_flight = _in_flight_targets(model, user)
+        stuck: set[tuple[str, int, int, int]] = set()
+        if failure_state_path is not None:
+            model_failure_state = update_failure_state(Path(failure_state_path), model, user)
+            stuck = stuck_tasks(model_failure_state)
         model_backlog: list[Job] = []
+        skipped_stuck: list[tuple[str, int, int, int]] = []
         for row in targets:
             if row.get("excluded"):
                 continue
@@ -231,8 +399,23 @@ def compute_backlog(scope: dict, profile: dict) -> dict[str, list[Job]]:
                     if (dataset, target_idx, repeat, fold) in in_flight:
                         continue
                     cache_file = results_dir / experiment_name / task_name / f"{repeat}_{fold}" / "results.pkl"
-                    if not cache_file.exists():
-                        model_backlog.append((dataset, target_idx, repeat, fold, 0, n_repeats))
+                    if cache_file.exists():
+                        continue
+                    if (dataset, target_idx, repeat, fold) in stuck:
+                        skipped_stuck.append((dataset, target_idx, repeat, fold))
+                        continue
+                    model_backlog.append((dataset, target_idx, repeat, fold, 0, n_repeats))
+        if skipped_stuck:
+            preview = skipped_stuck[:5]
+            print(
+                f"WARNING: {model} has {len(skipped_stuck)} task(s) excluded from its backlog as "
+                f"'stuck' (>= {STUCK_FAILURE_THRESHOLD} failed attempts within "
+                f"{STUCK_FAILURE_WINDOW_HOURS}h, still no results.pkl, not currently queued/running): "
+                f"{preview}{' ...' if len(skipped_stuck) > len(preview) else ''}. These will keep "
+                f"failing silently forever otherwise -- investigate the root cause (see .logs/), then "
+                f"either fix it or clear the corresponding entries from {failure_state_path} to retry.",
+                file=sys.stderr,
+            )
         backlog[model] = model_backlog
     return backlog
 
@@ -334,7 +517,11 @@ def effective_time_limit(scope: dict, model: str, chunk: list[Job]) -> float:
       shares -- see EBM/ORIONMSP below). A chunk never spans more than one
       model (``pick_chunk`` guarantees this -- resource flags are resolved
       once per array submission), so looking up just ``model``'s own
-      sub-dict is enough; no cross-model leakage is possible.
+      sub-dict is enough; no cross-model leakage is possible. A model's own
+      entry may instead be a bare number rather than a dataset-keyed dict --
+      applied regardless of which datasets are in the chunk (see LR below:
+      a model with no real per-dataset variation in whether it needs more
+      time, just a blanket "don't cap this one").
 
     This whole-chunk max is no longer what each task actually runs with --
     ``submit_jobs``/``write_jobspec`` resolve a PER-TASK time_limit from each
@@ -374,6 +561,8 @@ def effective_time_limit(scope: dict, model: str, chunk: list[Job]) -> float:
     default = scope.get("time_limit", DEFAULT_TIME_LIMIT)
     dataset_overrides = scope.get("time_limit_overrides", {})
     model_overrides = scope.get("model_time_limit_overrides", {}).get(model, {})
+    if isinstance(model_overrides, (int, float)):
+        return max(default, model_overrides)
     if not dataset_overrides and not model_overrides:
         return default
     datasets_in_chunk = {dataset for dataset, *_rest in chunk}
@@ -391,9 +580,12 @@ def log_tick(log_path: str | Path | None, entry: dict) -> None:
         f.write(json.dumps(entry) + "\n")
 
 
-def run_tick(scope: dict, profile: dict, log_path: str | Path | None, dry_run: bool) -> dict:
+def run_tick(
+    scope: dict, profile: dict, log_path: str | Path | None, dry_run: bool,
+    failure_state_path: str | Path | None = None,
+) -> dict:
     timestamp = datetime.datetime.now(datetime.UTC).isoformat()
-    backlog = compute_backlog(scope, profile)
+    backlog = compute_backlog(scope, profile, failure_state_path=failure_state_path)
     backlog_sizes = {model: len(jobs) for model, jobs in backlog.items()}
     total_backlog = sum(backlog_sizes.values())
 
@@ -486,12 +678,26 @@ def main():
     parser.add_argument("--scope", required=True, help="Path to a scope JSON file (see scope.example.json)")
     parser.add_argument("--profile", required=True, help="Path to a cluster profile YAML")
     parser.add_argument("--log", default=None, help="Append a JSON line per tick to this file")
+    parser.add_argument(
+        "--failure-state", default=None,
+        help="Persistent per-profile JSON file tracking failed task attempts (see "
+             "update_failure_state/stuck_tasks) -- a task with >= STUCK_FAILURE_THRESHOLD "
+             "failures within STUCK_FAILURE_WINDOW_HOURS is excluded from the backlog "
+             "instead of being resubmitted forever. Defaults to "
+             "cluster/.scheduler_state/<profile-name>_failures.json; pass an explicit path "
+             "to change it, or an empty string to disable the mechanism entirely.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     scope = load_scope(args.scope)
     profile = resolve_profile(args.profile, None)
-    run_tick(scope, profile, args.log, args.dry_run)
+    failure_state_path = args.failure_state
+    if failure_state_path is None:
+        failure_state_path = CLUSTER_DIR / ".scheduler_state" / f"{profile.get('name', 'default')}_failures.json"
+    elif failure_state_path == "":
+        failure_state_path = None
+    run_tick(scope, profile, args.log, args.dry_run, failure_state_path=failure_state_path)
 
 
 if __name__ == "__main__":

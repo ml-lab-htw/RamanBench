@@ -123,6 +123,21 @@ def test_resolve_time_limit_never_lowers_below_default(submit_job):
     assert submit_job.resolve_time_limit(3600, "mlrod", {"mlrod": 100}) == 3600
 
 
+def test_resolve_time_limit_model_override_scalar_applies_regardless_of_dataset(submit_job):
+    """A model_time_limit_overrides entry may be a bare number instead of a
+    dataset-keyed dict -- a blanket override applying no matter which dataset
+    is asked about (e.g. LR: no per-dataset variation, just "don't cap this
+    one" everywhere)."""
+    assert submit_job.resolve_time_limit(3600, "wheat_lines", None, 800000) == 800000
+    assert submit_job.resolve_time_limit(3600, "alzheimer", None, 800000) == 800000
+    assert submit_job.resolve_time_limit(3600, "mlrod", None, 800000) == 800000
+
+
+def test_resolve_time_limit_model_override_scalar_combines_with_dataset_override(submit_job):
+    value = submit_job.resolve_time_limit(3600, "mlrod", {"mlrod": 10800}, 800000)
+    assert value == 800000  # scalar model override still wins if larger
+
+
 # --- write_jobspec: the 7th field must be resolved PER LINE, from that
 #     line's own dataset, not one flat value for the whole file. ---
 
