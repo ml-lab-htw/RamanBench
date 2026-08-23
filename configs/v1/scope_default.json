@@ -44,7 +44,7 @@
     "mirror_repo": "HTW-KI-Werkstatt/RamanBench",
     "chunk_size": 300,
     "gpu_chunk_size": 32,
-    "throttle": 8,
+    "throttle": 6,
     "min_idle_cpus": 32,
     "courtesy_ceiling": 200
 }
