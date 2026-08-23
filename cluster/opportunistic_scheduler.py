@@ -61,6 +61,18 @@ from submit_job import (  # noqa: E402
 )
 
 DEFAULT_CHUNK_SIZE = 300
+# GPU-tier models are real training loops (deep learning, foundation-model
+# inference), not the near-instant classical fits CPU-tier models are -- the
+# same flat 300-task chunk size that drains in minutes for LR/RF/etc. can keep
+# a GPU array running for many hours under throttle-limited concurrency.
+# Confirmed live: an NN_TORCH array (throttle=8, 300 tasks) needed over 2
+# hours just to reach 168/300 (roughly 5-6 min/task at 8-way concurrency),
+# implying ~3.5+ hours to fully drain one array alone -- directly against the
+# scheduler's own "opportunistic: short bounded bursts, back off between
+# ticks" design goal. 32 tasks at throttle=8 is 4 waves of concurrent
+# execution -- sized to finish within roughly an hour even for a model this
+# slow; faster GPU models just drain it well under that.
+DEFAULT_GPU_CHUNK_SIZE = 32
 DEFAULT_COURTESY_CEILING = 200
 DEFAULT_MIN_IDLE_CPUS = 32
 DEFAULT_THROTTLE = 8
@@ -461,17 +473,56 @@ def check_capacity(
         if m:
             idle_total += int(m.group(2))
 
+    user = profile.get("cron_user") or _current_user()
+
+    # Two separate squeue views for two genuinely different signals -- do NOT
+    # collapse them into one query:
+    #
+    # (a) courtesy_ceiling needs the TRUE resident (pending+running) task
+    #     count. squeue's DEFAULT view collapses an entire still-pending array
+    #     range onto ONE line (e.g. a fresh 300-task array shows as a single
+    #     "62167_[0-299%8]" row until SLURM starts scheduling individual tasks
+    #     out of it) -- confirmed live as a real incident: this collapsing
+    #     meant 5 separate 300-task GPU (NN_TORCH) arrays piled up back to
+    #     back over 5 hourly ticks, each tick's check seeing only ~1 line per
+    #     array (~14 total) while the true pending+running count was over
+    #     1,000 -- courtesy_ceiling (200) never tripped because it was never
+    #     given an accurate count to compare against. ``-r`` expands pending
+    #     ranges into one line per task, same technique already used in
+    #     raman_bench_paper/cluster/dashboard_snapshot.py's _live_task_states.
+    #
+    # (b) max_pending's fairshare-stall detection is a DIFFERENT thing and
+    #     must NOT use the accurate (b) count: its whole premise (see the
+    #     docstring above) is "a small number of PENDING array-JOBS with none
+    #     of them progressing to RUNNING at all" -- e.g. every one of my
+    #     arrays sitting 100% pending for hours despite reported idle
+    #     capacity. Once (a) is fixed, a single freshly-submitted array under
+    #     normal throttled concurrency (e.g. 300 tasks, throttle=8) always has
+    #     close to 300 individual PENDING lines the instant it's submitted --
+    #     that's completely normal, expected backlog, not a stall. Using the
+    #     accurate per-task count for this check would make it misfire on
+    #     literally every tick after the first ever submission (since
+    #     max_pending's default, 5, is far smaller than any real chunk size),
+    #     permanently freezing the scheduler. squeue's own default collapsed
+    #     view -- one line per distinct pending ARRAY plus one per actively
+    #     running/attempting task -- is what makes this check work as
+    #     designed: a healthy array quickly grows individually-listed RUNNING
+    #     lines as SLURM schedules it, while a genuinely stalled one stays
+    #     collapsed to a small, unmoving handful of lines indefinitely.
     try:
-        squeue_out = subprocess.run(
-            ["squeue", "-h", "-u", profile.get("cron_user") or _current_user(),
-             "-t", "pending,running", "-o", "%T"],
+        squeue_resident_out = subprocess.run(
+            ["squeue", "-r", "-h", "-u", user, "-t", "pending,running", "-o", "%T"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+        squeue_stall_out = subprocess.run(
+            ["squeue", "-h", "-u", user, "-t", "pending,running", "-o", "%T"],
             capture_output=True, text=True, check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         return False, f"squeue failed ({e}) -- treating as at ceiling, conservatively"
-    states = [line.strip() for line in squeue_out.splitlines() if line.strip()]
-    my_resident = len(states)
-    my_pending = sum(1 for s in states if s == "PENDING")
+    my_resident = sum(1 for line in squeue_resident_out.splitlines() if line.strip())
+    stall_states = [line.strip() for line in squeue_stall_out.splitlines() if line.strip()]
+    my_pending = sum(1 for s in stall_states if s == "PENDING")
 
     if idle_total < min_idle_cpus:
         return False, f"only {idle_total} idle CPU(s) on partition {partition!r} (need >={min_idle_cpus})"
@@ -492,13 +543,25 @@ def _current_user() -> str:
     return getpass.getuser()
 
 
-def pick_chunk(backlog: dict[str, list[Job]], chunk_size: int) -> tuple[str | None, list[Job]]:
+def pick_chunk(
+    backlog: dict[str, list[Job]], chunk_size: int, gpu_chunk_size: int | None = None,
+) -> tuple[str | None, list[Job]]:
     """Pick the first model (in scope order) with a nonempty backlog and take up
-    to ``chunk_size`` tasks from it. One chunk never spans more than one model --
-    resource flags (mem/GPU) are resolved once per SLURM array submission."""
+    to its own chunk size worth of tasks from it -- ``gpu_chunk_size`` if the
+    model is GPU-tier and one is given, else the flat ``chunk_size``. One chunk
+    never spans more than one model -- resource flags (mem/GPU) are resolved
+    once per SLURM array submission.
+
+    GPU models get a separate, much smaller chunk size by default (see
+    run_tick's DEFAULT_GPU_CHUNK_SIZE) -- see that constant's own comment for
+    why: a chunk size appropriately sized for fast CPU baselines can leave a
+    GPU array running for many hours under throttle-limited concurrency,
+    against the scheduler's own "short bounded bursts, back off between
+    ticks" design goal."""
     for model, jobs in backlog.items():
         if jobs:
-            return model, jobs[:chunk_size]
+            size = gpu_chunk_size if (gpu_chunk_size is not None and model in GPU_MODELS) else chunk_size
+            return model, jobs[:size]
     return None, []
 
 
@@ -620,7 +683,8 @@ def run_tick(
         return entry
 
     chunk_size = scope.get("chunk_size", DEFAULT_CHUNK_SIZE)
-    model, chunk = pick_chunk(backlog, chunk_size)
+    gpu_chunk_size = scope.get("gpu_chunk_size", DEFAULT_GPU_CHUNK_SIZE)
+    model, chunk = pick_chunk(backlog, chunk_size, gpu_chunk_size)
     time_limit = effective_time_limit(scope, model, chunk)  # whole-chunk ceiling/export-fallback -- see its docstring
     # Deliberately NOT `time_limit` above -- that's already maxed up over
     # every dataset in the chunk (e.g. inflated to 10800 by a single mlrod

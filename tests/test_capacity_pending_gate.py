@@ -70,6 +70,28 @@ def _fake_run(sinfo_line: str, squeue_states: list[str]):
     return fake_run
 
 
+def _fake_run_distinguishing_r(sinfo_line: str, expanded_states: list[str], collapsed_states: list[str]):
+    """Like ``_fake_run``, but returns DIFFERENT squeue output depending on
+    whether ``-r`` is in the command -- models the real behavior squeue
+    itself has (an array with a large still-pending remainder collapses to
+    ~1 line without ``-r``, but expands to one line per task with it)."""
+
+    def fake_run(cmd, capture_output, text, check):
+        class _Result:
+            pass
+
+        result = _Result()
+        if cmd[0] == "sinfo":
+            result.stdout = sinfo_line
+        elif "-r" in cmd:
+            result.stdout = "\n".join(expanded_states)
+        else:
+            result.stdout = "\n".join(collapsed_states)
+        return result
+
+    return fake_run
+
+
 def test_healthy_queue_has_room(scheduler):
     # 128 idle, well under courtesy_ceiling, and only 2 of my own jobs pending
     # (below max_pending) -- this is what a genuinely healthy tick looks like.
@@ -129,6 +151,43 @@ def test_a_few_pending_is_normal_and_does_not_block(scheduler):
     fake_run = _fake_run(
         "128/128/0/256",
         ["RUNNING"] * 5 + ["PENDING"] * 3,
+    )
+    with patch("subprocess.run", side_effect=fake_run):
+        has_room, reason = scheduler.check_capacity(
+            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5
+        )
+    assert has_room is True
+
+
+def test_courtesy_ceiling_catches_collapsed_pending_array(scheduler):
+    """The actual second incident: squeue's default view collapses a large
+    still-pending array range onto ~1 line, so a naive single-query count
+    stayed far under courtesy_ceiling while the TRUE resident count (visible
+    only via ``-r``) was already over it. This must now block."""
+    fake_run = _fake_run_distinguishing_r(
+        "128/128/0/256",
+        expanded_states=["RUNNING"] * 8 + ["PENDING"] * 292,  # -r: true count, 300 total
+        collapsed_states=["RUNNING"] * 8 + ["PENDING"] * 1,  # no -r: 1 line for the whole range
+    )
+    with patch("subprocess.run", side_effect=fake_run):
+        has_room, reason = scheduler.check_capacity(
+            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5
+        )
+    assert has_room is False
+    assert "courtesy ceiling" in reason
+
+
+def test_max_pending_does_not_misfire_on_normal_throttled_backlog(scheduler):
+    """Once courtesy_ceiling uses the accurate (-r) count, max_pending must
+    NOT also switch to it -- a single freshly-submitted, perfectly healthy
+    array under normal throttle-limited concurrency has hundreds of
+    individual PENDING lines under -r, which would misfire max_pending
+    (default 5) on literally every tick if it used that count instead of the
+    collapsed view it was designed around."""
+    fake_run = _fake_run_distinguishing_r(
+        "128/128/0/256",
+        expanded_states=["RUNNING"] * 8 + ["PENDING"] * 32,  # -r: true count, 40 total (under courtesy_ceiling)
+        collapsed_states=["RUNNING"] * 8 + ["PENDING"] * 1,  # no -r: 1 collapsed line for the pending remainder
     )
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
