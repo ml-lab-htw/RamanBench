@@ -73,6 +73,17 @@ DEFAULT_CHUNK_SIZE = 300
 # execution -- sized to finish within roughly an hour even for a model this
 # slow; faster GPU models just drain it well under that.
 DEFAULT_GPU_CHUNK_SIZE = 32
+# courtesy_ceiling (200) alone still lets several gpu_chunk_size-sized arrays
+# (32 each) queue up back to back before tripping -- confirmed live: 4
+# separate NN_TORCH arrays (32 tasks each) piled up again after the
+# courtesy_ceiling/gpu_chunk_size fix, since 4*32=128 is still well under
+# 200. By the time the backlog is dominated by GPU-tier/slow models (the
+# fast CPU baselines finish first), every remaining array is expected to run
+# past an hour regardless of chunk size -- at that point "one array
+# resident at a time" is a simpler and more robust invariant than tuning a
+# ceiling number, and doesn't cost meaningful CPU throughput either (a CPU
+# array drains in minutes, so it only holds the single slot briefly).
+DEFAULT_MAX_CONCURRENT_ARRAYS = 1
 DEFAULT_COURTESY_CEILING = 200
 DEFAULT_MIN_IDLE_CPUS = 32
 DEFAULT_THROTTLE = 8
@@ -433,13 +444,14 @@ def compute_backlog(scope: dict, profile: dict, failure_state_path: Path | str |
 
 
 def check_capacity(
-    profile: dict, min_idle_cpus: int, courtesy_ceiling: int, max_pending: int = DEFAULT_MAX_PENDING
+    profile: dict, min_idle_cpus: int, courtesy_ceiling: int, max_pending: int = DEFAULT_MAX_PENDING,
+    max_concurrent_arrays: int = DEFAULT_MAX_CONCURRENT_ARRAYS,
 ) -> tuple[bool, str]:
-    """Return (has_room, reason). ``has_room`` requires ALL THREE:
+    """Return (has_room, reason). ``has_room`` requires ALL FOUR:
     (1) idle cluster capacity (this partition isn't busy with other users' work),
     (2) this user's own resident (pending+running) task count staying under a
     courtesy ceiling (so the scheduler itself never grows into "occupying the
-    whole cluster" even if the partition looks idle to everyone else too), AND
+    whole cluster" even if the partition looks idle to everyone else too),
     (3) this user's own PENDING count staying under ``max_pending`` -- idle CPU
     capacity as reported by ``sinfo`` does not guarantee SLURM will actually
     schedule OUR jobs against it (confirmed in practice: 128 idle CPUs reported
@@ -454,7 +466,17 @@ def check_capacity(
     that's a direct signal something (fairshare, a reservation, cluster
     policy) is blocking real scheduling regardless of what ``sinfo`` claims,
     and submitting more just piles additional stuck work onto the same
-    problem instead of backing off the way this tool is designed to."""
+    problem instead of backing off the way this tool is designed to, AND
+    (4) this user's own number of DISTINCT resident RamanBench array-jobs
+    staying under ``max_concurrent_arrays`` (default 1) -- courtesy_ceiling
+    alone still lets several ``gpu_chunk_size``-sized arrays (e.g. 4 x 32 =
+    128) queue up back to back before tripping, confirmed live as a real,
+    repeat incident even after the courtesy_ceiling accuracy fix and
+    gpu_chunk_size existed. Counts DISTINCT job names among resident tasks
+    (every task in one array shares the same ``RB_{model}_{part_slug}`` job
+    name), not raw task count -- unlike (2)/(3), this is about how many
+    SEPARATE array submissions are outstanding at once, regardless of how
+    big any one of them is."""
     partition = profile.get("partition")
     sinfo_cmd = ["sinfo", "-h", "-o", "%C"]
     if partition:
@@ -510,8 +532,10 @@ def check_capacity(
     #     lines as SLURM schedules it, while a genuinely stalled one stays
     #     collapsed to a small, unmoving handful of lines indefinitely.
     try:
+        # %j (job name) added so the same query also yields the distinct
+        # array count for (4) -- no extra squeue round-trip needed.
         squeue_resident_out = subprocess.run(
-            ["squeue", "-r", "-h", "-u", user, "-t", "pending,running", "-o", "%T"],
+            ["squeue", "-r", "-h", "-u", user, "-t", "pending,running", "-o", "%T|%j"],
             capture_output=True, text=True, check=True,
         ).stdout
         squeue_stall_out = subprocess.run(
@@ -520,7 +544,12 @@ def check_capacity(
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         return False, f"squeue failed ({e}) -- treating as at ceiling, conservatively"
-    my_resident = sum(1 for line in squeue_resident_out.splitlines() if line.strip())
+    resident_lines = [line.strip() for line in squeue_resident_out.splitlines() if line.strip()]
+    my_resident = len(resident_lines)
+    resident_array_names = {
+        name for _state, _sep, name in (line.partition("|") for line in resident_lines) if name.startswith("RB_")
+    }
+    my_array_count = len(resident_array_names)
     stall_states = [line.strip() for line in squeue_stall_out.splitlines() if line.strip()]
     my_pending = sum(1 for s in stall_states if s == "PENDING")
 
@@ -533,6 +562,12 @@ def check_capacity(
             f"already have {my_pending} of my own PENDING array-job(s) not yet RUNNING "
             f"(max_pending {max_pending}) -- sinfo reports idle capacity, but my own "
             f"queued work isn't actually starting, so backing off instead of piling on more"
+        )
+    if my_array_count >= max_concurrent_arrays:
+        return False, (
+            f"already have {my_array_count} of my own RamanBench array-job(s) resident "
+            f"(max_concurrent_arrays {max_concurrent_arrays}) -- waiting for it to drain "
+            f"before submitting another, regardless of total task count"
         )
     return True, f"{idle_total} idle CPU(s), {my_resident} resident task(s) -- room to submit"
 
@@ -671,7 +706,8 @@ def run_tick(
     min_idle_cpus = scope.get("min_idle_cpus", DEFAULT_MIN_IDLE_CPUS)
     courtesy_ceiling = scope.get("courtesy_ceiling", DEFAULT_COURTESY_CEILING)
     max_pending = scope.get("max_pending", DEFAULT_MAX_PENDING)
-    has_room, reason = check_capacity(profile, min_idle_cpus, courtesy_ceiling, max_pending)
+    max_concurrent_arrays = scope.get("max_concurrent_arrays", DEFAULT_MAX_CONCURRENT_ARRAYS)
+    has_room, reason = check_capacity(profile, min_idle_cpus, courtesy_ceiling, max_pending, max_concurrent_arrays)
 
     if not has_room:
         entry = {

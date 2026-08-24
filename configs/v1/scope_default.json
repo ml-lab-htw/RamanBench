@@ -46,5 +46,6 @@
     "gpu_chunk_size": 32,
     "throttle": 6,
     "min_idle_cpus": 32,
-    "courtesy_ceiling": 200
+    "courtesy_ceiling": 200,
+    "max_concurrent_arrays": 1
 }
