@@ -443,11 +443,17 @@ We welcome contributions of new models and datasets!
 
 ### Adding a New Model
 
-**The easiest way to add a model is to use the `model-agent`.** Open this repo in
-Claude Code and ask it to add your model — the agent implements it (or wires up an
-existing TabArena model if one already fits), tests it locally, asks whether it
-should also be proposed upstream to TabArena, and runs it across the benchmark
-(cluster or local). See `.claude/agents/model-agent.md` for the full workflow.
+The easiest way to add a model:
+
+```
+Add my model to RamanBench, test it, and run it across the benchmark.
+```
+
+Open this repo in Claude Code, say that, and the `model-agent` takes it from there —
+implements it (or wires up an existing TabArena model if one already fits), tests it
+locally, asks whether it should also be proposed upstream to TabArena, and runs it
+across the benchmark (cluster or local). See `.claude/agents/model-agent.md` for the
+full workflow.
 
 <details>
 <summary>Manual steps (no agent)</summary>
@@ -511,11 +517,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ### Adding a New Dataset
 
-**The easiest way to add a dataset is to use the `dataset-agent`.** Open this repo in
-Claude Code and ask it to add your dataset — it bootstraps a `raman_data` checkout if
-needed, picks the right loader, syncs the dataset to the HF mirror the benchmark reads
-from, and opens a `raman_data` PR for completeness. See `.claude/agents/dataset-agent.md`
-for the full workflow.
+The easiest way to add a dataset:
+
+```
+Add my dataset to RamanBench and make it benchmarkable.
+```
+
+Open this repo in Claude Code, say that, and the `dataset-agent` takes it from
+there — bootstraps a `raman_data` checkout if needed, picks the right loader, syncs
+the dataset to the HF mirror the benchmark reads from, and opens a `raman_data` PR
+for completeness. See `.claude/agents/dataset-agent.md` for the full workflow.
 
 <details>
 <summary>Manual steps (no agent)</summary>
