@@ -87,13 +87,22 @@ def test_resolve_array_task_reads_correct_line(osched, tmp_path, monkeypatch):
         "wheat_lines 0 0 0 0 3 3600\nwheat_lines 0 0 1 0 3 3600\nbacteria_identification 0 0 0 0 3 3600\n"
     )
     assert osched._resolve_array_task("LR", "RB_LR_v1_default_LR_20260822T160705_0") == (
-        "wheat_lines", 0, 0, 0,
+        "wheat_lines",
+        0,
+        0,
+        0,
     )
     assert osched._resolve_array_task("LR", "RB_LR_v1_default_LR_20260822T160705_1") == (
-        "wheat_lines", 0, 0, 1,
+        "wheat_lines",
+        0,
+        0,
+        1,
     )
     assert osched._resolve_array_task("LR", "RB_LR_v1_default_LR_20260822T160705_2") == (
-        "bacteria_identification", 0, 0, 0,
+        "bacteria_identification",
+        0,
+        0,
+        0,
     )
 
 
@@ -241,11 +250,17 @@ def test_compute_backlog_excludes_stuck_tasks(osched, tmp_path, monkeypatch):
 
     results_dir = tmp_path / "results"
     targets_file = tmp_path / "target_list.json"
-    targets_file.write_text(json.dumps([
-        {"dataset": "wheat_lines", "target_idx": 0, "n_repeats": 1, "excluded": False},
-    ]))
+    targets_file.write_text(
+        json.dumps(
+            [
+                {"dataset": "wheat_lines", "target_idx": 0, "n_repeats": 1, "excluded": False},
+            ]
+        )
+    )
     scope = {
-        "results_dir": str(results_dir), "n_splits": 1, "targets_file": str(targets_file),
+        "results_dir": str(results_dir),
+        "n_splits": 1,
+        "targets_file": str(targets_file),
         "models": ["LR"],
     }
     profile = {}
@@ -254,9 +269,13 @@ def test_compute_backlog_excludes_stuck_tasks(osched, tmp_path, monkeypatch):
     jobspec_path.write_text("wheat_lines 0 0 0 0 1 3600\n")
     state_path = tmp_path / "failures.json"
     now = datetime.datetime.now().isoformat()
-    state_path.write_text(json.dumps({
-        "LR": {"wheat_lines|0|0|0": {"a": now, "b": now, "c": now}},
-    }))
+    state_path.write_text(
+        json.dumps(
+            {
+                "LR": {"wheat_lines|0|0|0": {"a": now, "b": now, "c": now}},
+            }
+        )
+    )
 
     with patch("subprocess.run", side_effect=_fake_sacct_run([])):
         backlog = osched.compute_backlog(scope, profile, failure_state_path=state_path)
@@ -264,7 +283,9 @@ def test_compute_backlog_excludes_stuck_tasks(osched, tmp_path, monkeypatch):
     assert backlog["LR"] == []
 
 
-def test_compute_backlog_without_failure_state_path_ignores_stuck_mechanism(osched, tmp_path, monkeypatch):
+def test_compute_backlog_without_failure_state_path_ignores_stuck_mechanism(
+    osched, tmp_path, monkeypatch
+):
     """Passing no failure_state_path (the default) must behave exactly as
     before this feature existed -- a persistently-failing task still shows up
     in the backlog, since nothing was told to track failures at all."""
@@ -275,11 +296,17 @@ def test_compute_backlog_without_failure_state_path_ignores_stuck_mechanism(osch
 
     results_dir = tmp_path / "results"
     targets_file = tmp_path / "target_list.json"
-    targets_file.write_text(json.dumps([
-        {"dataset": "wheat_lines", "target_idx": 0, "n_repeats": 1, "excluded": False},
-    ]))
+    targets_file.write_text(
+        json.dumps(
+            [
+                {"dataset": "wheat_lines", "target_idx": 0, "n_repeats": 1, "excluded": False},
+            ]
+        )
+    )
     scope = {
-        "results_dir": str(results_dir), "n_splits": 1, "targets_file": str(targets_file),
+        "results_dir": str(results_dir),
+        "n_splits": 1,
+        "targets_file": str(targets_file),
         "models": ["LR"],
     }
     profile = {}

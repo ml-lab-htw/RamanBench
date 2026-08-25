@@ -45,8 +45,7 @@ def test_source_has_no_os_remove_of_predictions():
     offenders = [
         line.strip()
         for line in body.splitlines()
-        if not line.strip().startswith("#")
-        and re.search(r"os\.remove\s*\(\s*pred_path", line)
+        if not line.strip().startswith("#") and re.search(r"os\.remove\s*\(\s*pred_path", line)
     ]
     assert not offenders, (
         "compute_metrics_from_predictions deletes predictions again: "
@@ -66,8 +65,9 @@ def test_mismatched_prediction_is_kept_on_disk(tmp_path):
     pred_dir.mkdir(parents=True)
 
     # Same row count, different rows -> exactly the grouped-split failure mode.
-    path = _write_pair(pred_dir, "some_dataset_0", "CAT",
-                       gt_index=[0, 1, 2, 3], pred_index=[4, 5, 6, 7])
+    path = _write_pair(
+        pred_dir, "some_dataset_0", "CAT", gt_index=[0, 1, 2, 3], pred_index=[4, 5, 6, 7]
+    )
     assert path.exists()
 
     gt = pd.read_csv(pred_dir / "some_dataset_0_ground_truth.csv", index_col=0).sort_index()

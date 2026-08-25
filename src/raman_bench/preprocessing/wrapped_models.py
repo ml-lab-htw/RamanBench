@@ -372,10 +372,14 @@ Prep_TABICL = _make_optional_prep_class(
     "Prep_TABICL", TabICLModel, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
 )
 Prep_REALTABPFN_V2 = _make_optional_prep_class(
-    "Prep_REALTABPFN_V2", RealTabPFNv2Model, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
+    "Prep_REALTABPFN_V2",
+    RealTabPFNv2Model,
+    _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
 )
 Prep_REALTABPFN_V25 = _make_optional_prep_class(
-    "Prep_REALTABPFN_V25", RealTabPFNv25Model, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
+    "Prep_REALTABPFN_V25",
+    RealTabPFNv25Model,
+    _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
 )
 Prep_REALTABPFN_V26 = _make_optional_prep_class("Prep_REALTABPFN_V26", RealTabPFNv26Model)
 # Wraps tabarena.models.tabpfn_3.model.TabPFN3Model (TabArena's own, actively-maintained
@@ -558,6 +562,7 @@ else:
             default_auxiliary_params = super()._get_default_auxiliary_params()
             default_auxiliary_params.update(_NO_FOUNDATION_MODEL_FEATURE_CAP)
             return default_auxiliary_params
+
 
 # TabSTAR builds a per-column LM text embedding (see tabstar/arch/arch.py's
 # get_textual_embedding): memory scales with FEATURE count, not row count --

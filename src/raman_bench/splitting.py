@@ -223,7 +223,9 @@ def _repeated_kfold_splits_labeled(
         splits = []
         for repeat_idx in range(n_repeats):
             if problem_type == "classification":
-                splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=repeat_idx)
+                splitter = StratifiedGroupKFold(
+                    n_splits=n_splits, shuffle=True, random_state=repeat_idx
+                )
                 repeat_splits = splitter.split(df, df[label_col], groups=groups)
             else:
                 splitter = GroupKFold(n_splits=n_splits, shuffle=True, random_state=repeat_idx)
@@ -267,8 +269,12 @@ def _repeated_kfold_splits(
     labeled_mask = df[label_col].notna().to_numpy()
     if labeled_mask.all():
         return _repeated_kfold_splits_labeled(
-            df, label_col=label_col, problem_type=problem_type,
-            n_repeats=n_repeats, n_splits=n_splits, group_col=group_col,
+            df,
+            label_col=label_col,
+            problem_type=problem_type,
+            n_repeats=n_repeats,
+            n_splits=n_splits,
+            group_col=group_col,
         )
 
     labeled_positions = np.flatnonzero(labeled_mask)
@@ -276,14 +282,21 @@ def _repeated_kfold_splits(
     df_labeled = df.iloc[labeled_positions].reset_index(drop=True)
 
     labeled_splits = _repeated_kfold_splits_labeled(
-        df_labeled, label_col=label_col, problem_type=problem_type,
-        n_repeats=n_repeats, n_splits=n_splits, group_col=group_col,
+        df_labeled,
+        label_col=label_col,
+        problem_type=problem_type,
+        n_repeats=n_repeats,
+        n_splits=n_splits,
+        group_col=group_col,
     )
 
     has_groups = group_col is not None and group_col in df.columns and df[group_col].notna().any()
     if not has_groups:
         return [
-            (np.concatenate([labeled_positions[train_idx], unlabeled_positions]), labeled_positions[test_idx])
+            (
+                np.concatenate([labeled_positions[train_idx], unlabeled_positions]),
+                labeled_positions[test_idx],
+            )
             for train_idx, test_idx in labeled_splits
         ]
 

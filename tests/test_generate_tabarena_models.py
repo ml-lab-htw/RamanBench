@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("tabarena")
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Keys with an empty upstream search space (see generate/dummy.py,

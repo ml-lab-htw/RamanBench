@@ -1,8 +1,11 @@
 """Tests for RidgeModel."""
 
 import numpy as np
+import pytest
 
-from raman_bench.models.custom.ridge.model import RidgeModel
+pytest.importorskip("autogluon")
+
+from raman_bench.models.custom.ridge.model import RidgeModel  # noqa: E402
 
 
 def _clf(n=60, f=30, n_classes=3, seed=0):

@@ -42,7 +42,8 @@ def _load_opportunistic_scheduler():
     if str(CLUSTER_DIR) not in sys.path:
         sys.path.insert(0, str(CLUSTER_DIR))
     spec = importlib.util.spec_from_file_location(
-        "_opportunistic_scheduler_under_test_capacity_pending", CLUSTER_DIR / "opportunistic_scheduler.py"
+        "_opportunistic_scheduler_under_test_capacity_pending",
+        CLUSTER_DIR / "opportunistic_scheduler.py",
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -70,7 +71,9 @@ def _fake_run(sinfo_line: str, squeue_states: list[str]):
     return fake_run
 
 
-def _fake_run_distinguishing_r(sinfo_line: str, expanded_states: list[str], collapsed_states: list[str]):
+def _fake_run_distinguishing_r(
+    sinfo_line: str, expanded_states: list[str], collapsed_states: list[str]
+):
     """Like ``_fake_run``, but returns DIFFERENT squeue output depending on
     whether ``-r`` is in the command -- models the real behavior squeue
     itself has (an array with a large still-pending remainder collapses to
@@ -186,8 +189,10 @@ def test_max_pending_does_not_misfire_on_normal_throttled_backlog(scheduler):
     collapsed view it was designed around."""
     fake_run = _fake_run_distinguishing_r(
         "128/128/0/256",
-        expanded_states=["RUNNING"] * 8 + ["PENDING"] * 32,  # -r: true count, 40 total (under courtesy_ceiling)
-        collapsed_states=["RUNNING"] * 8 + ["PENDING"] * 1,  # no -r: 1 collapsed line for the pending remainder
+        expanded_states=["RUNNING"] * 8
+        + ["PENDING"] * 32,  # -r: true count, 40 total (under courtesy_ceiling)
+        collapsed_states=["RUNNING"] * 8
+        + ["PENDING"] * 1,  # no -r: 1 collapsed line for the pending remainder
     )
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
@@ -229,8 +234,11 @@ def test_max_concurrent_arrays_blocks_a_second_array(scheduler):
     )
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
-            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200,
-            max_pending=50, max_concurrent_arrays=1,
+            {"partition": "Debug_node"},
+            min_idle_cpus=32,
+            courtesy_ceiling=200,
+            max_pending=50,
+            max_concurrent_arrays=1,
         )
     assert has_room is False
     assert "max_concurrent_arrays" in reason
@@ -240,8 +248,11 @@ def test_max_concurrent_arrays_allows_room_when_none_resident(scheduler):
     fake_run = _fake_run_with_job_names("128/128/0/256", [])
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
-            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200,
-            max_pending=50, max_concurrent_arrays=1,
+            {"partition": "Debug_node"},
+            min_idle_cpus=32,
+            courtesy_ceiling=200,
+            max_pending=50,
+            max_concurrent_arrays=1,
         )
     assert has_room is True
 
@@ -256,10 +267,15 @@ def test_max_concurrent_arrays_counts_distinct_names_not_tasks(scheduler):
     )
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
-            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=500,
-            max_pending=250, max_concurrent_arrays=1,
+            {"partition": "Debug_node"},
+            min_idle_cpus=32,
+            courtesy_ceiling=500,
+            max_pending=250,
+            max_concurrent_arrays=1,
         )
-    assert has_room is False  # courtesy_ceiling(500) not hit at 200, but max_concurrent_arrays(1) should be
+    assert (
+        has_room is False
+    )  # courtesy_ceiling(500) not hit at 200, but max_concurrent_arrays(1) should be
     assert "max_concurrent_arrays" in reason
 
 
@@ -273,8 +289,11 @@ def test_max_concurrent_arrays_ignores_non_ramanbench_jobs(scheduler):
     )
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
-            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200,
-            max_pending=50, max_concurrent_arrays=1,
+            {"partition": "Debug_node"},
+            min_idle_cpus=32,
+            courtesy_ceiling=200,
+            max_pending=50,
+            max_concurrent_arrays=1,
         )
     assert has_room is True
 
@@ -283,7 +302,9 @@ def test_run_tick_threads_max_concurrent_arrays_from_scope(scheduler, monkeypatc
     captured = {}
 
     def fake_check_capacity(
-        profile, min_idle_cpus, courtesy_ceiling,
+        profile,
+        min_idle_cpus,
+        courtesy_ceiling,
         max_pending=scheduler.DEFAULT_MAX_PENDING,
         max_concurrent_arrays=scheduler.DEFAULT_MAX_CONCURRENT_ARRAYS,
     ):
@@ -291,16 +312,21 @@ def test_run_tick_threads_max_concurrent_arrays_from_scope(scheduler, monkeypatc
         return False, "stopped for test"
 
     monkeypatch.setattr(
-        scheduler, "compute_backlog",
+        scheduler,
+        "compute_backlog",
         lambda scope, profile, **kwargs: {"PLS": [("wheat_lines", 0, 0, 0, 0, 10)]},
     )
     monkeypatch.setattr(scheduler, "check_capacity", fake_check_capacity)
 
     scope = {
-        "name": "test", "results_dir": "results", "n_splits": 3,
+        "name": "test",
+        "results_dir": "results",
+        "n_splits": 3,
         "max_concurrent_arrays": 3,
     }
-    scheduler.run_tick(scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True)
+    scheduler.run_tick(
+        scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True
+    )
 
     assert captured["max_concurrent_arrays"] == 3
 
@@ -312,7 +338,9 @@ def test_run_tick_threads_max_pending_from_scope(scheduler, monkeypatch):
     captured = {}
 
     def fake_check_capacity(
-        profile, min_idle_cpus, courtesy_ceiling,
+        profile,
+        min_idle_cpus,
+        courtesy_ceiling,
         max_pending=scheduler.DEFAULT_MAX_PENDING,
         max_concurrent_arrays=scheduler.DEFAULT_MAX_CONCURRENT_ARRAYS,
     ):
@@ -320,15 +348,20 @@ def test_run_tick_threads_max_pending_from_scope(scheduler, monkeypatch):
         return False, "stopped for test"
 
     monkeypatch.setattr(
-        scheduler, "compute_backlog",
+        scheduler,
+        "compute_backlog",
         lambda scope, profile, **kwargs: {"PLS": [("wheat_lines", 0, 0, 0, 0, 10)]},
     )
     monkeypatch.setattr(scheduler, "check_capacity", fake_check_capacity)
 
     scope = {
-        "name": "test", "results_dir": "results", "n_splits": 3,
+        "name": "test",
+        "results_dir": "results",
+        "n_splits": 3,
         "max_pending": 7,
     }
-    scheduler.run_tick(scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True)
+    scheduler.run_tick(
+        scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True
+    )
 
     assert captured["max_pending"] == 7
