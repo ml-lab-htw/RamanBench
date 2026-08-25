@@ -70,7 +70,6 @@ _OPTIONAL_AG_MODEL_NAMES = [
     "RealTabPFNv25Model",
     "RealTabPFNv26Model",
     "TabDPTModel",
-    "TabFMModel",
     "TabICLModel",
     "TabMModel",
     "TabPFNv3Model",
@@ -449,7 +448,6 @@ Prep_REALMLP = _make_optional_prep_class(
 Prep_MITRA = _make_optional_prep_class("Prep_MITRA", MitraModel)
 Prep_TABM = _make_optional_prep_class("Prep_TABM", TabMModel)
 Prep_TABDPT = _make_optional_prep_class("Prep_TABDPT", TabDPTModel)
-Prep_TABFM = _make_optional_prep_class("Prep_TABFM", TabFMModel)
 Prep_TABICL = _make_optional_prep_class("Prep_TABICL", TabICLModel)
 Prep_REALTABPFN_V2 = _make_optional_prep_class("Prep_REALTABPFN_V2", RealTabPFNv2Model)
 Prep_REALTABPFN_V25 = _make_optional_prep_class("Prep_REALTABPFN_V25", RealTabPFNv25Model)
@@ -465,6 +463,12 @@ class Prep_TABPFN_WIDE(_NoAugBase, _TabPFNWideBridge):  # noqa: N801
 
     Built with PriorLabs-TabPFN.
     """
+
+    pass
+
+
+class Prep_TABFM(_NoAugBase, _TabFMBridge):  # noqa: N801
+    """Google TabFM v1 — zero-shot, via the standalone ``tabfm`` package (not AutoGluon's)."""
 
     pass
 
