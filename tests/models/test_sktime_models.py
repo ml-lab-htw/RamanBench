@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 pytest.importorskip("sktime")
+pytest.importorskip("autogluon")
 
 from raman_bench.models.custom.arsenal.model import ArsenalModel  # noqa: E402
 from raman_bench.models.custom.rocket.model import RocketModel  # noqa: E402

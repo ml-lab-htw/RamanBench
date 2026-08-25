@@ -11,8 +11,11 @@ AutoGluon model class.
 """
 
 import numpy as np
+import pytest
 
-from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
+pytest.importorskip("autogluon")
+
+from raman_bench.preprocessing.mixin import RamanPreprocessingMixin  # noqa: E402
 
 
 class _FakeModel(RamanPreprocessingMixin):

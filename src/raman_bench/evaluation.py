@@ -296,8 +296,11 @@ def compute_metrics_from_predictions(config):
                                     "%s / %s (seed %s): proba columns %s do not match "
                                     "the fold's classes %s -- skipping roc_auc/log_loss "
                                     "for this row instead of risking a misaligned score.",
-                                    key, model_name, seed,
-                                    sorted(proba_df.columns), class_order,
+                                    key,
+                                    model_name,
+                                    seed,
+                                    sorted(proba_df.columns),
+                                    class_order,
                                 )
 
                 row.update(

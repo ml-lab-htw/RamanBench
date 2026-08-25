@@ -94,7 +94,8 @@ def test_run_tick_reads_gpu_chunk_size_from_scope(scheduler, monkeypatch):
         return real_pick_chunk(backlog, chunk_size, gpu_chunk_size)
 
     monkeypatch.setattr(
-        scheduler, "compute_backlog",
+        scheduler,
+        "compute_backlog",
         lambda scope, profile, **kwargs: {"NN_TORCH": _jobs(300)},
     )
     monkeypatch.setattr(scheduler, "check_capacity", lambda *a, **k: (True, "room"))
@@ -102,10 +103,15 @@ def test_run_tick_reads_gpu_chunk_size_from_scope(scheduler, monkeypatch):
     monkeypatch.setattr(scheduler, "pick_chunk", spy_pick_chunk)
 
     scope = {
-        "name": "test", "results_dir": "results", "n_splits": 3,
-        "models": ["NN_TORCH"], "gpu_chunk_size": 16,
+        "name": "test",
+        "results_dir": "results",
+        "n_splits": 3,
+        "models": ["NN_TORCH"],
+        "gpu_chunk_size": 16,
     }
-    scheduler.run_tick(scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True)
+    scheduler.run_tick(
+        scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True
+    )
 
     assert captured["gpu_chunk_size"] == 16
 
@@ -119,7 +125,8 @@ def test_run_tick_gpu_chunk_size_defaults_when_omitted(scheduler, monkeypatch):
         return real_pick_chunk(backlog, chunk_size, gpu_chunk_size)
 
     monkeypatch.setattr(
-        scheduler, "compute_backlog",
+        scheduler,
+        "compute_backlog",
         lambda scope, profile, **kwargs: {"NN_TORCH": _jobs(300)},
     )
     monkeypatch.setattr(scheduler, "check_capacity", lambda *a, **k: (True, "room"))
@@ -127,6 +134,8 @@ def test_run_tick_gpu_chunk_size_defaults_when_omitted(scheduler, monkeypatch):
     monkeypatch.setattr(scheduler, "pick_chunk", spy_pick_chunk)
 
     scope = {"name": "test", "results_dir": "results", "n_splits": 3, "models": ["NN_TORCH"]}
-    scheduler.run_tick(scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True)
+    scheduler.run_tick(
+        scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True
+    )
 
     assert captured["gpu_chunk_size"] == scheduler.DEFAULT_GPU_CHUNK_SIZE

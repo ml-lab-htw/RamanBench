@@ -12,7 +12,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from raman_bench.splitting import (
+pytest.importorskip("tabarena")
+
+from raman_bench.splitting import (  # noqa: E402
     GROUP_COL,
     RamanBenchTaskWrapper,
     TooFewClassesError,
@@ -41,8 +43,12 @@ def test_grouped_classification_no_leakage_across_repeats_and_folds():
     df = _grouped_dataset(problem_type="classification")
     n_repeats, n_splits = 2, 3
     _, task_obj = build_user_task(
-        task_name="test_grouped_clf", df=df, label_col="target",
-        problem_type="classification", n_repeats=n_repeats, n_splits=n_splits,
+        task_name="test_grouped_clf",
+        df=df,
+        label_col="target",
+        problem_type="classification",
+        n_repeats=n_repeats,
+        n_splits=n_splits,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     for repeat in range(n_repeats):
@@ -58,8 +64,12 @@ def test_grouped_classification_no_leakage_across_repeats_and_folds():
 def test_grouped_regression_no_leakage():
     df = _grouped_dataset(problem_type="regression")
     _, task_obj = build_user_task(
-        task_name="test_grouped_reg", df=df, label_col="target",
-        problem_type="regression", n_repeats=2, n_splits=3,
+        task_name="test_grouped_reg",
+        df=df,
+        label_col="target",
+        problem_type="regression",
+        n_repeats=2,
+        n_splits=3,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     for repeat in range(2):
@@ -78,8 +88,12 @@ def test_group_id_column_always_stripped_from_features():
     """
     df = _grouped_dataset(problem_type="regression")
     _, task_obj = build_user_task(
-        task_name="test_strip", df=df, label_col="target",
-        problem_type="regression", n_repeats=1, n_splits=3,
+        task_name="test_strip",
+        df=df,
+        label_col="target",
+        problem_type="regression",
+        n_repeats=1,
+        n_splits=3,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     assert GROUP_COL not in wrapper.X.columns
@@ -96,8 +110,13 @@ def test_ungrouped_regression_fallback():
 
     n_splits = 5
     _, task_obj = build_user_task(
-        task_name="test_ungrouped_reg", df=df, label_col="target",
-        problem_type="regression", n_repeats=2, n_splits=n_splits, group_col=None,
+        task_name="test_ungrouped_reg",
+        df=df,
+        label_col="target",
+        problem_type="regression",
+        n_repeats=2,
+        n_splits=n_splits,
+        group_col=None,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     for repeat in range(2):
@@ -114,8 +133,13 @@ def test_ungrouped_classification_fallback_is_stratified():
     df["target"] = rng.choice(["x", "y"], size=30, p=[0.6, 0.4])
 
     _, task_obj = build_user_task(
-        task_name="test_ungrouped_clf", df=df, label_col="target",
-        problem_type="classification", n_repeats=1, n_splits=3, group_col=None,
+        task_name="test_ungrouped_clf",
+        df=df,
+        label_col="target",
+        problem_type="classification",
+        n_repeats=1,
+        n_splits=3,
+        group_col=None,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     X_tr, y_tr, X_te, y_te = wrapper.get_train_test_split(fold=0, repeat=0)
@@ -134,8 +158,13 @@ def test_repeats_produce_different_splits():
     df["target"] = X.iloc[:, 0] * 2 + rng.randn(30) * 0.1
 
     _, task_obj = build_user_task(
-        task_name="test_repeats_differ", df=df, label_col="target",
-        problem_type="regression", n_repeats=2, n_splits=3, group_col=None,
+        task_name="test_repeats_differ",
+        df=df,
+        label_col="target",
+        problem_type="regression",
+        n_repeats=2,
+        n_splits=3,
+        group_col=None,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     X_tr_r0, _, _, _ = wrapper.get_train_test_split(fold=0, repeat=0)
@@ -162,13 +191,15 @@ def test_filter_rare_classes_disabled_when_threshold_zero():
 
 
 def test_infer_group_ids_finds_real_replicates():
-    targets = np.array([
-        [1.5, 2.0],
-        [3.3, 0.0],
-        [1.5, 2.0],  # replicate of row 0
-        [9.9, 1.1],
-        [3.3, 0.0],  # replicate of row 1
-    ])
+    targets = np.array(
+        [
+            [1.5, 2.0],
+            [3.3, 0.0],
+            [1.5, 2.0],  # replicate of row 0
+            [9.9, 1.1],
+            [3.3, 0.0],  # replicate of row 1
+        ]
+    )
     group_ids = infer_group_ids_from_targets(targets)
     assert group_ids is not None
     assert group_ids[0] == group_ids[2]
@@ -202,7 +233,9 @@ def test_get_n_repeats_matches_tabarena_thresholds():
     assert get_n_repeats(748, tabarena_lite=True) == 1
 
 
-def _semi_supervised_dataset(n=50, n_unlabeled=15, problem_type="classification", grouped=False, seed=0):
+def _semi_supervised_dataset(
+    n=50, n_unlabeled=15, problem_type="classification", grouped=False, seed=0
+):
     rng = np.random.RandomState(seed)
     X = pd.DataFrame(rng.randn(n, 8), columns=[f"{100 + i * 5}" for i in range(8)])
     df = X.copy()
@@ -221,8 +254,13 @@ def _semi_supervised_dataset(n=50, n_unlabeled=15, problem_type="classification"
 def test_unlabeled_rows_never_in_test_ungrouped_classification():
     df = _semi_supervised_dataset(problem_type="classification", grouped=False)
     _, task_obj = build_user_task(
-        task_name="semi_clf", df=df, label_col="target",
-        problem_type="classification", n_repeats=2, n_splits=3, group_col=None,
+        task_name="semi_clf",
+        df=df,
+        label_col="target",
+        problem_type="classification",
+        n_repeats=2,
+        n_splits=3,
+        group_col=None,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     for repeat in range(2):
@@ -235,8 +273,12 @@ def test_unlabeled_rows_never_in_test_ungrouped_classification():
 def test_unlabeled_rows_never_in_test_grouped_regression_no_group_leak():
     df = _semi_supervised_dataset(n=40, n_unlabeled=10, problem_type="regression", grouped=True)
     _, task_obj = build_user_task(
-        task_name="semi_reg_grouped", df=df, label_col="target",
-        problem_type="regression", n_repeats=2, n_splits=3,
+        task_name="semi_reg_grouped",
+        df=df,
+        label_col="target",
+        problem_type="regression",
+        n_repeats=2,
+        n_splits=3,
     )
     wrapper = RamanBenchTaskWrapper(task=task_obj)
     for repeat in range(2):

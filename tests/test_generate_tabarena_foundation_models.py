@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("tabarena")
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # TABFM/TABPFN-V3/TABSWIFT wrap an upstream ConfigGenerator with an empty search

@@ -39,8 +39,7 @@ def test_split_is_stable_across_hash_seeds():
 
     Runs in subprocesses because PYTHONHASHSEED is fixed at interpreter start.
     """
-    prog = textwrap.dedent(
-        """
+    prog = textwrap.dedent("""
         import numpy as np, pandas as pd
         from raman_bench.benchmark import RamanBenchmark
         rng = np.random.RandomState(0)
@@ -50,8 +49,7 @@ def test_split_is_stable_across_hash_seeds():
         b.test_size, b.random_state = 0.34, 0
         _, te = b._grouped_train_test_split(df, group_by_df=df)
         print(sorted(te.index.tolist()))
-        """
-    )
+        """)
     outs = set()
     for seed in ("1", "2", "3", "4", "5"):
         r = subprocess.run(
@@ -73,9 +71,9 @@ def test_replicates_never_span_train_and_test():
         _, test = _bench(random_state=random_state)._grouped_train_test_split(df, group_by_df=df)
         in_test = set(test.index)
         for lo, hi in pairs:
-            assert (lo in in_test) == (hi in in_test), (
-                f"replicate pair ({lo},{hi}) split across partitions at seed {random_state}"
-            )
+            assert (lo in in_test) == (
+                hi in in_test
+            ), f"replicate pair ({lo},{hi}) split across partitions at seed {random_state}"
 
 
 def test_random_state_still_varies_the_split():

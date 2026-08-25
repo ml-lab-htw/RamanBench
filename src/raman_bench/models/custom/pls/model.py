@@ -44,13 +44,17 @@ class PLSModel(BaseEstimator):
             for i, val in enumerate(y_arr):
                 y_encoded[i, self._class_to_idx[val]] = 1.0
             self.model_ = PLSRegression(
-                n_components=n_components, max_iter=self.max_iter, scale=self.scale,
+                n_components=n_components,
+                max_iter=self.max_iter,
+                scale=self.scale,
                 tol=self.tol,
             )
             self.model_.fit(X_np, y_encoded)
         else:
             self.model_ = PLSRegression(
-                n_components=n_components, max_iter=self.max_iter, scale=self.scale,
+                n_components=n_components,
+                max_iter=self.max_iter,
+                scale=self.scale,
                 tol=self.tol,
             ).fit(X_np, y_arr)
 

@@ -8,7 +8,11 @@ AutoGluon base class; the custom Raman/bridge-backed models needed them added
 explicitly.
 """
 
-from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS
+import pytest
+
+pytest.importorskip("autogluon")
+
+from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS  # noqa: E402
 
 
 def test_all_models_have_ag_key_and_ag_name():

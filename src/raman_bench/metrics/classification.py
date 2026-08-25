@@ -124,9 +124,7 @@ class ClassificationMetrics:
                 UserWarning,
                 stacklevel=2,
             )
-        y_proba = np.divide(
-            y_proba, row_sums, out=np.zeros_like(y_proba), where=row_sums != 0
-        )
+        y_proba = np.divide(y_proba, row_sums, out=np.zeros_like(y_proba), where=row_sums != 0)
         with warnings.catch_warnings():
             # Belt-and-suspenders: rows now sum to 1 to machine precision, but suppress
             # sklearn's sum-to-one warning so a future dtype change can't reintroduce it.

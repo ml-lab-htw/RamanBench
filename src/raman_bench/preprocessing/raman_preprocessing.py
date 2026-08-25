@@ -561,9 +561,7 @@ def wavelet_denoise(X, wavelet="sym7", level=4):
         sigma = np.median(np.abs(finest_detail)) / 0.6745
         uthresh = sigma * np.sqrt(2.0 * np.log(n_features))
 
-        coeffs = [coeffs[0]] + [
-            pywt.threshold(c, uthresh, mode="soft") for c in coeffs[1:]
-        ]
+        coeffs = [coeffs[0]] + [pywt.threshold(c, uthresh, mode="soft") for c in coeffs[1:]]
         rec = pywt.waverec(coeffs, wavelet)
         X_denoised[i] = rec[:n_features]
 

@@ -7,7 +7,11 @@ DataFrame from the transformed array (see ``_output_feature_cols`` in
 ``mixin.py``, and the docstring caveat in ``crop_spectra``).
 """
 
-from raman_bench.preprocessing.mixin import _output_feature_cols
+import pytest
+
+pytest.importorskip("autogluon")
+
+from raman_bench.preprocessing.mixin import _output_feature_cols  # noqa: E402
 
 
 def test_output_feature_cols_unchanged_width():

@@ -3,7 +3,9 @@
 import numpy as np
 import pytest
 
-from raman_bench.models.custom.pls.model import PLSModel
+pytest.importorskip("autogluon")
+
+from raman_bench.models.custom.pls.model import PLSModel  # noqa: E402
 
 
 def _clf(n=60, f=30, n_classes=3, seed=0):

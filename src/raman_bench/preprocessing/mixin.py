@@ -80,10 +80,12 @@ except ImportError as _ag_err:
     ) from _ag_err
 
 from raman_bench.preprocessing.raman_preprocessing import (
+    baseline_correction_asls,  # also covers fluorescence removal at high lam / low p
+)
+from raman_bench.preprocessing.raman_preprocessing import (
     augment_spectra,
     baseline_correction_airpls,
     baseline_correction_arpls,
-    baseline_correction_asls,  # also covers fluorescence removal at high lam / low p
     cosmic_ray_removal,
     crop_spectra,
     denoise_savgol,
@@ -622,12 +624,8 @@ class RamanPreprocessingMixin:
         if lvse_enabled:
             n_regions = params.get("prep_lvse_n_regions", 16)
             k_per_region = params.get("prep_lvse_k_per_region", 4)
-            logger.debug(
-                "Fit — LVSE: n_regions=%s, k_per_region=%s", n_regions, k_per_region
-            )
-            lvse_state, lvse_out = lvse_fit(
-                X, n_regions=n_regions, k_per_region=k_per_region
-            )
+            logger.debug("Fit — LVSE: n_regions=%s, k_per_region=%s", n_regions, k_per_region)
+            lvse_state, lvse_out = lvse_fit(X, n_regions=n_regions, k_per_region=k_per_region)
             self._lvse_region_bounds = lvse_state["region_indices"]
             self._lvse_means = lvse_state["means"]
             self._lvse_stds = lvse_state["stds"]

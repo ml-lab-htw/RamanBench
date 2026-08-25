@@ -23,7 +23,9 @@ import pytest
 
 SRC = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "src", "raman_bench", "predictions.py",
+    "src",
+    "raman_bench",
+    "predictions.py",
 )
 
 BIG, SMALL = 120_000, 90_000
@@ -36,10 +38,7 @@ def _load_atomic_to_csv():
     only, so parse the one function out and exec it. It is the real source, not a copy.
     """
     tree = ast.parse(open(SRC).read())
-    fn = next(
-        n for n in tree.body
-        if isinstance(n, ast.FunctionDef) and n.name == "_atomic_to_csv"
-    )
+    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_atomic_to_csv")
     ns = {"os": os, "tempfile": tempfile, "pd": pd}
     exec(compile(ast.Module([fn], []), SRC, "exec"), ns)
     return ns["_atomic_to_csv"]
@@ -122,9 +121,7 @@ def test_plain_to_csv_is_what_tore(tmp_path):
         return  # torn badly enough that the parser rejects it: bug reproduced
 
     corrupt = (
-        len(df) not in (BIG, SMALL)
-        or df.index.nunique() != len(df)
-        or bool(df.isna().any().any())
+        len(df) not in (BIG, SMALL) or df.index.nunique() != len(df) or bool(df.isna().any().any())
     )
     if not corrupt:
         pytest.skip("the writers did not overlap this run; the race is timing-dependent")

@@ -28,7 +28,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS
+pytest.importorskip("autogluon")
+
+from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS  # noqa: E402
 
 N_SAMPLES = 40
 N_FEATURES = 200
