@@ -137,6 +137,51 @@ New models are onboarded via a per-model directory —
 registry — see `models/custom/ridge/` for the reference implementation and
 `.claude/agents/model-agent.md` for the full workflow.
 
+### What's changed since v0.1
+
+Full details in [CHANGELOG.md](CHANGELOG.md); short version:
+
+**Models**
+- Onboarded 30 TabArena-native models directly from TabArena's own registry (TabFM,
+  TabPFN-3, TabSwift, ModernNCA, EBM, PerpetualBooster, xRFM, ChimeraBoost, NORI,
+  SAP-RPT-OSS, OrionMSP, ILTM, LIMIX, TabSTAR, and more)
+- Added TabPFN v2.6, v3, and v3-Thinking
+- Added TabPFN-Wide (wide, few-sample classification) and RamanPFN (Pan et al., 2025)
+- Verified all 10 pre-existing custom Raman architectures against the new v1 pipeline
+
+**Benchmark methodology (v1)**
+- Migrated the model/metrics/splitting layer to depend directly on TabArena/`bencheval`
+  instead of reimplementing patterns "inspired by" them
+- Switched to real repeated k-fold CV with dataset-size-adaptive repeat counts,
+  replacing the old 3-independent-holdout-split scheme
+- Fixed AutoGluon bagging to a genuine, TabArena-matching `num_bag_folds=8` (v0.1 had
+  effectively no bagging for 27 of 28 models)
+- Added semi-supervised-aware splitting (unlabeled rows kept in train, never in test)
+- Ported TabArena's trivial-dataset filter into RamanBench itself as a first-class feature
+
+**Preprocessing**
+- 8 new steps: airPLS, arPLS, rubberband, EMSC, Savitzky-Golay derivative, wavelet
+  denoising, fingerprint-region crop, L2 vector normalization
+- New preprocessing-ensemble mechanism (parallel recipe blocks, concatenated) and
+  config-level `preprocessing_params` overrides
+
+**Datasets**
+- +4 datasets: `chlorinated_samples`, `locust_phase_hemolymph`, `cspp_serum_metabolites`,
+  `ait_glucose_blood_sers`
+- New `is_grouped` / `has_missing_labels` fields on `raman-data`'s `DatasetInfo`
+
+**Infrastructure**
+- Public, cluster-agnostic job-submission tooling plus a new opportunistic,
+  capacity-aware scheduler for routine full-benchmark sweeps
+- Dropped the patched AutoGluon fork; moved to upstream AutoGluon 1.6.1 with
+  RamanBench-local cap overrides
+- Automatic `.env` credential loading; `main` now requires PRs (no direct pushes)
+
+**Reliability fixes**
+- Atomic prediction/index writes to avoid concurrent-job races
+- Skip (not delete) mismatched predictions during metric computation
+- Guard R² against degenerate near-constant test folds
+
 ---
 
 ## Quick Start
@@ -398,7 +443,22 @@ We welcome contributions of new models and datasets!
 
 ### Adding a New Model
 
-The simplest way to add a model is to implement it as a scikit-learn–compatible
+The easiest way to add a model:
+
+```
+Add my model to RamanBench, test it, and run it across the benchmark.
+```
+
+Open this repo in Claude Code, say that, and the `model-agent` takes it from there —
+implements it (or wires up an existing TabArena model if one already fits), tests it
+locally, asks whether it should also be proposed upstream to TabArena, and runs it
+across the benchmark (cluster or local). See `.claude/agents/model-agent.md` for the
+full workflow.
+
+<details>
+<summary>Manual steps (no agent)</summary>
+
+The simplest manual way to add a model is to implement it as a scikit-learn–compatible
 estimator and submit a pull request.  No AutoGluon knowledge is required.
 
 1. Create `src/raman_bench/models/custom/my_model.py`:
@@ -453,13 +513,31 @@ implementation; `.claude/agents/model-agent.md` documents the full workflow end 
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
+</details>
+
 ### Adding a New Dataset
+
+The easiest way to add a dataset:
+
+```
+Add my dataset to RamanBench and make it benchmarkable.
+```
+
+Open this repo in Claude Code, say that, and the `dataset-agent` takes it from
+there — bootstraps a `raman_data` checkout if needed, picks the right loader, syncs
+the dataset to the HF mirror the benchmark reads from, and opens a `raman_data` PR
+for completeness. See `.claude/agents/dataset-agent.md` for the full workflow.
+
+<details>
+<summary>Manual steps (no agent)</summary>
 
 See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-new-dataset) and
 [NEW_DATASETS.md](NEW_DATASETS.md) for detailed instructions and examples.
 `.claude/agents/dataset-agent.md` (in the `raman-data` repo) documents the full
 onboarding workflow, including the HF mirror sync new datasets need to be discoverable
 through `run_experiment.py`'s mirror-first loading.
+
+</details>
 
 ---
 
