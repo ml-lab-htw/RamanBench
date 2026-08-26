@@ -36,7 +36,6 @@ per_cpu_mem: "25GB"          # used when mem_flag_style == per_cpu
 # Optional per-model memory overrides (total-memory style only). Falls back
 # to default_mem for any model not listed.
 mem_tiers:
-  ARSENAL: "256G"
   TABICL: "256G"
   ROCKET: "256G"
   TABPFN-WIDE: "256G"

@@ -30,9 +30,13 @@ def _ensure_2d_proba(proba: np.ndarray, n_samples: int) -> np.ndarray:
 
 
 class RocketModel(BaseEstimator):
-    """ROCKET classifier for Raman spectra — sklearn-compatible estimator.
+    """ROCKET regression/classification for Raman spectra — sklearn-compatible.
 
-    Classification-only (binary and multiclass).
+    Regression or classification (binary/multiclass) is inferred from ``y``'s
+    dtype at fit time, mirroring ``RidgeModel``'s convention (issue #5): wraps
+    ``sktime.regression.kernel_based.RocketRegressor`` for regression and
+    ``sktime.classification.kernel_based.RocketClassifier`` for classification
+    — both already ship in the sktime version this package depends on.
 
     Reference:
         Dempster, A., Petitjean, F., & Webb, G. I. (2020). ROCKET: exceptionally
@@ -46,28 +50,48 @@ class RocketModel(BaseEstimator):
         self.num_kernels = num_kernels
 
     def fit(self, X, y):
-        try:
-            from sktime.classification.kernel_based import RocketClassifier
-        except ImportError:
-            raise ImportError(
-                "RocketModel requires sktime. Install with: pip install 'raman-bench[models]'"
+        y_arr = np.asarray(y)
+        if np.issubdtype(y_arr.dtype, np.floating):
+            self.problem_type_ = "regression"
+            try:
+                from sktime.regression.kernel_based import RocketRegressor
+            except ImportError:
+                raise ImportError(
+                    "RocketModel requires sktime. Install with: pip install 'raman-bench[models]'"
+                )
+            self.model_ = RocketRegressor(
+                rocket_transform=self.rocket_transform,
+                num_kernels=self.num_kernels,
+                n_jobs=1,
             )
-        self.model_ = RocketClassifier(
-            rocket_transform=self.rocket_transform,
-            num_kernels=self.num_kernels,
-            n_jobs=1,
-        )
-        self.model_.fit(_to_3d(X), np.asarray(y))
-        self.classes_ = self.model_.classes_
+            self.model_.fit(_to_3d(X), y_arr)
+        else:
+            self.problem_type_ = "binary" if len(np.unique(y_arr)) == 2 else "multiclass"
+            try:
+                from sktime.classification.kernel_based import RocketClassifier
+            except ImportError:
+                raise ImportError(
+                    "RocketModel requires sktime. Install with: pip install 'raman-bench[models]'"
+                )
+            self.model_ = RocketClassifier(
+                rocket_transform=self.rocket_transform,
+                num_kernels=self.num_kernels,
+                n_jobs=1,
+            )
+            self.model_.fit(_to_3d(X), y_arr)
+            self.classes_ = self.model_.classes_
         return self
 
     def predict(self, X):
-        return self.model_.predict(_to_3d(X))
+        preds = self.model_.predict(_to_3d(X))
+        if self.problem_type_ == "regression":
+            return np.asarray(preds).ravel()
+        return preds
 
     def predict_proba(self, X):
         proba = self.model_.predict_proba(_to_3d(X))
         proba = _ensure_2d_proba(proba, np.asarray(X).shape[0])
-        if len(self.classes_) == 2:
+        if self.problem_type_ == "binary":
             return proba[:, 1]
         return proba
 

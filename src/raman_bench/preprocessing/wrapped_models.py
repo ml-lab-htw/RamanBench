@@ -827,7 +827,7 @@ for _key, _info in discover_custom_models().items():
     PREPROCESSED_MODELS[_key] = _info.model_cls
 del _key, _info
 
-CLASSIFICATION_ONLY_MODELS = {"ROCKET", "ARSENAL", "TABPFN-WIDE", "ORIONMSP"}
+CLASSIFICATION_ONLY_MODELS = {"TABPFN-WIDE", "ORIONMSP"}
 
 # Mirror of CLASSIFICATION_ONLY_MODELS: NORI (OrionMSPModel's opposite number in
 # batch 3) wraps NoriModel, whose own supported_problem_types() returns only

@@ -316,8 +316,8 @@ algorithms and are well-suited for building and evaluating new models.
 | `ReZeroNetModel` | ReZero CNN | `torch` |
 | `FCResNeXtModel` | FC-ResNeXt | `torch` |
 | `CoAtNetModel` | Conv + attention | `torch` |
-| `RocketModel` | ROCKET classifier | `sktime` |
-| `ArsenalModel` | Arsenal classifier | `sktime` |
+| `RocketModel` | ROCKET regression/classification | `sktime` |
+| `HydraModel` | Hydra + closed-form GPU ridge, regression/classification | `torch` |
 | `TabPFNModel` | TabPFN v2 | `tabpfn` |
 | `RealMLPModel` | RealMLP-TD | `pytabkit` |
 | `TabMModel` | TabM-D | `pytabkit` |
