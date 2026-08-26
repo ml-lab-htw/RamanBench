@@ -1,16 +1,16 @@
 """Raman-specific models with a scikit-learn-compatible API.
 
 All models expose ``fit(X, y)`` and ``predict(X)`` and require only
-``torch`` (PyTorch-based models), ``sktime`` (ROCKET/Arsenal), or the
+``torch`` (PyTorch-based models), ``sktime`` (ROCKET), or the
 respective package (TabPFN, RealMLP, TabM via pytabkit, TabDPT).
 AutoGluon is **not** required.
 """
 
-from raman_bench.models.custom.arsenal.model import ArsenalModel
 from raman_bench.models.custom.base import BaseRamanEstimator
 from raman_bench.models.custom.coatnet.model import CoAtNetModel
 from raman_bench.models.custom.deepcnn.model import DeepCNNModel
 from raman_bench.models.custom.fcresnext.model import FCResNeXtModel
+from raman_bench.models.custom.hydra.model import HydraModel
 from raman_bench.models.custom.pls.model import PLSModel
 from raman_bench.models.custom.ramanformer.model import RamanFormerModel
 from raman_bench.models.custom.ramannet.model import RamanNetModel
@@ -37,7 +37,7 @@ CUSTOM_MODELS = {
     "FCRESNEXT": FCResNeXtModel,
     "COATNET": CoAtNetModel,
     "ROCKET": RocketModel,
-    "ARSENAL": ArsenalModel,
+    "HYDRA": HydraModel,
     "RIDGE": RidgeModel,
     "TABPFN": TabPFNModel,
     "REALMLP": RealMLPModel,
@@ -56,8 +56,8 @@ __all__ = [
     "RamanTransformerModel",
     "ReZeroNetModel",
     "SANetModel",
-    "ArsenalModel",
     "RocketModel",
+    "HydraModel",
     "RidgeModel",
     "TabPFNModel",
     "RealMLPModel",

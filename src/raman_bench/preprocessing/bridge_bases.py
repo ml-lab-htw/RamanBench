@@ -53,7 +53,7 @@ class SklearnAutoGluonBridge(AbstractModel):
         }
         self._estimator = self._sklearn_cls(**params)
         # Only the deep-learning estimators accept a training budget; the sklearn
-        # wrappers (PLS, ROCKET, ARSENAL) have fit(self, X, y). Passing time_limit
+        # wrappers (PLS, ROCKET) have fit(self, X, y). Passing time_limit
         # to those raises TypeError, which under HPO fails every trial. Forward it
         # only when the estimator's fit actually accepts it (named param or **kwargs).
         fit_params = inspect.signature(self._estimator.fit).parameters
