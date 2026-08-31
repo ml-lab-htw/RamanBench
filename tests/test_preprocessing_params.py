@@ -59,6 +59,17 @@ def test_normalize_preprocessing_params_valid():
     assert out["preprocessing_params"] == {"prep_deriv_order": 2, "prep_deriv_wl": 15}
 
 
+def test_normalize_preprocessing_params_accepts_msc_fit_region():
+    config = {
+        "preprocessing_params": {
+            "prep_msc_start_frac": 0.25,
+            "prep_msc_end_frac": 0.5,
+        }
+    }
+    out = _normalize_preprocessing_params(config)
+    assert out["preprocessing_params"] == config["preprocessing_params"]
+
+
 def test_normalize_preprocessing_params_rejects_typo():
     config = {"preprocessing_params": {"prep_derivv_order": 2}}
     with pytest.raises(ValueError, match="Unknown preprocessing_params"):
