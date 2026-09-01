@@ -11,6 +11,39 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+### Fixed
+
+### Changed
+
+---
+
+## [1.0.0] — 2026-09-01
+
+### Major Changes
+
+- **Migrated core benchmark to TabArena/bencheval**: The model registry, metrics
+  computation, and splitting logic now depend directly on
+  `tabarena.benchmark.experiment` rather than reimplementing those patterns
+  locally. This aligns RamanBench with the upstream TabArena ecosystem and
+  enables shared model/metric definitions across tabular benchmarks.
+- **Real repeated k-fold cross-validation**: Replaced the previous 3 independent
+  80/20 holdout splits with `RepeatedStratifiedKFold`/`RepeatedKFold` (ungrouped)
+  and `StratifiedGroupKFold`/`GroupKFold` (replicate-aware). Validates models
+  across multiple folds per repeat, matching standard ML protocol and improving
+  robustness of rankings.
+- **Adaptive repeat counts**: Number of repeats now scales with dataset size
+  (10 repeats for <2,500 instances, 3 up to 250,000, 1 above), following TabArena's
+  own metadata. Fixes the issue where uniform 3-repeat counts were misleading
+  for very large datasets.
+- **Fixed bagging protocol**: Clarified and standardized `num_bag_folds=8` for
+  all models (matching TabArena's default). Historical v0.1 results for 27/28
+  models had bagging *disabled*, which is why v1 numbers will differ
+  substantially from v0.1.
+
+### Added
+
+### Added
+
 - Six new tunable preprocessing steps in `RamanPreprocessingMixin`, each with
   a pure NumPy/SciPy (or PyWavelets) implementation in
   `raman_bench.preprocessing.raman_preprocessing` and its own AutoGluon HPO
