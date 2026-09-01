@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "raman-bench"
-version = "0.1.1"
+version = "1.0.0"
 description = "A large-scale benchmark for machine learning on Raman spectroscopy data"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -41,7 +41,7 @@ dependencies = [
     "matplotlib>=3.5,<4.0",
     "seaborn>=0.12",
     "tqdm>=4.64,<5.0",
-    "raman-data>=1.6.0",
+    "raman-data>=1.6.2",
     "torch>=2.0,<3.0",
     "python-dotenv>=1.0",
 ]
