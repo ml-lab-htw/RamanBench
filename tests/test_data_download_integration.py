@@ -12,8 +12,14 @@ import shutil
 import tempfile
 
 import numpy as np
+import pytest
 
 from raman_bench.benchmark import RamanBenchmark, configure_benchmark
+
+_NETWORK_SKIP = pytest.mark.skip(
+    reason="use_mirror=False deliberately bypasses the HF mirror and hits raw "
+    "Kaggle/Zenodo sources directly; unreliable in CI."
+)
 
 
 def test_benchmark_init_and_dataset_listing(temp_cache):
@@ -68,6 +74,7 @@ def test_benchmark_init_and_dataset_listing(temp_cache):
 #     print(f"✓ Loaded {key}: train shape={train_df.shape}, test shape={test_df.shape}")
 
 
+@_NETWORK_SKIP
 def test_load_single_regression_dataset(temp_cache):
     """Download and validate a single regression dataset."""
     bm = RamanBenchmark(
@@ -141,6 +148,7 @@ def test_configure_benchmark_with_mirror_flag(temp_cache):
     print(f"✓ Mirror flag correctly set: use_mirror={bm.use_mirror}")
 
 
+@_NETWORK_SKIP
 def test_multiple_datasets_no_crash(temp_cache):
     """Test loading multiple datasets in sequence without crashes."""
     datasets_to_test = [
