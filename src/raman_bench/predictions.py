@@ -42,6 +42,7 @@ from raman_bench.preprocessing.wrapped_models import (
     REGRESSION_ONLY_MODELS,
 )
 from raman_bench.seeds import get_seeds
+from raman_bench.splitting import GROUP_COL
 
 try:
     from raman_bench.model import AutoGluonModel
@@ -617,6 +618,12 @@ def compute_predictions(
                         data_train_fit = _maybe_subsample(
                             data_train, model_name, key, task_type, subsample_config, seed
                         )
+                        # Strip the group-id column before model training to prevent feature contamination
+                        # (Pipeline B / splitting.py issue #2: _group_id should not be a model feature).
+                        # Exact match on GROUP_COL, not a substring scan -- a real feature legitimately
+                        # named e.g. "functional_group_count" must not get silently dropped.
+                        if GROUP_COL in data_train_fit.columns:
+                            data_train_fit = data_train_fit.drop(columns=[GROUP_COL])
 
                         with _timed() as tt, _memory_tracker() as tm, _PowerTracker() as tp:
                             model.fit(data_train_fit)
@@ -627,8 +634,13 @@ def compute_predictions(
                         record["train_cpu_energy_j"] = tp.cpu_energy_j
                         record.update(model.get_fit_stats())
 
+                        # Strip the group-id column from test data (same as training data)
+                        data_test_predict = data_test.copy()
+                        if GROUP_COL in data_test_predict.columns:
+                            data_test_predict = data_test_predict.drop(columns=[GROUP_COL])
+
                         with _timed() as it, _memory_tracker() as im, _PowerTracker() as ip:
-                            y_pred = model.predict(data_test)
+                            y_pred = model.predict(data_test_predict)
                         record["inference_time_s"] = round(it[0], 3)
                         record["inference_peak_memory_mb"] = im.peak_mb
                         record["inference_time_per_sample_ms"] = round(
