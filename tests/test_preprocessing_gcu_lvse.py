@@ -9,8 +9,11 @@ see the composition-order design note in mixin.py's _preprocess_fit.
 """
 
 import numpy as np
+import pytest
 
-from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
+pytest.importorskip("autogluon")
+
+from raman_bench.preprocessing.mixin import RamanPreprocessingMixin  # noqa: E402
 
 
 class _FakeModel(RamanPreprocessingMixin):
@@ -87,9 +90,7 @@ def test_gcu_runs_after_shape_preserving_steps():
     """SNV enabled alongside GCU must run first (SNV output feeds GCU),
     not error, and not leave a stale n_features-wide representation."""
     X = _spectra(n_samples=10, n_features=30)
-    model = _FakeModel(
-        {"prep_snv_enabled": True, "prep_gcu_enabled": True, "prep_gcu_rho": 5}
-    )
+    model = _FakeModel({"prep_snv_enabled": True, "prep_gcu_enabled": True, "prep_gcu_rho": 5})
     out = model._preprocess_fit(X)
     assert out.shape == (10, 5)
 

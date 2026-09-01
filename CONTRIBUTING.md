@@ -1,9 +1,9 @@
 # Contributing to RamanBench
 
-Thank you for your interest in contributing!  This guide covers two main contribution paths:
+This guide covers the two contribution paths:
 
-1. **[Adding a new model](#adding-a-new-model)** — wrap an existing AutoGluon model or implement a new one
-2. **[Adding a new dataset](#adding-a-new-dataset)** — contribute a new Raman spectroscopy dataset
+1. **[Adding a new model](#adding-a-new-model)** — wrap an existing AutoGluon model, or implement a new one
+2. **[Adding a new dataset](#adding-a-new-dataset)** — contribute a Raman spectroscopy dataset
 
 For bug reports and feature requests, please open an issue on
 [GitHub](https://github.com/ml-lab-htw/RamanBench/issues).
@@ -18,7 +18,7 @@ Before you start, here are the key resources:
 |---------------------------------|----------------------------------------------------------------------------------------------------|
 | **raman-data** (dataset loader) | [GitHub](https://github.com/ml-lab-htw/raman_data) · [PyPI](https://pypi.org/project/raman-data/)  |
 | **raman-bench** (this repo)     | [GitHub](https://github.com/ml-lab-htw/RamanBench) · [PyPI](https://pypi.org/project/raman-bench/) |
-| **Live Leaderboard**            | [huggingface.co/spaces/ml-lab-htw/RamanBench](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) |
+| **Live Leaderboard**            | [huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) |
 | **Paper**                       | [arXiv:2605.02003](https://arxiv.org/abs/2605.02003)                                                             |
 
 ---

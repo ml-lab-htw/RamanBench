@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
+pytest.importorskip("autogluon")
 
 from raman_bench.models.custom.sanet.model import (  # noqa: E402
     SANetModel,

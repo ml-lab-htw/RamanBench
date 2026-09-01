@@ -42,7 +42,8 @@ def _load_opportunistic_scheduler():
     if str(CLUSTER_DIR) not in sys.path:
         sys.path.insert(0, str(CLUSTER_DIR))
     spec = importlib.util.spec_from_file_location(
-        "_opportunistic_scheduler_under_test_capacity_pending", CLUSTER_DIR / "opportunistic_scheduler.py"
+        "_opportunistic_scheduler_under_test_capacity_pending",
+        CLUSTER_DIR / "opportunistic_scheduler.py",
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -65,6 +66,30 @@ def _fake_run(sinfo_line: str, squeue_states: list[str]):
             result.stdout = sinfo_line
         else:  # squeue
             result.stdout = "\n".join(squeue_states)
+        return result
+
+    return fake_run
+
+
+def _fake_run_distinguishing_r(
+    sinfo_line: str, expanded_states: list[str], collapsed_states: list[str]
+):
+    """Like ``_fake_run``, but returns DIFFERENT squeue output depending on
+    whether ``-r`` is in the command -- models the real behavior squeue
+    itself has (an array with a large still-pending remainder collapses to
+    ~1 line without ``-r``, but expands to one line per task with it)."""
+
+    def fake_run(cmd, capture_output, text, check):
+        class _Result:
+            pass
+
+        result = _Result()
+        if cmd[0] == "sinfo":
+            result.stdout = sinfo_line
+        elif "-r" in cmd:
+            result.stdout = "\n".join(expanded_states)
+        else:
+            result.stdout = "\n".join(collapsed_states)
         return result
 
     return fake_run
@@ -137,23 +162,206 @@ def test_a_few_pending_is_normal_and_does_not_block(scheduler):
     assert has_room is True
 
 
+def test_courtesy_ceiling_catches_collapsed_pending_array(scheduler):
+    """The actual second incident: squeue's default view collapses a large
+    still-pending array range onto ~1 line, so a naive single-query count
+    stayed far under courtesy_ceiling while the TRUE resident count (visible
+    only via ``-r``) was already over it. This must now block."""
+    fake_run = _fake_run_distinguishing_r(
+        "128/128/0/256",
+        expanded_states=["RUNNING"] * 8 + ["PENDING"] * 292,  # -r: true count, 300 total
+        collapsed_states=["RUNNING"] * 8 + ["PENDING"] * 1,  # no -r: 1 line for the whole range
+    )
+    with patch("subprocess.run", side_effect=fake_run):
+        has_room, reason = scheduler.check_capacity(
+            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5
+        )
+    assert has_room is False
+    assert "courtesy ceiling" in reason
+
+
+def test_max_pending_does_not_misfire_on_normal_throttled_backlog(scheduler):
+    """Once courtesy_ceiling uses the accurate (-r) count, max_pending must
+    NOT also switch to it -- a single freshly-submitted, perfectly healthy
+    array under normal throttle-limited concurrency has hundreds of
+    individual PENDING lines under -r, which would misfire max_pending
+    (default 5) on literally every tick if it used that count instead of the
+    collapsed view it was designed around."""
+    fake_run = _fake_run_distinguishing_r(
+        "128/128/0/256",
+        expanded_states=["RUNNING"] * 8
+        + ["PENDING"] * 32,  # -r: true count, 40 total (under courtesy_ceiling)
+        collapsed_states=["RUNNING"] * 8
+        + ["PENDING"] * 1,  # no -r: 1 collapsed line for the pending remainder
+    )
+    with patch("subprocess.run", side_effect=fake_run):
+        has_room, reason = scheduler.check_capacity(
+            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5
+        )
+    assert has_room is True
+
+
+def _fake_run_with_job_names(sinfo_line: str, resident_rows: list[tuple[str, str]]):
+    """``resident_rows`` is a list of (state, job_name) tuples -- models the
+    real ``-o "%T|%j"`` query format check_capacity now uses to derive both
+    the resident task count and the distinct-array count from one query."""
+
+    def fake_run(cmd, capture_output, text, check):
+        class _Result:
+            pass
+
+        result = _Result()
+        if cmd[0] == "sinfo":
+            result.stdout = sinfo_line
+        elif "-r" in cmd:
+            result.stdout = "\n".join(f"{state}|{name}" for state, name in resident_rows)
+        else:
+            result.stdout = "\n".join(state for state, _name in resident_rows)
+        return result
+
+    return fake_run
+
+
+def test_max_concurrent_arrays_blocks_a_second_array(scheduler):
+    """The actual repeat incident: courtesy_ceiling (200) alone still lets
+    several gpu_chunk_size-sized arrays (32 each) queue up. A second,
+    differently-named array must be blocked once one is already resident,
+    even though total task count is nowhere near courtesy_ceiling."""
+    fake_run = _fake_run_with_job_names(
+        "128/128/0/256",
+        [("RUNNING", "RB_NN_TORCH_v1_default_NN_TORCH_20260823T100000")] * 6
+        + [("PENDING", "RB_NN_TORCH_v1_default_NN_TORCH_20260823T100000")] * 26,
+    )
+    with patch("subprocess.run", side_effect=fake_run):
+        has_room, reason = scheduler.check_capacity(
+            {"partition": "Debug_node"},
+            min_idle_cpus=32,
+            courtesy_ceiling=200,
+            max_pending=50,
+            max_concurrent_arrays=1,
+        )
+    assert has_room is False
+    assert "max_concurrent_arrays" in reason
+
+
+def test_max_concurrent_arrays_allows_room_when_none_resident(scheduler):
+    fake_run = _fake_run_with_job_names("128/128/0/256", [])
+    with patch("subprocess.run", side_effect=fake_run):
+        has_room, reason = scheduler.check_capacity(
+            {"partition": "Debug_node"},
+            min_idle_cpus=32,
+            courtesy_ceiling=200,
+            max_pending=50,
+            max_concurrent_arrays=1,
+        )
+    assert has_room is True
+
+
+def test_max_concurrent_arrays_counts_distinct_names_not_tasks(scheduler):
+    """A single array with many resident tasks (all sharing one job name)
+    counts as ONE array, not one-per-task -- only a genuinely SECOND,
+    differently-named array should push the count to 2."""
+    fake_run = _fake_run_with_job_names(
+        "128/128/0/256",
+        [("RUNNING", "RB_LR_v1_default_LR_20260823T090000")] * 200,
+    )
+    with patch("subprocess.run", side_effect=fake_run):
+        has_room, reason = scheduler.check_capacity(
+            {"partition": "Debug_node"},
+            min_idle_cpus=32,
+            courtesy_ceiling=500,
+            max_pending=250,
+            max_concurrent_arrays=1,
+        )
+    assert (
+        has_room is False
+    )  # courtesy_ceiling(500) not hit at 200, but max_concurrent_arrays(1) should be
+    assert "max_concurrent_arrays" in reason
+
+
+def test_max_concurrent_arrays_ignores_non_ramanbench_jobs(scheduler):
+    """A resident job that isn't one of the scheduler's own (no RB_ prefix,
+    e.g. an unrelated ablation-study job) must not count toward
+    max_concurrent_arrays."""
+    fake_run = _fake_run_with_job_names(
+        "128/128/0/256",
+        [("RUNNING", "RPP_prep"), ("RUNNING", "IVC_deep")],
+    )
+    with patch("subprocess.run", side_effect=fake_run):
+        has_room, reason = scheduler.check_capacity(
+            {"partition": "Debug_node"},
+            min_idle_cpus=32,
+            courtesy_ceiling=200,
+            max_pending=50,
+            max_concurrent_arrays=1,
+        )
+    assert has_room is True
+
+
+def test_run_tick_threads_max_concurrent_arrays_from_scope(scheduler, monkeypatch):
+    captured = {}
+
+    def fake_check_capacity(
+        profile,
+        min_idle_cpus,
+        courtesy_ceiling,
+        max_pending=scheduler.DEFAULT_MAX_PENDING,
+        max_concurrent_arrays=scheduler.DEFAULT_MAX_CONCURRENT_ARRAYS,
+    ):
+        captured["max_concurrent_arrays"] = max_concurrent_arrays
+        return False, "stopped for test"
+
+    monkeypatch.setattr(
+        scheduler,
+        "compute_backlog",
+        lambda scope, profile, **kwargs: {"PLS": [("wheat_lines", 0, 0, 0, 0, 10)]},
+    )
+    monkeypatch.setattr(scheduler, "check_capacity", fake_check_capacity)
+
+    scope = {
+        "name": "test",
+        "results_dir": "results",
+        "n_splits": 3,
+        "max_concurrent_arrays": 3,
+    }
+    scheduler.run_tick(
+        scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True
+    )
+
+    assert captured["max_concurrent_arrays"] == 3
+
+
 def test_run_tick_threads_max_pending_from_scope(scheduler, monkeypatch):
     """run_tick() must read scope['max_pending'] (falling back to
     DEFAULT_MAX_PENDING) and actually pass it into check_capacity -- not just
     have the parameter exist unused."""
     captured = {}
 
-    def fake_check_capacity(profile, min_idle_cpus, courtesy_ceiling, max_pending=scheduler.DEFAULT_MAX_PENDING):
+    def fake_check_capacity(
+        profile,
+        min_idle_cpus,
+        courtesy_ceiling,
+        max_pending=scheduler.DEFAULT_MAX_PENDING,
+        max_concurrent_arrays=scheduler.DEFAULT_MAX_CONCURRENT_ARRAYS,
+    ):
         captured["max_pending"] = max_pending
         return False, "stopped for test"
 
-    monkeypatch.setattr(scheduler, "compute_backlog", lambda scope, profile: {"PLS": [("wheat_lines", 0, 0, 0, 0, 10)]})
+    monkeypatch.setattr(
+        scheduler,
+        "compute_backlog",
+        lambda scope, profile, **kwargs: {"PLS": [("wheat_lines", 0, 0, 0, 0, 10)]},
+    )
     monkeypatch.setattr(scheduler, "check_capacity", fake_check_capacity)
 
     scope = {
-        "name": "test", "results_dir": "results", "n_splits": 3,
+        "name": "test",
+        "results_dir": "results",
+        "n_splits": 3,
         "max_pending": 7,
     }
-    scheduler.run_tick(scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True)
+    scheduler.run_tick(
+        scope, {"slurm": True, "partition": "Debug_node"}, log_path=None, dry_run=True
+    )
 
     assert captured["max_pending"] == 7

@@ -35,6 +35,18 @@ Quick Start
 """
 
 import importlib
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load credentials (TABPFN_TOKEN, HUGGING_FACE_HUB_TOKEN, etc.) from a .env file.
+# Two locations, in priority order: this repo's own root (works for editable
+# installs regardless of the caller's working directory), then whatever .env
+# python-dotenv finds searching upward from the current working directory (e.g.
+# a caller project's own .env). Neither overrides a variable already set in the
+# real environment (load_dotenv's default override=False).
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+load_dotenv()
 
 __version__ = "0.1.0"
 __author__ = "Mario Koddenbrock (HTW Berlin), Christoph Lange (TU Berlin)"

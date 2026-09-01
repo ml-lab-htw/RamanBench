@@ -1,8 +1,8 @@
 [
-    "ARSENAL",
     "COATNET",
     "DEEPCNN",
     "FCRESNEXT",
+    "HYDRA",
     "PLS",
     "RAMANFORMER",
     "RAMANNET",

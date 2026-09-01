@@ -13,7 +13,7 @@ on top. Two things happen per entry:
   doesn't have. This is an intentional override, not a collision to warn about.
 - For RamanBench's own architectures with no TabArena equivalent (PLS, DeepCNN,
   RamanNet, SANet, RamanFormer, RamanTransformer, ReZeroNet, FCResNeXt,
-  CoAtNet, ROCKET, Arsenal, TabPFN-Wide) the entry is added fresh.
+  CoAtNet, ROCKET, TabPFN-Wide) the entry is added fresh.
 
 Any TabArena-only model neither overridden nor replaced above (e.g. TabSTAR,
 LimiX, OrionMSP) stays available in :data:`raman_bench_model_registry` as a

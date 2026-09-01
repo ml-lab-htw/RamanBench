@@ -105,14 +105,19 @@ def test_resolve_time_limit_dataset_override_does_not_leak_to_other_datasets(sub
 
 def test_resolve_time_limit_model_override_applies(submit_job):
     assert (
-        submit_job.resolve_time_limit(3600, "microgel_synthesis", None, {"microgel_synthesis": 10800})
+        submit_job.resolve_time_limit(
+            3600, "microgel_synthesis", None, {"microgel_synthesis": 10800}
+        )
         == 10800
     )
 
 
 def test_resolve_time_limit_combines_both_sources(submit_job):
     value = submit_job.resolve_time_limit(
-        3600, "mlrod", {"mlrod": 10800}, {"mlrod": 7200},
+        3600,
+        "mlrod",
+        {"mlrod": 10800},
+        {"mlrod": 7200},
     )
     assert value == 10800  # larger of the two applicable overrides wins
 
@@ -121,6 +126,21 @@ def test_resolve_time_limit_never_lowers_below_default(submit_job):
     # An override smaller than the default must not lower the effective value
     # (max(), not a straight substitution).
     assert submit_job.resolve_time_limit(3600, "mlrod", {"mlrod": 100}) == 3600
+
+
+def test_resolve_time_limit_model_override_scalar_applies_regardless_of_dataset(submit_job):
+    """A model_time_limit_overrides entry may be a bare number instead of a
+    dataset-keyed dict -- a blanket override applying no matter which dataset
+    is asked about (e.g. LR: no per-dataset variation, just "don't cap this
+    one" everywhere)."""
+    assert submit_job.resolve_time_limit(3600, "wheat_lines", None, 800000) == 800000
+    assert submit_job.resolve_time_limit(3600, "alzheimer", None, 800000) == 800000
+    assert submit_job.resolve_time_limit(3600, "mlrod", None, 800000) == 800000
+
+
+def test_resolve_time_limit_model_override_scalar_combines_with_dataset_override(submit_job):
+    value = submit_job.resolve_time_limit(3600, "mlrod", {"mlrod": 10800}, 800000)
+    assert value == 800000  # scalar model override still wins if larger
 
 
 # --- write_jobspec: the 7th field must be resolved PER LINE, from that
@@ -132,7 +152,9 @@ def _read_jobspec_lines(path: Path) -> list[list[str]]:
         return [line.split() for line in f if line.strip()]
 
 
-def test_write_jobspec_per_task_time_limit_differs_within_one_chunk(submit_job, tmp_path, monkeypatch):
+def test_write_jobspec_per_task_time_limit_differs_within_one_chunk(
+    submit_job, tmp_path, monkeypatch
+):
     """Direct regression test for the reported live bug: a chunk mixing an
     mlrod-class task with a fast-dataset task must produce DIFFERENT
     time_limit fields for each -- not one inflated value shared by both."""
@@ -143,7 +165,8 @@ def test_write_jobspec_per_task_time_limit_differs_within_one_chunk(submit_job, 
         ("alzheimer", 0, 0, 1, 0, 10),
     ]
     path = submit_job.write_jobspec(
-        jobs, f"test_{uuid.uuid4().hex}",
+        jobs,
+        f"test_{uuid.uuid4().hex}",
         default_time_limit=3600,
         dataset_time_limit_overrides={"mlrod": 10800},
     )
@@ -171,7 +194,9 @@ def test_write_jobspec_no_overrides_uses_flat_default_everywhere(submit_job, tmp
 #     max(ceiling, ...) can never fall back below the ceiling). ---
 
 
-def test_submit_jobs_chunk_ceiling_does_not_leak_into_per_task_baseline(submit_job, tmp_path, monkeypatch):
+def test_submit_jobs_chunk_ceiling_does_not_leak_into_per_task_baseline(
+    submit_job, tmp_path, monkeypatch
+):
     """Mirrors exactly how opportunistic_scheduler.run_tick calls submit_jobs:
     `time_limit` is the whole-chunk ceiling (as effective_time_limit would
     return for a chunk containing mlrod -- 10800), while `default_time_limit`
@@ -188,14 +213,21 @@ def test_submit_jobs_chunk_ceiling_does_not_leak_into_per_task_baseline(submit_j
     slug = f"test_{uuid.uuid4().hex}"
 
     job_ids = submit_job.submit_jobs(
-        model="CAT", jobs=chunk, slug=slug,
-        n_splits=3, num_random_configs=50, num_bag_folds=8,
+        model="CAT",
+        jobs=chunk,
+        slug=slug,
+        n_splits=3,
+        num_random_configs=50,
+        num_bag_folds=8,
         time_limit=10800,  # whole-chunk ceiling (effective_time_limit's output)
         default_time_limit=3600,  # flat scope default (the fix under test)
         dataset_time_limit_overrides={"mlrod": 10800},
-        results_dir="results/v1/data", cache_dir=".cache_v1",
+        results_dir="results/v1/data",
+        cache_dir=".cache_v1",
         mirror_repo="HTW-KI-Werkstatt/RamanBench",
-        profile=profile, throttle=8, dry_run=True,
+        profile=profile,
+        throttle=8,
+        dry_run=True,
     )
     assert job_ids == []  # dry run -- nothing actually submitted
 
@@ -220,12 +252,19 @@ def test_submit_jobs_default_time_limit_falls_back_to_time_limit(submit_job, tmp
     slug = f"test_{uuid.uuid4().hex}"
 
     submit_job.submit_jobs(
-        model="PLS", jobs=jobs, slug=slug,
-        n_splits=3, num_random_configs=50, num_bag_folds=8,
+        model="PLS",
+        jobs=jobs,
+        slug=slug,
+        n_splits=3,
+        num_random_configs=50,
+        num_bag_folds=8,
         time_limit=3600,
-        results_dir="results/v1/data", cache_dir=".cache_v1",
+        results_dir="results/v1/data",
+        cache_dir=".cache_v1",
         mirror_repo="HTW-KI-Werkstatt/RamanBench",
-        profile=profile, throttle=8, dry_run=True,
+        profile=profile,
+        throttle=8,
+        dry_run=True,
     )
     lines = _read_jobspec_lines(tmp_path / f"{slug}.txt")
     assert all(parts[6] == "3600" for parts in lines)
@@ -236,7 +275,9 @@ def test_submit_jobs_default_time_limit_falls_back_to_time_limit(submit_job, tmp
 #     6-field jobspec on disk that this dedup logic still needs to read. ---
 
 
-def test_in_flight_targets_parses_both_6_and_7_field_jobspecs(opportunistic_scheduler, tmp_path, monkeypatch):
+def test_in_flight_targets_parses_both_6_and_7_field_jobspecs(
+    opportunistic_scheduler, tmp_path, monkeypatch
+):
     monkeypatch.setattr(opportunistic_scheduler, "JOBSPEC_DIR", tmp_path)
 
     old_format_path = tmp_path / "old_part.txt"

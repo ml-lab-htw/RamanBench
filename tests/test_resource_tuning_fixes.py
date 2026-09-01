@@ -56,6 +56,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytest.importorskip("tabarena")
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -105,15 +107,11 @@ def test_ebm_interactions_disabled_for_wide_features():
     def _make_model(n_features: int) -> tuple[Prep_EBM, pd.DataFrame, pd.Series]:
         model = Prep_EBM(problem_type="regression")
         model.params = {}
-        X = pd.DataFrame(
-            {f"f{i}": [0.0, 1.0] for i in range(n_features)}
-        )
+        X = pd.DataFrame({f"f{i}": [0.0, 1.0] for i in range(n_features)})
         y = pd.Series([0.0, 1.0])
         return model, X, y
 
-    with patch(
-        "raman_bench.preprocessing.wrapped_models.EBMModel._fit", return_value=None
-    ):
+    with patch("raman_bench.preprocessing.wrapped_models.EBMModel._fit", return_value=None):
         wide_model, wide_x, wide_y = _make_model(_EBM_WIDE_FEATURE_THRESHOLD + 1)
         wide_model._fit(wide_x, wide_y)
         assert wide_model.params["interactions"] == 0
@@ -139,9 +137,7 @@ def test_ebm_interactions_not_reset_if_user_disabled_already():
     X = pd.DataFrame({f"f{i}": [0.0, 1.0] for i in range(n_features)})
     y = pd.Series([0.0, 1.0])
 
-    with patch(
-        "raman_bench.preprocessing.wrapped_models.EBMModel._fit", return_value=None
-    ):
+    with patch("raman_bench.preprocessing.wrapped_models.EBMModel._fit", return_value=None):
         model._fit(X, y)
     assert model.params["interactions"] == 0
 
@@ -199,6 +195,31 @@ def test_effective_time_limit_combines_both_override_sources(opportunistic_sched
     assert opportunistic_scheduler.effective_time_limit(scope, "EBM", chunk) == 10800
 
 
+def test_effective_time_limit_model_override_scalar_applies_regardless_of_dataset(
+    opportunistic_scheduler,
+):
+    """A model_time_limit_overrides entry may be a bare number instead of a
+    dataset-keyed dict -- a blanket override for a model that's fast/
+    deterministic enough that no time cap bounds anything meaningful (LR:
+    no per-dataset variation, just don't cap it at all)."""
+    scope = {"time_limit": 3600, "model_time_limit_overrides": {"LR": 800000}}
+    assert (
+        opportunistic_scheduler.effective_time_limit(scope, "LR", [("wheat_lines", 0, 0, 0, 0, 10)])
+        == 800000
+    )
+    assert (
+        opportunistic_scheduler.effective_time_limit(scope, "LR", [("alzheimer", 0, 0, 0, 0, 10)])
+        == 800000
+    )
+    # Another model without a scalar entry is unaffected.
+    assert (
+        opportunistic_scheduler.effective_time_limit(
+            scope, "PLS", [("wheat_lines", 0, 0, 0, 0, 10)]
+        )
+        == 3600
+    )
+
+
 def test_effective_time_limit_no_overrides(opportunistic_scheduler):
     scope = {"time_limit": 3600}
     chunk = [("wheat_lines", 0, 0, 0, 0, 10)]
@@ -249,9 +270,7 @@ def test_run_one_skips_classification_only_model_on_regression_dataset(run_exper
     df = _make_df(n_features=10)
     fake = _FakeDataset(TASK_TYPE.Regression, df)
 
-    with patch(
-        "raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake
-    ):
+    with patch("raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake):
         out = run_experiment.run_one(
             dataset_name="fake_dataset",
             target_idx=0,
@@ -269,9 +288,7 @@ def test_run_one_skips_regression_only_model_on_classification_dataset(run_exper
     df = _make_df(n_features=10)
     fake = _FakeDataset(TASK_TYPE.Classification, df)
 
-    with patch(
-        "raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake
-    ):
+    with patch("raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake):
         out = run_experiment.run_one(
             dataset_name="fake_dataset",
             target_idx=0,
@@ -338,9 +355,7 @@ def test_run_one_skips_orionmsp_above_vram_budget(run_experiment):
     df = _make_df(n_features=5000, n_rows=700)
     fake = _FakeDataset(TASK_TYPE.Classification, df)
 
-    with patch(
-        "raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake
-    ):
+    with patch("raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake):
         out = run_experiment.run_one(
             dataset_name="fake_wide_and_tall_dataset",
             target_idx=0,
@@ -377,12 +392,8 @@ def test_run_one_does_not_skip_orionmsp_below_vram_budget(run_experiment):
         raise RuntimeError("stop before any real (CUDA/CPU) model work")
 
     with (
-        patch(
-            "raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake
-        ),
-        patch(
-            "raman_bench.preprocessing.wrapped_models.OrionMSPModel._fit", _fake_fit
-        ),
+        patch("raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake),
+        patch("raman_bench.preprocessing.wrapped_models.OrionMSPModel._fit", _fake_fit),
         pytest.raises(RuntimeError, match="stop before any real"),
     ):
         run_experiment.run_one(
@@ -415,9 +426,7 @@ def test_run_one_skips_tabstar_above_max_features(run_experiment):
     df = _make_df(n_features=n_features, n_rows=4)
     fake = _FakeDataset(TASK_TYPE.Regression, df)
 
-    with patch(
-        "raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake
-    ):
+    with patch("raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake):
         out = run_experiment.run_one(
             dataset_name="fake_wide_dataset",
             target_idx=0,

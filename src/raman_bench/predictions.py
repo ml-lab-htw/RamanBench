@@ -75,9 +75,7 @@ def _atomic_to_csv(df: pd.DataFrame, path: str) -> None:
     wins is the correct resolution.
     """
     directory = os.path.dirname(path) or "."
-    fd, tmp = tempfile.mkstemp(
-        dir=directory, prefix=os.path.basename(path) + ".", suffix=".tmp"
-    )
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=os.path.basename(path) + ".", suffix=".tmp")
     os.close(fd)
     try:
         df.to_csv(tmp, index=True)

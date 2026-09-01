@@ -1,38 +1,44 @@
-"""Tests for RidgeModel."""
+"""Tests for RocketModel (issue #5: regression support via
+``sktime.regression.kernel_based.RocketRegressor``, already shipped in the
+installed sktime version)."""
 
 import numpy as np
 import pytest
 
 pytest.importorskip("autogluon")
+sktime = pytest.importorskip("sktime")
 
-from raman_bench.models.custom.ridge.model import RidgeModel  # noqa: E402
+from raman_bench.models.custom.rocket.model import RocketModel  # noqa: E402
 
 
-def _clf(n=60, f=30, n_classes=3, seed=0):
+def _clf(n=40, f=30, n_classes=3, seed=0):
     rng = np.random.RandomState(seed)
     return rng.randn(n, f).astype(np.float32), rng.choice(n_classes, size=n).astype(str)
 
 
-def _bin(n=60, f=30, seed=0):
+def _bin(n=40, f=30, seed=0):
     rng = np.random.RandomState(seed)
     return rng.randn(n, f).astype(np.float32), rng.choice(["A", "B"], size=n)
 
 
-def _reg(n=60, f=30, seed=0):
+def _reg(n=40, f=30, seed=0):
     rng = np.random.RandomState(seed)
     return rng.randn(n, f).astype(np.float32), rng.randn(n).astype(np.float32)
 
 
 def test_predict_regression():
     X, y = _reg()
-    preds = RidgeModel(alpha=1.0).fit(X, y).predict(X)
+    m = RocketModel(num_kernels=200).fit(X, y)
+    assert m.problem_type_ == "regression"
+    preds = m.predict(X)
     assert len(preds) == len(X)
     assert np.issubdtype(preds.dtype, np.floating)
+    assert not np.isnan(preds).any()
 
 
 def test_predict_multiclass():
     X, y = _clf()
-    m = RidgeModel(alpha=1.0).fit(X, y)
+    m = RocketModel(num_kernels=200).fit(X, y)
     preds = m.predict(X)
     assert len(preds) == len(X)
     assert set(preds).issubset(set(m.classes_))
@@ -40,21 +46,21 @@ def test_predict_multiclass():
 
 def test_predict_binary():
     X, y = _bin()
-    m = RidgeModel(alpha=1.0).fit(X, y)
+    m = RocketModel(num_kernels=200).fit(X, y)
     preds = m.predict(X)
     assert set(preds).issubset({"A", "B"})
 
 
 def test_predict_proba_binary():
     X, y = _bin()
-    proba = RidgeModel(alpha=1.0).fit(X, y).predict_proba(X)
+    proba = RocketModel(num_kernels=200).fit(X, y).predict_proba(X)
     assert proba.ndim == 1
     assert np.all((proba >= 0) & (proba <= 1))
 
 
 def test_predict_proba_multiclass():
     X, y = _clf(n_classes=3)
-    proba = RidgeModel(alpha=1.0).fit(X, y).predict_proba(X)
+    proba = RocketModel(num_kernels=200).fit(X, y).predict_proba(X)
     assert proba.shape == (len(X), 3)
     np.testing.assert_allclose(proba.sum(axis=1), 1.0, atol=1e-5)
 
@@ -64,13 +70,12 @@ def test_accepts_dataframe():
 
     X_np, y_np = _reg()
     X = pd.DataFrame(X_np)
-    m = RidgeModel(alpha=1.0).fit(X, y_np)
+    m = RocketModel(num_kernels=200).fit(X, y_np)
     preds = m.predict(X)
     assert len(preds) == len(X)
 
 
-def test_invalid_problem_type_not_raised():
-    """Float y -> regression is inferred without error."""
+def test_infers_regression_from_float_dtype():
     X, y = _reg()
-    m = RidgeModel().fit(X, y)
+    m = RocketModel(num_kernels=200).fit(X, y)
     assert m.problem_type_ == "regression"

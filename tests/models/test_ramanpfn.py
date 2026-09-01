@@ -1,8 +1,11 @@
 """Tests for RamanPFNModel."""
 
 import numpy as np
+import pytest
 
-from raman_bench.models.custom.ramanpfn.model import RamanPFNModel
+pytest.importorskip("autogluon")
+
+from raman_bench.models.custom.ramanpfn.model import RamanPFNModel  # noqa: E402
 
 
 def _clf(n=60, f=120, n_classes=3, seed=0):

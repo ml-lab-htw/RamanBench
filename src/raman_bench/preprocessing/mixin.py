@@ -80,10 +80,12 @@ except ImportError as _ag_err:
     ) from _ag_err
 
 from raman_bench.preprocessing.raman_preprocessing import (
+    baseline_correction_asls,  # also covers fluorescence removal at high lam / low p
+)
+from raman_bench.preprocessing.raman_preprocessing import (
     augment_spectra,
     baseline_correction_airpls,
     baseline_correction_arpls,
-    baseline_correction_asls,  # also covers fluorescence removal at high lam / low p
     cosmic_ray_removal,
     crop_spectra,
     denoise_savgol,
@@ -192,6 +194,13 @@ _PREP_STEP_DEFINITIONS = {
         },
         "defaults": {
             "prep_msc_enabled": False,
+            # Region used only to fit each spectrum's slope/intercept against
+            # the training-reference spectrum. The correction is still
+            # applied to the complete spectrum. Fractions are resolved from
+            # a source-verified physical Raman-shift interval by the calling
+            # experiment config; full-spectrum MSC remains the default.
+            "prep_msc_start_frac": 0.0,
+            "prep_msc_end_frac": 1.0,
         },
     },
     "emsc": {
@@ -534,13 +543,19 @@ class RamanPreprocessingMixin:
             X = rubberband_correction(X)
 
         if params.get("prep_msc_enabled", False):
-            logger.debug("Fit — MSC: fitting reference spectrum and transforming")
+            start_frac = params.get("prep_msc_start_frac", 0.0)
+            end_frac = params.get("prep_msc_end_frac", 1.0)
+            logger.debug(
+                "Fit — MSC: fitting reference spectrum and transforming, region=[%s, %s]",
+                start_frac,
+                end_frac,
+            )
             self._msc_reference = multiplicative_scatter_correction_fit(X)
             X = multiplicative_scatter_correction_transform(
                 X,
                 self._msc_reference,
-                start=0.0,
-                end=1.0,
+                start=start_frac,
+                end=end_frac,
             )
 
         if params.get("prep_emsc_enabled", False):
@@ -622,12 +637,8 @@ class RamanPreprocessingMixin:
         if lvse_enabled:
             n_regions = params.get("prep_lvse_n_regions", 16)
             k_per_region = params.get("prep_lvse_k_per_region", 4)
-            logger.debug(
-                "Fit — LVSE: n_regions=%s, k_per_region=%s", n_regions, k_per_region
-            )
-            lvse_state, lvse_out = lvse_fit(
-                X, n_regions=n_regions, k_per_region=k_per_region
-            )
+            logger.debug("Fit — LVSE: n_regions=%s, k_per_region=%s", n_regions, k_per_region)
+            lvse_state, lvse_out = lvse_fit(X, n_regions=n_regions, k_per_region=k_per_region)
             self._lvse_region_bounds = lvse_state["region_indices"]
             self._lvse_means = lvse_state["means"]
             self._lvse_stds = lvse_state["stds"]
@@ -738,12 +749,18 @@ class RamanPreprocessingMixin:
             X = rubberband_correction(X)
 
         if params.get("prep_msc_enabled", False) and hasattr(self, "_msc_reference"):
-            logger.debug("Transform — MSC: applying transform with fitted reference spectrum")
+            start_frac = params.get("prep_msc_start_frac", 0.0)
+            end_frac = params.get("prep_msc_end_frac", 1.0)
+            logger.debug(
+                "Transform — MSC: applying fitted reference with region=[%s, %s]",
+                start_frac,
+                end_frac,
+            )
             X = multiplicative_scatter_correction_transform(
                 X,
                 self._msc_reference,
-                start=0.0,
-                end=1.0,
+                start=start_frac,
+                end=end_frac,
             )
 
         if params.get("prep_emsc_enabled", False) and hasattr(self, "_emsc_reference"):

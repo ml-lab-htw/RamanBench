@@ -7,15 +7,14 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2605.02003-b31b1b)](https://arxiv.org/abs/2605.02003)
 [![Leaderboard](https://img.shields.io/badge/🏆_Leaderboard-HuggingFace-orange)](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
 
-**A large-scale benchmark for machine learning on Raman spectroscopy data.**
+**A machine-learning benchmark for Raman spectroscopy.**
 
-> 74 datasets · 163 prediction targets · 28 baseline models · 4 application domains
-
-RamanBench provides a reproducible evaluation protocol and a curated collection
-of public Raman spectroscopy datasets spanning Material Science, Biological,
-Medical, and Chemical applications.  Researchers can rank new models against
-28 pre-evaluated baselines — from classical PLS to tabular foundation models
-and Raman-specific deep learning architectures — without re-running all experiments.
+RamanBench collects 74 public Raman datasets (163 prediction targets, four
+application domains: Material Science, Biological, Medical, Chemical) behind one
+evaluation protocol, and ships the results of 28 baseline models run through it.
+You can score a new model against those baselines without re-running the
+experiments. The baselines cover classical chemometrics, gradient boosting,
+tabular foundation models, and deep networks built for spectra.
 
 ---
 
@@ -44,16 +43,15 @@ PyPI / GitHub     PyPI / GitHub
 pip install raman-bench
 ```
 
-This gives you:
+This is enough to:
 
-- **All 74 datasets** with standardised train/test splits via `raman-data`
-- **Precomputed results** for 28 baseline models (bundled CSVs, no internet needed)
-- **Leaderboard API** — rank, plot, and compare against baselines
-- **Evaluation API** — `lb.evaluate_and_add(model)` works with *any* sklearn-compatible model
+- load all 74 datasets with fixed train/test splits (via `raman-data`)
+- read the precomputed results for the 28 baselines (bundled CSVs, works offline)
+- score your own model against them: `lb.evaluate_and_add(model)` takes any
+  sklearn-compatible estimator
 
-You can use any ML library you already have installed — scikit-learn, LightGBM,
-XGBoost, PyTorch, JAX, or anything else — against a large-scale, curated data
-foundation without installing a single additional dependency.
+Your model can come from any library you already have — scikit-learn, LightGBM,
+XGBoost, PyTorch, JAX. The core install adds no heavy dependencies of its own.
 
 ### Option 2 — With all built-in models
 
@@ -64,8 +62,8 @@ all with a standard `fit(X, y)` / `predict(X)` interface:
 pip install "raman-bench[models]"
 ```
 
-This installs `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, and
-`ramanspy` on top of the core package.  **No AutoGluon required.**
+This adds `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, and `ramanspy` to
+the core package. AutoGluon is not needed for this path.
 
 ### Option 3 — Full benchmark reproducibility
 
@@ -100,17 +98,20 @@ two limitations of AutoGluon 1.5:
 
 ## RamanBench v1
 
-RamanBench's benchmark-running layer is being migrated onto
-[TabArena](https://github.com/autogluon/tabarena) (`tabarena`/`bencheval`) directly, rather
-than reimplementing patterns "inspired by" it. Concretely: each (dataset, target) pair
-becomes a TabArena `UserTask`; splitting is real repeated k-fold cross-validation
-(`raman_bench.splitting`, dataset-size-adaptive `n_repeats`, matching TabArena's own
-documented convention); each model's HPO search space is a TabArena `ConfigGenerator`
-config pool, and the default/tuned/tuned+ensemble triad is recycled from that pool with
-zero extra fitting (`EndToEnd.from_raw(...).get_results(...)`, no re-training). See
-TabArena's own docs for the underlying mechanism — RamanBench's layer on top is thin by
-design: datasets come from the raman-data HF mirror instead of OpenML, and ~13 additional
-Raman-specific model architectures are wired in alongside TabArena's own registry.
+The benchmark-running layer is being rebuilt directly on
+[TabArena](https://github.com/autogluon/tabarena) (`tabarena` / `bencheval`)
+instead of on its own reimplementation of the same ideas.
+
+Each (dataset, target) pair becomes a TabArena `UserTask`. Splitting is real
+repeated k-fold cross-validation (`raman_bench.splitting`, with `n_repeats`
+scaled to dataset size, as TabArena documents). Each model's HPO search space is
+a TabArena `ConfigGenerator` config pool, and the default / tuned /
+tuned+ensemble results are read back from that pool without any re-training
+(`EndToEnd.from_raw(...).get_results(...)`).
+
+What RamanBench adds on top is small: datasets come from the raman-data HF
+mirror rather than OpenML, and about 13 Raman-specific architectures are
+registered alongside TabArena's own models.
 
 ```bash
 git clone https://github.com/ml-lab-htw/RamanBench.git
@@ -129,13 +130,58 @@ Key entry points:
 - `cluster/` — cluster-agnostic SLURM job submission (`submit_job.py`,
   `run_experiment.sbatch`, `detect_cluster.py`, `janitor.py`) driven by a profile YAML;
   works locally too when no cluster is available.
-- `.claude/agents/` — six Claude Code agents for routine maintenance (see
-  **Contributor Agents** below).
+- `.claude/agents/` — Claude Code agents for routine maintenance, spread across
+  this repo and its siblings (see **Contributor Agents** below).
 
 New models are onboarded via a per-model directory —
 `raman_bench/models/custom/<key>/{model.py,hpo.py,info.py}`, auto-discovered into the
 registry — see `models/custom/ridge/` for the reference implementation and
 `.claude/agents/model-agent.md` for the full workflow.
+
+### What's changed since v0.1
+
+Full details in [CHANGELOG.md](CHANGELOG.md); short version:
+
+**Models**
+- Onboarded 30 TabArena-native models directly from TabArena's own registry (TabFM,
+  TabPFN-3, TabSwift, ModernNCA, EBM, PerpetualBooster, xRFM, ChimeraBoost, NORI,
+  SAP-RPT-OSS, OrionMSP, ILTM, LIMIX, TabSTAR, and more)
+- Added TabPFN v2.6, v3, and v3-Thinking
+- Added TabPFN-Wide (wide, few-sample classification) and RamanPFN (Pan et al., 2025)
+- Verified all 10 pre-existing custom Raman architectures against the new v1 pipeline
+
+**Benchmark methodology (v1)**
+- Migrated the model/metrics/splitting layer to depend directly on TabArena/`bencheval`
+  instead of reimplementing patterns "inspired by" them
+- Switched to real repeated k-fold CV with dataset-size-adaptive repeat counts,
+  replacing the old 3-independent-holdout-split scheme
+- Fixed AutoGluon bagging to a genuine, TabArena-matching `num_bag_folds=8` (v0.1 had
+  effectively no bagging for 27 of 28 models)
+- Added semi-supervised-aware splitting (unlabeled rows kept in train, never in test)
+- Ported TabArena's trivial-dataset filter into RamanBench itself as a first-class feature
+
+**Preprocessing**
+- 8 new steps: airPLS, arPLS, rubberband, EMSC, Savitzky-Golay derivative, wavelet
+  denoising, fingerprint-region crop, L2 vector normalization
+- New preprocessing-ensemble mechanism (parallel recipe blocks, concatenated) and
+  config-level `preprocessing_params` overrides
+
+**Datasets**
+- +4 datasets: `chlorinated_samples`, `locust_phase_hemolymph`, `cspp_serum_metabolites`,
+  `ait_glucose_blood_sers`
+- New `is_grouped` / `has_missing_labels` fields on `raman-data`'s `DatasetInfo`
+
+**Infrastructure**
+- Public, cluster-agnostic job-submission tooling plus a new opportunistic,
+  capacity-aware scheduler for routine full-benchmark sweeps
+- Dropped the patched AutoGluon fork; moved to upstream AutoGluon 1.6.1 with
+  RamanBench-local cap overrides
+- Automatic `.env` credential loading; `main` now requires PRs (no direct pushes)
+
+**Reliability fixes**
+- Atomic prediction/index writes to avoid concurrent-job races
+- Skip (not delete) mismatched predictions during metric computation
+- Guard R² against degenerate near-constant test folds
 
 ---
 
@@ -152,8 +198,8 @@ print(ds.targets.shape)      # (n_samples,)
 print(ds.raman_shifts[:5])   # wavenumber axis in cm⁻¹
 ```
 
-All 74 datasets are available this way.  Each comes with a fixed train/test
-split so results are directly comparable to the precomputed baselines.
+Every dataset loads this way, each with the same fixed train/test split the
+precomputed baselines used.
 
 ### Evaluate your model against 28 baselines (Option 1)
 
@@ -173,9 +219,6 @@ results = lb.evaluate_and_add(
 print(lb.rank())
 lb.plot()
 ```
-
-Bring any library — LightGBM, XGBoost, a PyTorch model, a JAX model — and it
-will be scored on the same protocol as the 28 precomputed baselines.
 
 ### Explore the precomputed leaderboard (Option 1)
 
@@ -209,7 +252,7 @@ tfm.fit(X, y)
 predictions = tfm.predict(X)
 ```
 
-### Run the full benchmark pipeline (fork required)
+### Run the full v0 benchmark pipeline
 
 ```bash
 # Pre-cache all dataset splits (optional, speeds up the run)
@@ -229,8 +272,10 @@ raman-bench run --config configs/benchmark_v0.1.json --step metrics
 |---|---|
 | [`01_quick_start.ipynb`](notebooks/01_quick_start.ipynb) | Load a dataset, explore the precomputed leaderboard, plot rankings |
 | [`02_benchmark_new_model.ipynb`](notebooks/02_benchmark_new_model.ipynb) | Evaluate your own model and add it to the leaderboard |
-| [`03_explore_results.ipynb`](notebooks/03_explore_results.ipynb) | Deep dive into per-dataset and per-domain results |
-| [`04_contribute_dataset.ipynb`](notebooks/04_contribute_dataset.ipynb) | Step-by-step guide to contributing a new dataset |
+| [`03_explore_results.ipynb`](notebooks/03_explore_results.ipynb) | Per-dataset and per-domain results |
+| [`04_contribute_dataset.ipynb`](notebooks/04_contribute_dataset.ipynb) | Adding a new dataset, step by step |
+| [`05_reproduce_benchmark.ipynb`](notebooks/05_reproduce_benchmark.ipynb) | Re-running the v0 benchmark from configs |
+| [`06_hpo_ensemble_ablation.ipynb`](notebooks/06_hpo_ensemble_ablation.ipynb) | HPO and ensembling ablation |
 
 ---
 
@@ -239,8 +284,6 @@ raman-bench run --config configs/benchmark_v0.1.json --step metrics
 ### Paper baselines (28 models)
 
 All results in the paper were produced through the AutoGluon pipeline (Option 3 install).
-
-| Category | Models |
 
 | Category | Models |
 |---|---|
@@ -258,7 +301,7 @@ All results in the paper were produced through the AutoGluon pipeline (Option 3 
 for many of the same algorithm families, usable directly without AutoGluon or
 the fork.  These are **not** the exact pipeline configurations from the paper
 (no AutoGluon preprocessing or HPO), but they use the same underlying
-algorithms and are well-suited for building and evaluating new models.
+algorithms, and are a convenient starting point for building a new model.
 
 | Class | Algorithm | Requires |
 |---|---|---|
@@ -271,8 +314,8 @@ algorithms and are well-suited for building and evaluating new models.
 | `ReZeroNetModel` | ReZero CNN | `torch` |
 | `FCResNeXtModel` | FC-ResNeXt | `torch` |
 | `CoAtNetModel` | Conv + attention | `torch` |
-| `RocketModel` | ROCKET classifier | `sktime` |
-| `ArsenalModel` | Arsenal classifier | `sktime` |
+| `RocketModel` | ROCKET regression/classification | `sktime` |
+| `HydraModel` | Hydra + closed-form GPU ridge, regression/classification | `torch` |
 | `TabPFNModel` | TabPFN v2 | `tabpfn` |
 | `RealMLPModel` | RealMLP-TD | `pytabkit` |
 | `TabMModel` | TabM-D | `pytabkit` |
@@ -287,16 +330,13 @@ All classes support classification and regression and auto-detect the task from
 
 ### Datasets
 
-74 public Raman spectroscopy datasets from four application domains:
+The 74 datasets span four application domains (Material Science, Biological,
+Medical, Chemical) and both task types. They range from a few dozen spectra to
+over 100,000, and from roughly 100 to 12,000 wavenumber points. The
+[raman-data catalog](https://github.com/ml-lab-htw/raman_data) lists every one
+with its source, task, size, and license.
 
-| Domain | Datasets | Task | Sources |
-|---|---|---|---|
-| Chemical | 37 | Regression | Zenodo, HuggingFace |
-| Medical | 11 | Classification | Kaggle, Zenodo |
-| Biological | 8 | Regression | HuggingFace, Zenodo |
-| Material Science | 4 | Classification | RRUFF, Zenodo |
-
-All datasets are accessible via `pip install raman-data`:
+All datasets load via `pip install raman-data`:
 
 ```python
 from raman_data import raman_data
@@ -313,7 +353,7 @@ w = dataset.raman_shifts     # wavenumber axis in cm⁻¹
 
 ## Ranking Protocol
 
-Models are evaluated under three complementary metrics:
+Models are ranked on four metrics:
 
 | Metric | Description |
 |---|---|
@@ -369,10 +409,10 @@ RamanBench/
 └── tests/                      # pytest test suite
 ```
 
-### Architecture: two paths, one set of model classes
+### How the two paths share model code
 
-Custom models are implemented once as plain scikit-learn `BaseEstimator`
-subclasses.  The same classes are used in both usage modes:
+Custom models are written once as plain scikit-learn `BaseEstimator`
+subclasses, and the same classes serve both usage modes:
 
 ```
   Custom model (e.g. DeepCNNModel)
@@ -387,18 +427,32 @@ subclasses.  The same classes are used in both usage modes:
                Prep_DEEPCNN(_RamanDLBase, _DeepCNNBridge)
 ```
 
-`SklearnAutoGluonBridge` (in `preprocessing/wrapped_models.py`) is the only
-file that imports AutoGluon.  All model source files are AutoGluon-free.
+`SklearnAutoGluonBridge` (in `preprocessing/wrapped_models.py`) is the only file
+that imports AutoGluon; the model source files never do.
 
 ---
 
 ## Contributing
 
-We welcome contributions of new models and datasets!
+New models and datasets are welcome.
 
 ### Adding a New Model
 
-The simplest way to add a model is to implement it as a scikit-learn–compatible
+Open this repo in Claude Code and say:
+
+```
+Add my model to RamanBench, test it, and run it across the benchmark.
+```
+
+The `model-agent` implements it (or wires up an existing TabArena model if one
+already fits), tests it locally, asks whether to propose it upstream to
+TabArena, and runs it across the benchmark on a cluster or locally.
+`.claude/agents/model-agent.md` has the full workflow.
+
+<details>
+<summary>Manual steps (no agent)</summary>
+
+The simplest manual way to add a model is to implement it as a scikit-learn–compatible
 estimator and submit a pull request.  No AutoGluon knowledge is required.
 
 1. Create `src/raman_bench/models/custom/my_model.py`:
@@ -453,7 +507,22 @@ implementation; `.claude/agents/model-agent.md` documents the full workflow end 
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
+</details>
+
 ### Adding a New Dataset
+
+Same idea, in Claude Code:
+
+```
+Add my dataset to RamanBench and make it benchmarkable.
+```
+
+The `dataset-agent` bootstraps a `raman_data` checkout if needed, picks the right
+loader, syncs the dataset to the HF mirror the benchmark reads from, and opens a
+`raman_data` PR. See `.claude/agents/dataset-agent.md` for the full workflow.
+
+<details>
+<summary>Manual steps (no agent)</summary>
 
 See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-new-dataset) and
 [NEW_DATASETS.md](NEW_DATASETS.md) for detailed instructions and examples.
@@ -461,12 +530,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-new-dataset) and
 onboarding workflow, including the HF mirror sync new datasets need to be discoverable
 through `run_experiment.py`'s mirror-first loading.
 
+</details>
+
 ---
 
 ## Contributor Agents
 
-Six Claude Code agents cover routine maintenance so contributors don't need any private
-tooling. Each is a `.claude/agents/*.md` file in the repo it operates on:
+Six Claude Code agents handle routine maintenance across the three repos, so a
+contributor doesn't need any private tooling. Each is a `.claude/agents/*.md`
+file in the repo it works on:
 
 | Agent | Repo | Responsibility |
 |---|---|---|
@@ -477,19 +549,12 @@ tooling. Each is a `.claude/agents/*.md` file in the repo it operates on:
 | `hf-frontend-agent` | `HF_spaces/RamanBench` | Frontend work on the public Gradio leaderboard Space. |
 | `docs-agent` | `raman_bench_paper` (cross-repo aware) | Keeps README/CONTRIBUTING in sync across all repos as things change. |
 
-Typical handoff: dataset-agent → model-agent (optional) → cluster-agent → leaderboard-agent
-(with explicit permission before publishing) → hf-frontend-agent. docs-agent runs
-independently after structural changes. None of these agents ever add a Claude/Anthropic
-co-author trailer to a commit.
-
-Quick summary:
-1. Upload your dataset to HuggingFace Datasets or Zenodo under CC BY 4.0.
-2. Add a loader to the [raman-data](https://github.com/ml-lab-htw/raman_data)
-   package (open a PR there).
-3. Open an issue here linking to the raman-data PR.
+A typical handoff runs dataset-agent → model-agent (optional) → cluster-agent →
+leaderboard-agent (which asks before publishing) → hf-frontend-agent. docs-agent
+runs on its own after structural changes.
 
 The [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
-also has a "How to Contribute" section with step-by-step instructions.
+has its own "How to Contribute" section.
 
 ---
 
@@ -508,11 +573,9 @@ If you use RamanBench in your research, please cite:
 
 ---
 
-## ⭐ Star History
+## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ml-lab-htw/RamanBench&type=Date&...)](
-https://star-history.com/#ml-lab-htw/RamanBench&Date
-)
+[![Star History Chart](https://api.star-history.com/svg?repos=ml-lab-htw/RamanBench&type=Date)](https://star-history.com/#ml-lab-htw/RamanBench&Date)
 
 ---
 

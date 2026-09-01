@@ -11,16 +11,23 @@ HPO or a model class's ``_set_default_params`` default.
 import pytest
 from raman_data import TASK_TYPE
 
-from raman_bench.config import _ALL_PREPROCESSING_STEPS, _normalize_preprocessing_params
-from raman_bench.model import AutoGluonModel
-from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS
+pytest.importorskip("autogluon")
+
+from raman_bench.config import (  # noqa: E402
+    _ALL_PREPROCESSING_STEPS,
+    _normalize_preprocessing_params,
+)
+from raman_bench.model import AutoGluonModel  # noqa: E402
+from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS  # noqa: E402
 
 
 def _prep_config(**enabled) -> dict:
     return {step: bool(enabled.get(step, False)) for step in _ALL_PREPROCESSING_STEPS}
 
 
-def _params_for(model: str, preprocessing_config=None, preprocessing_params=None, optimize=False) -> dict:
+def _params_for(
+    model: str, preprocessing_config=None, preprocessing_params=None, optimize=False
+) -> dict:
     m = AutoGluonModel(
         models=[model],
         ensemble=False,
@@ -50,6 +57,17 @@ def test_normalize_preprocessing_params_valid():
     config = {"preprocessing_params": {"prep_deriv_order": 2, "prep_deriv_wl": 15}}
     out = _normalize_preprocessing_params(config)
     assert out["preprocessing_params"] == {"prep_deriv_order": 2, "prep_deriv_wl": 15}
+
+
+def test_normalize_preprocessing_params_accepts_msc_fit_region():
+    config = {
+        "preprocessing_params": {
+            "prep_msc_start_frac": 0.25,
+            "prep_msc_end_frac": 0.5,
+        }
+    }
+    out = _normalize_preprocessing_params(config)
+    assert out["preprocessing_params"] == config["preprocessing_params"]
 
 
 def test_normalize_preprocessing_params_rejects_typo():

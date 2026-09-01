@@ -1,8 +1,8 @@
 """Verify that all datasets from the RamanBench paper can be loaded."""
 
-import tempfile
-import shutil
 import os
+import shutil
+import tempfile
 
 from raman_bench.benchmark import RamanBenchmark
 

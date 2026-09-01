@@ -23,6 +23,6 @@ Two kinds of model live here:
 
 Every RamanBench custom architecture that used to live here (``pls``, ``deepcnn``,
 ``ramannet``, ``sanet``, ``ramanformer``, ``ramantransformer``, ``rezeronet``,
-``fcresnext``, ``coatnet``, ``rocket``, ``arsenal``, ``tabpfn_wide``, ``gbm``,
+``fcresnext``, ``coatnet``, ``rocket``, ``tabpfn_wide``, ``gbm``,
 ``ta_tabpfn_3``) has already moved to that per-directory convention.
 """

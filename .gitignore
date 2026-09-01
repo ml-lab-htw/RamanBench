@@ -298,6 +298,7 @@ results/
 .cache_v1/
 .scratch_v1/
 .slurm_jobspecs/
+.scheduler_state/
 AutogluonModels/
 
 # Local Claude Code settings

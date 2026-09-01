@@ -8,7 +8,10 @@ enabling a step that a model's class default left off (e.g. MSC on Prep_RF, or
 SNV on a tree model) was silently a no-op.
 """
 
+import pytest
 from raman_data import TASK_TYPE
+
+pytest.importorskip("autogluon")
 
 from raman_bench.config import _ALL_PREPROCESSING_STEPS
 from raman_bench.model import AutoGluonModel
