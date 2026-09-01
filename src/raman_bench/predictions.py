@@ -619,6 +619,11 @@ def compute_predictions(
                         data_train_fit = _maybe_subsample(
                             data_train, model_name, key, task_type, subsample_config, seed
                         )
+                        # Strip group-related columns before model training to prevent feature contamination
+                        # (Pipeline B / splitting.py issue #2: _group_id columns should not be model features)
+                        group_cols = [col for col in data_train_fit.columns if 'group' in col.lower()]
+                        if group_cols:
+                            data_train_fit = data_train_fit.drop(columns=group_cols)
 
                         with _timed() as tt, _memory_tracker() as tm, _PowerTracker() as tp:
                             model.fit(data_train_fit)
@@ -629,8 +634,14 @@ def compute_predictions(
                         record["train_cpu_energy_j"] = tp.cpu_energy_j
                         record.update(model.get_fit_stats())
 
+                        # Strip group columns from test data (same as training data)
+                        data_test_predict = data_test.copy()
+                        group_cols_test = [col for col in data_test_predict.columns if 'group' in col.lower()]
+                        if group_cols_test:
+                            data_test_predict = data_test_predict.drop(columns=group_cols_test)
+
                         with _timed() as it, _memory_tracker() as im, _PowerTracker() as ip:
-                            y_pred = model.predict(data_test)
+                            y_pred = model.predict(data_test_predict)
                         record["inference_time_s"] = round(it[0], 3)
                         record["inference_peak_memory_mb"] = im.peak_mb
                         record["inference_time_per_sample_ms"] = round(
