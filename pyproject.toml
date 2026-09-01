@@ -68,11 +68,17 @@ autogluon = [
     # is imported defensively inside that function, but the tunable preprocessing
     # pipeline itself only ships as part of the `autogluon` extra, so pin it here.
     "PyWavelets>=1.4",
+]
+benchmark = [
+    # TabArena/bencheval dependencies for full benchmark orchestration.
+    # These have git-based dependencies that PyPI doesn't accept, so they're
+    # isolated in a separate extra. Cluster users install with `pip install -e .[cluster]`.
     "bencheval @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/bencheval",
     "tabarena @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/tabarena",
 ]
 models = [
     "raman-bench[autogluon]",
+    "raman-bench[benchmark]",
     # tabarena's own per-model extras covering the gap found here: tabicl, ebm
     # (+configspace), realmlp (pytabkit), tabdpt, tabm (+torch). Deliberately NOT
     # tabarena's full `[benchmark]` union -- that also pulls `[tabpfn]`
@@ -88,7 +94,7 @@ models = [
     # "tabarena[...]" elsewhere -- a real (unrelated, version-0.0.0 placeholder)
     # package named "tabarena" exists on PyPI, so a bare name+extras requirement
     # resolves against *that* instead of this git dependency and conflicts with the
-    # `autogluon` extra's URL-pinned "tabarena" below (confirmed via a real pip
+    # `benchmark` extra's URL-pinned "tabarena" (confirmed via a real pip
     # resolve: ResolutionImpossible over exactly this).
     # perpetualboosting/chimeraboost (batch 2 of the TabArena-native onboarding) pull
     # in their own third-party package below TabArena's own `pip_extra` metadata
@@ -141,6 +147,7 @@ models = [
 ]
 full = [
     "raman-bench[autogluon]",
+    "raman-bench[benchmark]",
     "raman-bench[models]",
     "adjustText>=1.2.0",
     "pynvml>=11.0",
