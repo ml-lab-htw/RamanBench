@@ -1,8 +1,11 @@
 """Regression tests for source-defined MSC fitting regions."""
 
 import numpy as np
+import pytest
 
-from raman_bench.preprocessing import mixin
+pytest.importorskip("autogluon")
+
+from raman_bench.preprocessing import mixin  # noqa: E402
 
 
 def test_msc_region_params_are_used_consistently_for_fit_and_transform(monkeypatch):
