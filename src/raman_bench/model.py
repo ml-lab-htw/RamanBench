@@ -95,6 +95,124 @@ def _build_foundation_hyperparameters(num_gpus: int) -> dict:
     return hp
 
 
+def build_prep_model_hyperparameters(
+    cls,
+    cfg: dict,
+    *,
+    preprocessing_params: dict | None = None,
+    optimize: bool = False,
+    model_extra_params: dict | None = None,
+) -> dict:
+    """Apply the preprocessing-restriction / override / (optional) HPO logic for one
+    ``Prep_*`` model class, returning the hyperparameters dict AutoGluon should fit it with.
+
+    Factored out of :meth:`AutoGluonModel._build_model_hyperparameters` (Pipeline A's own
+    per-``Prep_*``-class loop body) so Pipeline B (``scripts/run_experiment.py`` in this
+    package, driven by ``RamanPreprocessing``'s k-fold orchestrator) can build the exact
+    same ``prep_*_enabled``/``prep_*`` hyperparameters for a single model class without
+    constructing a whole ``AutoGluonModel``/``TabularPredictor`` -- reusing this one
+    restriction-application code path instead of re-deriving it. See
+    :meth:`AutoGluonModel._build_model_hyperparameters`'s own docstring for the precedence
+    rules (restriction enable/disable > preprocessing_params overrides > class defaults;
+    optimize=True additionally folds in the model's own + preprocessing's HPO search space).
+
+    Parameters
+    ----------
+    cls : type
+        A ``Prep_*`` model class (subclass of ``RamanPreprocessingMixin``).
+    cfg : dict
+        That class's base hyperparameters dict, as produced by
+        :func:`~raman_bench.preprocessing.wrapped_models.create_preprocessed_hyperparameters`
+        -- may carry a ``"_prep_restriction"`` key (the step-level enable/disable dict,
+        i.e. the config's ``preprocessing_config``); this key is consumed (popped) here,
+        not passed through to AutoGluon.
+    preprocessing_params : dict | None
+        Flat ``param_name -> value`` override dict (the config's ``preprocessing_params``).
+    optimize : bool
+        Whether to fold in the model's own + preprocessing's HPO search space (``Space``
+        objects) instead of stripping them for a fixed-hyperparameter run.
+    model_extra_params : dict | None
+        Extra parameters forwarded to custom neural-network models only (matches
+        ``AutoGluonModel.model_extra_params``).
+    """
+    sklearn_cls = getattr(cls, "_sklearn_cls", None)
+    is_custom = issubclass(cls, BaseCustomModel) or (
+        sklearn_cls is not None and issubclass(sklearn_cls, BaseCustomModel)
+    )
+    extra = (model_extra_params or {}) if is_custom else {}
+    merged = {**cfg, **extra}
+    restriction = merged.pop("_prep_restriction", None)
+
+    if restriction and restriction.get("standard_scaling"):
+        merged["prep_scaling_enabled"] = True
+
+    if restriction is not None:
+        for step_key, enabled_param in STEP_ENABLED_PARAMS.items():
+            want = restriction.get(step_key)
+            if want is None:
+                continue
+            if not want:
+                merged[enabled_param] = False
+            elif step_key != "augmentation" or getattr(cls, "_supports_augmentation", False):
+                merged[enabled_param] = True
+
+    restriction_owned_enabled_params = set()
+    if restriction is not None:
+        for step_key, enabled_param in STEP_ENABLED_PARAMS.items():
+            if restriction.get(step_key) is not None:
+                restriction_owned_enabled_params.add(enabled_param)
+
+    if preprocessing_params:
+        for param_name, value in preprocessing_params.items():
+            if param_name in restriction_owned_enabled_params:
+                logger.warning(
+                    "preprocessing_params override for %r ignored: "
+                    "preprocessing_config already decides this step's "
+                    "enabled state.",
+                    param_name,
+                )
+                continue
+            merged[param_name] = value
+
+    if optimize:
+        optimize_prep = getattr(cls, "_optimize_preprocessing", False)
+        search_space = build_restricted_searchspace(restriction) if optimize_prep else {}
+        # Strip augmentation params from the HPO search space for models
+        # that don't support augmentation.  build_restricted_searchspace
+        # adds prep_aug_* whenever augmentation=True in the config; without
+        # this filter, HPO would sample aug params for PLS/KNN/LR even
+        # though _supports_augmentation=False.
+        if not getattr(cls, "_supports_augmentation", False):
+            search_space = {
+                k: v for k, v in search_space.items() if not k.startswith("prep_aug_")
+            }
+        for base_cls in cls.__mro__[1:]:
+            if issubclass(base_cls, RamanPreprocessingMixin):
+                continue
+            if hasattr(base_cls, "_get_default_searchspace"):
+                try:
+                    stub = object.__new__(base_cls)
+                    stub.params = {}
+                    model_own_ss = base_cls._get_default_searchspace(stub)
+                    search_space = {**model_own_ss, **search_space}
+                except Exception:
+                    pass
+                break
+        merged = {**merged, **search_space}
+        # Re-pin preprocessing_params overrides so they win over the
+        # HPO search space too (a Space object for the same param
+        # would otherwise silently clobber the fixed override just
+        # applied above, since search_space is merged in last).
+        if preprocessing_params:
+            for param_name, value in preprocessing_params.items():
+                if param_name in restriction_owned_enabled_params:
+                    continue
+                merged[param_name] = value
+        return merged
+    else:
+        return {k: v for k, v in merged.items() if not isinstance(v, Space)}
+
+
 class AutoGluonModel:
     """Wrapper around AutoGluon's ``TabularPredictor`` with Raman preprocessing.
 
@@ -264,106 +382,13 @@ class AutoGluonModel:
         """
         hyperparameters = {}
         for cls, cfg in self.custom_models.items():
-            sklearn_cls = getattr(cls, "_sklearn_cls", None)
-            is_custom = issubclass(cls, BaseCustomModel) or (
-                sklearn_cls is not None and issubclass(sklearn_cls, BaseCustomModel)
+            hyperparameters[cls] = build_prep_model_hyperparameters(
+                cls,
+                cfg,
+                preprocessing_params=self.preprocessing_params,
+                optimize=self.optimize,
+                model_extra_params=self.model_extra_params,
             )
-            extra = self.model_extra_params if is_custom else {}
-            merged = {**cfg, **extra}
-            restriction = merged.pop("_prep_restriction", None)
-
-            if restriction and restriction.get("standard_scaling"):
-                merged["prep_scaling_enabled"] = True
-
-            # Enforce the restriction for each step, overriding the model-class
-            # defaults from _set_default_params (e.g. Prep_PLS defaults
-            # prep_bl_enabled=True) so the config — not the class default or HPO
-            # — decides which steps run:
-            #  - Disabled (False) → force the enabled flag off.
-            #  - Enabled (True)   → force the enabled flag on, so a step applies
-            #    even for models whose class default leaves it off (e.g. MSC on
-            #    Prep_RF).  Augmentation is the exception: it is only forced on
-            #    for models declaring _supports_augmentation (tree/linear/kernel
-            #    models silently skip it), and _NoAugBase defaults it off.
-            #  - Unspecified (key absent) → keep the model-class default.
-            # standard_scaling is handled above (not a step-definition key, so it
-            # is absent from STEP_ENABLED_PARAMS and force-enabled separately).
-            if restriction is not None:
-                for step_key, enabled_param in STEP_ENABLED_PARAMS.items():
-                    want = restriction.get(step_key)
-                    if want is None:
-                        continue
-                    if not want:
-                        merged[enabled_param] = False
-                    elif step_key != "augmentation" or getattr(
-                        cls, "_supports_augmentation", False
-                    ):
-                        merged[enabled_param] = True
-
-            # Apply preprocessing_params overrides (config-level per-param
-            # tuning, e.g. {"prep_deriv_order": 2}) *after* the restriction's
-            # enable/disable logic above, so overrides win over both the
-            # model-class defaults and (for non-"_enabled" params) the
-            # restriction. An "_enabled" key that the restriction dict has
-            # an explicit opinion on (want is not None, handled above) is
-            # deliberately NOT overridable here — the restriction alone
-            # decides which steps are on; preprocessing_params only tunes
-            # the parameters of steps once their on/off state is settled.
-            if self.preprocessing_params:
-                restriction_owned_enabled_params = set()
-                if restriction is not None:
-                    for step_key, enabled_param in STEP_ENABLED_PARAMS.items():
-                        if restriction.get(step_key) is not None:
-                            restriction_owned_enabled_params.add(enabled_param)
-                for param_name, value in self.preprocessing_params.items():
-                    if param_name in restriction_owned_enabled_params:
-                        logger.warning(
-                            "preprocessing_params override for %r ignored: "
-                            "preprocessing_config already decides this step's "
-                            "enabled state.",
-                            param_name,
-                        )
-                        continue
-                    merged[param_name] = value
-
-            if self.optimize:
-                optimize_prep = getattr(cls, "_optimize_preprocessing", False)
-                search_space = build_restricted_searchspace(restriction) if optimize_prep else {}
-                # Strip augmentation params from the HPO search space for models
-                # that don't support augmentation.  build_restricted_searchspace
-                # adds prep_aug_* whenever augmentation=True in the config; without
-                # this filter, HPO would sample aug params for PLS/KNN/LR even
-                # though _supports_augmentation=False.
-                if not getattr(cls, "_supports_augmentation", False):
-                    search_space = {
-                        k: v for k, v in search_space.items() if not k.startswith("prep_aug_")
-                    }
-                for base_cls in cls.__mro__[1:]:
-                    if issubclass(base_cls, RamanPreprocessingMixin):
-                        continue
-                    if hasattr(base_cls, "_get_default_searchspace"):
-                        try:
-                            stub = object.__new__(base_cls)
-                            stub.params = {}
-                            model_own_ss = base_cls._get_default_searchspace(stub)
-                            search_space = {**model_own_ss, **search_space}
-                        except Exception:
-                            pass
-                        break
-                merged = {**merged, **search_space}
-                # Re-pin preprocessing_params overrides so they win over the
-                # HPO search space too (a Space object for the same param
-                # would otherwise silently clobber the fixed override just
-                # applied above, since search_space is merged in last).
-                if self.preprocessing_params:
-                    for param_name, value in self.preprocessing_params.items():
-                        if param_name in restriction_owned_enabled_params:
-                            continue
-                        merged[param_name] = value
-                hyperparameters[cls] = merged
-            else:
-                hyperparameters[cls] = {k: v for k, v in merged.items() if not isinstance(v, Space)}
-
         return hyperparameters
 
     def fit(

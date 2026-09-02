@@ -11,6 +11,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`scripts/run_experiment.py` (Pipeline B) can now specify a preprocessing
+  recipe.** Previously the only way to apply a preprocessing recipe
+  (`prep_*_enabled` hyperparameters) was Pipeline A
+  (`raman_bench.model.AutoGluonModel`'s `preprocessing_config`); Pipeline B's
+  `run_one()` had no equivalent, always running with each model class's own
+  unrestricted preprocessing defaults. Added `--recipe-config`/`recipe_config`,
+  accepting the *same* recipe JSON schema Pipeline A already uses (a top-level
+  `"preprocessing"` dict/bool and optional `"preprocessing_params"` override),
+  so an existing recipe file (e.g. `RamanPreprocessing/configs/
+  preprocessing_ablation_dl/snv.json`) can be pointed at directly with no new
+  format or duplication. Applies via a new shared function,
+  `raman_bench.model.build_prep_model_hyperparameters`, factored out of
+  `AutoGluonModel._build_model_hyperparameters`'s per-`Prep_*`-class
+  restriction-application logic — both pipelines now produce identical
+  `prep_*_enabled`/`prep_*` hyperparameters for the same recipe. The on-disk
+  cache path gains a `__recipe_<slug>` suffix on the experiment directory
+  whenever a recipe is given (omitted, and therefore unchanged, for
+  `recipe_config=None`, so already-cached no-recipe Pipeline B jobs are not
+  invalidated).
+
 ### Fixed
 
 ### Changed

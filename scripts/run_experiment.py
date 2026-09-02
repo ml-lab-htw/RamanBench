@@ -34,6 +34,14 @@ Usage
     python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \\
         --model PLS --repeat 0 --fold 0 --config-index 0 \\
         --results-dir results/v1/data
+
+With an explicit preprocessing recipe (``--recipe-config``, see ``run_one``'s docstring;
+defaults to no recipe / model-class defaults, unrestricted, if omitted)::
+
+    python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \\
+        --model PLS --repeat 0 --fold 0 --config-index 0 \\
+        --recipe-config /path/to/RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json \\
+        --results-dir results/v1/data
 """
 
 from __future__ import annotations
@@ -71,6 +79,38 @@ def _resolve_num_gpus(use_gpu: bool) -> int:
         return 1 if torch.cuda.is_available() else 0
     except ImportError:
         return 0
+
+
+def _load_recipe_config(recipe_config_path: str | None) -> tuple[dict | None, dict | None]:
+    """Load a preprocessing recipe file and return ``(preprocessing_config, preprocessing_params)``.
+
+    ``recipe_config_path`` uses the *same* JSON schema as Pipeline A's own recipe configs
+    (e.g. ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``): a top-level
+    ``"preprocessing"`` dict/bool (step-key -> enabled) and an optional flat
+    ``"preprocessing_params"`` override dict. Only those two keys are read here -- every
+    other key in the file (``datasets_regression``, ``models``, ``autogluon_time_limit``,
+    ``subsample``, ...) is ignored, so Pipeline B can point ``--recipe-config`` directly at
+    an existing Pipeline A recipe file with no duplication or new recipe format.
+
+    Reuses ``raman_bench.config``'s own normalisation helpers
+    (``_normalize_preprocessing_config`` / ``_normalize_preprocessing_params``) rather than
+    re-deriving the ``True``/``False``/dict-shorthand handling -- the exact same normalisation
+    Pipeline A's ``load_config`` applies. Returns ``(None, None)`` if ``recipe_config_path`` is
+    ``None`` (no recipe -- every preprocessing step stays at the model class's own default,
+    matching the current, pre-recipe-argument behaviour of this script).
+    """
+    if recipe_config_path is None:
+        return None, None
+
+    import json
+
+    from raman_bench.config import _normalize_preprocessing_config, _normalize_preprocessing_params
+
+    with open(recipe_config_path) as f:
+        raw = json.load(f)
+    raw = _normalize_preprocessing_config(raw)
+    raw = _normalize_preprocessing_params(raw)
+    return raw["preprocessing_config"], raw["preprocessing_params"]
 
 
 def _import_generator(model_key: str):
@@ -117,6 +157,7 @@ def run_one(
     scratch_dir: str | None = None,
     min_samples_per_class: int = 9,
     filter_unlabeled: bool = True,
+    recipe_config: str | None = None,
 ) -> dict | None:
     """Run exactly one (model, dataset, target, repeat, fold, config) job and cache the result.
 
@@ -144,12 +185,30 @@ def run_one(
     running a normal model with ``filter_unlabeled=False`` will still fail
     inside AutoGluon's own fit call, with AutoGluon's own clear "NaN in
     label" error, which is expected until such a model exists.
+
+    ``recipe_config`` (default ``None``) names a preprocessing recipe JSON file, in the
+    *same* schema as Pipeline A's own recipe configs (e.g.
+    ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``) -- a top-level
+    ``"preprocessing"`` dict/bool and optional ``"preprocessing_params"`` override dict.
+    Applied via the same restriction-application code path Pipeline A's
+    ``AutoGluonModel._build_model_hyperparameters`` uses
+    (:func:`raman_bench.model.build_prep_model_hyperparameters`), so a given recipe produces
+    identical ``prep_*_enabled``/``prep_*`` hyperparameters under either pipeline. ``None``
+    (the default) means "use the model class's own preprocessing defaults, unrestricted" --
+    the only behaviour this script had before this argument existed. Only applies when
+    ``model_key`` resolves to a ``RamanPreprocessingMixin`` subclass (every model in
+    ``wrapped_models.PREPROCESSED_MODELS``, i.e. every model in this repo's curated grid);
+    for any other model class the recipe is ignored with a warning, matching how Pipeline A's
+    ``create_preprocessed_hyperparameters`` silently passes such models through with no
+    preprocessing hyperparameters at all.
     """
     from raman_data import TASK_TYPE
     from tabarena.utils.cache import CacheFunctionPickle
 
     from raman_bench.benchmark import RamanBenchmark
+    from raman_bench.model import build_prep_model_hyperparameters
     from raman_bench.models.registry import infer_model_cls
+    from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
     from raman_bench.preprocessing.wrapped_models import (
         CLASSIFICATION_ONLY_MODELS,
         MAX_FEATURES_MODELS,
@@ -362,6 +421,48 @@ def run_one(
 
     model_cls = infer_model_cls(model_key)
     gen = _import_generator(model_key)
+
+    # Apply the requested preprocessing recipe (§6.1 of
+    # docs/kfold_priority_plan.md in the RamanPreprocessing repo -- Pipeline B previously had
+    # no way to specify a recipe at all, only --config-index for model hyperparameters).
+    # Reuses the exact same restriction-application code path as Pipeline A
+    # (raman_bench.model.build_prep_model_hyperparameters, factored out of
+    # AutoGluonModel._build_model_hyperparameters), so a given recipe file produces
+    # identical prep_*_enabled/prep_* hyperparameters under either pipeline. `optimize=False`
+    # is hardcoded here: Pipeline B's k-fold plan pins --config-index 0 (default model
+    # hyperparameters, no HPO) for every job, so preprocessing HPO search-space injection
+    # (only relevant when optimize=True) never applies.
+    extra_model_hyperparameters = None
+    if recipe_config is not None:
+        if isinstance(model_cls, type) and issubclass(model_cls, RamanPreprocessingMixin):
+            preprocessing_config, preprocessing_params = _load_recipe_config(recipe_config)
+            base_cfg: dict = {}
+            if preprocessing_config is not None:
+                base_cfg["_prep_restriction"] = preprocessing_config
+            prep_hyperparameters = build_prep_model_hyperparameters(
+                model_cls,
+                base_cfg,
+                preprocessing_params=preprocessing_params,
+                optimize=False,
+                model_extra_params=None,
+            )
+            if prep_hyperparameters:
+                extra_model_hyperparameters = prep_hyperparameters
+                logger.info(
+                    "%s: applying recipe %s -> %s",
+                    model_key,
+                    recipe_config,
+                    prep_hyperparameters,
+                )
+        else:
+            logger.warning(
+                "recipe_config=%r ignored: %s (%s) is not a RamanPreprocessingMixin "
+                "subclass -- no prep_*_enabled hyperparameters to restrict.",
+                recipe_config,
+                model_key,
+                model_cls,
+            )
+
     generate_kwargs = dict(
         num_random_configs=num_random_configs,
         time_limit=time_limit,
@@ -375,6 +476,8 @@ def run_one(
         # instead of all sharing seed 0.
         add_seed="fold-config-wise",
     )
+    if extra_model_hyperparameters:
+        generate_kwargs["extra_model_hyperparameters"] = extra_model_hyperparameters
     if scratch_dir is not None:
         # Deterministic AutoGluon predictor path for this job (default is a
         # relative AutogluonModels/ag-<timestamp> under cwd) -- lets the
@@ -394,7 +497,19 @@ def run_one(
         f"({experiment.method_kwargs['model_cls']}) than the registry ({model_cls})"
     )
 
-    cache_path = os.path.join(results_dir, experiment.name, task_name, f"{repeat}_{fold}")
+    # Disambiguate the on-disk cache by recipe: experiment.name only encodes the model
+    # class + HPO-config suffix (e.g. "PLS_c1_BAG_L1"), not which preprocessing recipe was
+    # applied, so two different recipes for the same (model, dataset, repeat, fold) would
+    # otherwise silently collide on the same cache_path and overwrite each other's
+    # results.pkl. Only append a recipe segment when a recipe is actually given, so cache
+    # entries from before this argument existed (recipe_config=None, the only mode this
+    # script supported previously) resolve to the exact same path as before -- no cache
+    # invalidation for already-completed no-recipe Pipeline B jobs.
+    experiment_dir_name = experiment.name
+    if recipe_config is not None:
+        recipe_slug = os.path.splitext(os.path.basename(recipe_config))[0]
+        experiment_dir_name = f"{experiment.name}__recipe_{recipe_slug}"
+    cache_path = os.path.join(results_dir, experiment_dir_name, task_name, f"{repeat}_{fold}")
     Path(cache_path).mkdir(parents=True, exist_ok=True)
     cacher = CacheFunctionPickle(
         cache_name="results", cache_path=cache_path, include_self_in_call=True
@@ -476,6 +591,20 @@ def main():
     )
     parser.add_argument("--use-gpu", action="store_true")
     parser.add_argument(
+        "--recipe-config",
+        default=None,
+        help="Path to a preprocessing recipe JSON file, same schema as Pipeline A's own "
+        "recipe configs (e.g. RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json): "
+        "a top-level \"preprocessing\" dict/bool and optional \"preprocessing_params\" "
+        "override dict. Only those two keys are read -- every other key (datasets, models, "
+        "autogluon_*, subsample, ...) is ignored, so this can point directly at an existing "
+        "Pipeline A recipe file. Applied via the same restriction-application code path "
+        "Pipeline A uses (raman_bench.model.build_prep_model_hyperparameters), so results "
+        "are directly comparable across pipelines. Default: None (no recipe -- the model "
+        "class's own preprocessing defaults, unrestricted; this was the only behaviour "
+        "before this argument existed).",
+    )
+    parser.add_argument(
         "--scratch-dir",
         default=None,
         help="Deterministic path for AutoGluon's predictor artifacts (for cluster cleanup); "
@@ -521,6 +650,7 @@ def main():
         scratch_dir=args.scratch_dir,
         min_samples_per_class=args.min_samples_per_class,
         filter_unlabeled=not args.keep_unlabeled,
+        recipe_config=args.recipe_config,
     )
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")
