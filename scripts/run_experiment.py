@@ -334,6 +334,46 @@ def run_one(
                 len(set(inferred.tolist())),
             )
 
+    # Drop rows with any NaN in their *feature* (spectral) columns, before any
+    # preprocessing recipe or split (but after the group-id inference above,
+    # which must see one row per original sample to align positionally with
+    # ``dataset.targets``). Confirmed isolated to exactly two datasets across
+    # the full 77-dataset corpus (checked directly, not assumed):
+    # adenine_colloidal_silver (45/630 rows) and adenine_solid_silver
+    # (135/1851 rows) each carry a block of NaN columns for a subset of
+    # samples -- a genuine measurement-range gap in the source data (those
+    # samples were acquired over a narrower Raman-shift window than the
+    # dataset's common resampled column grid, not a raman_data loader bug:
+    # colloidal_silver's NaN block is a single contiguous trailing run
+    # (indices 467-533 of 534 columns), solid_silver's is a leading+trailing
+    # pair (indices 0-38 and 394-533) -- both consistent with "these samples
+    # just weren't measured over the full range", not corruption. Sklearn's
+    # own `fit()` for PLS/RIDGE/SVM rejects NaN outright (`ValueError: Input
+    # X contains NaN`), while KNN's sklearn wrapper tolerates it -- so
+    # without this fix, PLS/RIDGE/SVM failed 100% deterministically on these
+    # two datasets regardless of model/recipe/repeat/fold (see
+    # docs/kfold_priority_plan.md finding 3 in the RamanPreprocessing repo).
+    # Applied here unconditionally for every dataset (not gated to these two
+    # by name), so it's a single, traceable fix rather than a per-dataset
+    # special case, and so sample counts stay identical across every model
+    # for a given dataset (KNN included) -- this mirrors Pipeline A's
+    # existing, older `RamanBenchmark._load_dataset_from_key`'s
+    # `data_df.dropna()`, which already handled this silently for Pipeline
+    # A; Pipeline B had no equivalent until now.
+    feature_cols = [c for c in df.columns if c not in (label_col, GROUP_COL)]
+    nan_feature_mask = df[feature_cols].isna().any(axis=1)
+    n_nan_feature_rows = int(nan_feature_mask.sum())
+    if n_nan_feature_rows:
+        logger.info(
+            "%s target %d: dropping %d/%d rows with a NaN value in their feature "
+            "(spectral) columns before any split or preprocessing",
+            dataset_name,
+            target_idx,
+            n_nan_feature_rows,
+            len(df),
+        )
+        df = df[~nan_feature_mask]
+
     # Drop rows with a missing (NaN) label. Common in multi-target regression
     # datasets where not every sample was characterized for every analyte
     # (e.g. fuel_benchtop: target 0 has 0 NaNs, every other target has
