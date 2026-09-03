@@ -13,6 +13,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `[benchmark]` extra now pins real PyPI releases (`bencheval>=0.1.0`,
+  `tabarena>=0.1.0`) instead of git URLs, now that both packages publish to
+  PyPI (github.com/autogluon/tabarena/issues/495).
+
 ### Changed
 
 ---

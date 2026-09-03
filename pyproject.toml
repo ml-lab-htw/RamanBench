@@ -71,10 +71,10 @@ autogluon = [
 ]
 benchmark = [
     # TabArena/bencheval dependencies for full benchmark orchestration.
-    # These have git-based dependencies that PyPI doesn't accept, so they're
-    # isolated in a separate extra. Cluster users install with `pip install -e .[cluster]`.
-    "bencheval @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/bencheval",
-    "tabarena @ git+https://github.com/autogluon/tabarena.git#subdirectory=packages/tabarena",
+    # As of their PyPI prerelease (see github.com/autogluon/tabarena/issues/495),
+    # both install as real PyPI packages -- no git URLs needed anymore.
+    "bencheval>=0.1.0",
+    "tabarena>=0.1.0",
 ]
 models = [
     "raman-bench[autogluon]",
