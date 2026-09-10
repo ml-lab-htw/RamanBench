@@ -1,0 +1,23 @@
+# Git-only model dependencies -- NOT installable via `pip install raman-bench[models]`.
+#
+# These three TabArena-native models are wrapped by RamanBench (Prep_TABFM,
+# Prep_SAP_RPT_OSS, Prep_ORIONMSP) but their upstream packages publish no PyPI
+# release, only a git repo. PyPI forbids direct-URL requirements in an uploaded
+# package, so they cannot live in pyproject.toml's `[models]` extra.
+#
+# Install after `pip install raman-bench[models]` (or `[full]`):
+#     pip install -r requirements-models-git.txt
+#
+# Each pin matches tabarena's own pip_extra metadata (tabarena.models.<key>.info)
+# so the wrapped estimator stays the one tabarena's search space was tuned against.
+# Until installed, the corresponding Prep_* classes raise a clear "not available"
+# error (see src/raman_bench/preprocessing/wrapped_models.py).
+
+# TabFM  -> Prep_TABFM   (tabarena.models.tabfm.model.TabFMModel)
+tabfm[pytorch] @ git+https://github.com/google-research/tabfm.git@633cd265f498e1d20c9625be0639f6305d8e2541
+
+# SAP-RPT-OSS  -> Prep_SAP_RPT_OSS   (tabarena.models.sap_rpt_oss.model.SAPRPTOSSModel)
+sap_rpt_oss @ git+https://github.com/SAP-samples/sap-rpt-1-oss.git@a323a0aff976fda4ac43c3196a92406de7689aaa
+
+# OrionMSP  -> Prep_ORIONMSP   (tabarena.models.orionmsp.model.OrionMSPModel, from the tabtune package)
+tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git

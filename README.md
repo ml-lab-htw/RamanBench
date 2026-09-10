@@ -65,6 +65,17 @@ pip install "raman-bench[models]"
 This adds `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, and `ramanspy` to
 the core package. AutoGluon is not needed for this path.
 
+Three wrapped models — `Prep_TABFM`, `Prep_SAP_RPT_OSS`, `Prep_ORIONMSP` — have
+git-only upstreams and cannot ship in a PyPI package. Install them separately if
+you need them:
+
+```bash
+pip install -r requirements-models-git.txt
+```
+
+Until then those three classes raise a clear "not available" error; every other
+model works without this step.
+
 ### Option 3 — Full benchmark reproducibility
 
 The paper's benchmark runs all models through AutoGluon's automated

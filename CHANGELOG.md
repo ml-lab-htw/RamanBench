@@ -9,7 +9,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.1.0] — 2026-09-10
+## [1.1.1] — 2026-09-10
+
+### Fixed
+
+- **PyPI publishing.** `pip install raman-bench` (and every extra) was rejected on
+  upload with `400 Can't have direct dependency` because the `[models]` extra carried
+  three `@ git+https://…` requirements (`tabfm`, `sap_rpt_oss`, `tabtune`). PyPI
+  forbids direct-URL requirements in an uploaded package. Those three are moved out of
+  `pyproject.toml` into `requirements-models-git.txt` (`pip install -r
+  requirements-models-git.txt`). No PyPI-installable model is affected; `Prep_TABFM`,
+  `Prep_SAP_RPT_OSS` and `Prep_ORIONMSP` degrade to the existing "not available" guard
+  until the git requirements file is installed. 1.1.0 was tagged and released on
+  GitHub but never reached PyPI for this reason.
 
 Pipeline B (real repeated k-fold) preprocessing-ablation support, three new
 chemometric baseline models, and a fix for a 100%-failure bug on the

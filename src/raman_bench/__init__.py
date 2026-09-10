@@ -48,7 +48,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 load_dotenv()
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __author__ = "Mario Koddenbrock (HTW Berlin), Christoph Lange (TU Berlin)"
 
 _public_map = {
