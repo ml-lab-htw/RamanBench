@@ -39,6 +39,13 @@ class SklearnAutoGluonBridge(AbstractModel):
     _sklearn_cls = None  # override in subclass
 
     def _fit(self, X, y, time_limit=None, **kwargs):
+        # Route through AutoGluon's preprocess() so RamanPreprocessingMixin._preprocess
+        # applies the recipe (per AbstractModel's contract that _fit must call
+        # self.preprocess(X)). The mixin used to transform X before calling
+        # super()._fit(), so this bridge never needed the call; since fix option 1
+        # moved the transform into _preprocess, it does. No-op when no mixin /
+        # no recipe is active.
+        X = self.preprocess(X, y=y)
         X_np = (
             X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
         )
@@ -66,6 +73,10 @@ class SklearnAutoGluonBridge(AbstractModel):
             self._estimator.fit(X_np, y_arr)
 
     def _predict_proba(self, X, **kwargs):
+        # See _fit: route through preprocess() so the recipe is applied at
+        # inference too. preprocess_nonadaptive=... in kwargs is respected
+        # (bagged children pass False; the shared step already ran).
+        X = self.preprocess(X, **kwargs)
         X_np = (
             X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
         )

@@ -80,3 +80,46 @@ def test_shape_changing_preprocessing_survives_real_autogluon_fit(model_key, mec
     assert not np.isnan(proba).any()
     # Non-degenerate: predictions should not all collapse to a single class.
     assert len(set(np.asarray(preds))) > 1 or proba.shape[-1] == 1
+
+
+@pytest.mark.parametrize("mechanism", list(SHAPE_CHANGING_HYPERPARAMS))
+@pytest.mark.parametrize("model_key", ["KNN", "RF", "PLS"])
+def test_shape_changing_preprocessing_survives_bagged_predict(model_key, mechanism):
+    """The production scenario: a bagged model (``_c1_BAG_L1``) + a shape-changing
+    recipe, then ``predictor.predict()``.
+
+    Before fix option 1 (transform moved into ``_preprocess``, ``self.features``
+    left alone) this raised ``KeyError: "None of [Index(['feature_0', ...])] are
+    in the [columns]"`` on the bagged predict path —
+    ``BaggedEnsembleModel._predict_proba_internal`` ->
+    ``child.preprocess(X_raw, preprocess_stateful=False)`` ->
+    ``_preprocess_nonadaptive`` -> ``X_raw[self.features]`` with ``self.features``
+    mutated to the post-transform names. Fit + OOF scoring succeeded, so this only
+    reproduces via the full ``TabularPredictor.fit(num_bag_folds=...)`` +
+    ``predict`` path. See autogluon/autogluon#5898.
+    """
+    tabular = pytest.importorskip("autogluon.tabular")
+    TabularPredictor = tabular.TabularPredictor
+
+    rng = np.random.RandomState(0)
+    n, p = 200, 200
+    Xarr = rng.rand(n, p)
+    yarr = Xarr[:, :20].sum(axis=1) + rng.normal(scale=0.1, size=n)
+    df = pd.DataFrame(Xarr, columns=[f"w{i:04d}" for i in range(p)])
+    df["target"] = yarr
+    train, test = df.iloc[:160], df.iloc[160:].drop(columns=["target"])
+
+    hp = dict(SHAPE_CHANGING_HYPERPARAMS[mechanism])
+    hp["ag_args_ensemble"] = {"fold_fitting_strategy": "sequential_local"}
+
+    predictor = TabularPredictor(label="target", problem_type="regression", verbosity=0)
+    predictor.fit(
+        train_data=train,
+        hyperparameters={PREPROCESSED_MODELS[model_key]: hp},
+        num_bag_folds=2,
+        num_bag_sets=1,
+        fit_weighted_ensemble=False,
+    )
+    preds = predictor.predict(test)
+    assert len(preds) == len(test)
+    assert not preds.isna().any()
