@@ -9,8 +9,25 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-10
+
+Pipeline B (real repeated k-fold) preprocessing-ablation support, three new
+chemometric baseline models, and a fix for a 100%-failure bug on the
+representation-changing preprocessing recipes under bagging.
+
 ### Added
 
+- **Three new custom baseline models — `SVM`, `PCR`, `PCA-LDA`.** sklearn-backed,
+  on the `models/custom/<key>/{model,hpo,info}.py` convention:
+  - `SVM` — RBF-kernel `SVR` (regression) / `SVC` (classification); `predict_proba`
+    is a softmax of `decision_function` (no internal CV). Subsamples (seeded;
+    stratified for classification) to `rbf_max_train=6000` since RBF training is
+    between quadratic and cubic in `n_samples`.
+  - `PCR` — PCA → OLS (regression) / PCA → one-hot OLS + argmax (PCR-DA,
+    classification).
+  - `PCA-LDA` (`PCALDA`) — PCA → `LinearDiscriminantAnalysis`; classification only
+    (added to `CLASSIFICATION_ONLY_MODELS`; `fit()` also raises on a continuous
+    target).
 - **`scripts/run_experiment.py` (Pipeline B) can now specify a preprocessing
   recipe.** Previously the only way to apply a preprocessing recipe
   (`prep_*_enabled` hyperparameters) was Pipeline A
@@ -33,11 +50,55 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Shape-changing preprocessing recipes (`gcu_lvse`, `prep_ensemble`) no longer
+  crash under bagging.** `RamanPreprocessingMixin` used to apply the recipe inside
+  `_fit` and then re-point `self.features` at the post-transform `feature_0..N`
+  names. Under bagging (`num_bag_folds >= 2`, i.e. all of Pipeline B),
+  `BaggedEnsembleModel._predict_proba_internal` → `child.preprocess(X_raw,
+  preprocess_stateful=False)` → `AbstractModel._preprocess_nonadaptive` →
+  `X_raw[self.features]` then failed with
+  `KeyError: "None of [Index(['feature_0', ...])] are in the [columns]"` — a 100%
+  failure for those two recipes on every bagged run. The transform now runs in a
+  new `RamanPreprocessingMixin._preprocess` override, which AutoGluon calls
+  per-fold at fit and predict on the raw input; `self.features` is never touched,
+  so every code path stays consistent. `_resync_autogluon_features` and
+  `_preprocess_if_dataframe` are removed. `SklearnAutoGluonBridge._fit` /
+  `._predict_proba` (PLS/PCR/RIDGE/SVM/RamanPFN) now call `self.preprocess(X)` —
+  they previously bypassed it. Regression test:
+  `test_shape_changing_preprocessing_survives_bagged_predict`. See
+  `autogluon/autogluon#5898`.
+- **Loader-emitted group-id columns are no longer passed to models as features
+  (Pipeline A).** `ZenodoLoader`/`FigshareLoader`/GitHub loaders emit a grouping
+  column that was leaking into `model.fit()`/`model.predict()` on 9 grouped
+  datasets, inflating scores. Stripped by exact match on
+  `raman_bench.splitting.GROUP_COL` (`_group_id`), mirroring Pipeline B's
+  `RamanBenchTaskWrapper`. Scores on affected datasets will decrease (correctly).
+- **NaN-carrying feature rows no longer crash `PLS`/`RIDGE`/`SVM` in Pipeline B.**
+  `adenine_colloidal_silver` and `adenine_solid_silver` carry a genuine
+  measurement-range gap (a block of NaN feature columns for a subset of rows),
+  which sklearn's `fit()` rejects — a deterministic 100% failure for those
+  (dataset, model) combos independent of recipe. Rows with a NaN in their spectral
+  columns are now dropped right after `dataset.to_dataframe()`, before any recipe
+  or split, applied uniformly to every dataset (drop count logged). Mirrors
+  Pipeline A's existing `dropna()`. Regression test:
+  `tests/test_run_experiment_nan_features.py`.
 - `[benchmark]` extra now pins real PyPI releases (`bencheval>=0.1.0`,
   `tabarena>=0.1.0`) instead of git URLs, now that both packages publish to
   PyPI (github.com/autogluon/tabarena/issues/495).
+- `[models]` extra now uses PyPI `tabarena[...]>=0.1.0` instead of a git URL.
+  TabArena published the real `tabarena` 0.1.0 to PyPI on 2026-09-03 (declaring
+  all the per-model extras used here); the git URL was only needed while the sole
+  PyPI `tabarena` was a `0.0.0` placeholder. `tabfm`, `sap_rpt_oss`, `tabtune`
+  remain git deps (not on PyPI).
 
 ### Changed
+
+- Preprocessing augmentation (`prep_aug_*`, only for models that set
+  `_supports_augmentation` — `NN_TORCH`/`FASTAI`/`REALMLP`) now runs on the raw
+  spectra in `_fit`, and `_preprocess` transforms the augmented set. Previously
+  transform-then-augment. No CPU baseline model enables augmentation.
+- `src/raman_bench/__init__.py::__version__` is now bumped in step with
+  `pyproject.toml` (it had been stale at `0.1.0` since before the 1.0.0 release).
 
 ---
 
