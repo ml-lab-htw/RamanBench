@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "raman-bench"
-version = "1.1.0"
+version = "1.1.1"
 description = "A large-scale benchmark for machine learning on Raman spectroscopy data"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -123,14 +123,10 @@ models = [
     # unconditionally at module level, so it's a hard runtime dependency of any ModernNCA
     # fit, not an optional/rarely-hit one (matches tabarena's own modernnca_info.pip_extra).
     "category_encoders",
-    # TabFM (Prep_TABFM) -- pinned to the exact commit tabarena's own tabfm_info.pip_extra
-    # uses, so the estimator this wraps stays the one tabarena's search space was tuned
-    # against.
-    "tabfm[pytorch] @ git+https://github.com/google-research/tabfm.git@633cd265f498e1d20c9625be0639f6305d8e2541",
     # Batch 3 (NORI, SAP_RPT_OSS, ORIONMSP, ILTM, LIMIX, TABSTAR) -- the final batch
-    # of the TabArena-native onboarding effort. Every pin below matches tabarena's
+    # of the TabArena-native onboarding effort. Every PyPI pin below matches tabarena's
     # own pip_extra metadata (tabarena.models.<key>.info) exactly, same rationale as
-    # perpetualboosting/chimeraboost/xrfm/tabfm above: these estimators stay the same
+    # perpetualboosting/chimeraboost/xrfm above: these estimators stay the same
     # ones tabarena's own search spaces were tuned against.
     #
     # NOTE: iLTM's own floor (`numpy>=2.3.3`) forces a NumPy 1.x -> 2.x bump in this
@@ -139,12 +135,18 @@ models = [
     # satisfying both iLTM's floor and sktime's own `numpy<2.4,>=1.21` ceiling
     # simultaneously; the full suite passed, no other model regressed).
     "synthefy-nori>=0.7.0",
-    "sap_rpt_oss @ git+https://github.com/SAP-samples/sap-rpt-1-oss.git@a323a0aff976fda4ac43c3196a92406de7689aaa",
-    "tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git",
     "iltm>=0.1.1",
     "einops",
     "kditransform",
     "tabstar==1.1.15",
+    # NOTE: three TabArena-native models -- TabFM (Prep_TABFM), SAP-RPT-OSS
+    # (Prep_SAP_RPT_OSS) and OrionMSP (Prep_ORIONMSP, from the `tabtune` package) --
+    # are NOT installable from here. Their upstream packages publish no PyPI release,
+    # only git repos, and PyPI forbids direct-URL (`@ git+https://...`) requirements
+    # in an uploaded package. Install them by hand from `requirements-models-git.txt`
+    # (`pip install -r requirements-models-git.txt`); the corresponding Prep_* classes
+    # degrade to a clear "not available" error until you do (see
+    # preprocessing/wrapped_models.py's optional-import guard).
 ]
 full = [
     "raman-bench[autogluon]",
