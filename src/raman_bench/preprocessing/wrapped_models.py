@@ -827,7 +827,15 @@ for _key, _info in discover_custom_models().items():
     PREPROCESSED_MODELS[_key] = _info.model_cls
 del _key, _info
 
-CLASSIFICATION_ONLY_MODELS = {"TABPFN-WIDE", "ORIONMSP"}
+# ROCKET and ARSENAL used to be classification-only, but that no longer applies
+# here: ARSENAL's custom model was removed entirely (see
+# src/raman_bench/models/custom/arsenal/ deletion), and ROCKET gained a
+# regression branch (RocketRegressor) in the same upstream change that dropped
+# it from this set -- see git history on wrapped_models.py / rocket/model.py.
+# PCALDA (added on this branch, 2026-08-28) is a genuine classification-only
+# addition: LDA has no regression analogue, and PCALDAModel.fit() raises on a
+# continuous target as a backstop -- see its docstring.
+CLASSIFICATION_ONLY_MODELS = {"TABPFN-WIDE", "ORIONMSP", "PCALDA"}
 
 # Mirror of CLASSIFICATION_ONLY_MODELS: NORI (OrionMSPModel's opposite number in
 # batch 3) wraps NoriModel, whose own supported_problem_types() returns only

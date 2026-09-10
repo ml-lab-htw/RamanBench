@@ -658,18 +658,27 @@ class RamanPreprocessingMixin:
 
         return X
 
-    def _preprocess_transform(self, X: np.ndarray) -> np.ndarray:
+    def _preprocess_transform(self, X: np.ndarray, params: dict | None = None) -> np.ndarray:
         """Transform data using fitted preprocessing (no re-fitting).
 
         Parameters
         ----------
         X : np.ndarray, shape (n_samples, n_features)
+        params : dict, optional
+            Resolved preprocessing hyperparameters. When ``None`` (the ensemble
+            path, which swaps ``self.params`` per block), they are read live
+            from ``self._get_model_params()``. The ``_preprocess`` hook passes
+            the fit-time recipe snapshot explicitly, because by the time it runs
+            (inside the wrapped model's own ``_fit``/``_predict``) the ``prep_*``
+            hyperparameters have been stripped from ``self.params`` so they can't
+            reach the underlying library constructor.
 
         Returns
         -------
         np.ndarray, shape (n_samples, n_features)
         """
-        params = self._get_model_params()
+        if params is None:
+            params = self._get_model_params()
 
         if params.get("prep_crop_enabled", False):
             start_frac = params.get("prep_crop_start_frac", 0.15)
@@ -961,48 +970,22 @@ class RamanPreprocessingMixin:
             return X
         return np.concatenate(block_outputs, axis=1)
 
-    def _resync_autogluon_features(self, X: pd.DataFrame) -> None:
-        """Resync AutoGluon's cached feature/column bookkeeping to a reshaped ``X``.
-
-        Root cause of the ``KeyError: "None of [Index([...])] are in the
-        [columns]"`` crash that ``crop``/``gcu``/``lvse``/the preprocessing
-        ensemble produced: ``AbstractModel.fit()`` calls
-        ``self.initialize()`` -> ``_initialize()`` ->
-        ``_preprocess_set_features(X)`` on the *original*, pre-preprocessing
-        ``X`` *before* ``self._fit()`` (our override, below) ever runs. That
-        call is what sets ``self.features`` / ``self._features_internal`` /
-        ``self._features_internal_to_align`` / ``self.feature_metadata`` /
-        ``self._feature_metadata`` — captured against the original column
-        set. Many models' own ``_fit``/``_predict_proba`` then call
-        ``self.preprocess(X)`` (e.g. ``KNNModel._fit`` -> ``self.preprocess``
-        -> ``AbstractModel._preprocess_nonadaptive`` -> ``X[self.features]``,
-        and ``AbstractModel._predict_proba`` does the same via
-        ``self.preprocess(X)``) using that stale column list against our
-        already width-changed ``X`` — hence the ``KeyError``.
-
-        Fix: once a shape-changing step has produced the final transformed
-        ``X`` (post crop/gcu/lvse/ensemble, pre model-library ``_fit``),
-        recompute the same bookkeeping AutoGluon itself would have produced
-        had it seen this ``X`` from the start — by rerunning its own
-        ``_preprocess_set_features`` (reusing its valid-feature /
-        drop-unique / feature_metadata inference rather than reimplementing
-        it here) instead of leaving the pre-preprocessing snapshot in place.
-        This keeps every later ``self.preprocess(X)`` call — at fit time
-        (e.g. KNN, tree models) and at inference time via
-        ``_predict``/``_predict_proba`` below, which always feeds
-        ``super()._predict*`` an already-transformed ``X`` of the same
-        (new) shape — consistent with what ``self.features``/
-        ``self.feature_metadata`` expect.
-
-        Only called when the preprocessed column set actually differs from
-        the original one (see call site in ``_fit``), so shape-preserving
-        steps (SNV, baseline correction, denoising, ...) are unaffected and
-        keep relying on AutoGluon's own original-X-derived bookkeeping,
-        exactly as before this fix.
-        """
-        self.features = list(X.columns)
-        self.feature_metadata = None
-        self._preprocess_set_features(X)
+    # NOTE (2026-09-10): the old ``_resync_autogluon_features`` helper was removed.
+    # It re-pointed ``self.features`` at the post-transform ``feature_0..N`` names
+    # to paper over the fact that shape-changing recipes transformed ``X`` inside
+    # ``_fit`` *after* AutoGluon had already snapshotted ``self.features`` against
+    # the original columns. That fixed a fit-time ``KeyError`` but created a
+    # predict-time one: ``BaggedEnsembleModel._predict_proba_internal`` ->
+    # ``child.preprocess(X_raw, preprocess_stateful=False)`` ->
+    # ``AbstractModel._preprocess_nonadaptive`` -> ``X_raw[self.features]`` with
+    # ``self.features`` mutated to names not present in the raw frame. See
+    # ``RamanPreprocessing/docs/bugs/autogluon_shape_changing_bag_bug.md`` and
+    # autogluon/autogluon#5898.
+    #
+    # Fix (option 1): the recipe transform now runs in ``_preprocess`` (below),
+    # which AutoGluon calls per-fold at fit and predict on the raw input. The
+    # underlying model always receives the transformed X, every code path stays
+    # consistent, and ``self.features`` is never touched.
 
     def _fit(self, X, y, **kwargs):
         # Pop _prep_restriction so it doesn't reach underlying library constructors.
@@ -1057,13 +1040,20 @@ class RamanPreprocessingMixin:
         logger.debug("Has preprocessing: %s", has_preprocessing)
 
         if has_preprocessing:
-            feature_cols = X.columns.tolist()
             X_np = X.values.astype(np.float64)
             logger.info(
-                "Start Preprocessing for Training — %d spectra (%s)",
+                "Fit preprocessing — %d spectra (%s)",
                 len(X_np),
                 self.__class__.__name__,
             )
+            # Fit the stateful preprocessing (MSC/EMSC reference, GCU basis,
+            # LVSE, wavelet levels, ...) on the training fold. The transformed
+            # output is discarded here: the actual transform is (re)applied by
+            # ``_preprocess`` below, which AutoGluon calls per-fold at fit and
+            # predict on the raw input. This is the whole point of fix option 1
+            # (see the note where _resync_autogluon_features used to live) —
+            # self.features stays pointed at the original columns and every
+            # AutoGluon code path, bagged or not, sees consistent bookkeeping.
             if ensemble_enabled:
                 blocks = params.get("prep_ensemble_blocks")
                 logger.info(
@@ -1071,11 +1061,26 @@ class RamanPreprocessingMixin:
                     len(blocks),
                     self.__class__.__name__,
                 )
-                X_np = self._preprocess_fit_ensemble(X_np, blocks)
+                X_out = self._preprocess_fit_ensemble(X_np, blocks)
             else:
-                X_np = self._preprocess_fit(X_np)
+                X_out = self._preprocess_fit(X_np)
+
+            # Snapshot the resolved recipe now, before the prep_* params are
+            # stripped from self.params below — _preprocess needs it and can't
+            # read it from self.params during the wrapped model's own _fit.
+            self._prep_recipe = {k: v for k, v in params.items() if k.startswith("prep_")}
+            # Input/output widths let _preprocess cheaply detect an already-
+            # transformed X (shape-changing recipes only) and skip re-applying.
+            self._prep_n_features_in = X_np.shape[1]
+            self._prep_n_features_out = X_out.shape[1]
 
             if params.get("prep_aug_enabled", False):
+                # Augmentation adds synthetic training rows (and matching y), so
+                # it has to happen here rather than in _preprocess. It now runs
+                # on the RAW spectra; _preprocess then transforms the augmented
+                # set. (Previously: transform-then-augment. Only augmentation-
+                # capable models — NN_TORCH/FASTAI/REALMLP — are affected; none
+                # of the CPU k-fold models set _supports_augmentation.)
                 noise_sigma = params.get("prep_aug_noise", 0.01)
                 shift_max = params.get("prep_aug_shift", 0)
                 n_augments = params.get("prep_aug_n", 2)
@@ -1103,7 +1108,7 @@ class RamanPreprocessingMixin:
                         mixup_alpha,
                         label_type,
                     )
-                    X_np, y_np = augment_spectra(
+                    X_aug, y_np = augment_spectra(
                         X_np,
                         y_np,
                         noise_sigma=noise_sigma,
@@ -1112,23 +1117,14 @@ class RamanPreprocessingMixin:
                         mixup_alpha=mixup_alpha,
                         label_type=label_type,
                     )
+                    X = pd.DataFrame(X_aug, columns=X.columns, index=range(len(X_aug)))
                     y_name = y.name if hasattr(y, "name") else "target"
-                    y = pd.Series(y_np, name=y_name)
-
-            X = pd.DataFrame(X_np, columns=_output_feature_cols(feature_cols, X_np.shape[1]))
-
-            if list(X.columns) != feature_cols:
-                # Shape-changing step (crop / gcu / lvse / ensemble) — AutoGluon's
-                # self.features/self.feature_metadata were captured against the
-                # original (pre-preprocessing) columns before this _fit() ran; see
-                # _resync_autogluon_features's docstring for the full root-cause
-                # explanation of the KeyError this prevents.
-                self._resync_autogluon_features(X)
+                    y = pd.Series(y_np, name=y_name, index=X.index)
 
         # Strip prep_* params before forwarding to the underlying library
         # constructor (e.g. CatBoostClassifier raises on unknown kwargs).
         # They are restored in `finally` so _get_model_params() still works
-        # during predict().
+        # during predict(). _preprocess reads self._prep_recipe instead.
         prep_keys = [k for k in list(self.params.keys()) if k.startswith("prep_")]
         prep_params_backup = {k: self.params.pop(k) for k in prep_keys}
         try:
@@ -1138,48 +1134,60 @@ class RamanPreprocessingMixin:
         finally:
             self.params.update(prep_params_backup)
 
-    def _preprocess_if_dataframe(self, X):
-        """Apply preprocessing transform only if X is a pandas DataFrame.
+    def _preprocess(self, X, **kwargs):
+        """Apply the fitted Raman preprocessing recipe.
 
-        Some AutoGluon models (e.g. NN_TORCH) pass internal dataset objects
-        during validation scoring — these have already been transformed and
-        should be passed through unchanged.
+        AutoGluon calls this (via ``AbstractModel.preprocess``) from inside the
+        wrapped model's own ``_fit`` and ``_predict*``, once per fold, on the
+        raw input columns. Running the transform here — rather than in ``_fit``
+        with a hand-patched ``self.features`` — keeps fit and predict, bagged
+        and un-bagged, consistent (autogluon/autogluon#5898).
+
+        Non-DataFrame inputs (some NN models pass internal dataset objects during
+        validation scoring) and the case where the recipe has already been
+        applied to this X are passed through untouched.
         """
-        params = self._get_model_params()
-        ensemble_enabled = params.get("prep_ensemble_enabled", False) and params.get(
+        recipe = getattr(self, "_prep_recipe", None)
+        if recipe is None or not isinstance(X, pd.DataFrame):
+            return super()._preprocess(X, **kwargs)
+
+        ensemble_enabled = recipe.get("prep_ensemble_enabled", False) and recipe.get(
             "prep_ensemble_blocks"
         )
-        if any(params.get(k, False) for k in _TRANSFORM_ENABLED_PARAMS) or ensemble_enabled:
-            if isinstance(X, pd.DataFrame):
-                logger.info(
-                    "Start Preprocessing for Inference — %d spectra (%s)",
-                    len(X),
-                    self.__class__.__name__,
-                )
-                feature_cols = X.columns.tolist()
-                X_np = X.values.astype(np.float64)
-                if ensemble_enabled:
-                    X_np = self._preprocess_transform_ensemble(X_np)
-                else:
-                    X_np = self._preprocess_transform(X_np)
-                X = pd.DataFrame(X_np, columns=_output_feature_cols(feature_cols, X_np.shape[1]))
-        return X
+        transform_on = ensemble_enabled or any(
+            recipe.get(k, False) for k in _TRANSFORM_ENABLED_PARAMS
+        )
+        if not transform_on:
+            return super()._preprocess(X, **kwargs)
 
-    def _predict(self, X, **kwargs):
-        X = self._preprocess_if_dataframe(X)
-        return super()._predict(X, **kwargs)
+        # Already-transformed guard (shape-changing recipes only — for shape-
+        # preserving ones the pipeline applies the transform exactly once per
+        # fit/predict, same as before this refactor).
+        n_out = getattr(self, "_prep_n_features_out", None)
+        n_in = getattr(self, "_prep_n_features_in", None)
+        if n_out is not None and n_out != n_in and X.shape[1] == n_out:
+            return super()._preprocess(X, **kwargs)
+
+        logger.info(
+            "Apply preprocessing — %d spectra (%s)", len(X), self.__class__.__name__
+        )
+        feature_cols = X.columns.tolist()
+        X_np = X.values.astype(np.float64)
+        if ensemble_enabled:
+            X_np = self._preprocess_transform_ensemble(X_np)
+        else:
+            X_np = self._preprocess_transform(X_np, params=recipe)
+        X = pd.DataFrame(
+            X_np,
+            columns=_output_feature_cols(feature_cols, X_np.shape[1]),
+            index=X.index,
+        )
+        return super()._preprocess(X, **kwargs)
 
     def _predict_proba(self, X, **kwargs):
-        # AutoGluon uses _predict_proba as the universal internal prediction
-        # entry point for all problem types, including regression. Preprocessing
-        # is applied here so every model gets exactly one pass regardless of
-        # problem type.
-        # IMPORTANT: custom models must NOT implement _predict_proba for
-        # regression by delegating to self._predict — that re-enters this
-        # method's MRO and applies preprocessing a second time. Use a private
-        # _raw_predict() helper that bypasses the mixin instead.
+        # Thin wrapper: the recipe transform runs in _preprocess now, so this
+        # only adds an observability log line (parity with "Fitted Model —").
         n_spectra = len(X) if hasattr(X, "__len__") else None
-        X = self._preprocess_if_dataframe(X)
         result = super()._predict_proba(X, **kwargs)
         if n_spectra is not None:
             logger.info("Predicted %d spectra (%s)", n_spectra, self.__class__.__name__)
