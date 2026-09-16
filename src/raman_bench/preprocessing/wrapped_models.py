@@ -13,7 +13,7 @@ are applied for specific model families:
 
 The Raman-specific custom architectures (PLS, DeepCNN, RamanNet, SANet,
 RamanFormer, RamanTransformer, ReZeroNet, FC-ResNeXt, CoAtNet, ROCKET,
-Arsenal, TabPFN-Wide) and GBM/TA-TABPFN-3 have moved to the per-model
+Arsenal, TabPFN-Wide) and GBM/TA-TABPFN-3/EXAONE-Tabular have moved to the per-model
 ``raman_bench/models/custom/<key>/{model.py,hpo.py,info.py}`` convention
 (auto-discovered via :mod:`raman_bench.models.discover`, see
 ``models/custom/ridge/`` for the reference implementation) -- this module now
