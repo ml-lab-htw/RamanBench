@@ -9,6 +9,25 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`CAUSILO` model.** Wraps [Causilo](https://github.com/nums-ai/causilo) (Nums AI's
+  pretrained tabular foundation model, `pip install causilo`) as a RamanBench-only
+  custom model on the `models/custom/<key>/{model,hpo,info}.py` convention
+  (`src/raman_bench/models/custom/causilo/`). Sklearn-compatible
+  (`CausiloClassifier`/`CausiloRegressor`), supports both classification (up to 10
+  classes, matching the official checkpoint's native limit) and regression; no
+  gradient training happens locally — a fixed pretrained transformer conditions on
+  the training rows at inference time, and the checkpoint is downloaded and cached
+  from Hugging Face on first fit. No TabArena integration exists for Causilo as of
+  `tabarena` 0.1.0 (checked every `tabarena.models.<key>` directory before writing
+  this), so this is added directly to RamanBench rather than upstream — Causilo is a
+  general-purpose tabular model with no Raman-specific structure, so it may still be
+  proposed as a standalone upstream TabArena PR later, separately from this change.
+  `compute="gpu"`. Added via `pyproject.toml`'s `models` extra (`causilo>=1.0.0`);
+  see the inline note there about a real, confirmed-benign `torch` version conflict
+  with `fastai`'s own (stale) `torch<2.10` ceiling.
+
 ## [1.1.1] — 2026-09-10
 
 ### Fixed
