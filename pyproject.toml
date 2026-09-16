@@ -139,6 +139,29 @@ models = [
     "einops",
     "kditransform",
     "tabstar==1.1.15",
+    # Causilo (Prep_CAUSILO) -- pretrained tabular foundation model from Nums AI
+    # (github.com/nums-ai/causilo), added as a RamanBench-only custom model (no
+    # TabArena integration exists as of tabarena 0.1.0 -- confirmed by inspecting
+    # every tabarena.models.<key> directory in the installed wheel). Real PyPI
+    # package, sklearn-compatible (CausiloClassifier/CausiloRegressor), requires
+    # Python 3.10-3.12. Code is Apache-2.0; the pretrained checkpoint (downloaded
+    # from Hugging Face on first fit) ships under a separate non-commercial
+    # "Causilo License v1.0" -- fine for RamanBench's own research use, but noted
+    # here for anyone vendoring this extras group into a commercial product.
+    #
+    # NOTE: causilo's own floor is unpinned torch>=2.13, which is *newer* than
+    # the torch<2.10 ceiling `fastai` (Prep_FASTAI, also in this `models` group)
+    # declares -- a real, confirmed pip resolver conflict (`pip install causilo`
+    # into this env bumped torch 2.9.1 -> 2.14.0 and printed
+    # "fastai 2.8.5 requires torch<2.10,>=1.10, but you have torch 2.14.0",
+    # same shape as the tabpfn/tabpfnwide conflict noted above). Unlike that one,
+    # this isn't resolved by pinning a floor here: fastai's ceiling is simply
+    # stale. Verified fastai still imports and its TabularModel still builds
+    # fine under torch 2.14 (only a torch.jit.script deprecation FutureWarning,
+    # no actual breakage), so this is left as an unpinned, known-benign warning
+    # rather than force-downgrading torch for every other GPU model in this
+    # extras group.
+    "causilo>=1.0.0",
     # NOTE: three TabArena-native models -- TabFM (Prep_TABFM), SAP-RPT-OSS
     # (Prep_SAP_RPT_OSS) and OrionMSP (Prep_ORIONMSP, from the `tabtune` package) --
     # are NOT installable from here. Their upstream packages publish no PyPI release,
