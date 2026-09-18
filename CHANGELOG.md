@@ -7,7 +7,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased] — targeting 2.0.0 (breaking)
+## [Unreleased]
+
+## [2.0.0] — 2026-09-18 (breaking)
 
 ### Removed
 
