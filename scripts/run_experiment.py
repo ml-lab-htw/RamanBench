@@ -57,7 +57,15 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 DEFAULT_NUM_RANDOM_CONFIGS = 50
 DEFAULT_NUM_BAG_FOLDS = 8
-DEFAULT_TIME_LIMIT = 3600
+# Raised from 3600 (2026-09-18): the largest datasets in RamanPreprocessing's k-fold corpus
+# (mlrod ~130k rows, bacteria_identification ~78.5k, wheat_lines ~53k) reliably hit
+# TimeLimitExceeded on even simple CPU models (PLS/PCR/RIDGE/PCALDA/KNN/SVM) at the old 1h
+# budget once available memory was no longer the binding constraint -- raising this alone
+# does not slow down small/fast datasets, since AutoGluon returns as soon as fitting
+# finishes; it only raises the ceiling for genuinely slow fits. SVM at N~130k may still
+# need more (exact-kernel SVM is O(N^2)+); if it keeps failing even at this budget, that is
+# a scope question (cap N for SVM, or switch kernel approximation), not a bigger number.
+DEFAULT_TIME_LIMIT = 18000
 DEFAULT_N_REPEATS = 10
 DEFAULT_N_SPLITS = 3
 
@@ -158,6 +166,7 @@ def run_one(
     min_samples_per_class: int = 9,
     filter_unlabeled: bool = True,
     recipe_config: str | None = None,
+    max_train_samples: int | None = None,
 ) -> dict | None:
     """Run exactly one (model, dataset, target, repeat, fold, config) job and cache the result.
 
@@ -245,6 +254,14 @@ def run_one(
         raise RuntimeError(f"Failed to load dataset {dataset_name!r}")
 
     df = dataset.to_dataframe(target_idx)
+    if max_train_samples is not None and len(df) > max_train_samples:
+        n_before = len(df)
+        df = df.sample(n=max_train_samples, random_state=0)
+        logger.info(
+            "Subsampled %s: %d -> %d rows (max_train_samples=%d); this is a real change to "
+            "what is measured for this dataset, not a performance-neutral optimisation.",
+            dataset_name, n_before, len(df), max_train_samples,
+        )
     label_col = df.columns[-1]
     problem_type = (
         "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
@@ -607,6 +624,16 @@ def main():
         help="Must be identical across every job for this (dataset, target) -- folds per repeat",
     )
     parser.add_argument(
+        "--max-train-samples",
+        type=int,
+        default=None,
+        help="Cap a dataset to at most this many rows (fixed random_state=0 sample) before "
+        "splitting/fitting. None (default) leaves every dataset at full size -- this is an "
+        "explicit, opt-in change to what is measured for a dataset, not a performance tweak; "
+        "added 2026-09-18 for mlrod (~130k rows), whose per-fold AsLS baseline-correction cost "
+        "(a pure-Python per-spectrum loop in raman_preprocessing.py) dominated wall-clock time.",
+    )
+    parser.add_argument(
         "--config-index",
         type=int,
         default=0,
@@ -691,6 +718,7 @@ def main():
         min_samples_per_class=args.min_samples_per_class,
         filter_unlabeled=not args.keep_unlabeled,
         recipe_config=args.recipe_config,
+        max_train_samples=args.max_train_samples,
     )
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")
