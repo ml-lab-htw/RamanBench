@@ -12,15 +12,21 @@ institution-specific logic previously hardcoded in
 GPU-vs-CPU node selection, TU-vs-HTW sbatch dialect) into a profile-driven,
 no-secrets-in-public-repo design:
 
-    - This script and ``run_experiment.sbatch`` are cluster-agnostic.
+    - This script, ``run_experiment.sbatch``, and ``k8s_entrypoint.sh`` are
+      all cluster-agnostic.
     - A profile YAML (``cluster/profiles/*.yaml``) supplies the actual
-      sbatch dialect/resource values. ``cluster/profiles/example.yaml`` is a
-      template with no real values; HTW/TU's real profiles (account,
-      partition, mail, workspace) live in the private
-      ``raman_bench_paper/cluster/profiles/{htw,tu}.yaml``.
+      sbatch dialect/resource values, OR (when the profile sets
+      ``backend: k8s``) the Kubernetes image/PVC/namespace/resource values.
+      ``cluster/profiles/example.yaml`` and ``k8s_example.yaml`` are
+      templates with no real values; HTW/TU/k8s's real profiles (account,
+      partition, mail, workspace, image, PVC) live in the private
+      ``raman_bench_paper/cluster/profiles/{htw,tu,k8s}.yaml``.
     - ``--profile`` accepts either an explicit path, or (with no --profile
-      and no --cluster) auto-detection via ``detect_cluster.py`` -- which
-      falls back to asking the user rather than guessing when ambiguous.
+      and no --cluster) auto-detection via ``detect_cluster.py`` for the
+      SLURM clusters -- which falls back to asking the user rather than
+      guessing when ambiguous. k8s is never auto-detected (a machine can be
+      a SLURM login node AND have kubectl configured at the same time), so
+      it's always an explicit ``--cluster k8s``/``--profile ...k8s.yaml``.
 
 Usage
 -----
@@ -84,6 +90,16 @@ def resolve_profile(profile_arg: str | None, cluster_arg: str | None) -> dict:
             )
         return load_profile(candidate)
 
+    if cluster_arg == "k8s":
+        candidate = CLUSTER_DIR / "profiles" / "k8s.yaml"
+        if not candidate.exists():
+            raise FileNotFoundError(
+                f"No profile at {candidate}. The real k8s profile lives in the private "
+                "raman_bench_paper repo -- pass --profile explicitly (or copy/edit "
+                "cluster/profiles/k8s_example.yaml)."
+            )
+        return load_profile(candidate)
+
     detection = detect_cluster()
     if detection.cluster in ("htw", "tu"):
         candidate = CLUSTER_DIR / "profiles" / f"{detection.cluster}.yaml"
@@ -121,6 +137,18 @@ def resolve_gpu_flags(profile: dict, use_gpu: bool) -> list[str]:
     if profile.get("gpu_flag_style") == "gpus_per_task":
         return ["--gpus-per-task=1"]
     return ["--gres=gpu:1"]
+
+
+def resolve_k8s_resources(profile: dict, model: str, use_gpu: bool) -> dict:
+    """Build a k8s container `resources` block, mirroring resolve_mem_flags/
+    resolve_gpu_flags's per-model memory tiers and GPU-vs-CPU switch for the
+    SLURM path."""
+    mem = profile.get("mem_tiers", {}).get(model, profile.get("default_memory", "64G"))
+    cpu = str(profile.get("default_cpu", "16"))
+    limits = {"cpu": cpu, "memory": mem}
+    if use_gpu:
+        limits[profile.get("gpu_resource_key", "nvidia.com/gpu")] = str(profile.get("gpu_count", 1))
+    return {"requests": {"cpu": cpu, "memory": mem}, "limits": limits}
 
 
 # A single array task's full identity: (dataset, target_idx, repeat, fold,
@@ -285,6 +313,17 @@ def submit_jobs(
     # when a caller passes a pre-inflated whole-chunk ceiling there.
     base_time_limit = time_limit if default_time_limit is None else default_time_limit
 
+    if profile.get("backend") == "k8s":
+        return submit_jobs_k8s(
+            model=model, jobs=jobs, slug=slug, n_splits=n_splits,
+            num_random_configs=num_random_configs, num_bag_folds=num_bag_folds, time_limit=time_limit,
+            results_dir=results_dir, cache_dir=cache_dir, mirror_repo=mirror_repo,
+            profile=profile, throttle=throttle, dry_run=dry_run,
+            dataset_time_limit_overrides=dataset_time_limit_overrides,
+            model_time_limit_overrides=model_time_limit_overrides,
+            default_time_limit=base_time_limit,
+        )
+
     if not profile.get("slurm", True):
         # No SLURM -- run every job as a local subprocess.
         print(f"Profile {profile['name']!r} has no SLURM -- running {len(jobs)} job(s) locally.")
@@ -397,6 +436,212 @@ def submit_jobs(
     return job_ids
 
 
+def _k8s_name(*parts: str) -> str:
+    """A DNS-1123-safe k8s object name: lowercase, alnum + '-' only, <=63 chars.
+    Collisions from truncation are astronomically unlikely for this project's
+    (model, dataset, part) name space and aren't guarded against."""
+    raw = "-".join(parts).lower().replace("_", "-").replace(".", "-").replace("/", "-")
+    raw = "".join(c for c in raw if c.isalnum() or c == "-").strip("-")
+    return raw[:63].rstrip("-")
+
+
+def submit_jobs_k8s(
+    *,
+    model: str,
+    jobs: list[Job],
+    slug: str,
+    n_splits: int,
+    num_random_configs: int,
+    num_bag_folds: int,
+    time_limit: float,
+    results_dir: str,
+    cache_dir: str,
+    mirror_repo: str,
+    profile: dict,
+    throttle: int,
+    dry_run: bool,
+    dataset_time_limit_overrides: dict[str, float] | None = None,
+    model_time_limit_overrides: dict[str, float] | float | None = None,
+    default_time_limit: float | None = None,
+) -> list[str]:
+    """k8s analogue of the SLURM branch of ``submit_jobs`` above: one
+    Kubernetes Indexed Job per chunk (k8s's array-job equivalent --
+    ``JOB_COMPLETION_INDEX`` plays the role of ``SLURM_ARRAY_TASK_ID``, read
+    by ``cluster/k8s_entrypoint.sh``). The jobspec text is delivered via a
+    ConfigMap (created alongside the Job, one per chunk) rather than a file on
+    a shared filesystem -- unlike the SLURM clusters, a k8s job's submitting
+    machine has no guaranteed filesystem path in common with the pods it
+    schedules, but it does always have kubectl API access, and ConfigMaps
+    comfortably fit a jobspec chunk (<=1000 short lines, well under the 1MiB
+    ConfigMap size cap).
+
+    Returns the list of created Job names (empty on a dry run)."""
+    use_gpu = model in GPU_MODELS
+    job_names: list[str] = []
+    base_time_limit = time_limit if default_time_limit is None else default_time_limit
+    namespace = profile.get("namespace", "default")
+
+    max_array_size = profile.get("max_array_size", DEFAULT_MAX_ARRAY_SIZE)
+    # Batch multiple jobspec lines into each pod -- courtesy default for a
+    # shared, multi-tenant cluster, see k8s_entrypoint.sh's module comment for
+    # the full reasoning (fewer, longer-running pods instead of one pod per
+    # individual task). tasks_per_pod=1 (the profile default) reproduces the
+    # original one-task-per-pod behavior exactly.
+    tasks_per_pod = max(1, int(profile.get("tasks_per_pod", 1)))
+    chunks = _chunk(jobs, max_array_size)
+    multi_part = len(chunks) > 1
+
+    print(
+        f"{len(jobs)} job(s) as {slug} (k8s backend, namespace={namespace}, tasks_per_pod={tasks_per_pod})"
+        + (f" -- split into {len(chunks)} Job(s) of <={max_array_size} task(s) each" if multi_part else "")
+    )
+
+    for part, chunk_jobs in enumerate(chunks):
+        part_slug = f"{slug}_p{part}" if multi_part else slug
+        jobspec_path = write_jobspec(
+            chunk_jobs, part_slug,
+            default_time_limit=base_time_limit,
+            dataset_time_limit_overrides=dataset_time_limit_overrides,
+            model_time_limit_overrides=model_time_limit_overrides,
+        )
+        n_pods = -(-len(chunk_jobs) // tasks_per_pod)  # ceil division, no float rounding surprises
+
+        job_name = _k8s_name("rb", model, part_slug)
+        configmap_name = _k8s_name("rb-jobspec", model, part_slug)
+
+        # Unlike the SLURM path, the k8s image bakes code into /app (the
+        # Dockerfile's WORKDIR) -- profile["workspace"] on the PVC holds no
+        # code at all, only persistent data. So results_dir/cache_dir must be
+        # made absolute under the PVC mount HERE, not resolved by a `cd
+        # $WORKSPACE` in the entrypoint (that used to `cd` into the PVC path
+        # before running `python scripts/run_experiment.py`, a path that only
+        # exists in /app -- confirmed failing every task with "No such file
+        # or directory" once a fail-fast check caught the silent-fallback bug
+        # this replaced). Absolute paths make cwd irrelevant either way.
+        workspace = profile.get("workspace") or ""
+
+        def _abs_under_workspace(path: str) -> str:
+            if workspace and not path.startswith("/"):
+                return f"{workspace.rstrip('/')}/{path}"
+            return path
+
+        env = [
+            {"name": "MODEL", "value": model},
+            {"name": "N_SPLITS", "value": str(n_splits)},
+            {"name": "NUM_RANDOM_CONFIGS", "value": str(num_random_configs)},
+            {"name": "NUM_BAG_FOLDS", "value": str(num_bag_folds)},
+            {"name": "TIME_LIMIT", "value": str(time_limit)},
+            {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir)},
+            {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir)},
+            {"name": "MIRROR_REPO", "value": mirror_repo},
+            {"name": "USE_GPU", "value": "1" if use_gpu else "0"},
+            {"name": "JOBSPEC", "value": "/jobspec/jobspec.txt"},
+            {"name": "TASKS_PER_POD", "value": str(tasks_per_pod)},
+        ]
+        if profile.get("hf_secret"):
+            env += [
+                {"name": "HF_TOKEN", "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HF_TOKEN"}}},
+                {"name": "HUGGING_FACE_HUB_TOKEN",
+                 "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HUGGING_FACE_HUB_TOKEN"}}},
+            ]
+        if profile.get("tabpfn_secret"):
+            # One-time TabPFN license acceptance token -- required non-interactively
+            # by any model with a TabPFN backbone (RAMANPFN, TABPFN-V3, TABPFN-WIDE,
+            # REALTABPFN-*, ...) since tabpfn>=9.0 gates weight downloads on this.
+            # Confirmed failing without it: tabpfn.errors.TabPFNLicenseError on a
+            # real RAMANPFN smoke test.
+            env.append({
+                "name": "TABPFN_TOKEN",
+                "valueFrom": {"secretKeyRef": {"name": profile["tabpfn_secret"], "key": "TABPFN_TOKEN"}},
+            })
+        if profile.get("wandb_secret"):
+            # Presence of WANDB_API_KEY is what turns on per-task tracking (see
+            # scripts/run_experiment.py's _wandb_enabled) -- no separate flag needed.
+            env.append({
+                "name": "WANDB_API_KEY",
+                "valueFrom": {"secretKeyRef": {"name": profile["wandb_secret"], "key": "WANDB_API_KEY"}},
+            })
+            if profile.get("wandb_project"):
+                env.append({"name": "WANDB_PROJECT", "value": profile["wandb_project"]})
+            if profile.get("wandb_entity"):
+                env.append({"name": "WANDB_ENTITY", "value": profile["wandb_entity"]})
+
+        volume_mounts = [{"name": "workspace", "mountPath": profile.get("pvc_mount_path", "/data")},
+                          {"name": "jobspec", "mountPath": "/jobspec"}]
+        volumes = [
+            {"name": "workspace", "persistentVolumeClaim": {"claimName": profile["pvc_claim_name"]}},
+            {"name": "jobspec", "configMap": {"name": configmap_name}},
+        ]
+        if profile.get("kaggle_secret"):
+            volume_mounts.append({"name": "kaggle", "mountPath": "/root/.kaggle"})
+            volumes.append({"name": "kaggle", "secret": {"secretName": profile["kaggle_secret"]}})
+
+        pod_spec: dict = {
+            "restartPolicy": "Never",
+            "containers": [{
+                "name": "run-experiment",
+                "image": profile["image"],
+                # Without this, a node that already cached this tag from an earlier
+                # submission silently keeps running the stale image after a rebuild+
+                # push of the same mutable tag -- confirmed in practice: a real fix
+                # pushed under the same `:v1` tag was ignored by an already-warm node.
+                "imagePullPolicy": "Always",
+                "env": env,
+                "volumeMounts": volume_mounts,
+                "resources": resolve_k8s_resources(profile, model, use_gpu),
+            }],
+            "volumes": volumes,
+        }
+        if profile.get("image_pull_secret"):
+            pod_spec["imagePullSecrets"] = [{"name": profile["image_pull_secret"]}]
+        if profile.get("node_selector"):
+            pod_spec["nodeSelector"] = profile["node_selector"]
+        if profile.get("node_affinity_match_expressions"):
+            pod_spec["affinity"] = {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [{"matchExpressions": profile["node_affinity_match_expressions"]}]
+            }}}
+        if profile.get("priority_class_name"):
+            # Cluster-endorsed shared-tenancy courtesy for routine sweep jobs (e.g.
+            # an "unimportant" priority class some k8s clusters document HPO/sweep
+            # jobs under) -- higher-priority pods preempt these rather than queuing
+            # behind them, so this is stronger than tuning tasks_per_pod/throttle
+            # alone. See your cluster's own priority-class documentation and set
+            # `priority_class_name` in your private profile accordingly.
+            pod_spec["priorityClassName"] = profile["priority_class_name"]
+
+        job_manifest = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": job_name, "namespace": namespace,
+                         "labels": {"app": "raman-bench", **profile.get("extra_pod_labels", {})}},
+            "spec": {
+                "completions": n_pods,
+                "parallelism": min(throttle, n_pods) or 1,
+                "completionMode": "Indexed",
+                "backoffLimit": 0,
+                "template": {"metadata": {"labels": {"app": "raman-bench"}}, "spec": pod_spec},
+            },
+        }
+
+        print(f"  jobspec: {jobspec_path}  ({len(chunk_jobs)} task(s))")
+        print(f"  configmap: {configmap_name}  job: {job_name}  pods={n_pods} (<= {tasks_per_pod} task(s)/pod)")
+        if dry_run:
+            continue
+
+        cm_yaml = subprocess.run(
+            ["kubectl", "create", "configmap", configmap_name, "-n", namespace,
+             "--from-file", f"jobspec.txt={jobspec_path}", "--dry-run=client", "-o", "yaml"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        subprocess.run(["kubectl", "apply", "-f", "-"], input=cm_yaml, text=True, check=True)
+        subprocess.run(
+            ["kubectl", "apply", "-f", "-"], input=yaml.safe_dump(job_manifest), text=True, check=True,
+        )
+        job_names.append(job_name)
+
+    return job_names
+
+
 def submit(
     *,
     dataset: str,
@@ -451,7 +696,7 @@ def main():
     parser.add_argument("--cache-dir", default=".cache_v1")
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
     parser.add_argument("--profile", default=None, help="Path to a cluster profile YAML")
-    parser.add_argument("--cluster", default=None, choices=["htw", "tu", "local"])
+    parser.add_argument("--cluster", default=None, choices=["htw", "tu", "local", "k8s"])
     parser.add_argument("--throttle", type=int, default=8, help="Max concurrent array tasks")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()

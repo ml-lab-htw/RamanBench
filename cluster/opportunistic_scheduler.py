@@ -399,8 +399,20 @@ def compute_backlog(scope: dict, profile: dict, failure_state_path: Path | str |
     with open(scope["targets_file"]) as f:
         targets = json.load(f)
 
+    # Clean split (agreed 2026-09-04, see cluster/CRON.md): CPU-tier models stay
+    # on htw/tu, ALL GPU-tier models move to k8s exclusively -- enforced here
+    # rather than only by curating scope["models"] per-cluster, since a single
+    # shared scope file is intentionally used for both (see scope_default.json).
+    # Without this, pick_chunk's strict-priority scan would happily hand a
+    # GPU-tier model's chunk to a non-k8s (SLURM) profile the moment every
+    # earlier-listed CPU-tier model's backlog hits zero -- confirmed this
+    # already happened once for NN_TORCH on htw before the split was agreed.
+    is_k8s = profile.get("backend") == "k8s"
+
     backlog: dict[str, list[Job]] = {}
     for model in scope["models"]:
+        if not is_k8s and model in GPU_MODELS:
+            continue
         ag_name = _ag_name(model)
         experiment_name = f"{ag_name}_c1_BAG_L1"
         in_flight = _in_flight_targets(model, user)

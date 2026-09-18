@@ -308,3 +308,19 @@ AutogluonModels/
 .DS_Store
 **/.DS_Store
 **/.cache_loader_check
+
+# Per-machine record of wandb view/report URLs (scripts/setup_wandb_views.py) --
+# not shared state, just lets a rerun update views in place instead of duplicating.
+scripts/.wandb_views_manifest.json
+
+# Local wandb run-log cache (created by any local run_experiment.py invocation
+# with WANDB_API_KEY set) -- per-machine transient data, not source.
+wandb/
+
+# Private k8s cluster docs mirror + summary -- contains real access credentials, never commit.
+cluster/k8s_docs/
+cluster/k8s_docs_summary.md
+
+# Private/internal working notes (setup runbooks, session logs, status trackers) --
+# useful day-to-day but not meant for the public repo; see docs/internal/README.md.
+docs/internal/

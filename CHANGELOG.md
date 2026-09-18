@@ -9,6 +9,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`TA-MITRA-V2` model.** Wraps [Mitra-v2](https://arxiv.org/abs/2609.04540)
+  (Amazon/AutoGluon's second-generation Mitra tabular foundation model: the same
+  12-layer 2D-attention backbone, now 77M parameters, pretrained on a larger and
+  more diverse synthetic prior, deployed as a fine-tuned, bagged model -- every bag
+  child fine-tunes the checkpoint on its fit fold for 50 steps and predicts in
+  context) with RamanBench's tunable preprocessing recipe
+  (`src/raman_bench/models/custom/ta_mitra_v2/`). TabArena already ships a full
+  integration (`tabarena.models.mitra_v2`, `ag_key="TA-MITRA-V2"`) as an
+  AutoGluon-native `MitraModel` subclass, so this reuses that class directly rather
+  than reimplementing anything -- same pattern as `Prep_GBM`/`ta_tabpfn_3`. The
+  fine-tuning recipe is frozen (no tunable search space; the default configuration
+  is the method). Supports both classification and regression. `compute="gpu"`
+  (`minimum_num_gpus=1`, a hard requirement when `num_gpus>0` is requested; the
+  upstream wrapper also runs on CPU, just very slowly, when no GPU is requested).
+  License: Apache-2.0 for both code and weights. Requires `tabarena`'s
+  `models/mitra_v2/` package, which is not yet in a PyPI release of `tabarena` as
+  of this change (merged upstream 2026-09-14, after the `tabarena==0.1.0` PyPI cut)
+  -- `pyproject.toml`'s `tabarena` dependency was moved to a pinned upstream git
+  commit that includes it.
+
 ## [1.1.1] — 2026-09-10
 
 ### Fixed

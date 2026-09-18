@@ -1,0 +1,85 @@
+# Template for a new Kubernetes cluster profile. Copy this file, fill in the
+# real values for your cluster, and pass it via `--profile path/to/your.yaml`
+# or `--cluster k8s` (once a real `k8s.yaml` exists alongside htw.yaml/tu.yaml
+# in the private raman_bench_paper repo).
+#
+# No institution-specific secrets belong in the PUBLIC RamanBench repo's
+# profiles/ directory -- real registry/namespace/PVC values for HTW/TU live
+# in the private raman_bench_paper repo's cluster/profiles/k8s.yaml instead,
+# which is exactly this same schema with real values filled in.
+name: k8s_example
+description: Template profile for a Kubernetes cluster -- copy and edit.
+backend: k8s               # distinguishes this from the SLURM/local profiles
+
+# Container image built from this repo's Dockerfile (see cluster/README or
+# repo root) and pushed to your registry. Must have raman-bench (and its
+# [models]/[benchmark] extras) installed, plus raman-data and its Kaggle/HF
+# credentials baked in or supplied via secretRef (see hf_secret/kaggle_secret
+# below).
+image: null                 # e.g. "registry.example.org/you/raman-bench:latest"
+namespace: default
+image_pull_secret: null     # e.g. "private-registry-auth"; null = no imagePullSecrets
+
+# Persistent storage. The workspace (RamanBench + raman_data checkouts,
+# .cache_v1, results/) lives on this PVC, mounted at pvc_mount_path in every
+# job pod -- the k8s analogue of a SLURM cluster's shared home filesystem.
+# See cluster/pvc_template.yaml for the PVC manifest itself (created once,
+# out of band, not by submit_job.py).
+pvc_claim_name: null        # e.g. "raman-bench-pvc"
+pvc_mount_path: /data
+storage_class: shared       # only used when rendering pvc_template.yaml
+
+# Where inside pvc_mount_path this repo's checkout (and raman_data's) lives,
+# and what --workspace-relative paths (results_dir, cache_dir) resolve
+# against -- the k8s equivalent of a SLURM profile's `workspace`.
+workspace: /data/RamanBench_v1
+
+# GPU resource key -- almost always "nvidia.com/gpu" (AMD/other accelerators
+# use a different key; check `kubectl describe node` on your cluster).
+gpu_resource_key: nvidia.com/gpu
+gpu_count: 1
+
+# Optional node selection -- match your cluster's node labels. Both are
+# optional; leave empty ({}) to let the scheduler place pods freely.
+node_selector: {}            # e.g. {"gpu": "a100"}
+node_affinity_match_expressions: []  # raw k8s matchExpressions list, see
+                                      # raman_bench_paper/cluster/profiles/k8s.yaml
+                                      # for a real example with a memory-tier filter
+
+default_cpu: "16"
+default_memory: "64G"
+mem_tiers: {}                # same schema/semantics as the SLURM profiles' mem_tiers
+
+# How many jobspec tasks (repeat/fold/config combinations) each pod works
+# through SEQUENTIALLY before exiting, instead of one pod per task. Courtesy
+# default for a shared, multi-tenant cluster: fewer, longer pods rather than
+# a flood of short-lived ones (same total GPU-time, far fewer objects for the
+# cluster's scheduler/other users to see) -- see cluster/k8s_entrypoint.sh's
+# module comment for the full reasoning and the failure-isolation trade-off.
+# 1 = exactly the old one-task-per-pod behavior. Tune up (e.g. 5-10) on a
+# cluster you want to go easy on; keep low if fast fault-isolation/turnaround
+# on individual failures matters more than pod count.
+tasks_per_pod: 5
+
+# Credentials a job pod needs (Kaggle API creds, HF token) -- reference k8s
+# Secrets by name rather than baking credentials into the image or profile
+# YAML. null disables the corresponding env/volume wiring.
+kaggle_secret: null          # e.g. "kaggle-credentials" (mounted at ~/.kaggle/kaggle.json)
+hf_secret: null              # e.g. "hf-token" (HF_TOKEN / HUGGING_FACE_HUB_TOKEN env vars)
+
+# Optional per-task experiment tracking (scripts/run_experiment.py logs one
+# wandb run per task iff WANDB_API_KEY ends up in the pod's environment --
+# nothing else needs to change to turn it on/off). null = tracking disabled
+# for k8s runs even if the image has `wandb` installed.
+wandb_secret: null           # e.g. "wandb-api-key" (Secret key must be named WANDB_API_KEY)
+wandb_project: null          # optional -- defaults to "raman-bench" if unset
+wandb_entity: null           # optional -- defaults to your wandb account's default entity
+
+# Kubernetes Indexed Jobs cap `completions`/`parallelism` far higher than
+# SLURM's MaxArraySize (no hard k8s-side limit; practical ceiling is cluster
+# capacity), but keep chunking anyway for parity with the SLURM path and so
+# one submission's blast radius stays bounded. Override if your cluster can
+# comfortably schedule bigger single Jobs.
+max_array_size: 1000
+
+extra_pod_labels: {}
