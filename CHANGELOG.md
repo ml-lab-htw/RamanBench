@@ -73,6 +73,43 @@ Versions follow [Semantic Versioning](https://semver.org/).
   investigating this one. New regression tests:
   `tests/test_splitting.py::test_infer_group_ids_groups_replicates_sharing_a_nan_position`
   and `::test_infer_group_ids_ignores_all_nan_rows`.
+- **Five real bugs found standing up the BHT Kubernetes backend for the first
+  time**, each confirmed via a live smoke test rather than static review:
+  - TabArena's `AGModelBagExperiment` now requires
+    `validation_protocol=ValidationProtocol(num_bag_folds=N)` instead of a bare
+    `num_bag_folds=N` kwarg (an upstream API break picked up by pinning
+    `tabarena` to a specific git commit). Fixed in `scripts/run_experiment.py`.
+  - `cluster/submit_job.py`'s k8s pods used a mutable `:v1` image tag without
+    `imagePullPolicy: Always`, so an already-warm node kept running a stale
+    image after a real rebuild+push under the same tag. Fixed by always
+    setting `imagePullPolicy: Always`.
+  - `cluster/k8s_entrypoint.sh` used to `cd "$WORKSPACE"` before running
+    `scripts/run_experiment.py`, but the k8s image bakes code into `/app`
+    (the Dockerfile's `WORKDIR`) while `$WORKSPACE` is the PVC data mount,
+    which holds no code — a real silent-data-loss bug once caught by a
+    fail-fast check ("No such file or directory" on every task). Fixed by
+    removing the `cd`/`WORKSPACE` env var entirely and resolving
+    `RESULTS_DIR`/`CACHE_DIR` to absolute PVC paths in `submit_job.py` itself
+    (new `_abs_under_workspace()` helper).
+  - Any model with a TabPFN backbone (RAMANPFN, TABPFN-V3, TABPFN-WIDE,
+    REALTABPFN-*) raised `tabpfn.errors.TabPFNLicenseError` non-interactively
+    on BHT. Fixed by wiring a `tabpfn_secret`/`TABPFN_TOKEN` k8s secret,
+    mirroring the existing `hf_secret` pattern.
+  - `Prep_EBM`'s interaction-search threshold (`_EBM_WIDE_FEATURE_THRESHOLD =
+    4000`) was proven insufficient by a real infinite hang on a
+    2091-feature dataset (`cancer_cell_(cooh)2`) — well under the threshold.
+    Fixed by unconditionally disabling EBM interactions
+    (`self.params["interactions"] = 0`) regardless of feature count.
+  - REALMLP's `torchvision` circular import and triton's "Failed to find C
+    compiler" were fixed via an explicit `torchvision>=0.29.0` pin and adding
+    `build-essential` to the Dockerfile, respectively.
+  - `cluster/submit_job.py`'s previously-inline, kubectl-coupled k8s manifest
+    construction was extracted into two pure, unit-tested functions
+    (`_abs_under_workspace()`, `_build_k8s_job_manifest()`); see
+    `tests/test_submit_job_k8s.py` for regression coverage of all of the
+    above (`imagePullPolicy`, absolute path resolution, `tabpfn_secret`,
+    `priority_class_name`, and the existing `hf_secret`/`wandb_secret`/
+    `kaggle_secret`/node-affinity conditionals).
 
 ### Added
 
