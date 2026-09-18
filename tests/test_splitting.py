@@ -222,6 +222,41 @@ def test_infer_group_ids_ignores_all_zero_rows():
     assert group_ids[0] != group_ids[2]  # both all-zero, but not grouped with each other
 
 
+def test_infer_group_ids_groups_replicates_sharing_a_nan_position():
+    # Regression test: NaN must be excluded from the group key the same way 0
+    # is -- a NaN left in the key breaks even same-row identity (nan != nan),
+    # so two genuine replicates sharing a NaN in the same analyte position
+    # would otherwise never be recognized as a match (each landing in its own
+    # singleton group instead) -- confirmed as a real bug via a cross-session
+    # report before this fix (rows 0/1 below used to get distinct group ids).
+    targets = np.array(
+        [
+            [1.5, float("nan")],
+            [1.5, float("nan")],  # replicate of row 0, shares the NaN position
+            [2.5, 3.0],
+            [2.5, 3.0],  # replicate of row 2, no NaN involved
+        ]
+    )
+    group_ids = infer_group_ids_from_targets(targets)
+    assert group_ids is not None
+    assert group_ids[0] == group_ids[1]
+    assert group_ids[2] == group_ids[3]
+    assert group_ids[0] != group_ids[2]
+
+
+def test_infer_group_ids_ignores_all_nan_rows():
+    # Mirrors test_infer_group_ids_ignores_all_zero_rows for the NaN case: an
+    # all-NaN target row carries no group signal and must not be spuriously
+    # grouped with other all-NaN rows.
+    targets = np.array(
+        [[float("nan"), float("nan")], [1.0, 2.0], [float("nan"), float("nan")], [1.0, 2.0]]
+    )
+    group_ids = infer_group_ids_from_targets(targets)
+    assert group_ids is not None
+    assert group_ids[1] == group_ids[3]
+    assert group_ids[0] != group_ids[2]  # both all-NaN, but not grouped with each other
+
+
 def test_get_n_repeats_matches_tabarena_thresholds():
     # Confirmed directly against curated_tabarena_dataset_metadata.csv: the real
     # crossover from 10 to 3 repeats sits between 2400 and 2584 instances.

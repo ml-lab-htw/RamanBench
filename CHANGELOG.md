@@ -54,6 +54,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
   there's only one execution pipeline, so labeling it "B" no longer means
   anything.
 
+### Fixed
+
+- **`splitting.infer_group_ids_from_targets` never grouped replicates that
+  shared a NaN value in the same analyte position.** The group key excluded
+  `0` (the existing "not measured" convention) but not NaN, and `nan != nan`
+  breaks even same-row identity — two rows with otherwise-identical target
+  values, both NaN in the same column, were being treated as their own
+  singleton groups instead of a genuine replicate pair, silently defeating
+  the anti-leakage guarantee this function exists for. Fixed by excluding
+  NaN from the key the same way `0` already is. Reported by a downstream
+  session (RamanICL) that hit non-determinism from a related, already-fixed
+  issue in this same key-building family (`benchmark.py`'s
+  `_grouped_train_test_split`, which sorts before rendering to a string and
+  turns out to already be immune to the NaN-hashing issue — confirmed via a
+  new regression test, `tests/test_grouped_split.py::
+  test_split_is_stable_across_processes_with_nan_in_group_key`) while
+  investigating this one. New regression tests:
+  `tests/test_splitting.py::test_infer_group_ids_groups_replicates_sharing_a_nan_position`
+  and `::test_infer_group_ids_ignores_all_nan_rows`.
+
 ### Added
 
 - **`TA-MITRA-V2` model.** Wraps [Mitra-v2](https://arxiv.org/abs/2609.04540)

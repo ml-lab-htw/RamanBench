@@ -63,6 +63,54 @@ def test_split_is_stable_across_hash_seeds():
     assert len(outs) == 1, f"split varies with PYTHONHASHSEED: {outs}"
 
 
+def test_split_is_stable_across_processes_with_nan_in_group_key():
+    """Same as above, but with a NaN value inside the group key itself.
+
+    Quantified by a downstream session (RamanICL) on a copy of this method that
+    predated the ``sorted()`` fix and still used the bare ``str(frozenset(...))``
+    spelling: ``hash(nan)`` is address-based (CPython >=3.10), so a NaN inside the
+    frozenset key reorders ``str(frozenset(...))`` on every process, not just
+    under a different ``PYTHONHASHSEED`` -- on their `ecoli_fermentation`-shaped
+    data this moved a real test split (301/78, 304/75, 305/74 across 5 runs,
+    same seed) and swung a downstream R2 metric between 0.11 and 0.57.
+
+    This must NOT reproduce here: sorting the key's (col, val) tuples resolves
+    via the column-name strings alone (each row's own dict keys are already
+    unique, so the sort never needs to compare the float values, NaN included),
+    so ``sorted()`` should already be immune -- this test locks that guarantee
+    in rather than relying on the reasoning alone. Runs across processes (not
+    just PYTHONHASHSEED values) since address-based NaN hashing varies with the
+    NaN object's memory address, which PYTHONHASHSEED does not control.
+    """
+    prog = textwrap.dedent("""
+        import numpy as np, pandas as pd
+        from raman_bench.benchmark import RamanBenchmark
+        rng = np.random.RandomState(0)
+        base = rng.rand(6, 5).round(3)
+        rows = [dict(zip(list("abcde"), base[i % 6])) for i in range(12)]
+        # Every row in a replicate pair shares a NaN in column "c" -- the
+        # NaN itself must not prevent the pair from landing in the same group.
+        for row in rows:
+            row["c"] = float("nan")
+        df = pd.DataFrame(rows)
+        b = RamanBenchmark.__new__(RamanBenchmark)
+        b.test_size, b.random_state = 0.34, 0
+        _, te = b._grouped_train_test_split(df, group_by_df=df)
+        print(sorted(te.index.tolist()))
+        """)
+    outs = set()
+    for _ in range(5):
+        r = subprocess.run(
+            [sys.executable, "-c", prog],
+            capture_output=True,
+            text=True,
+            env={"PATH": "/usr/bin:/bin"},
+        )
+        assert r.returncode == 0, r.stderr
+        outs.add(r.stdout.strip())
+    assert len(outs) == 1, f"split varies across processes with NaN in the group key: {outs}"
+
+
 def test_replicates_never_span_train_and_test():
     """The whole point of grouping: no replicate pair may straddle the split."""
     df = _replicated_df()

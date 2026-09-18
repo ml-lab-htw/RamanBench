@@ -118,9 +118,13 @@ def infer_group_ids_from_targets(targets: np.ndarray) -> np.ndarray | None:
 
     **Regression only** -- do not call this for classification. Two rows are
     treated as the same physical sample/measurement when every one of their
-    target columns has an identical value (zero entries excluded from the
-    key, on the convention that 0 means "not measured" for that analyte in
-    this domain). This is deliberately the same signal the retired
+    target columns has an identical value (zero AND NaN entries excluded from
+    the key, on the convention that either means "not measured" for that
+    analyte in this domain -- NaN exclusion is load-bearing, not just
+    consistent styling: leaving a NaN in the key breaks even same-row
+    identity, since ``nan != nan``, so two genuine replicates sharing a NaN in
+    the same position would otherwise never match at all). This is
+    deliberately the same signal the retired
     ``RamanBenchmark._grouped_train_test_split`` relied on -- a coincidental
     exact match across several independent continuous-valued targets is
     vanishingly unlikely, so a real match is strong evidence of a shared
@@ -145,9 +149,16 @@ def infer_group_ids_from_targets(targets: np.ndarray) -> np.ndarray | None:
 
     key_to_rows: dict[tuple, list[int]] = {}
     for i, row in enumerate(targets_2d):
-        nonzero = tuple(v for v in row if v != 0)
+        # NaN excluded alongside 0 -- both mean "no signal for this analyte" for
+        # grouping purposes, and NaN specifically MUST be excluded rather than
+        # merely tolerated: a NaN left in the key breaks even same-row identity
+        # (nan != nan), so two genuine replicates that are both NaN in the same
+        # analyte position would otherwise never be recognized as a match at
+        # all (confirmed via a real case: two rows with identical measured
+        # values and a shared NaN each ended up in their own singleton group).
+        nonzero = tuple(v for v in row if v != 0 and not np.isnan(v))
         if not nonzero:
-            continue  # all-zero row: no signal, leave it as its own unique group
+            continue  # all-zero/all-NaN row: no signal, leave it as its own unique group
         key_to_rows.setdefault(nonzero, []).append(i)
 
     found_real_group = False
