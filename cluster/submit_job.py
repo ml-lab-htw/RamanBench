@@ -445,6 +445,152 @@ def _k8s_name(*parts: str) -> str:
     return raw[:63].rstrip("-")
 
 
+def _abs_under_workspace(path: str, workspace: str) -> str:
+    """Resolve a relative RESULTS_DIR/CACHE_DIR path to an absolute path under
+    the PVC-mounted workspace. The k8s image bakes code into /app (the
+    Dockerfile's WORKDIR) -- profile["workspace"] on the PVC holds no code at
+    all, only persistent data. So results_dir/cache_dir must be made absolute
+    under the PVC mount HERE, not resolved by a `cd $WORKSPACE` in the
+    entrypoint (that used to `cd` into the PVC path before running `python
+    scripts/run_experiment.py`, a path that only exists in /app -- confirmed
+    failing every task with "No such file or directory" once a fail-fast
+    check caught the silent-fallback bug this replaced). Absolute paths make
+    cwd irrelevant either way. An already-absolute path (or no workspace
+    configured) passes through unchanged."""
+    if workspace and not path.startswith("/"):
+        return f"{workspace.rstrip('/')}/{path}"
+    return path
+
+
+def _build_k8s_job_manifest(
+    *,
+    model: str,
+    part_slug: str,
+    n_tasks: int,
+    n_splits: int,
+    num_random_configs: int,
+    num_bag_folds: int,
+    time_limit: float,
+    results_dir: str,
+    cache_dir: str,
+    mirror_repo: str,
+    profile: dict,
+    use_gpu: bool,
+    tasks_per_pod: int,
+    throttle: int,
+) -> tuple[str, str, int, dict]:
+    """Build the (job_name, configmap_name, n_pods, job_manifest) for one k8s
+    Indexed Job -- pure construction, no cluster I/O, so it's directly
+    testable without mocking kubectl. Split out of ``submit_jobs_k8s`` so the
+    manifest-building logic (env vars, secrets, image pull policy, node
+    affinity, priority class) can be unit-tested on its own."""
+    job_name = _k8s_name("rb", model, part_slug)
+    configmap_name = _k8s_name("rb-jobspec", model, part_slug)
+    n_pods = -(-n_tasks // tasks_per_pod)  # ceil division, no float rounding surprises
+    namespace = profile.get("namespace", "default")
+
+    workspace = profile.get("workspace") or ""
+
+    env = [
+        {"name": "MODEL", "value": model},
+        {"name": "N_SPLITS", "value": str(n_splits)},
+        {"name": "NUM_RANDOM_CONFIGS", "value": str(num_random_configs)},
+        {"name": "NUM_BAG_FOLDS", "value": str(num_bag_folds)},
+        {"name": "TIME_LIMIT", "value": str(time_limit)},
+        {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir, workspace)},
+        {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir, workspace)},
+        {"name": "MIRROR_REPO", "value": mirror_repo},
+        {"name": "USE_GPU", "value": "1" if use_gpu else "0"},
+        {"name": "JOBSPEC", "value": "/jobspec/jobspec.txt"},
+        {"name": "TASKS_PER_POD", "value": str(tasks_per_pod)},
+    ]
+    if profile.get("hf_secret"):
+        env += [
+            {"name": "HF_TOKEN", "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HF_TOKEN"}}},
+            {"name": "HUGGING_FACE_HUB_TOKEN",
+             "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HUGGING_FACE_HUB_TOKEN"}}},
+        ]
+    if profile.get("tabpfn_secret"):
+        # One-time TabPFN license acceptance token -- required non-interactively
+        # by any model with a TabPFN backbone (RAMANPFN, TABPFN-V3, TABPFN-WIDE,
+        # REALTABPFN-*, ...) since tabpfn>=9.0 gates weight downloads on this.
+        # Confirmed failing without it: tabpfn.errors.TabPFNLicenseError on a
+        # real RAMANPFN smoke test.
+        env.append({
+            "name": "TABPFN_TOKEN",
+            "valueFrom": {"secretKeyRef": {"name": profile["tabpfn_secret"], "key": "TABPFN_TOKEN"}},
+        })
+    if profile.get("wandb_secret"):
+        # Presence of WANDB_API_KEY is what turns on per-task tracking (see
+        # scripts/run_experiment.py's _wandb_enabled) -- no separate flag needed.
+        env.append({
+            "name": "WANDB_API_KEY",
+            "valueFrom": {"secretKeyRef": {"name": profile["wandb_secret"], "key": "WANDB_API_KEY"}},
+        })
+        if profile.get("wandb_project"):
+            env.append({"name": "WANDB_PROJECT", "value": profile["wandb_project"]})
+        if profile.get("wandb_entity"):
+            env.append({"name": "WANDB_ENTITY", "value": profile["wandb_entity"]})
+
+    volume_mounts = [{"name": "workspace", "mountPath": profile.get("pvc_mount_path", "/data")},
+                      {"name": "jobspec", "mountPath": "/jobspec"}]
+    volumes = [
+        {"name": "workspace", "persistentVolumeClaim": {"claimName": profile["pvc_claim_name"]}},
+        {"name": "jobspec", "configMap": {"name": configmap_name}},
+    ]
+    if profile.get("kaggle_secret"):
+        volume_mounts.append({"name": "kaggle", "mountPath": "/root/.kaggle"})
+        volumes.append({"name": "kaggle", "secret": {"secretName": profile["kaggle_secret"]}})
+
+    pod_spec: dict = {
+        "restartPolicy": "Never",
+        "containers": [{
+            "name": "run-experiment",
+            "image": profile["image"],
+            # Without this, a node that already cached this tag from an earlier
+            # submission silently keeps running the stale image after a rebuild+
+            # push of the same mutable tag -- confirmed in practice: a real fix
+            # pushed under the same `:v1` tag was ignored by an already-warm node.
+            "imagePullPolicy": "Always",
+            "env": env,
+            "volumeMounts": volume_mounts,
+            "resources": resolve_k8s_resources(profile, model, use_gpu),
+        }],
+        "volumes": volumes,
+    }
+    if profile.get("image_pull_secret"):
+        pod_spec["imagePullSecrets"] = [{"name": profile["image_pull_secret"]}]
+    if profile.get("node_selector"):
+        pod_spec["nodeSelector"] = profile["node_selector"]
+    if profile.get("node_affinity_match_expressions"):
+        pod_spec["affinity"] = {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {
+            "nodeSelectorTerms": [{"matchExpressions": profile["node_affinity_match_expressions"]}]
+        }}}
+    if profile.get("priority_class_name"):
+        # Cluster-endorsed shared-tenancy courtesy for routine sweep jobs (e.g.
+        # an "unimportant" priority class some k8s clusters document HPO/sweep
+        # jobs under) -- higher-priority pods preempt these rather than queuing
+        # behind them, so this is stronger than tuning tasks_per_pod/throttle
+        # alone. See your cluster's own priority-class documentation and set
+        # `priority_class_name` in your private profile accordingly.
+        pod_spec["priorityClassName"] = profile["priority_class_name"]
+
+    job_manifest = {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {"name": job_name, "namespace": namespace,
+                     "labels": {"app": "raman-bench", **profile.get("extra_pod_labels", {})}},
+        "spec": {
+            "completions": n_pods,
+            "parallelism": min(throttle, n_pods) or 1,
+            "completionMode": "Indexed",
+            "backoffLimit": 0,
+            "template": {"metadata": {"labels": {"app": "raman-bench"}}, "spec": pod_spec},
+        },
+    }
+    return job_name, configmap_name, n_pods, job_manifest
+
+
 def submit_jobs_k8s(
     *,
     model: str,
@@ -504,124 +650,13 @@ def submit_jobs_k8s(
             dataset_time_limit_overrides=dataset_time_limit_overrides,
             model_time_limit_overrides=model_time_limit_overrides,
         )
-        n_pods = -(-len(chunk_jobs) // tasks_per_pod)  # ceil division, no float rounding surprises
-
-        job_name = _k8s_name("rb", model, part_slug)
-        configmap_name = _k8s_name("rb-jobspec", model, part_slug)
-
-        # Unlike the SLURM path, the k8s image bakes code into /app (the
-        # Dockerfile's WORKDIR) -- profile["workspace"] on the PVC holds no
-        # code at all, only persistent data. So results_dir/cache_dir must be
-        # made absolute under the PVC mount HERE, not resolved by a `cd
-        # $WORKSPACE` in the entrypoint (that used to `cd` into the PVC path
-        # before running `python scripts/run_experiment.py`, a path that only
-        # exists in /app -- confirmed failing every task with "No such file
-        # or directory" once a fail-fast check caught the silent-fallback bug
-        # this replaced). Absolute paths make cwd irrelevant either way.
-        workspace = profile.get("workspace") or ""
-
-        def _abs_under_workspace(path: str) -> str:
-            if workspace and not path.startswith("/"):
-                return f"{workspace.rstrip('/')}/{path}"
-            return path
-
-        env = [
-            {"name": "MODEL", "value": model},
-            {"name": "N_SPLITS", "value": str(n_splits)},
-            {"name": "NUM_RANDOM_CONFIGS", "value": str(num_random_configs)},
-            {"name": "NUM_BAG_FOLDS", "value": str(num_bag_folds)},
-            {"name": "TIME_LIMIT", "value": str(time_limit)},
-            {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir)},
-            {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir)},
-            {"name": "MIRROR_REPO", "value": mirror_repo},
-            {"name": "USE_GPU", "value": "1" if use_gpu else "0"},
-            {"name": "JOBSPEC", "value": "/jobspec/jobspec.txt"},
-            {"name": "TASKS_PER_POD", "value": str(tasks_per_pod)},
-        ]
-        if profile.get("hf_secret"):
-            env += [
-                {"name": "HF_TOKEN", "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HF_TOKEN"}}},
-                {"name": "HUGGING_FACE_HUB_TOKEN",
-                 "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HUGGING_FACE_HUB_TOKEN"}}},
-            ]
-        if profile.get("tabpfn_secret"):
-            # One-time TabPFN license acceptance token -- required non-interactively
-            # by any model with a TabPFN backbone (RAMANPFN, TABPFN-V3, TABPFN-WIDE,
-            # REALTABPFN-*, ...) since tabpfn>=9.0 gates weight downloads on this.
-            # Confirmed failing without it: tabpfn.errors.TabPFNLicenseError on a
-            # real RAMANPFN smoke test.
-            env.append({
-                "name": "TABPFN_TOKEN",
-                "valueFrom": {"secretKeyRef": {"name": profile["tabpfn_secret"], "key": "TABPFN_TOKEN"}},
-            })
-        if profile.get("wandb_secret"):
-            # Presence of WANDB_API_KEY is what turns on per-task tracking (see
-            # scripts/run_experiment.py's _wandb_enabled) -- no separate flag needed.
-            env.append({
-                "name": "WANDB_API_KEY",
-                "valueFrom": {"secretKeyRef": {"name": profile["wandb_secret"], "key": "WANDB_API_KEY"}},
-            })
-            if profile.get("wandb_project"):
-                env.append({"name": "WANDB_PROJECT", "value": profile["wandb_project"]})
-            if profile.get("wandb_entity"):
-                env.append({"name": "WANDB_ENTITY", "value": profile["wandb_entity"]})
-
-        volume_mounts = [{"name": "workspace", "mountPath": profile.get("pvc_mount_path", "/data")},
-                          {"name": "jobspec", "mountPath": "/jobspec"}]
-        volumes = [
-            {"name": "workspace", "persistentVolumeClaim": {"claimName": profile["pvc_claim_name"]}},
-            {"name": "jobspec", "configMap": {"name": configmap_name}},
-        ]
-        if profile.get("kaggle_secret"):
-            volume_mounts.append({"name": "kaggle", "mountPath": "/root/.kaggle"})
-            volumes.append({"name": "kaggle", "secret": {"secretName": profile["kaggle_secret"]}})
-
-        pod_spec: dict = {
-            "restartPolicy": "Never",
-            "containers": [{
-                "name": "run-experiment",
-                "image": profile["image"],
-                # Without this, a node that already cached this tag from an earlier
-                # submission silently keeps running the stale image after a rebuild+
-                # push of the same mutable tag -- confirmed in practice: a real fix
-                # pushed under the same `:v1` tag was ignored by an already-warm node.
-                "imagePullPolicy": "Always",
-                "env": env,
-                "volumeMounts": volume_mounts,
-                "resources": resolve_k8s_resources(profile, model, use_gpu),
-            }],
-            "volumes": volumes,
-        }
-        if profile.get("image_pull_secret"):
-            pod_spec["imagePullSecrets"] = [{"name": profile["image_pull_secret"]}]
-        if profile.get("node_selector"):
-            pod_spec["nodeSelector"] = profile["node_selector"]
-        if profile.get("node_affinity_match_expressions"):
-            pod_spec["affinity"] = {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {
-                "nodeSelectorTerms": [{"matchExpressions": profile["node_affinity_match_expressions"]}]
-            }}}
-        if profile.get("priority_class_name"):
-            # Cluster-endorsed shared-tenancy courtesy for routine sweep jobs (e.g.
-            # an "unimportant" priority class some k8s clusters document HPO/sweep
-            # jobs under) -- higher-priority pods preempt these rather than queuing
-            # behind them, so this is stronger than tuning tasks_per_pod/throttle
-            # alone. See your cluster's own priority-class documentation and set
-            # `priority_class_name` in your private profile accordingly.
-            pod_spec["priorityClassName"] = profile["priority_class_name"]
-
-        job_manifest = {
-            "apiVersion": "batch/v1",
-            "kind": "Job",
-            "metadata": {"name": job_name, "namespace": namespace,
-                         "labels": {"app": "raman-bench", **profile.get("extra_pod_labels", {})}},
-            "spec": {
-                "completions": n_pods,
-                "parallelism": min(throttle, n_pods) or 1,
-                "completionMode": "Indexed",
-                "backoffLimit": 0,
-                "template": {"metadata": {"labels": {"app": "raman-bench"}}, "spec": pod_spec},
-            },
-        }
+        job_name, configmap_name, n_pods, job_manifest = _build_k8s_job_manifest(
+            model=model, part_slug=part_slug, n_tasks=len(chunk_jobs), n_splits=n_splits,
+            num_random_configs=num_random_configs, num_bag_folds=num_bag_folds,
+            time_limit=time_limit, results_dir=results_dir, cache_dir=cache_dir,
+            mirror_repo=mirror_repo, profile=profile, use_gpu=use_gpu,
+            tasks_per_pod=tasks_per_pod, throttle=throttle,
+        )
 
         print(f"  jobspec: {jobspec_path}  ({len(chunk_jobs)} task(s))")
         print(f"  configmap: {configmap_name}  job: {job_name}  pods={n_pods} (<= {tasks_per_pod} task(s)/pod)")

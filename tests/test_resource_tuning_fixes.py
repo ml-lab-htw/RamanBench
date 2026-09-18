@@ -16,9 +16,13 @@ verification of the 14-model TabArena onboarding effort:
    interaction-ranking pre-scan that is NOT bounded by ``time_limit`` and
    scales combinatorially with feature count -- confirmed real (millions of
    per-pair log lines, still running after 9+ minutes on an 11,084-feature
-   dataset). Fixed by disabling interactions (``interactions=0`` -- confirmed
-   the only value that actually skips the ranking loop, not just a small
-   positive count) for wide feature counts.
+   dataset). First fix (2026-09) disabled interactions only above a
+   4000-feature threshold; that gate was itself insufficient -- confirmed by
+   a second real production hang (2026-09-18) on ``cancer_cell_(cooh)2``
+   (2091 features, well under the threshold) stuck 2+ hours. Interactions
+   (``interactions=0`` -- confirmed the only value that actually skips the
+   ranking loop, not just a small positive count) are now disabled
+   unconditionally for every EBM fit, not gated on feature count.
 3. ``cluster/opportunistic_scheduler.py``'s ``time_limit_overrides`` mechanism
    was dataset-keyed only, unable to express "this model needs more time on
    this dataset, but other models sharing it are fine" -- extended with a
@@ -91,18 +95,18 @@ def test_max_features_models_registry():
     assert MAX_FEATURES_MODELS["TABSTAR"] == _TABSTAR_MAX_FEATURES
 
 
-def test_ebm_interactions_disabled_for_wide_features():
-    """Prep_EBM._fit must force interactions=0 above the wide-feature
-    threshold, and leave interpret's own default alone below it.
+def test_ebm_interactions_always_disabled_regardless_of_feature_count():
+    """Prep_EBM._fit must force interactions=0 unconditionally -- for both
+    wide and narrow feature counts. Regression test for the second EBM hang
+    (2026-09-18): a feature-count threshold gate is not a sufficient
+    condition (a real production hang happened well under any threshold that
+    was ever tried), so the only genuinely bounded fix is unconditional.
 
     Stubs out the real (expensive) EBMModel._fit so this stays a fast, real
     local check of the parameter-setting logic, not a full model fit."""
     import pandas as pd
 
-    from raman_bench.preprocessing.wrapped_models import (
-        _EBM_WIDE_FEATURE_THRESHOLD,
-        Prep_EBM,
-    )
+    from raman_bench.preprocessing.wrapped_models import Prep_EBM
 
     def _make_model(n_features: int) -> tuple[Prep_EBM, pd.DataFrame, pd.Series]:
         model = Prep_EBM(problem_type="regression")
@@ -112,13 +116,16 @@ def test_ebm_interactions_disabled_for_wide_features():
         return model, X, y
 
     with patch("raman_bench.preprocessing.wrapped_models.EBMModel._fit", return_value=None):
-        wide_model, wide_x, wide_y = _make_model(_EBM_WIDE_FEATURE_THRESHOLD + 1)
+        wide_model, wide_x, wide_y = _make_model(5000)
         wide_model._fit(wide_x, wide_y)
         assert wide_model.params["interactions"] == 0
 
-        narrow_model, narrow_x, narrow_y = _make_model(_EBM_WIDE_FEATURE_THRESHOLD - 1)
+        # The real failure mode this regression-guards: a NARROW dataset
+        # (well under any feature-count threshold ever used) must ALSO get
+        # interactions disabled, not just wide ones.
+        narrow_model, narrow_x, narrow_y = _make_model(10)
         narrow_model._fit(narrow_x, narrow_y)
-        assert "interactions" not in narrow_model.params
+        assert narrow_model.params["interactions"] == 0
 
 
 def test_ebm_interactions_not_reset_if_user_disabled_already():
@@ -126,15 +133,11 @@ def test_ebm_interactions_not_reset_if_user_disabled_already():
     a no-op re-set, not accidentally left at some other value."""
     import pandas as pd
 
-    from raman_bench.preprocessing.wrapped_models import (
-        _EBM_WIDE_FEATURE_THRESHOLD,
-        Prep_EBM,
-    )
+    from raman_bench.preprocessing.wrapped_models import Prep_EBM
 
     model = Prep_EBM(problem_type="regression")
     model.params = {"interactions": 0}
-    n_features = _EBM_WIDE_FEATURE_THRESHOLD + 1
-    X = pd.DataFrame({f"f{i}": [0.0, 1.0] for i in range(n_features)})
+    X = pd.DataFrame({f"f{i}": [0.0, 1.0] for i in range(10)})
     y = pd.Series([0.0, 1.0])
 
     with patch("raman_bench.preprocessing.wrapped_models.EBMModel._fit", return_value=None):
