@@ -57,7 +57,15 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 DEFAULT_NUM_RANDOM_CONFIGS = 50
 DEFAULT_NUM_BAG_FOLDS = 8
-DEFAULT_TIME_LIMIT = 3600
+# Raised from 3600 (2026-09-18): the largest datasets in RamanPreprocessing's k-fold corpus
+# (mlrod ~130k rows, bacteria_identification ~78.5k, wheat_lines ~53k) reliably hit
+# TimeLimitExceeded on even simple CPU models (PLS/PCR/RIDGE/PCALDA/KNN/SVM) at the old 1h
+# budget once available memory was no longer the binding constraint -- raising this alone
+# does not slow down small/fast datasets, since AutoGluon returns as soon as fitting
+# finishes; it only raises the ceiling for genuinely slow fits. SVM at N~130k may still
+# need more (exact-kernel SVM is O(N^2)+); if it keeps failing even at this budget, that is
+# a scope question (cap N for SVM, or switch kernel approximation), not a bigger number.
+DEFAULT_TIME_LIMIT = 18000
 DEFAULT_N_REPEATS = 10
 DEFAULT_N_SPLITS = 3
 
