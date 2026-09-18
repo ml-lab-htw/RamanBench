@@ -50,118 +50,45 @@ lb.evaluate_and_add("My Model", MyModel())
 print(lb.rank())
 ```
 
-### Option B: Wrapping an existing AutoGluon model
+### Option B: Wrapping a TabArena-native model
 
-Use this path when the model already exists as an AutoGluon class (e.g. a new version
-of TabPFN, a model from the AutoGluon registry, or any third-party model that ships
-its own AutoGluon integration).
+Use this path when the model already exists in TabArena (check the pinned
+commit's `tabarena.models.<key>` — see `pyproject.toml`'s `tabarena`
+dependency comment for which commit is currently pinned and why) rather than
+subclassing a raw AutoGluon model directly.
 
-#### 1. Create or locate the AutoGluon model class
+#### 1. Confirm TabArena has it, don't reinvent
 
-If the model is already in AutoGluon's registry (check
-`autogluon.tabular.registry.ag_model_registry`), skip this step.
+Check `tabarena.models.<key>.{model,hpo,info}.py` in the pinned commit's
+checkout. If it's there, you almost always want a thin rebind, not a
+from-scratch wrapper — see `src/raman_bench/models/custom/ta_exaone_tabular/`
+or `src/raman_bench/models/custom/causilo/` for the reference pattern: a
+`Prep_*` class subclassing `_NoAugBase` + TabArena's own model class, in its
+own `models/custom/<key>/{model,hpo,info}.py` directory (auto-discovered, no
+manual registry edit needed — see `src/raman_bench/models/discover.py`).
 
-Otherwise subclass the closest existing AutoGluon base class. For example, a new
-TabPFN version only needs to declare its checkpoint filenames:
+If TabArena does NOT have it yet, that's real upstream contribution work
+(open a PR to `autogluon/tabarena`), not something to fork around here.
 
-```python
-# autogluon/tabular/src/autogluon/tabular/models/tabpfnv2/tabpfnv2_5_model.py
+#### 2. GPU tier
 
-class MyModelAG(TabPFNModel):
-    ag_key = "MYMODEL"
-    ag_name = "MyModel"
-    default_classification_model = "mymodel-classifier-default.ckpt"
-    default_regression_model     = "mymodel-regressor-default.ckpt"
+If the model needs a GPU, add its key to `cluster/gpu_models.json` — this is
+what keeps the CPU/GPU cluster-tier split enforced (see
+`cluster/opportunistic_scheduler.py`'s `compute_backlog`).
 
-    @staticmethod
-    def extra_checkpoints_for_tuning(problem_type):
-        return []
-```
+#### 3. Add tests
 
-Register it in `autogluon/tabular/src/autogluon/tabular/models/__init__.py` and
-`autogluon/tabular/src/autogluon/tabular/registry/_ag_model_registry.py`.
+Create `tests/models/test_my_model.py` (see `tests/models/test_causilo.py`
+or `tests/models/test_ta_mitra_v2.py` for a real, current example).
 
-#### 2. Create a `Prep_*` wrapper in RamanBench
+#### 4. Open a Pull Request
 
-Every model that runs through the benchmark pipeline must have a `Prep_*` class in
-`src/raman_bench/preprocessing/wrapped_models.py`.
-
-**Why the wrapper exists:** `_NoAugBase` and `RamanPreprocessingMixin` inject
-Raman-specific preprocessing steps (baseline correction, denoising, SNV normalisation,
-spectral augmentation) as AutoGluon hyperparameters directly into the model class.
-This means the benchmark can later analyse which preprocessing combination worked best
-for each model family without running a separate preprocessing sweep — the choices are
-stored alongside the model's predictions.
-
-Without the `Prep_*` wrapper, the pipeline puts the model's string key into the
-hyperparameters dict instead of a class, causing a
-`TypeError: issubclass() arg 1 must be a class` at runtime.
-
-```python
-# src/raman_bench/preprocessing/wrapped_models.py
-
-# 1. Import the AutoGluon class at the top of the file
-from autogluon.tabular.models import MyModelAG
-
-# 2. Create the Prep_ wrapper (inherits _NoAugBase to disable spectral augmentation)
-class Prep_MYMODEL(_NoAugBase, MyModelAG):  # noqa: N801
-    pass
-
-# 3. Register it in the PREPROCESSED_MODELS dict
-PREPROCESSED_MODELS = {
-    ...
-    "MYMODEL": Prep_MYMODEL,
-}
-```
-
-#### 3. Add the model key to config files
+Run a real smoke test locally before opening the PR:
 
 ```bash
-# Required
-configs/models/all.json           # full benchmark model list
-configs/models/raman.json         # or another appropriate group
-
-# If the model uses a GPU
-configs/models/gpu_models.json
-```
-
-If the model needs dataset-level subsampling on very large datasets (e.g. foundation
-models that OOM on MLROD), add an entry to `configs/hpo_off.json`:
-
-```json
-"subsample": {
-    "combinations": {
-        "MYMODEL": ["mlrod_0"]
-    }
-}
-```
-
-#### 4. Update cluster scripts
-
-In `cluster/submit_per_model.sh`, add a memory tier:
-
-```bash
-MITRA|REALTABPFN-V2|...|MYMODEL)
-    MEM="128G" ;;
-```
-
-In `cluster/run_benchmark_single_model.sbatch`, add to `LARGE_GPU_MODELS` if the model
-needs its seeds run sequentially (i.e. it can exhaust VRAM when two seeds run at once):
-
-```bash
-LARGE_GPU_MODELS="... MYMODEL"
-```
-
-#### 5. Add tests
-
-Create `tests/models/test_my_model.py` (see `tests/models/test_deep_cnn.py` for an example).
-
-#### 6. Open a Pull Request
-
-Include benchmark results on at least the debug config:
-
-```bash
-raman-bench run --config configs/debug.json --model MYMODEL
+python scripts/run_experiment.py --dataset alzheimer --target-idx 0 \
+    --model MYMODEL --repeat 0 --fold 0 --config-index 0 \
+    --results-dir /tmp/smoke_results --scratch-dir /tmp/smoke_scratch
 ```
 
 ---

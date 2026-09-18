@@ -11,9 +11,11 @@ than one holdout split per seed: resolve compute resources from the
 environment, build the task, run exactly one experiment, cache the result to
 disk, exit.
 
-This is an ADDITIVE, parallel execution path. It does not replace or modify
-``raman_bench.model.AutoGluonModel`` / ``raman_bench.predictions``, which the
-paper repo's currently-published/in-flight v0/v1 results still depend on.
+This is the only benchmark execution path in this package as of v2.0.0 -- the
+earlier v0.1-era pipeline (``raman_bench.model.AutoGluonModel``,
+``raman_bench.predictions``, ``scripts/run_benchmark.py``) has been removed;
+see CHANGELOG.md for the v1.x release tag if you need to reproduce that
+pipeline's exact behavior.
 
 Job identity and reproducibility
 ---------------------------------
@@ -190,18 +192,17 @@ def _resolve_num_gpus(use_gpu: bool) -> int:
 def _load_recipe_config(recipe_config_path: str | None) -> tuple[dict | None, dict | None]:
     """Load a preprocessing recipe file and return ``(preprocessing_config, preprocessing_params)``.
 
-    ``recipe_config_path`` uses the *same* JSON schema as Pipeline A's own recipe configs
-    (e.g. ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``): a top-level
-    ``"preprocessing"`` dict/bool (step-key -> enabled) and an optional flat
+    ``recipe_config_path`` uses the *same* JSON schema as the RamanPreprocessing
+    repo's own recipe configs (e.g. ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``):
+    a top-level ``"preprocessing"`` dict/bool (step-key -> enabled) and an optional flat
     ``"preprocessing_params"`` override dict. Only those two keys are read here -- every
     other key in the file (``datasets_regression``, ``models``, ``autogluon_time_limit``,
-    ``subsample``, ...) is ignored, so Pipeline B can point ``--recipe-config`` directly at
-    an existing Pipeline A recipe file with no duplication or new recipe format.
+    ``subsample``, ...) is ignored, so this script can point ``--recipe-config`` directly at
+    an existing RamanPreprocessing recipe file with no duplication or new recipe format.
 
     Reuses ``raman_bench.config``'s own normalisation helpers
     (``_normalize_preprocessing_config`` / ``_normalize_preprocessing_params``) rather than
-    re-deriving the ``True``/``False``/dict-shorthand handling -- the exact same normalisation
-    Pipeline A's ``load_config`` applies. Returns ``(None, None)`` if ``recipe_config_path`` is
+    re-deriving the ``True``/``False``/dict-shorthand handling. Returns ``(None, None)`` if ``recipe_config_path`` is
     ``None`` (no recipe -- every preprocessing step stays at the model class's own default,
     matching the current, pre-recipe-argument behaviour of this script).
     """
@@ -293,18 +294,17 @@ def run_one(
     label" error, which is expected until such a model exists.
 
     ``recipe_config`` (default ``None``) names a preprocessing recipe JSON file, in the
-    *same* schema as Pipeline A's own recipe configs (e.g.
+    *same* schema as the RamanPreprocessing repo's own recipe configs (e.g.
     ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``) -- a top-level
     ``"preprocessing"`` dict/bool and optional ``"preprocessing_params"`` override dict.
-    Applied via the same restriction-application code path Pipeline A's
-    ``AutoGluonModel._build_model_hyperparameters`` uses
-    (:func:`raman_bench.model.build_prep_model_hyperparameters`), so a given recipe produces
-    identical ``prep_*_enabled``/``prep_*`` hyperparameters under either pipeline. ``None``
+    Applied via :func:`raman_bench.model.build_prep_model_hyperparameters`, the
+    restriction-application code path shared by this script and any other caller
+    building ``Prep_*`` hyperparameters from a restriction dict. ``None``
     (the default) means "use the model class's own preprocessing defaults, unrestricted" --
     the only behaviour this script had before this argument existed. Only applies when
     ``model_key`` resolves to a ``RamanPreprocessingMixin`` subclass (every model in
     ``wrapped_models.PREPROCESSED_MODELS``, i.e. every model in this repo's curated grid);
-    for any other model class the recipe is ignored with a warning, matching how Pipeline A's
+    for any other model class the recipe is ignored with a warning, matching how
     ``create_preprocessed_hyperparameters`` silently passes such models through with no
     preprocessing hyperparameters at all.
     """
@@ -462,10 +462,9 @@ def run_one(
     # Applied here unconditionally for every dataset (not gated to these two
     # by name), so it's a single, traceable fix rather than a per-dataset
     # special case, and so sample counts stay identical across every model
-    # for a given dataset (KNN included) -- this mirrors Pipeline A's
-    # existing, older `RamanBenchmark._load_dataset_from_key`'s
-    # `data_df.dropna()`, which already handled this silently for Pipeline
-    # A; Pipeline B had no equivalent until now.
+    # for a given dataset (KNN included) -- this mirrors the older, still-live
+    # `RamanBenchmark._load_dataset_from_key`'s `data_df.dropna()`, which
+    # already handled this silently; this script had no equivalent until now.
     feature_cols = [c for c in df.columns if c not in (label_col, GROUP_COL)]
     nan_feature_mask = df[feature_cols].isna().any(axis=1)
     n_nan_feature_rows = int(nan_feature_mask.sum())
@@ -569,13 +568,12 @@ def run_one(
     gen = _import_generator(model_key)
 
     # Apply the requested preprocessing recipe (§6.1 of
-    # docs/kfold_priority_plan.md in the RamanPreprocessing repo -- Pipeline B previously had
+    # docs/kfold_priority_plan.md in the RamanPreprocessing repo -- this script previously had
     # no way to specify a recipe at all, only --config-index for model hyperparameters).
-    # Reuses the exact same restriction-application code path as Pipeline A
-    # (raman_bench.model.build_prep_model_hyperparameters, factored out of
-    # AutoGluonModel._build_model_hyperparameters), so a given recipe file produces
-    # identical prep_*_enabled/prep_* hyperparameters under either pipeline. `optimize=False`
-    # is hardcoded here: Pipeline B's k-fold plan pins --config-index 0 (default model
+    # Uses raman_bench.model.build_prep_model_hyperparameters, the shared
+    # restriction-application code path, so a given recipe file produces
+    # identical prep_*_enabled/prep_* hyperparameters regardless of caller. `optimize=False`
+    # is hardcoded here: the k-fold plan pins --config-index 0 (default model
     # hyperparameters, no HPO) for every job, so preprocessing HPO search-space injection
     # (only relevant when optimize=True) never applies.
     extra_model_hyperparameters = None
@@ -672,7 +670,7 @@ def run_one(
     # results.pkl. Only append a recipe segment when a recipe is actually given, so cache
     # entries from before this argument existed (recipe_config=None, the only mode this
     # script supported previously) resolve to the exact same path as before -- no cache
-    # invalidation for already-completed no-recipe Pipeline B jobs.
+    # invalidation for already-completed no-recipe jobs.
     experiment_dir_name = experiment.name
     if recipe_config is not None:
         recipe_slug = os.path.splitext(os.path.basename(recipe_config))[0]
@@ -761,14 +759,13 @@ def main():
     parser.add_argument(
         "--recipe-config",
         default=None,
-        help="Path to a preprocessing recipe JSON file, same schema as Pipeline A's own "
-        "recipe configs (e.g. RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json): "
+        help="Path to a preprocessing recipe JSON file, same schema as the RamanPreprocessing "
+        "repo's own recipe configs (e.g. RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json): "
         "a top-level \"preprocessing\" dict/bool and optional \"preprocessing_params\" "
         "override dict. Only those two keys are read -- every other key (datasets, models, "
         "autogluon_*, subsample, ...) is ignored, so this can point directly at an existing "
-        "Pipeline A recipe file. Applied via the same restriction-application code path "
-        "Pipeline A uses (raman_bench.model.build_prep_model_hyperparameters), so results "
-        "are directly comparable across pipelines. Default: None (no recipe -- the model "
+        "RamanPreprocessing recipe file. Applied via "
+        "raman_bench.model.build_prep_model_hyperparameters. Default: None (no recipe -- the model "
         "class's own preprocessing defaults, unrestricted; this was the only behaviour "
         "before this argument existed).",
     )

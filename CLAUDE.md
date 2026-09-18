@@ -2,14 +2,25 @@
 
 Guidance for Claude Code when working with this repository.
 
-## Current State (as of v1.0.0 release)
+## Current State (as of v2.0.0)
 
-**Status**: v1.0.0 released (Sept 1, 2026)
+**Status**: v2.0.0 (2026-09-18) — the legacy v0.1-era execution pipeline
+(`raman_bench.model.AutoGluonModel`, `raman_bench.predictions`,
+`scripts/run_benchmark.py`, `configs/benchmark_v0.1.json`) has been removed.
+The only benchmark execution path now is the TabArena-based one:
+`scripts/run_experiment.py`, driven by `cluster/submit_job.py`/
+`cluster/submit_full_benchmark.py` against `configs/v1/target_list.json`.
+Anyone needing the old pipeline should check out the last v1.x release tag.
+
+The `Leaderboard` class (`from raman_bench import Leaderboard`, precomputed
+CSVs, `raman-bench leaderboard` CLI) was deliberately kept — it's a scoring
+feature independent of the removed execution pipeline, not part of it.
+
 - Main branch contains the completed v1 refactor (TabArena integration, k-fold CV, new preprocessing)
-- All commits from `refactor/v1-tabarena` have been merged to main
-- There are no active feature branches for major work; v1 is complete and released
-
-**Important**: The v1 refactor is NOT a separate branch anymore. Do not look for work-in-progress on `refactor/v1-tabarena` — it is merged. If you see references to "mid-refactor," they are stale.
+- Cluster support now includes both SLURM (HTW/TU) and Kubernetes backends
+  (`cluster/submit_job.py`'s backend dispatch)
+- `tabarena` is pinned to a specific upstream git commit, not a PyPI release —
+  see `pyproject.toml`'s `tabarena` dependency comment for why
 
 ## What This Repo Is
 
@@ -94,24 +105,23 @@ Tests that download from raw sources (not mirror) carry `@pytest.mark.skip` or c
 1. Implement the fit/transform functions in `src/raman_bench/preprocessing/raman_preprocessing.py`
 2. Add a `_PREP_STEP_DEFINITIONS` entry in `src/raman_bench/preprocessing/mixin.py`
 3. Register in `_ALL_PREPROCESSING_STEPS`
-4. Add HPO search space to `AutoGluonModel._build_model_hyperparameters()`
+4. Add HPO search space to `build_prep_model_hyperparameters()` (`src/raman_bench/model.py`)
 5. Add test (especially for shape-changing steps)
 6. Update CHANGELOG.md
 
 ### Running the full benchmark locally
 ```bash
-python scripts/run_benchmark.py --config configs/v1_default.json --step predictions
-python scripts/run_benchmark.py --config configs/v1_default.json --step metrics
-python scripts/run_benchmark.py --config configs/v1_default.json --step plots
+python scripts/run_experiment.py --dataset <dataset> --target-idx 0 \
+    --model <MODEL> --repeat 0 --fold 0 --config-index 0 \
+    --results-dir results/v1/data
 ```
 
-Cluster runs (SLURM) use `cluster/submit_job.py` and `cluster/opportunistic_scheduler.py`.
+Cluster runs (SLURM or Kubernetes) use `cluster/submit_job.py`,
+`cluster/submit_full_benchmark.py`, and (SLURM only) `cluster/opportunistic_scheduler.py`.
 
 ## Important: No Half-Done State
 
-This codebase is currently in a released state (v1.0.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development:
-- `refactor/v1-tabarena` — This was merged to main long ago; ignore it
-- Feature branches (e.g., `feat/new-preprocessing`) — These are rare; check git log to see if they're stale
+This codebase is currently in a released state (v2.0.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
 
 If you're about to start significant work, create a feature branch, but assume main is stable.
 

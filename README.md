@@ -263,19 +263,20 @@ tfm.fit(X, y)
 predictions = tfm.predict(X)
 ```
 
-### Run the full v0 benchmark pipeline
+### Run the full benchmark pipeline
+
+Single-experiment runs use `scripts/run_experiment.py` (one process per
+`(model, dataset, target, repeat, fold, config-index)`), typically submitted
+via `cluster/submit_job.py`/`cluster/submit_full_benchmark.py` for a real
+cluster (SLURM or Kubernetes) sweep:
 
 ```bash
-# Pre-cache all dataset splits (optional, speeds up the run)
-python scripts/prepare_datasets.py --config configs/benchmark_v0.1.json
-
-# Run predictions → metrics
-raman-bench run --config configs/benchmark_v0.1.json
-
-# Run individual steps
-raman-bench run --config configs/benchmark_v0.1.json --step predictions
-raman-bench run --config configs/benchmark_v0.1.json --step metrics
+python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \
+    --model PLS --repeat 0 --fold 0 --config-index 0 \
+    --results-dir results/v1/data
 ```
+
+See `cluster/submit_job.py --help` for submitting a real array/sweep.
 
 ### Notebooks
 
@@ -285,8 +286,6 @@ raman-bench run --config configs/benchmark_v0.1.json --step metrics
 | [`02_benchmark_new_model.ipynb`](notebooks/02_benchmark_new_model.ipynb) | Evaluate your own model and add it to the leaderboard |
 | [`03_explore_results.ipynb`](notebooks/03_explore_results.ipynb) | Per-dataset and per-domain results |
 | [`04_contribute_dataset.ipynb`](notebooks/04_contribute_dataset.ipynb) | Adding a new dataset, step by step |
-| [`05_reproduce_benchmark.ipynb`](notebooks/05_reproduce_benchmark.ipynb) | Re-running the v0 benchmark from configs |
-| [`06_hpo_ensemble_ablation.ipynb`](notebooks/06_hpo_ensemble_ablation.ipynb) | HPO and ensembling ablation |
 
 ---
 
@@ -383,13 +382,11 @@ interactive filtering by model category, task type, and dataset domain.
 ```
 RamanBench/
 ├── src/raman_bench/
-│   ├── leaderboard.py          # Leaderboard + model evaluation API (v0)
+│   ├── leaderboard.py          # Leaderboard + model evaluation API (scores a model against precomputed baselines)
 │   ├── benchmark.py            # Dataset loading (mirror-first) and cross-validation
-│   ├── predictions.py          # Prediction generation (v0 benchmark step 1)
-│   ├── evaluation.py           # Metric computation (v0 benchmark step 2)
-│   ├── model.py                # v0 AutoGluon pipeline wrapper (fork required)
+│   ├── model.py                # build_prep_model_hyperparameters (Prep_* hyperparameter builder)
 │   ├── config.py               # JSON config loader
-│   ├── splitting.py            # v1: repeated k-fold CV + TabArena UserTask construction
+│   ├── splitting.py            # Repeated k-fold CV + TabArena UserTask construction
 │   ├── models/
 │   │   ├── registry.py         #   raman_bench_model_registry (TabArena's + ours)
 │   │   ├── discover.py         #   auto-discovery for models/custom/<key>/info.py

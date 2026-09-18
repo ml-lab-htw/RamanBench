@@ -5,7 +5,7 @@ downloaded from Hugging Face on first fit, so (matching the existing GPU-foundat
 test posture in this repo -- e.g. no ``test_gbm.py``/``test_ta_tabpfn_3.py``/
 ``test_ta_exaone_tabular.py`` fit test) this only checks the wrapper's structure and
 registration, not an actual fit/predict cycle. End-to-end verification is via
-``scripts/run_experiment.py`` (Pipeline B) on a GPU machine.
+``scripts/run_experiment.py`` on a GPU machine.
 """
 
 from __future__ import annotations

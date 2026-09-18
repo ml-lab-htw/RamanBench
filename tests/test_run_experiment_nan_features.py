@@ -1,4 +1,4 @@
-"""Regression tests for the Pipeline B NaN-feature-row-drop fix.
+"""Regression tests for the NaN-feature-row-drop fix in scripts/run_experiment.py.
 
 Before this fix, ``scripts/run_experiment.py::run_one()`` only dropped rows with a
 missing (NaN) *label* -- it had no equivalent of Pipeline A's

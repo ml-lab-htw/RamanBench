@@ -7,7 +7,52 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [Unreleased] — targeting 2.0.0 (breaking)
+
+### Removed
+
+- **The entire v0.1-era execution pipeline**: `raman_bench.model.AutoGluonModel`,
+  `raman_bench.predictions` (`compute_predictions`), `raman_bench.evaluation`
+  (`compute_metrics_from_predictions`), `scripts/run_benchmark.py`,
+  `scripts/prepare_datasets.py`, the `raman-bench run` CLI subcommand,
+  `configs/debug.json`, `configs/models/raman.json`, and
+  `notebooks/05_reproduce_benchmark.ipynb`. This pipeline produced the
+  already-published paper results and has been superseded end-to-end by
+  `scripts/run_experiment.py` (the TabArena/AutoGluon-based, repeated-k-fold
+  pipeline) since v1.0.0 — this release removes the now-unused parallel path
+  rather than continuing to maintain both. Anyone needing the old pipeline's
+  exact behavior should check out the last v1.x release tag.
+  - **Kept**: `Leaderboard`/`from raman_bench import Leaderboard`, the
+    `metrics/` module, the precomputed CSVs under `data/precomputed/`, and the
+    `raman-bench leaderboard` CLI subcommand — this is a separate, still-useful
+    scoring feature (score a new model against precomputed baselines), not
+    part of the removed execution pipeline, even though it happens to reuse
+    `metrics/` at call time.
+  - `raman_bench.model` now only exports `build_prep_model_hyperparameters`
+    (the `Prep_*` hyperparameter builder `scripts/run_experiment.py` already
+    depended on) — `AutoGluonModel` and its `_build_foundation_hyperparameters`
+    helper are gone.
+  - `configs/benchmark_v0.1.json` is **kept** — `Leaderboard.evaluate_and_add()`
+    defaults to it, so it's still load-bearing for the kept feature.
+    `configs/models/{all,traditional_ml,tabular_foundation}.json` and
+    `configs/datasets/{classification,regression}_all.json` are also **kept** —
+    verified as real, active inputs to `scripts/build_target_list.py` and
+    several `tests/test_generate_tabarena_*.py` consistency checks, not
+    orphaned Pipeline-A artifacts despite superficially looking like them.
+- **Other dead code found via a follow-up orphan-code audit** (same release):
+  `src/raman_bench/seeds.py` (`get_seeds()`, zero remaining callers after the
+  pipeline removal above), `notebooks/06_hpo_ensemble_ablation.ipynb` (already
+  broken before this cleanup — called the now-removed `run_benchmark.py`
+  against config paths that don't exist in this repo), and a local,
+  never-committed `scripts/package_croissant_files.py` utility. The
+  precomputed CSVs with no in-repo Python consumer
+  (`data/precomputed/{leaderboard_clf,leaderboard_reg,datasets}.csv`,
+  `score_params.json`) were deliberately **kept** — can't rule out an external
+  reader (paper repo, HuggingFace Space) opening them by path.
+- **"Pipeline B" terminology removed** from all code/docs (only `Pipeline A`'s
+  historical CHANGELOG entries keep the old naming) — with Pipeline A gone,
+  there's only one execution pipeline, so labeling it "B" no longer means
+  anything.
 
 ### Added
 

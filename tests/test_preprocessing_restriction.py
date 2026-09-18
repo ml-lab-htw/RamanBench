@@ -2,19 +2,18 @@
 specification — steps set ``True`` are force-*enabled* and steps set ``False``
 are force-*disabled* — overriding each model's class defaults.
 
-Regression guard for the fix in ``AutoGluonModel._build_model_hyperparameters``:
+Regression guard for the fix in ``build_prep_model_hyperparameters``:
 previously only force-*disable* (and augmentation force-enable) were honoured, so
 enabling a step that a model's class default left off (e.g. MSC on Prep_RF, or
 SNV on a tree model) was silently a no-op.
 """
 
 import pytest
-from raman_data import TASK_TYPE
 
 pytest.importorskip("autogluon")
 
 from raman_bench.config import _ALL_PREPROCESSING_STEPS
-from raman_bench.model import AutoGluonModel
+from raman_bench.model import build_prep_model_hyperparameters
 from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS
 
 
@@ -23,19 +22,13 @@ def _prep_config(**enabled) -> dict:
     return {step: bool(enabled.get(step, False)) for step in _ALL_PREPROCESSING_STEPS}
 
 
-def _params_for(model: str, preprocessing_config: dict) -> dict:
+def _params_for(model: str, preprocessing_config: dict | None) -> dict:
     """Build hyperparameters for a single model and return its params dict."""
-    m = AutoGluonModel(
-        models=[model],
-        ensemble=False,
-        optimize=False,
-        task_type=TASK_TYPE.Regression,
-        preprocessing_config=preprocessing_config,
-    )
-    hp = m._build_model_hyperparameters()
     cls = PREPROCESSED_MODELS[model.upper()]
-    assert cls in hp, f"{model} not in built hyperparameters"
-    return hp[cls]
+    base_cfg: dict = {}
+    if preprocessing_config is not None:
+        base_cfg["_prep_restriction"] = preprocessing_config
+    return build_prep_model_hyperparameters(cls, base_cfg, optimize=False)
 
 
 def test_snv_only_forces_pls_bl_off_and_snv_on():
