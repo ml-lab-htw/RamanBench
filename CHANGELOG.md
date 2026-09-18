@@ -7,7 +7,74 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [Unreleased] — targeting 2.0.0 (breaking)
+
+### Removed
+
+- **The entire v0.1-era execution pipeline**: `raman_bench.model.AutoGluonModel`,
+  `raman_bench.predictions` (`compute_predictions`), `raman_bench.evaluation`
+  (`compute_metrics_from_predictions`), `scripts/run_benchmark.py`,
+  `scripts/prepare_datasets.py`, the `raman-bench run` CLI subcommand,
+  `configs/debug.json`, `configs/models/raman.json`, and
+  `notebooks/05_reproduce_benchmark.ipynb`. This pipeline produced the
+  already-published paper results and has been superseded end-to-end by
+  `scripts/run_experiment.py` (the TabArena/AutoGluon-based, repeated-k-fold
+  pipeline) since v1.0.0 — this release removes the now-unused parallel path
+  rather than continuing to maintain both. Anyone needing the old pipeline's
+  exact behavior should check out the last v1.x release tag.
+  - **Kept**: `Leaderboard`/`from raman_bench import Leaderboard`, the
+    `metrics/` module, the precomputed CSVs under `data/precomputed/`, and the
+    `raman-bench leaderboard` CLI subcommand — this is a separate, still-useful
+    scoring feature (score a new model against precomputed baselines), not
+    part of the removed execution pipeline, even though it happens to reuse
+    `metrics/` at call time.
+  - `raman_bench.model` now only exports `build_prep_model_hyperparameters`
+    (the `Prep_*` hyperparameter builder `scripts/run_experiment.py` already
+    depended on) — `AutoGluonModel` and its `_build_foundation_hyperparameters`
+    helper are gone.
+  - `configs/benchmark_v0.1.json` is **kept** — `Leaderboard.evaluate_and_add()`
+    defaults to it, so it's still load-bearing for the kept feature.
+    `configs/models/{all,traditional_ml,tabular_foundation}.json` and
+    `configs/datasets/{classification,regression}_all.json` are also **kept** —
+    verified as real, active inputs to `scripts/build_target_list.py` and
+    several `tests/test_generate_tabarena_*.py` consistency checks, not
+    orphaned Pipeline-A artifacts despite superficially looking like them.
+- **Other dead code found via a follow-up orphan-code audit** (same release):
+  `src/raman_bench/seeds.py` (`get_seeds()`, zero remaining callers after the
+  pipeline removal above), `notebooks/06_hpo_ensemble_ablation.ipynb` (already
+  broken before this cleanup — called the now-removed `run_benchmark.py`
+  against config paths that don't exist in this repo), and a local,
+  never-committed `scripts/package_croissant_files.py` utility. The
+  precomputed CSVs with no in-repo Python consumer
+  (`data/precomputed/{leaderboard_clf,leaderboard_reg,datasets}.csv`,
+  `score_params.json`) were deliberately **kept** — can't rule out an external
+  reader (paper repo, HuggingFace Space) opening them by path.
+- **"Pipeline B" terminology removed** from all code/docs (only `Pipeline A`'s
+  historical CHANGELOG entries keep the old naming) — with Pipeline A gone,
+  there's only one execution pipeline, so labeling it "B" no longer means
+  anything.
+
+### Added
+
+- **`TA-MITRA-V2` model.** Wraps [Mitra-v2](https://arxiv.org/abs/2609.04540)
+  (Amazon/AutoGluon's second-generation Mitra tabular foundation model: the same
+  12-layer 2D-attention backbone, now 77M parameters, pretrained on a larger and
+  more diverse synthetic prior, deployed as a fine-tuned, bagged model -- every bag
+  child fine-tunes the checkpoint on its fit fold for 50 steps and predicts in
+  context) with RamanBench's tunable preprocessing recipe
+  (`src/raman_bench/models/custom/ta_mitra_v2/`). TabArena already ships a full
+  integration (`tabarena.models.mitra_v2`, `ag_key="TA-MITRA-V2"`) as an
+  AutoGluon-native `MitraModel` subclass, so this reuses that class directly rather
+  than reimplementing anything -- same pattern as `Prep_GBM`/`ta_tabpfn_3`. The
+  fine-tuning recipe is frozen (no tunable search space; the default configuration
+  is the method). Supports both classification and regression. `compute="gpu"`
+  (`minimum_num_gpus=1`, a hard requirement when `num_gpus>0` is requested; the
+  upstream wrapper also runs on CPU, just very slowly, when no GPU is requested).
+  License: Apache-2.0 for both code and weights. Requires `tabarena`'s
+  `models/mitra_v2/` package, which is not yet in a PyPI release of `tabarena` as
+  of this change (merged upstream 2026-09-14, after the `tabarena==0.1.0` PyPI cut)
+  -- `pyproject.toml`'s `tabarena` dependency was moved to a pinned upstream git
+  commit that includes it.
 
 ## [1.1.1] — 2026-09-10
 

@@ -9,7 +9,6 @@ HPO or a model class's ``_set_default_params`` default.
 """
 
 import pytest
-from raman_data import TASK_TYPE
 
 pytest.importorskip("autogluon")
 
@@ -17,7 +16,7 @@ from raman_bench.config import (  # noqa: E402
     _ALL_PREPROCESSING_STEPS,
     _normalize_preprocessing_params,
 )
-from raman_bench.model import AutoGluonModel  # noqa: E402
+from raman_bench.model import build_prep_model_hyperparameters  # noqa: E402
 from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS  # noqa: E402
 
 
@@ -28,18 +27,16 @@ def _prep_config(**enabled) -> dict:
 def _params_for(
     model: str, preprocessing_config=None, preprocessing_params=None, optimize=False
 ) -> dict:
-    m = AutoGluonModel(
-        models=[model],
-        ensemble=False,
-        optimize=optimize,
-        task_type=TASK_TYPE.Regression,
-        preprocessing_config=preprocessing_config,
-        preprocessing_params=preprocessing_params,
-    )
-    hp = m._build_model_hyperparameters()
     cls = PREPROCESSED_MODELS[model.upper()]
-    assert cls in hp, f"{model} not in built hyperparameters"
-    return hp[cls]
+    base_cfg: dict = {}
+    if preprocessing_config is not None:
+        base_cfg["_prep_restriction"] = preprocessing_config
+    return build_prep_model_hyperparameters(
+        cls,
+        base_cfg,
+        preprocessing_params=preprocessing_params,
+        optimize=optimize,
+    )
 
 
 # ---------------------------------------------------------------------------

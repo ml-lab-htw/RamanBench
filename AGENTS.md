@@ -1,6 +1,6 @@
-# CLAUDE.md — RamanBench
+# AGENTS.md — RamanBench
 
-Guidance for Claude Code when working with this repository.
+Guidance for Codex when working with this repository.
 
 ## Current State (as of v2.0.0)
 

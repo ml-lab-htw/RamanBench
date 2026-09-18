@@ -1,4 +1,4 @@
-"""Regression tests for the Pipeline B preprocessing-recipe gap.
+"""Regression tests for the preprocessing-recipe gap in scripts/run_experiment.py.
 
 Before this fix, ``scripts/run_experiment.py::run_one()`` had no way to specify which
 preprocessing recipe a job should use -- only ``--config-index`` for model

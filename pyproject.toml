@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "raman-bench"
-version = "1.1.1"
+version = "2.0.0"
 description = "A large-scale benchmark for machine learning on Raman spectroscopy data"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -60,21 +60,52 @@ autogluon = [
     # and the rest of RamanBench's AutoGluon integration is verified against
     # (1.6.1 is also where TabICL's own v1->v2 + regression-support gap, the fork's
     # other original reason to exist, is resolved natively upstream).
-    "autogluon.common>=1.6.1",
-    "autogluon.core>=1.6.1",
-    "autogluon.features>=1.6.1",
-    "autogluon.tabular>=1.6.1",
+    #
+    # >=1.6.3b20260917 (prerelease, not yet a stable cut): required by TabArena's
+    # new mandatory warm-up framework (tabarena.benchmark.experiment.experiment_runner,
+    # require_warmup=True by default as of the 2026-09-18 pin bump) -- it imports
+    # autogluon.core.models.abstract._shared_weights_registry, which does not exist
+    # in stable 1.6.2 (confirmed: every real experiment run raised RuntimeError
+    # "Warm-up ... did not succeed ... ModuleNotFoundError:
+    # _shared_weights_registry" until this bump). Confirmed present in this exact
+    # prerelease build by inspecting its wheel directly. Bump to a stable 1.6.3+
+    # once one is cut.
+    "autogluon.common>=1.6.3b20260917",
+    "autogluon.core>=1.6.3b20260917",
+    "autogluon.features>=1.6.3b20260917",
+    "autogluon.tabular>=1.6.3b20260917",
     # Wavelet-threshold denoising (RamanPreprocessingMixin's wavelet_denoise step)
     # is imported defensively inside that function, but the tunable preprocessing
     # pipeline itself only ships as part of the `autogluon` extra, so pin it here.
     "PyWavelets>=1.4",
 ]
 benchmark = [
-    # TabArena/bencheval dependencies for full benchmark orchestration.
-    # As of their PyPI prerelease (see github.com/autogluon/tabarena/issues/495),
-    # both install as real PyPI packages -- no git URLs needed anymore.
     "bencheval>=0.1.0",
-    "tabarena>=0.1.0",
+    # Pinned to a specific upstream commit (not floating on `main`) rather than
+    # PyPI's `tabarena` release -- reverts the earlier PyPI-based pin (see git
+    # history around 2026-09-03..16) once it became clear that approach doesn't
+    # fit this repo's actual pace of model onboarding: the conda env deployed on
+    # HTW was found stuck on the old 0.0.1 PyPI placeholder (cluster/refresh_deps.py
+    # only ever upgrades raman-data, never tabarena, so nothing was refreshing it),
+    # and even a healthy PyPI install would still be capped at 0.1.0 (cut
+    # 2026-09-03) -- missing mitra_v2, causilo, tabldm, ctboost, aplr, and every
+    # other model TabArena has merged since, each of which we want the moment it
+    # lands upstream, not whenever the next PyPI release happens to be cut.
+    # Bump this SHA deliberately (not automatically -- see refresh_deps.py) when
+    # picking up new upstream models; a benchmark run's results should always be
+    # traceable to one exact commit, never a floating branch head.
+    "tabarena @ git+https://github.com/autogluon/tabarena.git@d06f406aee0fbd11e74ed9bba9b78e097ad6fd2f#subdirectory=packages/tabarena",
+]
+tracking = [
+    # Optional per-task experiment tracking (scripts/run_experiment.py) --
+    # only activates when WANDB_API_KEY is set in the environment (see
+    # run_experiment.py's _wandb_enabled), so installing this extra without
+    # setting the key is a no-op, not a behavior change. Kept as its own
+    # extra (not folded into `benchmark`/`models`) so a cluster profile that
+    # doesn't want the dependency at all can skip it.
+    "wandb>=0.19",
+    # Provisions per-model Workspaces + a cross-model Report (scripts/setup_wandb_views.py).
+    "wandb-workspaces>=0.1.5",
 ]
 models = [
     "raman-bench[autogluon]",
@@ -82,21 +113,25 @@ models = [
     # tabarena's own per-model extras covering the gap found here: tabicl, ebm
     # (+configspace), realmlp (pytabkit), tabdpt, tabm (+torch). Deliberately NOT
     # tabarena's full `[benchmark]` union -- that also pulls `[tabpfn]`
-    # (tabpfn>=8.0.8), which conflicts with `tabpfnwide` below: every published
-    # tabpfnwide release exact-pins an *older* tabpfn (0.3.0 -> tabpfn==8.0.3),
-    # incompatible with tabarena's floor (confirmed via a real pip resolve:
-    # "tabpfnwide 0.1.0 depends on tabpfn==6.0.6" vs "tabarena[tabpfn] depends on
-    # tabpfn>=8.0.8" -- ResolutionImpossible). RamanBench keeps its own, more
-    # permissive tabpfn/tabpfn-extensions floor below instead, which tabpfnwide's
-    # exact pin already satisfies.
+    # (tabpfn>=8.0.8) which RamanBench's own floor below (now >=9.0.0) already
+    # exceeds.
     #
-    # These extras used to be attached to a git URL (git+https://github.com/autogluon/
-    # tabarena.git#subdirectory=packages/tabarena) because the only "tabarena" on PyPI
-    # was an unrelated version-0.0.0 placeholder, so a bare "tabarena[...]" requirement
-    # resolved against that and conflicted with the `benchmark` extra. TabArena
-    # published the real `tabarena` 0.1.0 to PyPI on 2026-09-03 (it declares all the
-    # per-model extras used here), so this is now a plain versioned PyPI requirement,
-    # matching `benchmark`'s `tabarena>=0.1.0`.
+    # tabpfnwide/TABPFN-WIDE REMOVED 2026-09-18: every published tabpfnwide
+    # release (0.1.0 -> tabpfn==6.0.6, 0.2.0/0.3.0 -> tabpfn==8.0.3) exact-pins
+    # an old tabpfn, permanently incompatible with tabpfn>=9.0.0 -- confirmed
+    # via a real pip resolve (ResolutionImpossible against ALL 3 tabpfnwide
+    # releases, not just the latest). That floor bump is required for
+    # TabPFN-3.5 (tabarena.models.tabpfn_3_5, onboarded this same commit bump),
+    # which needs it for its new multitask checkpoint format. Explicit call: drop tabpfnwide/
+    # TABPFN-WIDE from the roster rather than block TabPFN-3.5 on it --
+    # TABPFN-WIDE's already-computed results stay as historical data, just no
+    # new runs. Revisit if tabpfnwide ever republishes against a newer tabpfn.
+    #
+    # Same pinned-commit git source as `benchmark`'s `tabarena` entry (see its
+    # comment) -- must be the EXACT same URL+SHA so pip treats both requirement
+    # lines as the same direct reference rather than a conflict when both extras
+    # are installed together (`raman-bench[models]` pulls in `raman-bench[benchmark]`
+    # two lines up).
     # perpetualboosting/chimeraboost (batch 2 of the TabArena-native onboarding) pull
     # in their own third-party package below TabArena's own `pip_extra` metadata
     # (perpetual, chimeraboost>=0.14.1 respectively -- see
@@ -110,13 +145,19 @@ models = [
     # the package's own documented CPU-safe "General Installation" path -- the
     # `cu12`/`cu11` extras are opt-in GPU-kernel acceleration only, and XRFM already
     # runs fine without them (falls back to `device="cpu"`, see generate/xrfm.py).
-    "tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost]>=0.1.0",
+    "tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost] @ git+https://github.com/autogluon/tabarena.git@d06f406aee0fbd11e74ed9bba9b78e097ad6fd2f#subdirectory=packages/tabarena",
     "xrfm",
     "ramanspy>=0.2.10,<0.3.0",
     "imodels>=2.0.4",
-    "tabpfn>=6.3.2",
-    "tabpfn-extensions>=0.3.0",
-    "tabpfnwide>=0.1.0",
+    # >=9.0.0: required for TabPFN-3.5's multitask checkpoint format (tabarena.
+    # models.tabpfn_3_5) -- see the tabpfnwide-removal comment above for why
+    # this floor and tabpfnwide can no longer coexist.
+    "tabpfn>=9.0.0",
+    # >=0.4.3: floor bumped alongside tabpfn above -- 0.3.0 (the old floor) pins
+    # "tabpfn<8,>=6.0.5", a hard ResolutionImpossible against tabpfn>=9.0.0
+    # (confirmed via a real pip resolve). 0.4.3 is the first tabpfn-extensions
+    # release requiring tabpfn>=8.1.0 (no ceiling), compatible with our floor.
+    "tabpfn-extensions>=0.4.3",
     "sktime>=0.40.0",
     "numba>=0.63.0",
     # ModernNCA (Prep_MODERNNCA) -- tabarena.models.modernnca._internal.data imports this
@@ -134,11 +175,61 @@ models = [
     # real local `pytest tests/` run after installing it (numpy resolved to 2.3.5,
     # satisfying both iLTM's floor and sktime's own `numpy<2.4,>=1.21` ceiling
     # simultaneously; the full suite passed, no other model regressed).
-    "synthefy-nori>=0.7.0",
+    # synthefy-nori/NORI REMOVED 2026-09-18: every published synthefy-nori release
+    # (0.7.0 through 0.11.1, confirmed by iterating all of them via a real pip
+    # resolve) pins "torch<2.9,>=2.8" -- unconditionally incompatible with
+    # causilo's "torch>=2.13" floor (added when Causilo was onboarded), since
+    # these two ranges never overlap regardless of which exact torch version
+    # is chosen. This was a latent, unconditional ResolutionImpossible sitting
+    # in this extras group since Causilo was merged -- surfaced by a real dry-run
+    # while chasing an unrelated REALMLP/torchvision production failure. Same
+    # resolution as the tabpfnwide removal above: drop the model rather than
+    # block the whole `models` extra on it. NORI has no computed results yet
+    # (confirmed: not among the currently-running k8s jobs), so this costs
+    # nothing already in flight. Revisit if synthefy-nori ever republishes
+    # against a newer torch, or if causilo's own floor ever loosens.
     "iltm>=0.1.1",
     "einops",
     "kditransform",
     "tabstar==1.1.15",
+    # Causilo (Prep_CAUSILO) -- pretrained tabular foundation model from Nums AI
+    # (github.com/nums-ai/causilo), added as a RamanBench-only custom model (no
+    # TabArena integration exists as of tabarena 0.1.0 -- confirmed by inspecting
+    # every tabarena.models.<key> directory in the installed wheel). Real PyPI
+    # package, sklearn-compatible (CausiloClassifier/CausiloRegressor), requires
+    # Python 3.10-3.12. Code is Apache-2.0; the pretrained checkpoint (downloaded
+    # from Hugging Face on first fit) ships under a separate non-commercial
+    # "Causilo License v1.0" -- fine for RamanBench's own research use, but noted
+    # here for anyone vendoring this extras group into a commercial product.
+    #
+    # NOTE: causilo's own floor is unpinned torch>=2.13, which is *newer* than
+    # the torch<2.10 ceiling `fastai` (Prep_FASTAI, also in this `models` group)
+    # declares -- a real, confirmed pip resolver conflict (`pip install causilo`
+    # into this env bumped torch 2.9.1 -> 2.14.0 and printed
+    # "fastai 2.8.5 requires torch<2.10,>=1.10, but you have torch 2.14.0",
+    # same shape as the tabpfn/tabpfnwide conflict noted above). Unlike that one,
+    # this isn't resolved by pinning a floor here: fastai's ceiling is simply
+    # stale. Verified fastai still imports and its TabularModel still builds
+    # fine under torch 2.14 (only a torch.jit.script deprecation FutureWarning,
+    # no actual breakage), so this is left as an unpinned, known-benign warning
+    # rather than force-downgrading torch for every other GPU model in this
+    # extras group.
+    "causilo>=1.0.0",
+    # torchvision was NOT previously declared anywhere in this dependency tree
+    # -- it only arrived transitively (torchmetrics -> torchvision, pulled in
+    # by pytorch_lightning -> pytabkit -> AutoGluon's RealMLP integration,
+    # none of which actually use torchvision's own ops). Without an explicit
+    # pin, pip resolved it independently of the torch bump above and left it
+    # on a stale 0.24.1 (built against an older torch) once torch got bumped
+    # to 2.14.0 -- confirmed causing a REAL production failure: every single
+    # REALMLP task on the k8s cluster failed with "AttributeError: partially initialized
+    # module 'torchvision' has no attribute 'extension' (circular import)",
+    # torchvision's own C-extension registration breaking against a torch
+    # version it wasn't built for. torchvision's own PyPI metadata pins its
+    # required torch version exactly (0.29.0 requires torch==2.14.0) -- this
+    # floor forces pip to resolve a genuinely matched pair instead of letting
+    # torchvision drift independently of whatever torch ends up selected.
+    "torchvision>=0.29.0",
     # NOTE: three TabArena-native models -- TabFM (Prep_TABFM), SAP-RPT-OSS
     # (Prep_SAP_RPT_OSS) and OrionMSP (Prep_ORIONMSP, from the `tabtune` package) --
     # are NOT installable from here. Their upstream packages publish no PyPI release,

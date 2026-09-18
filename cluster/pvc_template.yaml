@@ -1,0 +1,22 @@
+# Template PersistentVolumeClaim for a Kubernetes cluster profile's shared
+# workspace (see cluster/profiles/k8s_example.yaml's pvc_claim_name/
+# storage_class/pvc_mount_path). Created ONCE per cluster, out of band --
+# `kubectl apply -f` this (with the placeholders filled in, or piped through
+# `envsubst`) before the first job submission, not on every submit_job.py run.
+#
+# After creating it, bulk-populate it with the existing RamanBench checkout,
+# raman_data cache, and any already-computed results/ tree (see
+# cluster/sync_results.py) so the new cluster's own completed-work set lines
+# up with the SLURM clusters' from day one, and its scheduler doesn't re-run
+# work already done elsewhere.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${PVC_CLAIM_NAME}
+spec:
+  storageClassName: ${STORAGE_CLASS}
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: ${PVC_SIZE}

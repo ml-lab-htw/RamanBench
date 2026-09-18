@@ -4,14 +4,6 @@ Usage
 -----
 ::
 
-    # Run the full benchmark pipeline
-    raman-bench run --config configs/benchmark_v0.1.json
-
-    # Run individual steps
-    raman-bench run --step predictions
-    raman-bench run --step metrics
-    raman-bench run --step plots
-
     # Show the precomputed leaderboard
     raman-bench leaderboard
 
@@ -28,58 +20,12 @@ See Also
 
 import argparse
 import logging
-import os
 import sys
 import warnings
 
 warnings.filterwarnings("ignore", message="'force_all_finite' was renamed")
 
 from raman_bench.logging_utils import LOG_FORMAT  # noqa: E402
-
-
-def _default_config() -> str:
-    pkg_root = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(pkg_root, "..", "..", "configs", "benchmark_v0.1.json")
-
-
-def cmd_run(args):
-    """Run the benchmark pipeline (predictions → metrics → plots)."""
-    from raman_bench.config import load_config
-
-    config = load_config(args.config)
-
-    if args.output:
-        config["output_dir"] = args.output
-
-    if args.model:
-        config["models"] = [args.model]
-
-    step = args.step
-
-    if step in ("all", "predictions"):
-        from raman_bench.predictions import compute_predictions
-
-        compute_predictions(
-            config,
-            seed_index=args.seed_index,
-            overwrite=args.overwrite,
-            reverse=args.reverse,
-        )
-
-    if step in ("all", "metrics"):
-        from raman_bench.evaluation import compute_metrics_from_predictions
-
-        compute_metrics_from_predictions(config)
-
-    if step in ("all", "plots"):
-        try:
-            from raman_bench.plotting import PlotPipeline
-
-            PlotPipeline(config).run_all()
-        except ImportError:
-            logging.warning(
-                "Plotting requires additional dependencies. Run: pip install raman-bench[full]"
-            )
 
 
 def cmd_leaderboard(args):
@@ -127,22 +73,6 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
-
-    # ---- run ----
-    run_p = sub.add_parser("run", help="Run the benchmark pipeline")
-    run_p.add_argument("--config", default=_default_config(), help="Path to config JSON")
-    run_p.add_argument(
-        "--step",
-        choices=["all", "predictions", "metrics", "plots"],
-        default="all",
-        help="Pipeline step (default: all)",
-    )
-    run_p.add_argument("--output", default=None, help="Override output directory")
-    run_p.add_argument("--seed-index", type=int, default=None, help="Run only this seed index")
-    run_p.add_argument("--model", default=None, help="Run only this model")
-    run_p.add_argument("--overwrite", action="store_true", help="Overwrite existing predictions")
-    run_p.add_argument("--reverse", action="store_true", help="Iterate datasets in reverse order")
-    run_p.set_defaults(func=cmd_run)
 
     # ---- leaderboard ----
     lb_p = sub.add_parser("leaderboard", help="Show the precomputed leaderboard")

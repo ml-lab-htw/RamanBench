@@ -11,9 +11,11 @@ than one holdout split per seed: resolve compute resources from the
 environment, build the task, run exactly one experiment, cache the result to
 disk, exit.
 
-This is an ADDITIVE, parallel execution path. It does not replace or modify
-``raman_bench.model.AutoGluonModel`` / ``raman_bench.predictions``, which the
-paper repo's currently-published/in-flight v0/v1 results still depend on.
+This is the only benchmark execution path in this package as of v2.0.0 -- the
+earlier v0.1-era pipeline (``raman_bench.model.AutoGluonModel``,
+``raman_bench.predictions``, ``scripts/run_benchmark.py``) has been removed;
+see CHANGELOG.md for the v1.x release tag if you need to reproduce that
+pipeline's exact behavior.
 
 Job identity and reproducibility
 ---------------------------------
@@ -61,6 +63,112 @@ DEFAULT_TIME_LIMIT = 3600
 DEFAULT_N_REPEATS = 10
 DEFAULT_N_SPLITS = 3
 
+# Scalar fields worth pulling out of `run_one`'s result dict as wandb metrics
+# -- confirmed present on a real cached results.pkl (RandomForest/alzheimer,
+# already-completed htw run): metric_error, metric_error_val, time_train_s,
+# time_infer_s all sit at the top level (NOT nested under experiment_metadata,
+# which only holds total_duration/time_warmup_s -- pulled separately below).
+# Everything else in `out` (predictions/probabilities are already stripped by
+# tabarena's own convert_to_output; method_metadata/simulation_artifacts can
+# still be large/non-scalar) is left out rather than logged wholesale.
+_WANDB_METRIC_KEYS = ("metric_error", "metric_error_val", "time_train_s", "time_infer_s")
+# memory_usage's own scalar sub-fields (peak/min CPU+GPU bytes) -- genuinely
+# useful on k8s for judging whether a given tasks_per_pod batch size is safe
+# for the pod's memory request/limit (see profiles/k8s.yaml's tasks_per_pod
+# comment).
+_WANDB_MEMORY_KEYS = ("peak_mem_cpu", "min_mem_cpu", "peak_mem_gpu", "min_mem_gpu")
+
+
+def _wandb_enabled() -> bool:
+    """Per-task experiment tracking is opt-in by PRESENCE, not a separate flag --
+    set WANDB_API_KEY (e.g. in .env locally, or ~/.hf_credentials on a SLURM
+    cluster / a k8s Secret via the profile's `wandb_secret`, see
+    cluster/submit_job.py) and it activates automatically; leave it unset and
+    nothing about a run changes, including whether `wandb` needs to be
+    installed at all (imported lazily, only once this returns True)."""
+    return bool(os.environ.get("WANDB_API_KEY"))
+
+
+def build_wandb_metrics(out: dict) -> dict:
+    """Extract the scalar fields worth logging from a task result dict (the same
+    shape `run_one` returns, and what `results.pkl` holds on disk) -- shared by
+    the live per-task logging below AND `scripts/backfill_wandb.py` (the
+    one-time import of already-completed results), so the two can never drift
+    apart on which fields get pulled out."""
+    # float(...) covers np.float64/np.int64 (confirmed real: metric_error comes
+    # back as np.float64 from a real cached results.pkl) -- wandb generally
+    # handles numpy scalars fine, but casting explicitly avoids relying on that
+    # rather than risking a silent logging skip.
+    metrics = {k: float(out[k]) for k in _WANDB_METRIC_KEYS if k in out and out[k] is not None}
+    experiment_metadata = out.get("experiment_metadata") or {}
+    for k in ("total_duration", "time_warmup_s"):
+        if experiment_metadata.get(k) is not None:
+            metrics[k] = float(experiment_metadata[k])
+    memory_usage = out.get("memory_usage") or {}
+    for k in _WANDB_MEMORY_KEYS:
+        if memory_usage.get(k) is not None:
+            metrics[k] = float(memory_usage[k])
+    return metrics
+
+
+def _wandb_run_name(task_config: dict) -> str:
+    return (
+        f"{task_config['model']}_{task_config['dataset']}"
+        f"_t{task_config['target_idx']}_r{task_config['repeat']}"
+        f"_f{task_config['fold']}_c{task_config['config_index']}"
+    )
+
+
+def wandb_project_for_model(model_key: str, base_project: str | None = None) -> str:
+    """One wandb PROJECT per model, not one project for the whole benchmark.
+
+    W&B's own documented recommended ceiling is 10,000 runs/project before
+    project-workspace operations (grouping, the runs table) start degrading
+    (https://docs.wandb.ai/models/track/limits) -- confirmed live: a first
+    attempt logging everything into one project visibly slowed down after
+    ~1,000 runs, and the full sweep is ~34,584+ runs and growing with every
+    future live task, ~3.4x over that ceiling. Sharding by model keeps each
+    project around ~4,218 runs (one full model's worth across every dataset/
+    repeat/fold/config in the current scope) -- comfortably under the limit.
+    Cross-model comparison is still possible via a wandb Report pulling runs
+    from multiple projects; it just isn't one live workspace view anymore.
+    """
+    base = base_project or os.environ.get("WANDB_PROJECT", "raman-bench")
+    slug = model_key.lower().replace("_", "-").replace(".", "-").replace("(", "").replace(")", "")
+    return f"{base}-{slug}"
+
+
+def _log_to_wandb(*, out: dict | None, task_config: dict) -> None:
+    """Log one task's result as one wandb run. Never raises -- tracking is a
+    nice-to-have; a wandb outage or misconfiguration must not fail an
+    otherwise-successful benchmark task (which has already written its
+    results.pkl by the time this runs)."""
+    try:
+        import wandb
+    except ImportError:
+        logger.warning("WANDB_API_KEY is set but the `wandb` package isn't installed "
+                        "(pip install raman-bench[tracking]) -- skipping tracking for this task.")
+        return
+
+    try:
+        run = wandb.init(
+            project=wandb_project_for_model(task_config["model"]),
+            entity=os.environ.get("WANDB_ENTITY"),
+            group=f"{task_config['model']}_{task_config['dataset']}",
+            job_type=task_config.get("problem_type"),
+            name=_wandb_run_name(task_config),
+            tags=[task_config["model"], task_config["dataset"]],
+            config=task_config,
+            reinit=True,
+        )
+        if out is None:
+            run.summary["skipped"] = True
+        else:
+            run.log(build_wandb_metrics(out))
+        run.finish()
+    except Exception:
+        logger.warning("wandb logging failed for this task -- continuing (results.pkl is unaffected).", exc_info=True)
+
 
 def _resolve_num_cpus() -> int:
     for var in ("SLURM_CPUS_PER_TASK", "SLURM_CPUS_ON_NODE"):
@@ -84,18 +192,17 @@ def _resolve_num_gpus(use_gpu: bool) -> int:
 def _load_recipe_config(recipe_config_path: str | None) -> tuple[dict | None, dict | None]:
     """Load a preprocessing recipe file and return ``(preprocessing_config, preprocessing_params)``.
 
-    ``recipe_config_path`` uses the *same* JSON schema as Pipeline A's own recipe configs
-    (e.g. ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``): a top-level
-    ``"preprocessing"`` dict/bool (step-key -> enabled) and an optional flat
+    ``recipe_config_path`` uses the *same* JSON schema as the RamanPreprocessing
+    repo's own recipe configs (e.g. ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``):
+    a top-level ``"preprocessing"`` dict/bool (step-key -> enabled) and an optional flat
     ``"preprocessing_params"`` override dict. Only those two keys are read here -- every
     other key in the file (``datasets_regression``, ``models``, ``autogluon_time_limit``,
-    ``subsample``, ...) is ignored, so Pipeline B can point ``--recipe-config`` directly at
-    an existing Pipeline A recipe file with no duplication or new recipe format.
+    ``subsample``, ...) is ignored, so this script can point ``--recipe-config`` directly at
+    an existing RamanPreprocessing recipe file with no duplication or new recipe format.
 
     Reuses ``raman_bench.config``'s own normalisation helpers
     (``_normalize_preprocessing_config`` / ``_normalize_preprocessing_params``) rather than
-    re-deriving the ``True``/``False``/dict-shorthand handling -- the exact same normalisation
-    Pipeline A's ``load_config`` applies. Returns ``(None, None)`` if ``recipe_config_path`` is
+    re-deriving the ``True``/``False``/dict-shorthand handling. Returns ``(None, None)`` if ``recipe_config_path`` is
     ``None`` (no recipe -- every preprocessing step stays at the model class's own default,
     matching the current, pre-recipe-argument behaviour of this script).
     """
@@ -187,18 +294,17 @@ def run_one(
     label" error, which is expected until such a model exists.
 
     ``recipe_config`` (default ``None``) names a preprocessing recipe JSON file, in the
-    *same* schema as Pipeline A's own recipe configs (e.g.
+    *same* schema as the RamanPreprocessing repo's own recipe configs (e.g.
     ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``) -- a top-level
     ``"preprocessing"`` dict/bool and optional ``"preprocessing_params"`` override dict.
-    Applied via the same restriction-application code path Pipeline A's
-    ``AutoGluonModel._build_model_hyperparameters`` uses
-    (:func:`raman_bench.model.build_prep_model_hyperparameters`), so a given recipe produces
-    identical ``prep_*_enabled``/``prep_*`` hyperparameters under either pipeline. ``None``
+    Applied via :func:`raman_bench.model.build_prep_model_hyperparameters`, the
+    restriction-application code path shared by this script and any other caller
+    building ``Prep_*`` hyperparameters from a restriction dict. ``None``
     (the default) means "use the model class's own preprocessing defaults, unrestricted" --
     the only behaviour this script had before this argument existed. Only applies when
     ``model_key`` resolves to a ``RamanPreprocessingMixin`` subclass (every model in
     ``wrapped_models.PREPROCESSED_MODELS``, i.e. every model in this repo's curated grid);
-    for any other model class the recipe is ignored with a warning, matching how Pipeline A's
+    for any other model class the recipe is ignored with a warning, matching how
     ``create_preprocessed_hyperparameters`` silently passes such models through with no
     preprocessing hyperparameters at all.
     """
@@ -356,10 +462,9 @@ def run_one(
     # Applied here unconditionally for every dataset (not gated to these two
     # by name), so it's a single, traceable fix rather than a per-dataset
     # special case, and so sample counts stay identical across every model
-    # for a given dataset (KNN included) -- this mirrors Pipeline A's
-    # existing, older `RamanBenchmark._load_dataset_from_key`'s
-    # `data_df.dropna()`, which already handled this silently for Pipeline
-    # A; Pipeline B had no equivalent until now.
+    # for a given dataset (KNN included) -- this mirrors the older, still-live
+    # `RamanBenchmark._load_dataset_from_key`'s `data_df.dropna()`, which
+    # already handled this silently; this script had no equivalent until now.
     feature_cols = [c for c in df.columns if c not in (label_col, GROUP_COL)]
     nan_feature_mask = df[feature_cols].isna().any(axis=1)
     n_nan_feature_rows = int(nan_feature_mask.sum())
@@ -463,13 +568,12 @@ def run_one(
     gen = _import_generator(model_key)
 
     # Apply the requested preprocessing recipe (§6.1 of
-    # docs/kfold_priority_plan.md in the RamanPreprocessing repo -- Pipeline B previously had
+    # docs/kfold_priority_plan.md in the RamanPreprocessing repo -- this script previously had
     # no way to specify a recipe at all, only --config-index for model hyperparameters).
-    # Reuses the exact same restriction-application code path as Pipeline A
-    # (raman_bench.model.build_prep_model_hyperparameters, factored out of
-    # AutoGluonModel._build_model_hyperparameters), so a given recipe file produces
-    # identical prep_*_enabled/prep_* hyperparameters under either pipeline. `optimize=False`
-    # is hardcoded here: Pipeline B's k-fold plan pins --config-index 0 (default model
+    # Uses raman_bench.model.build_prep_model_hyperparameters, the shared
+    # restriction-application code path, so a given recipe file produces
+    # identical prep_*_enabled/prep_* hyperparameters regardless of caller. `optimize=False`
+    # is hardcoded here: the k-fold plan pins --config-index 0 (default model
     # hyperparameters, no HPO) for every job, so preprocessing HPO search-space injection
     # (only relevant when optimize=True) never applies.
     extra_model_hyperparameters = None
@@ -503,11 +607,33 @@ def run_one(
                 model_cls,
             )
 
+    # TabArena's AGModelBagExperiment (as of the pinned commit, see pyproject.toml's
+    # `tabarena` entry) takes bagging counts from a ValidationProtocol object rather
+    # than a bare num_bag_folds= kwarg -- passing the old kwarg now raises a TypeError
+    # (tabarena.benchmark.experiment.experiment_constructor's
+    # _reject_legacy_bagging_kwargs). Only num_bag_folds is meaningful here;
+    # num_bag_sets/tiny-regime fields keep their dataclass defaults (1 repeat, no
+    # tiny-data regime), matching this repo's own repeated-k-fold split (raman_bench.
+    # splitting) already handling the "small dataset" case RamanBench cares about.
+    from tabarena.benchmark.validation_protocol import ValidationProtocol
+
     generate_kwargs = dict(
         num_random_configs=num_random_configs,
         time_limit=time_limit,
-        num_bag_folds=num_bag_folds,
+        validation_protocol=ValidationProtocol(num_bag_folds=num_bag_folds),
         fold_fitting_strategy="sequential_local",
+        # require_warmup=True (TabArena's new default as of the 2026-09-18 pin
+        # bump) runs a pre-flight "dummy fit" before the real timed fit and
+        # aborts with RuntimeError if it fails. Confirmed real: every
+        # RamanBench custom model (Prep_PLS, etc.) fails this -- they aren't
+        # in TabArena's own model registry the warm-up framework was built
+        # against (tabarena.tools.audit_warmup doesn't even recognize them),
+        # so making them warm-up-compatible is real, separate work, not a
+        # side effect of a dependency bump. Disabled here to restore the
+        # previously-working behavior (no pre-flight dummy fit) -- revisit once
+        # RamanBench's custom models are made warm-up-compatible, or TabArena's
+        # audit_warmup gains a way to recognize third-party model classes.
+        experiment_kwargs={"require_warmup": False},
         # Matches TabArena's own real production default (tabflow_slurm/
         # setup_slurm_base_v2.py's default_seed_config), not
         # generate_all_bag_experiments' bare "static" default -- gives each
@@ -544,7 +670,7 @@ def run_one(
     # results.pkl. Only append a recipe segment when a recipe is actually given, so cache
     # entries from before this argument existed (recipe_config=None, the only mode this
     # script supported previously) resolve to the exact same path as before -- no cache
-    # invalidation for already-completed no-recipe Pipeline B jobs.
+    # invalidation for already-completed no-recipe jobs.
     experiment_dir_name = experiment.name
     if recipe_config is not None:
         recipe_slug = os.path.splitext(os.path.basename(recipe_config))[0]
@@ -633,14 +759,13 @@ def main():
     parser.add_argument(
         "--recipe-config",
         default=None,
-        help="Path to a preprocessing recipe JSON file, same schema as Pipeline A's own "
-        "recipe configs (e.g. RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json): "
+        help="Path to a preprocessing recipe JSON file, same schema as the RamanPreprocessing "
+        "repo's own recipe configs (e.g. RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json): "
         "a top-level \"preprocessing\" dict/bool and optional \"preprocessing_params\" "
         "override dict. Only those two keys are read -- every other key (datasets, models, "
         "autogluon_*, subsample, ...) is ignored, so this can point directly at an existing "
-        "Pipeline A recipe file. Applied via the same restriction-application code path "
-        "Pipeline A uses (raman_bench.model.build_prep_model_hyperparameters), so results "
-        "are directly comparable across pipelines. Default: None (no recipe -- the model "
+        "RamanPreprocessing recipe file. Applied via "
+        "raman_bench.model.build_prep_model_hyperparameters. Default: None (no recipe -- the model "
         "class's own preprocessing defaults, unrestricted; this was the only behaviour "
         "before this argument existed).",
     )
@@ -694,6 +819,25 @@ def main():
     )
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")
+
+    if _wandb_enabled():
+        _log_to_wandb(
+            out=out,
+            task_config={
+                "model": args.model,
+                "dataset": args.dataset,
+                "target_idx": args.target_idx,
+                "repeat": args.repeat,
+                "fold": args.fold,
+                "config_index": args.config_index,
+                "n_repeats": args.n_repeats,
+                "n_splits": args.n_splits,
+                "num_bag_folds": args.num_bag_folds,
+                "time_limit": args.time_limit,
+                "use_gpu": args.use_gpu,
+                "problem_type": (out or {}).get("problem_type"),
+            },
+        )
 
 
 if __name__ == "__main__":

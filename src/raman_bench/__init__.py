@@ -48,27 +48,19 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 load_dotenv()
 
-__version__ = "1.1.1"
+__version__ = "2.0.0"
 __author__ = "Mario Koddenbrock (HTW Berlin), Christoph Lange (TU Berlin)"
 
 _public_map = {
     # Core benchmark
     "RamanBenchmark": ("raman_bench.benchmark", "RamanBenchmark"),
     "configure_benchmark": ("raman_bench.benchmark", "configure_benchmark"),
-    # Models
-    "AutoGluonModel": ("raman_bench.model", "AutoGluonModel"),
     # Leaderboard — rank new models against precomputed baselines
     "Leaderboard": ("raman_bench.leaderboard", "Leaderboard"),
     # Metrics
     "ClassificationMetrics": ("raman_bench.metrics", "ClassificationMetrics"),
     "RegressionMetrics": ("raman_bench.metrics", "RegressionMetrics"),
     "compute_metrics": ("raman_bench.metrics", "compute_metrics"),
-    # Pipeline steps
-    "compute_predictions": ("raman_bench.predictions", "compute_predictions"),
-    "compute_metrics_from_predictions": (
-        "raman_bench.evaluation",
-        "compute_metrics_from_predictions",
-    ),
     # Config
     "load_config": ("raman_bench.config", "load_config"),
 }

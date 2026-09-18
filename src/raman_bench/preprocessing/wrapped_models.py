@@ -13,7 +13,7 @@ are applied for specific model families:
 
 The Raman-specific custom architectures (PLS, DeepCNN, RamanNet, SANet,
 RamanFormer, RamanTransformer, ReZeroNet, FC-ResNeXt, CoAtNet, ROCKET,
-Arsenal, TabPFN-Wide) and GBM/TA-TABPFN-3 have moved to the per-model
+Arsenal, TabPFN-Wide) and GBM/TA-TABPFN-3/TA-MITRA-V2 have moved to the per-model
 ``raman_bench/models/custom/<key>/{model.py,hpo.py,info.py}`` convention
 (auto-discovered via :mod:`raman_bench.models.discover`, see
 ``models/custom/ridge/`` for the reference implementation) -- this module now
@@ -204,9 +204,6 @@ class Prep_XT(_NoAugBase, XTModel):  # noqa: N801
     pass
 
 
-_EBM_WIDE_FEATURE_THRESHOLD = 4000
-
-
 class Prep_EBM(_NoAugBase, EBMModel):  # noqa: N801
     """EBM (Explainable Boosting Machine) -- graduated AutoGluon-core model
     (``autogluon.tabular.models.EBMModel``), not a TabArena-only class, so it's
@@ -215,7 +212,8 @@ class Prep_EBM(_NoAugBase, EBMModel):  # noqa: N801
     """
 
     def _fit(self, X, y, **kwargs):
-        """Disable ``interactions`` for wide feature counts (>``_EBM_WIDE_FEATURE_THRESHOLD``).
+        """Disable ``interactions`` unconditionally (see UPDATE below for why
+        this is no longer feature-count-gated).
 
         ``interpret``'s own default (``interactions="3x"``, i.e. fit ``3 *
         n_features`` pairwise interaction terms, selected via its own FAST
@@ -248,22 +246,29 @@ class Prep_EBM(_NoAugBase, EBMModel):  # noqa: N801
         cost (roughly linear in feature count, ~1.5-1.8s/round measured at
         11,084 features) is still bounded normally by ``time_limit``.
 
-        Threshold matches ``wrapped_models._TABSTAR_MAX_FEATURES`` -- both sit in
-        the same real, dataset-free gap in RamanBench's own feature-count
-        distribution (no target in ``configs/v1/target_list.json`` has between
-        ~3,300 and ~5,470 features), so one consistent "wide" boundary applies
-        across both fixes rather than two arbitrarily different numbers.
-
-        Same data-shape-adaptive pattern as ``Prep_KNN._fit``'s ``n_neighbors``
-        clamp -- only kicks in above the threshold; default AutoGluon/interpret
-        behavior (and model quality, including interaction terms) is unchanged
-        for RamanBench's more common narrower spectra.
+        UPDATE 2026-09-18: this used to be gated behind a >4000-feature
+        threshold (matching ``wrapped_models._TABSTAR_MAX_FEATURES``'s own
+        "wide" boundary) -- that gate turned out NOT a sufficient condition,
+        confirmed by a real production hang on a k8s cluster:
+        ``cancer_cell_(cooh)2`` (627 rows, 2091 features -- well under the
+        4000 threshold, closer to RamanBench's median feature count than to the
+        wide extreme this threshold was calibrated against) stuck in "Fast
+        interaction strength" for 2+ hours with zero results, identical
+        symptom to the originally-diagnosed wide-feature blowup. Squared
+        feature-count scaling alone doesn't explain a >100x slowdown between
+        this and the (comparably sized) ``alzheimer`` dataset (885 features)
+        that fits in under a minute, so this looks data-dependent (e.g.
+        near-duplicate/collinear columns hitting a worse-case branch in
+        ``interpret``'s ``rank_interactions``), not simply a function of raw
+        feature count -- meaning no static threshold can be trusted to catch
+        every risky case. Disabling ``interactions`` unconditionally (removing
+        the threshold gate) is the only change that's actually bounded: EBM
+        becomes a pure additive/GAM model (no pairwise terms) for every
+        RamanBench dataset, not just "wide" ones. A real, deliberate quality
+        trade-off (documented, not silent), chosen over leaving a
+        non-deterministic multi-hour hang risk on every single EBM task.
         """
-        n_features = X.shape[1]
-        if n_features > _EBM_WIDE_FEATURE_THRESHOLD:
-            interactions = self._get_model_params().get("interactions", "3x")
-            if not (isinstance(interactions, (int, float)) and interactions == 0):
-                self.params["interactions"] = 0
+        self.params["interactions"] = 0
         super()._fit(X, y, **kwargs)
 
     def _estimate_memory_usage(self, X, y=None, **kwargs):

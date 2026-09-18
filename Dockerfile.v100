@@ -1,0 +1,55 @@
+# V100-specific variant of the main Dockerfile (see Dockerfile itself for the
+# shared rationale/usage). ONLY difference: forces a torch build against CUDA
+# 12.6 instead of whatever the main resolve pulls (currently torch==2.13.0+cu130).
+#
+# Why this exists (2026-09-18): confirmed on a real V100 pod that
+# torch==2.13.0+cu130 (pulled in transitively, no hard pin of our own) does
+# NOT include compiled kernels for compute capability 7.0 (Volta/V100) at
+# all -- torch.cuda.get_arch_list() only covers sm_75 and up, and every real
+# task attempted on a V100 failed with
+# `torch.AcceleratorError: no kernel image is available for execution on the
+# device`. PyTorch's own warning at runtime names the fix: a build against an
+# older CUDA toolkit (12.6) still includes sm_70. User's call: maintain this
+# as a separate image rather than abandon V100 (~7 GPUs of otherwise-idle
+# capacity).
+#
+# Build and push:
+#   docker build --platform linux/amd64 -f Dockerfile.v100 -t <registry>/<you>/ramanbench:v1-v100 .
+#   docker push <registry>/<you>/ramanbench:v1-v100
+# Then point a V100-only k8s profile's `image:` at that tag (node_selector
+# gpu: v100) -- NOT the main `:v1` tag, which stays on the default (newer,
+# faster) cu130 build for A100/H100/H200/B200.
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-cache-dir --pre -e ".[models,benchmark,tracking]"
+
+# The only real difference from the main Dockerfile: force torch onto a
+# cu126 build (V100/Volta-compatible) after the main resolve already picked
+# whatever CUDA variant it wanted. Same torch version (2.13.0) as the main
+# image -- only the bundled CUDA kernels differ -- so this doesn't change
+# which API surface autogluon/tabarena/etc. see, only which GPU archs the
+# actual kernels support.
+#
+# --force-reinstall is required, not optional: without it, pip sees
+# "torch==2.13.0" as already satisfied by the installed "2.13.0+cu130" (pip
+# matches on the release segment, ignoring the local version/build tag) and
+# silently skips the reinstall entirely -- confirmed real: the first build of
+# this image without --force-reinstall still had cu130 torch, verified via a
+# real V100 pod (torch.cuda.get_arch_list() still missing sm_70/CC 7.0).
+RUN pip install --no-cache-dir --force-reinstall --index-url https://download.pytorch.org/whl/cu126 torch==2.13.0
+
+COPY scripts ./scripts
+COPY cluster ./cluster
+COPY configs ./configs
+
+RUN chmod +x cluster/k8s_entrypoint.sh
+
+ENTRYPOINT ["/bin/bash", "cluster/k8s_entrypoint.sh"]

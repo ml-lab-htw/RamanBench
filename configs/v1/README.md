@@ -9,11 +9,11 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
 - `datasets/classification_all.json`, `datasets/regression_all.json` -- the curated
   66-dataset v1 scope (23 classification + 43 regression), by `raman_data` key.
   Mirrors (and is the canonical source for) the same lists historically kept in
-  `raman_bench_paper/configs/datasets/`; that copy stays in place too since it still
-  feeds the older, currently-published/in-flight `v0_default`/`v1_default` paper
-  results pipeline (`scripts/run_benchmark.py` -> `raman_bench.predictions`) -- a
-  different execution path from this one, kept deliberately separate so neither can
-  silently affect the other (see the paper repo's `rebuttal-scope-rule`).
+  `raman_bench_paper/configs/datasets/`; that copy stays in place since the paper
+  repo's own already-published results were produced by the older `run_benchmark.py`/
+  `raman_bench.predictions` execution path (removed from this package in v2.0.0 --
+  see CHANGELOG.md), kept deliberately separate so neither can silently affect the
+  other (see the paper repo's `rebuttal-scope-rule`).
 - `target_list.json` -- one row per (dataset, target), built by
   `scripts/build_target_list.py` from the two dataset lists above (mirror-first
   loading, dataset-size-adaptive `n_repeats`). Model-agnostic: every model in scope
