@@ -346,11 +346,17 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
 # for why: tabpfn_extensions eagerly imports hyperopt, which breaks on any
 # setuptools that has removed pkg_resources, hard-crashing this exact path).
 # TabICL v2 regression support -- the fork's other reason to exist -- is no longer needed
-# at all since upstream 1.6 ships TabICL v2 with regression support natively. Genuine
-# remaining gaps: TabDPT has no many-class handling at all (upstream's own choice, not
-# something RamanBench introduced); RamanBench's own custom TabPFN-Wide/Causilo wrappers
-# only have a fail-fast class-count skip, no ECOC (TabPFN-Wide's ECOC attempt is written
-# but commented out -- OOMs on wide Raman spectra even at 256G, see its own docstring).
+# at all since upstream 1.6 ships TabICL v2 with regression support natively.
+#
+# UPDATE 2026-09-19 (2): RamanBench's own custom Causilo and TabPFN-Wide wrappers
+# (models/custom/{causilo,tabpfn_wide}/model.py) now also use ECOC, matching
+# Mitra/RealTabPFN's native pattern -- Causilo unconditionally, TabPFN-Wide only under
+# ``_ECOC_MAX_FEATURES`` (a real OOM was found combining ECOC's per-sub-model cost with
+# wide Raman spectra even at 256G; see that constant's own docstring for the width cap
+# and its rationale). Also opened a fix upstream for LimiX, which had the same hard
+# class-count cap with no ECOC fallback at all: https://github.com/autogluon/tabarena/pull/594
+# (unmerged as of this note). Genuine remaining gap: TabDPT has no many-class handling
+# at all (upstream's own choice, not something RamanBench introduced).
 # TabFM, TabPFN-3, TabSwift, and ModernNCA (added below) were checked against this same
 # issue -- inspected via each class's own `_get_default_auxiliary_params`/
 # `_default_auxiliary_params_extra` in the installed tabarena package -- and, unlike the

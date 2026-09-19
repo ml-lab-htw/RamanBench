@@ -37,6 +37,41 @@ def _infer_problem_type(y) -> str:
     return "binary" if len(np.unique(arr)) == 2 else "multiclass"
 
 
+class _CloneSafeCausiloClassifier(BaseEstimator):
+    """sklearn-clone-safe wrapper around ``causilo.CausiloClassifier``.
+
+    Required by ``ManyClassClassifier``, which clones the base estimator per
+    ECOC sub-task -- mirrors ``tabpfn_wide.model._CloneSafeTabPFNWide``, which
+    solves the identical problem for TabPFN-Wide. Unlike that model, no
+    feature-count-vs-ECOC OOM has been observed for Causilo, so this carries
+    no equivalent width guard -- add one if a real OOM shows up in practice.
+    """
+
+    def __init__(self, **estimator_kwargs):
+        self._estimator_kwargs = estimator_kwargs
+
+    def fit(self, X, y):
+        from causilo import CausiloClassifier
+
+        self._estimator = CausiloClassifier(**self._estimator_kwargs)
+        self._estimator.fit(X, y)
+        self.classes_ = np.unique(y)
+        return self
+
+    def predict(self, X):
+        return self._estimator.predict(X)
+
+    def predict_proba(self, X):
+        return self._estimator.predict_proba(X)
+
+    def get_params(self, deep=True):
+        return dict(self._estimator_kwargs)
+
+    def set_params(self, **params):
+        self._estimator_kwargs.update(params)
+        return self
+
+
 class CausiloModel(BaseEstimator):
     """Causilo for tabular data -- sklearn-compatible, classification + regression.
 
@@ -90,20 +125,27 @@ class CausiloModel(BaseEstimator):
 
             self.model_ = CausiloRegressor(**estimator_kwargs)
         else:
-            from causilo import CausiloClassifier
-
             self.classes_ = np.unique(y_arr)
+            base_model = _CloneSafeCausiloClassifier(**estimator_kwargs)
             # Official checkpoint natively supports up to `many_class_threshold`
-            # classes (matches TabPFNWideModel's own fail-fast convention for
-            # foundation models with a hard class-count ceiling: AutoGluon then
-            # records no prediction for this dataset/model rather than crashing
-            # the whole run).
+            # classes -- above that, wrap with ECOC (ManyClassClassifier),
+            # matching MitraModel/TabPFNModel's own native pattern
+            # (autogluon.tabular.models.{mitra.mitra_model,
+            # tabpfnv2.tabpfnv2_5_model}) rather than just failing fast.
             if len(self.classes_) > self.many_class_threshold:
-                raise ValueError(
-                    f"Causilo: {len(self.classes_)} classes exceeds the native limit "
-                    f"({self.many_class_threshold}); skipping this dataset."
+                try:
+                    from tabpfn_extensions.many_class import ManyClassClassifier
+                except ImportError as e:
+                    raise ImportError(
+                        f"Causilo: {len(self.classes_)} classes exceeds native limit "
+                        f"({self.many_class_threshold}). Install tabpfn-extensions: "
+                        "pip install tabpfn-extensions"
+                    ) from e
+                self.model_ = ManyClassClassifier(
+                    estimator=base_model, alphabet_size=self.many_class_threshold
                 )
-            self.model_ = CausiloClassifier(**estimator_kwargs)
+            else:
+                self.model_ = base_model
 
         self.model_.fit(X_arr, y_arr)
         return self
