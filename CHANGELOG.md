@@ -9,6 +9,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-09-19
+
+### Fixed
+
+- **PyPI publishing (again).** The v2.0.0 PyPI upload failed with the same
+  class of error fixed for `[models]` in v1.1.1 (`400 Can't have direct
+  dependency`), this time for the `tabarena` git-pinned dependency in the
+  `[benchmark]` and `[models]` extras — `tabarena` is core to nearly every
+  `Prep_*` model and to `scripts/run_experiment.py` itself, so this wasn't
+  optional to fix. Moved to `requirements-tabarena-git.txt` (`pip install -r
+  requirements-tabarena-git.txt` after `raman-bench[benchmark]`/`[models]`).
+  The Dockerfile and README install instructions are updated to include this
+  step — without it, the k8s image would have built with no `tabarena` at
+  all. Verified with a real `python -m build` + `twine check` that the built
+  wheel/sdist metadata contains no `git+` requirement lines.
+- The `v2.0.0` git tag and GitHub Release are left as-is (documented as
+  PyPI-broken); this is the release that actually reaches PyPI.
+
 ## [2.0.0] — 2026-09-18 (breaking)
 
 ### Removed
