@@ -78,9 +78,25 @@ class TestTabPFNWideModel:
         with pytest.raises(ValueError, match="does not support regression"):
             TabPFNWideModel(device="cpu").fit(X, y)
 
-    def test_many_class_threshold_raises(self):
+    def test_many_class_uses_ecoc_when_narrow(self):
+        # >many_class_threshold classes, but well under _ECOC_MAX_FEATURES --
+        # should route through ManyClassClassifier (ECOC) rather than raise.
+        pytest.importorskip("tabpfn_extensions")
         rng = np.random.RandomState(0)
-        X = rng.randn(30, 20).astype(np.float32)
+        X = rng.randn(60, 20).astype(np.float32)
+        y = rng.choice([str(i) for i in range(12)], size=60)
+        m = TabPFNWideModel(device="cpu", many_class_threshold=10).fit(X, y)
+        preds = m.predict(X)
+        assert len(preds) == len(X)
+
+    def test_many_class_raises_when_wide(self):
+        # >many_class_threshold classes AND over _ECOC_MAX_FEATURES -- ECOC's
+        # per-sub-model cost on top of an already-wide fit is the OOM
+        # combination this guard exists for (see _ECOC_MAX_FEATURES's
+        # docstring), so this must still fail fast rather than attempt ECOC.
+        rng = np.random.RandomState(0)
+        n_features = TabPFNWideModel._ECOC_MAX_FEATURES + 1
+        X = rng.randn(30, n_features).astype(np.float32)
         y = rng.choice([str(i) for i in range(12)], size=30)
-        with pytest.raises(ValueError, match="exceeds the native limit"):
+        with pytest.raises(ValueError, match="ECOC-safe limit"):
             TabPFNWideModel(device="cpu", many_class_threshold=10).fit(X, y)

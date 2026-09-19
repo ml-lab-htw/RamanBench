@@ -92,6 +92,16 @@ class TabPFNWideModel(BaseEstimator):
         DOI: 10.48550/arXiv.2510.06162
     """
 
+    #: ECOC's own per-sub-model cost multiplies TabPFN-Wide's already-heavy
+    #: wide-feature memory footprint by roughly `alphabet_size` fits -- a real
+    #: OOM was found combining many-class ECOC with wide Raman spectra even at
+    #: a 256G container limit (unlike TabSTAR's simpler, single-fit width cap
+    #: at 4000 features, `_TABSTAR_MAX_FEATURES` in wrapped_models.py). Capped
+    #: meaningfully lower than that precedent since the failure mode here is
+    #: ECOC-specific, not a plain single fit -- unverified against a real OOM
+    #: at exactly this width; revisit if one shows up either direction.
+    _ECOC_MAX_FEATURES = 2000
+
     def __init__(
         self,
         model_name: str = "wide-v2-5k",
@@ -116,34 +126,34 @@ class TabPFNWideModel(BaseEstimator):
             raise ValueError("TabPFN-Wide does not support regression.")
 
         self.classes_ = np.unique(y_arr)
+        n_features = X_arr.shape[1]
+        many_class = len(self.classes_) > self.many_class_threshold
 
-        # TabPFN natively supports up to `many_class_threshold` classes. The
-        # ECOC ManyClassClassifier workaround OOMs on wide Raman spectra, so for
-        # now we skip datasets above the limit by failing fast (AutoGluon then
-        # records no prediction for this dataset/model).
-        if len(self.classes_) > self.many_class_threshold:
+        if many_class and n_features > self._ECOC_MAX_FEATURES:
+            # ECOC's per-sub-model cost on top of an already-wide fit OOMed
+            # even at 256G -- fail fast rather than risk it here too (matches
+            # the prior, pre-ECOC behavior for this specific width x
+            # many-class combination; see _ECOC_MAX_FEATURES's docstring).
             raise ValueError(
                 f"TabPFN-Wide: {len(self.classes_)} classes exceeds the native limit "
-                f"({self.many_class_threshold}); skipping this dataset."
+                f"({self.many_class_threshold}) and {n_features} features exceeds the "
+                f"ECOC-safe limit ({self._ECOC_MAX_FEATURES}); skipping this dataset."
             )
 
         self.model_ = _CloneSafeTabPFNWide(model_name=self.model_name, device=self.device)
 
-        # Many-class support via ECOC ManyClassClassifier — disabled for now
-        # because it OOMs on wide Raman spectra even at 256G. Pending advice
-        # from the TabPFN-Wide authors on memory-efficient many-class usage.
-        # if len(self.classes_) > self.many_class_threshold:
-        #     try:
-        #         from tabpfn_extensions.many_class import ManyClassClassifier
-        #     except ImportError as e:
-        #         raise ImportError(
-        #             f"TabPFN-Wide: {len(self.classes_)} classes exceeds native limit "
-        #             f"({self.many_class_threshold}). Install tabpfn-extensions: "
-        #             "pip install tabpfn-extensions"
-        #         ) from e
-        #     self.model_ = ManyClassClassifier(
-        #         estimator=self.model_, alphabet_size=self.many_class_threshold
-        #     )
+        if many_class:
+            try:
+                from tabpfn_extensions.many_class import ManyClassClassifier
+            except ImportError as e:
+                raise ImportError(
+                    f"TabPFN-Wide: {len(self.classes_)} classes exceeds native limit "
+                    f"({self.many_class_threshold}). Install tabpfn-extensions: "
+                    "pip install tabpfn-extensions"
+                ) from e
+            self.model_ = ManyClassClassifier(
+                estimator=self.model_, alphabet_size=self.many_class_threshold
+            )
 
         self.model_.fit(X_arr, y_arr)
         return self

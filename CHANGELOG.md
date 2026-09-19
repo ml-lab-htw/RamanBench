@@ -11,6 +11,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Causilo and TabPFN-Wide now use ECOC (`ManyClassClassifier`) for
+  >10-class datasets** instead of just failing fast, matching
+  `MITRA`/`REALTABPFN-V2/V2.5/V2.6`'s native pattern. Causilo unconditionally
+  (verified with a real fit/predict on a 12-class synthetic dataset);
+  TabPFN-Wide only below a new `_ECOC_MAX_FEATURES` (2000) guard — a real
+  OOM was previously found combining ECOC's per-sub-model cost with wide
+  Raman spectra even at a 256G container limit, so wide+many-class datasets
+  still fail fast there. Also opened
+  [autogluon/tabarena#594](https://github.com/autogluon/tabarena/pull/594)
+  upstream for the identical gap in LimiX (hard 10-class cap, no ECOC
+  fallback at all).
+
 - **Native many-class (ECOC) support for MITRA and every REALTABPFN-V2/V2.5/V2.6
   model was silently broken.** `tabpfn_extensions` (a hard dependency) fails
   to import at all with a modern `setuptools` installed: its `__init__.py`

@@ -63,12 +63,18 @@ class TestCausiloModel:
         with pytest.raises(AttributeError, match="not available for regression"):
             m.predict_proba(X)
 
-    def test_many_class_threshold_raises(self):
+    def test_many_class_uses_ecoc(self):
+        # >many_class_threshold classes should route through
+        # ManyClassClassifier (ECOC), not raise -- matches MitraModel/
+        # TabPFNModel's own native pattern.
+        pytest.importorskip("tabpfn_extensions")
         rng = np.random.RandomState(0)
-        X = rng.randn(30, 20).astype(np.float32)
-        y = rng.choice([str(i) for i in range(12)], size=30)
-        with pytest.raises(ValueError, match="exceeds the native limit"):
-            CausiloModel(device="cpu", n_estimators=2, many_class_threshold=10).fit(X, y)
+        X = rng.randn(60, 20).astype(np.float32)
+        y = rng.choice([str(i) for i in range(12)], size=60)
+        m = CausiloModel(device="cpu", n_estimators=2, many_class_threshold=10).fit(X, y)
+        preds = m.predict(X)
+        assert len(preds) == len(X)
+        assert set(preds).issubset(set(str(i) for i in range(12)))
 
     def test_accepts_dataframe(self):
         import pandas as pd
