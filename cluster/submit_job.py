@@ -51,6 +51,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -254,6 +255,39 @@ def _chunk(jobs: list[Job], size: int) -> list[list[Job]]:
     return [jobs[i : i + size] for i in range(0, len(jobs), size)] or [[]]
 
 
+_SBATCH_MAX_ATTEMPTS = 8
+_SBATCH_RETRY_BACKOFF_SECONDS = 15
+
+
+def _sbatch_with_retry(sbatch_args: list[str]) -> subprocess.CompletedProcess:
+    """Run ``sbatch``, retrying a few times on a transient controller failure.
+
+    Confirmed as a real, recurring production failure (not a one-off): a
+    real multi-array submission run hit "sbatch: error: Slurm temporarily
+    unable to accept job, sleeping and retrying" on 2/11 calls in one batch
+    -- sbatch's OWN internal retry sometimes gives up and exits 1 instead of
+    eventually succeeding (confirmed the very same sbatch_args succeeded
+    immediately when just re-run by hand seconds later). A bare `check=True`
+    call previously let one transient failure abort an entire multi-chunk
+    submission loop, leaving later chunks/models never attempted."""
+    last_result = None
+    for attempt in range(1, _SBATCH_MAX_ATTEMPTS + 1):
+        result = subprocess.run(sbatch_args, capture_output=True, text=True)
+        if result.returncode == 0:
+            return result
+        last_result = result
+        if attempt < _SBATCH_MAX_ATTEMPTS:
+            print(
+                f"  sbatch failed (attempt {attempt}/{_SBATCH_MAX_ATTEMPTS}): "
+                f"{result.stderr.strip()} -- retrying in {_SBATCH_RETRY_BACKOFF_SECONDS}s",
+                file=sys.stderr,
+            )
+            time.sleep(_SBATCH_RETRY_BACKOFF_SECONDS)
+    raise subprocess.CalledProcessError(
+        last_result.returncode, sbatch_args, output=last_result.stdout, stderr=last_result.stderr,
+    )
+
+
 def submit_jobs(
     *,
     model: str,
@@ -428,7 +462,7 @@ def submit_jobs(
         print(f"  {' '.join(sbatch_args)}")
         if dry_run:
             continue
-        result = subprocess.run(sbatch_args, capture_output=True, text=True, check=True)
+        result = _sbatch_with_retry(sbatch_args)
         print(result.stdout.strip())
         # sbatch's stdout is "Submitted batch job <id>"
         job_ids.append(result.stdout.strip().rsplit(" ", 1)[-1])
