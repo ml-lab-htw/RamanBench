@@ -191,3 +191,19 @@ class TestTabDPTModel:
         proba = TabDPTModel().fit(X, y).predict_proba(X)
         assert proba.ndim == 1
         assert np.all((proba >= 0) & (proba <= 1))
+
+    def test_many_class_uses_native_digit_decomposition(self):
+        # Unlike Causilo/TabPFN-Wide/LimiX, TabDPT needs no ECOC wrapper here: the
+        # underlying `tabdpt` package's checkpoint has a fixed-width classification head
+        # (`max_num_classes`, 10) but `TabDPTClassifier` itself already falls back to a
+        # native digit-decomposition scheme above that (see `_predict_large_cls` in
+        # `tabdpt/classifier.py`), so this must produce valid probabilities directly.
+        from raman_bench.models.custom.tabular_foundation import TabDPTModel
+
+        rng = np.random.RandomState(0)
+        X = rng.randn(60, 20).astype(np.float32)
+        y = rng.choice([str(i) for i in range(12)], size=60)
+        m = TabDPTModel(device="cpu").fit(X, y)
+        proba = m.predict_proba(X)
+        assert proba.shape == (60, 12)
+        np.testing.assert_allclose(proba.sum(axis=1), 1.0, atol=1e-3)

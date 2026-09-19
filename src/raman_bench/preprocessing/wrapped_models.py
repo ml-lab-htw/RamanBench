@@ -355,8 +355,18 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
 # wide Raman spectra even at 256G; see that constant's own docstring for the width cap
 # and its rationale). Also opened a fix upstream for LimiX, which had the same hard
 # class-count cap with no ECOC fallback at all: https://github.com/autogluon/tabarena/pull/594
-# (unmerged as of this note). Genuine remaining gap: TabDPT has no many-class handling
-# at all (upstream's own choice, not something RamanBench introduced).
+# (unmerged as of this note).
+#
+# UPDATE 2026-09-19 (3): TabDPT was previously listed here as a "genuine gap" with no
+# many-class handling at all -- that was wrong. Verified directly against the installed
+# `tabdpt` package (v1.1.12): the checkpoint's classification head is fixed-width
+# (`max_num_classes`, 10 for both shipped checkpoints), but `TabDPTClassifier` itself
+# already falls back to a native digit-decomposition scheme once `num_classes` exceeds
+# that (`_predict_large_cls` in `tabdpt/classifier.py`: encodes each class as a
+# base-`max_num_classes` "digit string", runs one forward pass per digit position, then
+# recombines) -- no ECOC/ManyClassClassifier wrapper needed or wanted. Confirmed live: a
+# 15-class fit against the 10-class checkpoint produces valid, correctly-normalized
+# per-class probabilities. So there is nothing left to fix for TabDPT.
 # TabFM, TabPFN-3, TabSwift, and ModernNCA (added below) were checked against this same
 # issue -- inspected via each class's own `_get_default_auxiliary_params`/
 # `_default_auxiliary_params_extra` in the installed tabarena package -- and, unlike the

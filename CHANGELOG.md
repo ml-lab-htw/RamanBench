@@ -9,6 +9,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Verified
+
+- **TabDPT needs no many-class (ECOC) fix.** Previously documented as a
+  "genuine gap" alongside LimiX; that was wrong. The `tabdpt` package's
+  checkpoint has a fixed-width classification head (`max_num_classes` = 10),
+  but `TabDPTClassifier` already falls back to a native digit-decomposition
+  scheme above that (`_predict_large_cls`), with no wrapper needed. Verified
+  live: a 15-class fit against the 10-class checkpoint produces valid,
+  correctly-normalized probabilities. Added a regression test
+  (`test_many_class_uses_native_digit_decomposition`) covering the
+  RamanBench-native `TabDPTModel` wrapper. This closes the many-class audit
+  across every tabular foundation model RamanBench uses.
+
 ### Fixed
 
 - **Causilo and TabPFN-Wide now use ECOC (`ManyClassClassifier`) for
