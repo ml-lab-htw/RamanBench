@@ -16,6 +16,23 @@ by reproducing the exact failure with setuptools 84.0.0 installed.
 """
 
 import importlib
+import importlib.util
+
+import pytest
+
+# Deliberately NOT `pytest.importorskip("tabpfn_extensions")`: that helper
+# catches ImportError to decide "not installed, skip" -- which would also
+# swallow the exact bug this test exists to catch (tabpfn_extensions
+# installed but failing to import) and silently skip instead of failing.
+# `find_spec` only checks that the package is *findable* on the path,
+# without executing its (potentially broken) __init__.py, so a genuine
+# "not installed" case still skips cleanly while an installed-but-broken
+# case reaches the real import below and fails loudly. tabpfn_extensions is
+# only pulled in by the `models` extra -- this repo's CI only ever installs
+# `[dev]` (see .github/workflows/ci.yml), matching every other
+# tabarena/autogluon-dependent test here (test_wrapped_models.py, etc.).
+if importlib.util.find_spec("tabpfn_extensions") is None:
+    pytest.skip("tabpfn_extensions not installed (needs the `models` extra)", allow_module_level=True)
 
 
 def test_tabpfn_extensions_imports_cleanly():
