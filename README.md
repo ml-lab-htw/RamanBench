@@ -65,16 +65,18 @@ pip install "raman-bench[models]"
 This adds `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, and `ramanspy` to
 the core package. AutoGluon is not needed for this path.
 
-Three wrapped models — `Prep_TABFM`, `Prep_SAP_RPT_OSS`, `Prep_ORIONMSP` — have
-git-only upstreams and cannot ship in a PyPI package. Install them separately if
-you need them:
+`tabarena` itself, and three wrapped models built on it — `Prep_TABFM`,
+`Prep_SAP_RPT_OSS`, `Prep_ORIONMSP` — have git-only upstreams and cannot ship
+in a PyPI package. Install them separately if you need them:
 
 ```bash
+pip install -r requirements-tabarena-git.txt
 pip install -r requirements-models-git.txt
 ```
 
-Until then those three classes raise a clear "not available" error; every other
-model works without this step.
+Until then, every `Prep_*` class that wraps a `tabarena.models.*` model
+(which is most of them) raises a clear "not available" error; the
+Raman-specific standalone architectures work without this step.
 
 ### Option 3 — Full benchmark reproducibility
 
@@ -85,6 +87,7 @@ preprocessing and HPO pipeline, on plain upstream AutoGluon (>=1.6.1, no fork):
 git clone https://github.com/ml-lab-htw/RamanBench.git
 cd RamanBench
 pip install -e ".[models]"
+pip install -r requirements-tabarena-git.txt
 ```
 
 RamanBench previously depended on a patched AutoGluon fork here to work around
@@ -130,6 +133,8 @@ cd RamanBench
 uv pip install --prerelease=allow -e ".[models]"   # uv resolves bencheval automatically;
                                                     # plain pip needs it installed first --
                                                     # see the note in pyproject.toml
+pip install -r requirements-tabarena-git.txt       # tabarena is git-pinned, not on PyPI --
+                                                    # see requirements-tabarena-git.txt
 ```
 
 Key entry points:

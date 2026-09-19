@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "raman-bench"
-version = "2.0.0"
+version = "2.0.1"
 description = "A large-scale benchmark for machine learning on Raman spectroscopy data"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -81,20 +81,16 @@ autogluon = [
 ]
 benchmark = [
     "bencheval>=0.1.0",
-    # Pinned to a specific upstream commit (not floating on `main`) rather than
-    # PyPI's `tabarena` release -- reverts the earlier PyPI-based pin (see git
-    # history around 2026-09-03..16) once it became clear that approach doesn't
-    # fit this repo's actual pace of model onboarding: the conda env deployed on
-    # HTW was found stuck on the old 0.0.1 PyPI placeholder (cluster/refresh_deps.py
-    # only ever upgrades raman-data, never tabarena, so nothing was refreshing it),
-    # and even a healthy PyPI install would still be capped at 0.1.0 (cut
-    # 2026-09-03) -- missing mitra_v2, causilo, tabldm, ctboost, aplr, and every
-    # other model TabArena has merged since, each of which we want the moment it
-    # lands upstream, not whenever the next PyPI release happens to be cut.
-    # Bump this SHA deliberately (not automatically -- see refresh_deps.py) when
-    # picking up new upstream models; a benchmark run's results should always be
-    # traceable to one exact commit, never a floating branch head.
-    "tabarena @ git+https://github.com/autogluon/tabarena.git@d06f406aee0fbd11e74ed9bba9b78e097ad6fd2f#subdirectory=packages/tabarena",
+    # `tabarena` itself is NOT declared here. PyPI forbids direct-URL
+    # requirements in an uploaded package, and this dependency is pinned to a
+    # specific upstream commit rather than a PyPI release (see
+    # requirements-tabarena-git.txt for the full rationale and the exact SHA).
+    # The v2.0.0 release attempt failed the PyPI upload with exactly this
+    # error ("Can't have direct dependency: tabarena @ git+...") -- confirmed
+    # this extra is unusable without the separate install step below.
+    #
+    # Install after `pip install raman-bench[benchmark]`:
+    #     pip install -r requirements-tabarena-git.txt
 ]
 tracking = [
     # Optional per-task experiment tracking (scripts/run_experiment.py) --
@@ -127,11 +123,12 @@ models = [
     # TABPFN-WIDE's already-computed results stay as historical data, just no
     # new runs. Revisit if tabpfnwide ever republishes against a newer tabpfn.
     #
-    # Same pinned-commit git source as `benchmark`'s `tabarena` entry (see its
-    # comment) -- must be the EXACT same URL+SHA so pip treats both requirement
-    # lines as the same direct reference rather than a conflict when both extras
-    # are installed together (`raman-bench[models]` pulls in `raman-bench[benchmark]`
-    # two lines up).
+    # `tabarena` itself (with its `[tabicl,ebm,search_spaces,realmlp,tabdpt,
+    # tabm,perpetualboosting,chimeraboost]` extras) is NOT declared here for
+    # the same PyPI direct-URL reason as `benchmark`'s entry -- see
+    # requirements-tabarena-git.txt, which installs the extras-qualified form
+    # and satisfies both this extra's and `benchmark`'s tabarena requirement
+    # in one shot.
     # perpetualboosting/chimeraboost (batch 2 of the TabArena-native onboarding) pull
     # in their own third-party package below TabArena's own `pip_extra` metadata
     # (perpetual, chimeraboost>=0.14.1 respectively -- see
@@ -145,7 +142,6 @@ models = [
     # the package's own documented CPU-safe "General Installation" path -- the
     # `cu12`/`cu11` extras are opt-in GPU-kernel acceleration only, and XRFM already
     # runs fine without them (falls back to `device="cpu"`, see generate/xrfm.py).
-    "tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost] @ git+https://github.com/autogluon/tabarena.git@d06f406aee0fbd11e74ed9bba9b78e097ad6fd2f#subdirectory=packages/tabarena",
     "xrfm",
     "ramanspy>=0.2.10,<0.3.0",
     "imodels>=2.0.4",
@@ -238,6 +234,12 @@ models = [
     # (`pip install -r requirements-models-git.txt`); the corresponding Prep_* classes
     # degrade to a clear "not available" error until you do (see
     # preprocessing/wrapped_models.py's optional-import guard).
+    #
+    # `tabarena` itself is the same story -- install it from
+    # `requirements-tabarena-git.txt` (`pip install -r
+    # requirements-tabarena-git.txt`) after this extra; every model that
+    # depends directly on it (all `Prep_*` wrapping a `tabarena.models.*`
+    # class) is unavailable until you do.
 ]
 full = [
     "raman-bench[autogluon]",

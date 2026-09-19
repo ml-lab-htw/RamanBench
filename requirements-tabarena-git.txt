@@ -1,0 +1,25 @@
+# tabarena -- NOT installable via `pip install raman-bench[benchmark]` or
+# `[models]`. PyPI forbids direct-URL requirements in an uploaded package (the
+# v2.0.0 release attempt failed the upload with exactly this error), so the
+# pinned-commit `tabarena` dependency has to live here instead of
+# pyproject.toml, same reasoning as requirements-models-git.txt.
+#
+# Pinned to a specific upstream commit (not floating on `main`) rather than
+# PyPI's `tabarena` release: the conda env deployed on HTW was found stuck on
+# the old 0.0.1 PyPI placeholder (cluster/refresh_deps.py only ever upgrades
+# raman-data, never tabarena), and even a healthy PyPI install would still be
+# capped at 0.1.0 (cut 2026-09-03) -- missing mitra_v2, causilo, tabldm,
+# ctboost, aplr, and every other model TabArena has merged since. Bump this
+# SHA deliberately (not automatically -- see refresh_deps.py) when picking up
+# new upstream models; a benchmark run's results should always be traceable
+# to one exact commit, never a floating branch head.
+#
+# Install after `pip install raman-bench[benchmark]` (or `[models]`/`[full]`):
+#     pip install -r requirements-tabarena-git.txt
+#
+# `[models]` needs the extras-qualified form (tabicl, ebm, search_spaces,
+# realmlp, tabdpt, tabm, perpetualboosting, chimeraboost) -- installing this
+# after `raman-bench[models]` satisfies both `[benchmark]` and `[models]`'s
+# tabarena requirement in one shot, since pip treats these as the same
+# package with a superset of extras.
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost] @ git+https://github.com/autogluon/tabarena.git@d06f406aee0fbd11e74ed9bba9b78e097ad6fd2f#subdirectory=packages/tabarena
