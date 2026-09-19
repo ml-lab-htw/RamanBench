@@ -61,19 +61,42 @@ autogluon = [
     # (1.6.1 is also where TabICL's own v1->v2 + regression-support gap, the fork's
     # other original reason to exist, is resolved natively upstream).
     #
-    # >=1.6.3b20260917 (prerelease, not yet a stable cut): required by TabArena's
-    # new mandatory warm-up framework (tabarena.benchmark.experiment.experiment_runner,
-    # require_warmup=True by default as of the 2026-09-18 pin bump) -- it imports
-    # autogluon.core.models.abstract._shared_weights_registry, which does not exist
-    # in stable 1.6.2 (confirmed: every real experiment run raised RuntimeError
-    # "Warm-up ... did not succeed ... ModuleNotFoundError:
-    # _shared_weights_registry" until this bump). Confirmed present in this exact
-    # prerelease build by inspecting its wheel directly. Bump to a stable 1.6.3+
-    # once one is cut.
-    "autogluon.common>=1.6.3b20260917",
-    "autogluon.core>=1.6.3b20260917",
-    "autogluon.features>=1.6.3b20260917",
-    "autogluon.tabular>=1.6.3b20260917",
+    # >=1.6.3b20260917,!=1.6.3 (prerelease range, deliberately excluding only
+    # the exact stable 1.6.3 cut): required by TabArena's mandatory warm-up framework
+    # (tabarena.benchmark.experiment.experiment_runner, require_warmup=True by
+    # default as of the 2026-09-18 pin bump) -- it imports
+    # autogluon.core.models.abstract._shared_weights_registry, which does not
+    # exist in stable 1.6.2 (confirmed: every real experiment run raised
+    # RuntimeError "Warm-up ... did not succeed ... ModuleNotFoundError:
+    # _shared_weights_registry" until this bump).
+    #
+    # UPDATE 2026-09-19: the plain ">=1.6.3b20260917" floor (no ceiling) was a
+    # REAL production failure confirmed live on the BHT cluster -- every single
+    # task, across every model, failed at the post-evaluation step
+    # (tabarena's get_metadata_fit -> _shared_weights_metadata, called
+    # unconditionally for every fit) with the exact same
+    # "ModuleNotFoundError: No module named
+    # 'autogluon.core.models.abstract._shared_weights_registry'" this floor
+    # was supposed to prevent. Root cause: AutoGluon cut a real stable 1.6.3
+    # release AFTER this floor was set, and stable releases sort higher than
+    # any of their own prereleases (PEP 440) -- so `>=1.6.3b20260917` started
+    # resolving to stable 1.6.3 instead of staying on the prerelease chain,
+    # and stable 1.6.3 does NOT contain _shared_weights_registry (confirmed by
+    # downloading and inspecting its wheel directly: the module is present in
+    # 1.6.3b20260917 through at least 1.6.3b20260918, absent in final 1.6.3).
+    # The exclusion is deliberately `!=1.6.3`, NOT `<1.6.3`: PEP 440's
+    # exclusive ordered comparison (`<V`) has a special rule that a `<V`
+    # bound where V itself is not a pre-release ALSO excludes every
+    # pre-release OF V (confirmed via `packaging.specifiers` directly: `<1.6.3`
+    # rejects `1.6.3b20260917` too, the opposite of what's needed here) --
+    # `!=1.6.3` excludes only the exact broken final release and correctly
+    # keeps matching its prereleases. Revisit once a stable release genuinely
+    # has the warm-up framework's module -- verify before ever removing this
+    # exclusion or raising the floor past it.
+    "autogluon.common>=1.6.3b20260917,!=1.6.3",
+    "autogluon.core>=1.6.3b20260917,!=1.6.3",
+    "autogluon.features>=1.6.3b20260917,!=1.6.3",
+    "autogluon.tabular>=1.6.3b20260917,!=1.6.3",
     # Wavelet-threshold denoising (RamanPreprocessingMixin's wavelet_denoise step)
     # is imported defensively inside that function, but the tunable preprocessing
     # pipeline itself only ships as part of the `autogluon` extra, so pin it here.

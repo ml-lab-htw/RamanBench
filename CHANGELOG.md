@@ -9,6 +9,32 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every single BHT task was failing at the post-evaluation step** with
+  `ModuleNotFoundError: No module named
+  'autogluon.core.models.abstract._shared_weights_registry'` — the exact
+  error the `autogluon>=1.6.3b20260917` floor was supposed to prevent.
+  AutoGluon cut a real stable `1.6.3` release after that floor was set, and a
+  stable release sorts higher than any of its own prereleases (PEP 440), so
+  the unbounded floor started resolving to stable `1.6.3` instead of staying
+  on the prerelease chain — and stable `1.6.3` does not contain this module
+  (confirmed by downloading and inspecting both wheels directly: present in
+  `1.6.3b20260917` through at least `1.6.3b20260918`, absent in final
+  `1.6.3`). Fixed with a `!=1.6.3` exclusion, not a `<1.6.3` ceiling: PEP
+  440's exclusive ordered comparison has a special rule where `<V` (V not
+  itself a pre-release) also excludes every pre-release of V, which would
+  have blocked the very versions this fix needs to keep matching.
+- **`cluster/opportunistic_scheduler.py`'s courtesy ceiling and max-pending
+  checks counted this SLURM account's entire resident task footprint**, not
+  just RamanBench's own (job name prefix `RB_`) — confirmed live: an
+  unrelated concurrent project's own 619-task array left RamanBench (with
+  zero jobs of its own resident) permanently reporting "at ceiling" and
+  never submitting anything, on every tick, indefinitely. The distinct-array
+  check already filtered on the same `RB_` prefix; this fixes the other two
+  checks to match. New regression tests:
+  `tests/test_opportunistic_scheduler_capacity.py`.
+
 ## [2.0.1] — 2026-09-19
 
 ### Fixed

@@ -461,10 +461,16 @@ def check_capacity(
 ) -> tuple[bool, str]:
     """Return (has_room, reason). ``has_room`` requires ALL FOUR:
     (1) idle cluster capacity (this partition isn't busy with other users' work),
-    (2) this user's own resident (pending+running) task count staying under a
-    courtesy ceiling (so the scheduler itself never grows into "occupying the
-    whole cluster" even if the partition looks idle to everyone else too),
-    (3) this user's own PENDING count staying under ``max_pending`` -- idle CPU
+    (2) this user's own resident (pending+running) RamanBench task count (job
+    name prefix ``RB_``, same filter as (4) below) staying under a courtesy
+    ceiling (so the scheduler itself never grows into "occupying the whole
+    cluster" even if the partition looks idle to everyone else too) --
+    deliberately filtered to RamanBench's own jobs, not this user's entire
+    account: confirmed live as a real incident where an unrelated concurrent
+    project's own 619-task array left RamanBench (with zero jobs of its own
+    resident) permanently reporting "at ceiling" against an unfiltered count,
+    (3) this user's own RamanBench PENDING count (same ``RB_`` filter)
+    staying under ``max_pending`` -- idle CPU
     capacity as reported by ``sinfo`` does not guarantee SLURM will actually
     schedule OUR jobs against it (confirmed in practice: 128 idle CPUs reported
     every tick for 18+ hours while every one of the scheduler's own submitted
@@ -551,19 +557,32 @@ def check_capacity(
             capture_output=True, text=True, check=True,
         ).stdout
         squeue_stall_out = subprocess.run(
-            ["squeue", "-h", "-u", user, "-t", "pending,running", "-o", "%T"],
+            ["squeue", "-h", "-u", user, "-t", "pending,running", "-o", "%T|%j"],
             capture_output=True, text=True, check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         return False, f"squeue failed ({e}) -- treating as at ceiling, conservatively"
-    resident_lines = [line.strip() for line in squeue_resident_out.splitlines() if line.strip()]
+    # Filter every one of these three checks to this scheduler's OWN jobs
+    # (job name prefix "RB_", set by submit_job.py's SLURM path) -- this
+    # account routinely runs other, unrelated projects concurrently (confirmed
+    # live: a separate project's own job array sat at 619 resident tasks while
+    # RamanBench itself had zero running, yet courtesy_ceiling was comparing
+    # against the UNFILTERED total and permanently reported "at ceiling").
+    # (4)'s array-name set already filtered on this prefix; (2)/(3) did not --
+    # this fixes that inconsistency rather than leaving RamanBench silently
+    # blocked by any other work sharing the account.
+    resident_lines = [
+        line.strip() for line in squeue_resident_out.splitlines()
+        if line.strip() and line.partition("|")[2].startswith("RB_")
+    ]
     my_resident = len(resident_lines)
-    resident_array_names = {
-        name for _state, _sep, name in (line.partition("|") for line in resident_lines) if name.startswith("RB_")
-    }
+    resident_array_names = {name for _state, _sep, name in (line.partition("|") for line in resident_lines)}
     my_array_count = len(resident_array_names)
-    stall_states = [line.strip() for line in squeue_stall_out.splitlines() if line.strip()]
-    my_pending = sum(1 for s in stall_states if s == "PENDING")
+    stall_lines = [
+        line.strip() for line in squeue_stall_out.splitlines()
+        if line.strip() and line.partition("|")[2].startswith("RB_")
+    ]
+    my_pending = sum(1 for line in stall_lines if line.partition("|")[0] == "PENDING")
 
     if idle_total < min_idle_cpus:
         return False, f"only {idle_total} idle CPU(s) on partition {partition!r} (need >={min_idle_cpus})"
