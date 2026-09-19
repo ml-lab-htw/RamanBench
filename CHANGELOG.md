@@ -11,6 +11,32 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Native many-class (ECOC) support for MITRA and every REALTABPFN-V2/V2.5/V2.6
+  model was silently broken.** `tabpfn_extensions` (a hard dependency) fails
+  to import at all with a modern `setuptools` installed: its `__init__.py`
+  eagerly imports `hpo`, which pulls in `hyperopt`, which still does `import
+  pkg_resources` — a module setuptools has since removed entirely. This isn't
+  cosmetic: `tabpfn_extensions.many_class.ManyClassClassifier` is AutoGluon
+  core's own mechanism for handling >10-class datasets on those model
+  families (`autogluon.tabular.models.{mitra.mitra_model,
+  tabpfnv2.tabpfnv2_5_model}`) — without the fix, any many-class dataset
+  hard-crashes those models (`ImportError` re-raised, not a clean skip)
+  instead of using the ECOC wrapper that's already implemented for them.
+  Fixed by pinning `setuptools<80`. New regression tests:
+  `tests/test_tabpfn_extensions_import.py`. A misleading comment in
+  `wrapped_models.py` claiming this many-class support "isn't reproduced"
+  (true before AutoGluon shipped it natively; stale since) is corrected.
+- **`submit_job.py`'s SLURM path aborted an entire multi-chunk submission on
+  one transient `sbatch` failure.** Confirmed as a real, recurring
+  production issue (not a one-off): a real multi-array submission run hit
+  "Slurm temporarily unable to accept job, sleeping and retrying" on
+  multiple calls in one batch — `sbatch`'s own internal retry sometimes
+  gives up and exits 1 instead of eventually succeeding, even though the
+  exact same command succeeds when simply re-run by hand seconds later.
+  Added `_sbatch_with_retry` (8 attempts, 15s backoff) so one transient
+  failure no longer aborts every later chunk/model in the same run. New
+  regression tests: `tests/test_submit_job_k8s.py::TestSbatchWithRetry`.
+
 - **Every single BHT task was failing at the post-evaluation step** with
   `ModuleNotFoundError: No module named
   'autogluon.core.models.abstract._shared_weights_registry'` — the exact

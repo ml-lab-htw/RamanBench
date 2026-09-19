@@ -10,8 +10,10 @@ These were previously untestable because the manifest was built inline inside
 """
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -27,6 +29,7 @@ _spec.loader.exec_module(submit_job)
 
 _abs_under_workspace = submit_job._abs_under_workspace
 _build_k8s_job_manifest = submit_job._build_k8s_job_manifest
+_sbatch_with_retry = submit_job._sbatch_with_retry
 
 
 def _minimal_profile(**overrides) -> dict:
@@ -211,3 +214,28 @@ class TestBuildK8sJobManifest:
         _, _, _, manifest = _build(profile)
         assert manifest["metadata"]["labels"]["team"] == "ml-lab"
         assert manifest["metadata"]["labels"]["app"] == "raman-bench"
+
+
+class TestSbatchWithRetry:
+    def test_succeeds_immediately_when_sbatch_exits_zero(self):
+        ok_result = MagicMock(returncode=0, stdout="Submitted batch job 12345", stderr="")
+        with patch.object(submit_job.subprocess, "run", return_value=ok_result) as mock_run:
+            result = _sbatch_with_retry(["sbatch", "--array=0-9"])
+        assert result.stdout == "Submitted batch job 12345"
+        assert mock_run.call_count == 1
+
+    def test_retries_transient_failure_then_succeeds(self):
+        fail_result = MagicMock(returncode=1, stdout="", stderr="Slurm temporarily unable to accept job")
+        ok_result = MagicMock(returncode=0, stdout="Submitted batch job 99", stderr="")
+        with patch.object(submit_job.subprocess, "run", side_effect=[fail_result, fail_result, ok_result]), \
+                patch.object(submit_job.time, "sleep", return_value=None) as mock_sleep:
+            result = _sbatch_with_retry(["sbatch", "--array=0-9"])
+        assert result.stdout == "Submitted batch job 99"
+        assert mock_sleep.call_count == 2
+
+    def test_raises_after_exhausting_all_attempts(self):
+        fail_result = MagicMock(returncode=1, stdout="", stderr="Resource temporarily unavailable")
+        with patch.object(submit_job.subprocess, "run", return_value=fail_result), \
+                patch.object(submit_job.time, "sleep", return_value=None):
+            with pytest.raises(subprocess.CalledProcessError):
+                _sbatch_with_retry(["sbatch", "--array=0-9"])

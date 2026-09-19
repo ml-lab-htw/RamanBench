@@ -177,6 +177,20 @@ models = [
     # (confirmed via a real pip resolve). 0.4.3 is the first tabpfn-extensions
     # release requiring tabpfn>=8.1.0 (no ceiling), compatible with our floor.
     "tabpfn-extensions>=0.4.3",
+    # <80: tabpfn_extensions/__init__.py eagerly imports its hpo submodule
+    # (`from .hpo import TunedTabPFNClassifier, ...`), which pulls in hyperopt,
+    # which still does `import pkg_resources` -- a module setuptools has since
+    # removed entirely (confirmed real: `import tabpfn_extensions.many_class`
+    # raises ModuleNotFoundError: No module named 'pkg_resources' with
+    # setuptools 84.0.0 installed, and succeeds once setuptools<80 is pinned).
+    # This isn't a rarely-hit corner: tabpfn_extensions.many_class.
+    # ManyClassClassifier is AutoGluon core's OWN mechanism for handling
+    # >10-class datasets on MITRA and every REALTABPFN-V2/V2.5/V2.6 model (see
+    # autogluon.tabular.models.{mitra.mitra_model, tabpfnv2.tabpfnv2_5_model});
+    # without this pin, that native many-class support silently hard-crashes
+    # (ImportError re-raised, not a clean skip) the moment any of those models
+    # hits a many-class dataset.
+    "setuptools<80",
     "sktime>=0.40.0",
     "numba>=0.63.0",
     # ModernNCA (Prep_MODERNNCA) -- tabarena.models.modernnca._internal.data imports this

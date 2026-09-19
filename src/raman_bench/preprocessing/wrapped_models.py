@@ -334,13 +334,23 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
 # nothing more (e.g. it does NOT touch AutoGluon's constraint-checking mechanism itself,
 # `AbstractModel.validate_fit_args`, which stays fully intact for every other model).
 #
-# Accepted tradeoff: no fork-only extras beyond the cap relief (e.g. Mitra/TabPFN's
-# ManyClassClassifier many-class support the fork also carried) are reproduced here, and
+# UPDATE 2026-09-19: the ManyClassClassifier (ECOC) many-class support this
+# comment used to say wasn't reproduced is, as of the current AutoGluon
+# pin, natively built into upstream itself -- MitraModel._fit and
+# TabPFNModel._fit (autogluon.tabular.models.{mitra.mitra_model,
+# tabpfnv2.tabpfnv2_5_model}, the latter shared by RealTabPFN-V2/V2.5/V2.6)
+# both auto-wrap with tabpfn_extensions.many_class.ManyClassClassifier once
+# num_classes exceeds their many_class_threshold (10). No RamanBench code
+# needed for these two model families specifically -- confirmed working
+# once `setuptools<80` is pinned (see pyproject.toml's `setuptools` comment
+# for why: tabpfn_extensions eagerly imports hyperopt, which breaks on any
+# setuptools that has removed pkg_resources, hard-crashing this exact path).
 # TabICL v2 regression support -- the fork's other reason to exist -- is no longer needed
-# at all since upstream 1.6 ships TabICL v2 with regression support natively. Some
-# model x dataset combinations that worked under the fork (e.g. >10-class datasets on
-# Mitra/TabPFN, which the fork routed through an ECOC many-class wrapper) may now fail
-# or be skipped outright -- accepted in favor of depending on plain upstream AutoGluon.
+# at all since upstream 1.6 ships TabICL v2 with regression support natively. Genuine
+# remaining gaps: TabDPT has no many-class handling at all (upstream's own choice, not
+# something RamanBench introduced); RamanBench's own custom TabPFN-Wide/Causilo wrappers
+# only have a fail-fast class-count skip, no ECOC (TabPFN-Wide's ECOC attempt is written
+# but commented out -- OOMs on wide Raman spectra even at 256G, see its own docstring).
 # TabFM, TabPFN-3, TabSwift, and ModernNCA (added below) were checked against this same
 # issue -- inspected via each class's own `_get_default_auxiliary_params`/
 # `_default_auxiliary_params_extra` in the installed tabarena package -- and, unlike the
