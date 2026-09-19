@@ -57,6 +57,12 @@ def scheduler():
 
 
 def _fake_run(sinfo_line: str, squeue_states: list[str]):
+    """``squeue_states`` are bare SLURM states (e.g. ``["RUNNING"] * 3``) --
+    every one is given a synthetic ``RB_``-prefixed job name, since
+    check_capacity's resident/pending counts are now filtered to this
+    scheduler's own jobs (job name prefix ``RB_``) and both the resident and
+    stall squeue queries return ``%T|%j``, not bare state."""
+
     def fake_run(cmd, capture_output, text, check):
         class _Result:
             pass
@@ -65,7 +71,7 @@ def _fake_run(sinfo_line: str, squeue_states: list[str]):
         if cmd[0] == "sinfo":
             result.stdout = sinfo_line
         else:  # squeue
-            result.stdout = "\n".join(squeue_states)
+            result.stdout = "\n".join(f"{state}|RB_test_job" for state in squeue_states)
         return result
 
     return fake_run
@@ -77,7 +83,9 @@ def _fake_run_distinguishing_r(
     """Like ``_fake_run``, but returns DIFFERENT squeue output depending on
     whether ``-r`` is in the command -- models the real behavior squeue
     itself has (an array with a large still-pending remainder collapses to
-    ~1 line without ``-r``, but expands to one line per task with it)."""
+    ~1 line without ``-r``, but expands to one line per task with it). Every
+    state is given a synthetic ``RB_``-prefixed job name -- both the resident
+    and stall queries return ``%T|%j``, filtered to this scheduler's own jobs."""
 
     def fake_run(cmd, capture_output, text, check):
         class _Result:
@@ -87,9 +95,9 @@ def _fake_run_distinguishing_r(
         if cmd[0] == "sinfo":
             result.stdout = sinfo_line
         elif "-r" in cmd:
-            result.stdout = "\n".join(expanded_states)
+            result.stdout = "\n".join(f"{state}|RB_test_job" for state in expanded_states)
         else:
-            result.stdout = "\n".join(collapsed_states)
+            result.stdout = "\n".join(f"{state}|RB_test_job" for state in collapsed_states)
         return result
 
     return fake_run
@@ -104,7 +112,8 @@ def test_healthy_queue_has_room(scheduler):
     )
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
-            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5
+            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5,
+            max_concurrent_arrays=5,
         )
     assert has_room is True
     assert "room to submit" in reason
@@ -157,7 +166,8 @@ def test_a_few_pending_is_normal_and_does_not_block(scheduler):
     )
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
-            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5
+            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5,
+            max_concurrent_arrays=5,
         )
     assert has_room is True
 
@@ -196,7 +206,8 @@ def test_max_pending_does_not_misfire_on_normal_throttled_backlog(scheduler):
     )
     with patch("subprocess.run", side_effect=fake_run):
         has_room, reason = scheduler.check_capacity(
-            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5
+            {"partition": "Debug_node"}, min_idle_cpus=32, courtesy_ceiling=200, max_pending=5,
+            max_concurrent_arrays=5,
         )
     assert has_room is True
 
@@ -216,7 +227,10 @@ def _fake_run_with_job_names(sinfo_line: str, resident_rows: list[tuple[str, str
         elif "-r" in cmd:
             result.stdout = "\n".join(f"{state}|{name}" for state, name in resident_rows)
         else:
-            result.stdout = "\n".join(state for state, _name in resident_rows)
+            # Both squeue queries return "%T|%j" in the real code -- the
+            # stall query is filtered to this scheduler's own jobs (RB_
+            # prefix) exactly like the resident query.
+            result.stdout = "\n".join(f"{state}|{name}" for state, name in resident_rows)
         return result
 
     return fake_run
