@@ -18,8 +18,14 @@
 #     pip install -r requirements-tabarena-git.txt
 #
 # `[models]` needs the extras-qualified form (tabicl, ebm, search_spaces,
-# realmlp, tabdpt, tabm, perpetualboosting, chimeraboost) -- installing this
-# after `raman-bench[models]` satisfies both `[benchmark]` and `[models]`'s
-# tabarena requirement in one shot, since pip treats these as the same
-# package with a superset of extras.
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost] @ git+https://github.com/autogluon/tabarena.git@d06f406aee0fbd11e74ed9bba9b78e097ad6fd2f#subdirectory=packages/tabarena
+# realmlp, tabdpt, tabm, perpetualboosting, chimeraboost, nori) -- installing
+# this after `raman-bench[models]` satisfies both `[benchmark]` and
+# `[models]`'s tabarena requirement in one shot, since pip treats these as the
+# same package with a superset of extras.
+#
+# `nori` was missing here until 2026-09-20 -- confirmed as a real production
+# failure: NORI's large partition failed 237/654 tasks (36%), NORI's full
+# partition was failing every task reached so far, all with
+# "ModuleNotFoundError: No module named 'synthefy_nori'" (tabarena's own
+# `nori` extra is `synthefy-nori>=0.10.0`, never installed here).
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori] @ git+https://github.com/autogluon/tabarena.git@d06f406aee0fbd11e74ed9bba9b78e097ad6fd2f#subdirectory=packages/tabarena
