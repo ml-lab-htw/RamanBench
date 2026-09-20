@@ -399,8 +399,25 @@ Prep_TABDPT = _make_optional_prep_class(
 # ag_key "TA-TABPFN-3" for the un-preprocessed TabArena baseline variant (kept as a
 # separate, still-useful registry entry, not superseded by this one).
 Prep_TABFM = _make_optional_prep_class("Prep_TABFM", TabFMModel, ag_key="TABFM")
+# TabICL's own memory estimate scales close to the node's total available RAM on
+# RamanBench's widest spectra (confirmed live on BHT k8s: a real fit logged "Estimated to
+# require 792.209 GB out of 926.205 GB available memory (85.533%)" and proceeded anyway --
+# AutoGluon's default `max_memory_usage_ratio` of 1.0 only blocks a fit once the estimate
+# EXCEEDS the available memory outright, so 85.5% sailed through as a warning, not a
+# skip). A later task on the same long-running pod then exhausted the node for real and
+# the whole pod was hard `OOMKilled` -- losing every task still in flight, not just the
+# one that pushed it over. Capping the ratio at 0.8 (below the 85.5% already observed)
+# makes AutoGluon itself raise a catchable `NotEnoughMemoryError` and skip the model
+# before it starts, matching how every other graceful failure in this pipeline behaves,
+# instead of gambling on the OS OOM-killer. This is a genuine `params_aux` key
+# (`AbstractModel._get_default_auxiliary_params`'s own `max_memory_usage_ratio`, NOT the
+# `ag.`-prefixed form -- that prefix only matters for a raw user-supplied
+# `ag_args_fit` dict, see `AbstractModel._init_user_params`), so the existing
+# `_default_auxiliary_params_extra` declarative merge is the right, and only, place for
+# it -- no separate `ag_args_fit` wiring needed.
+_TABICL_MEMORY_SAFETY = {**_NO_FOUNDATION_MODEL_FEATURE_CAP, "max_memory_usage_ratio": 0.8}
 Prep_TABICL = _make_optional_prep_class(
-    "Prep_TABICL", TabICLModel, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
+    "Prep_TABICL", TabICLModel, _default_auxiliary_params_extra=_TABICL_MEMORY_SAFETY
 )
 Prep_REALTABPFN_V2 = _make_optional_prep_class(
     "Prep_REALTABPFN_V2",
