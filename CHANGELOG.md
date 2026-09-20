@@ -9,6 +9,36 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The k8s Dockerfile never installed `requirements-models-git.txt`** (TabFM,
+  SAP-RPT-OSS, OrionMSP/tabtune) despite that file existing specifically for
+  this purpose and pyproject.toml documenting it. Confirmed as a real
+  production failure: every single TABFM task on the BHT k8s cluster failed
+  with `ModuleNotFoundError: No module named 'tabfm'` (100% failure rate
+  across both the full and large partitions). Fixed by adding the missing
+  `COPY`/`pip install -r requirements-models-git.txt` step.
+- **`torchaudio` (bundled in the `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime`
+  base image) was left on its original 2.5.1+cu124 build after torch got
+  bumped to 2.14.0+cu130** (same drift class as the already-fixed torchvision
+  issue), and PyPI has published no torchaudio release compatible with
+  torch>=2.12 to pin to instead. `transformers`' `is_torchaudio_available()`
+  only checks that the package is *present*, not that it imports, so any
+  model pulling in `transformers` (confirmed for MITRA, RAMANFORMER) hard-crashed
+  with `OSError: Could not load this library: .../libtorchaudio.so` on its
+  last task. Fixed by uninstalling `torchaudio` entirely in the Dockerfile --
+  RamanBench has no audio use case, so the availability check now correctly
+  reports "not available" and `transformers` skips the import cleanly.
+- **LimiX's ECOC (`ManyClassClassifier`) branch crashed on `get_device()`.**
+  Found live-testing the upstream fix
+  ([autogluon/tabarena#594](https://github.com/autogluon/tabarena/pull/594)) on
+  a real >10-class dataset: `get_device()`/`_set_device()` assumed
+  `self.model` is always the raw `LimiXPredictor`, but it's a
+  `ManyClassClassifier` (no `.device` attribute) under the ECOC branch --
+  `AttributeError: 'ManyClassClassifier' object has no attribute 'device'`.
+  Fixed upstream and re-verified live (`cancer_cell_(cooh)2`, 12 classes, fits
+  and predicts cleanly across multiple repeat/fold splits).
+
 ### Verified
 
 - **TabDPT needs no many-class (ECOC) fix.** Previously documented as a
