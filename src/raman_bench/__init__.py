@@ -57,10 +57,14 @@ _public_map = {
     "configure_benchmark": ("raman_bench.benchmark", "configure_benchmark"),
     # Leaderboard — rank new models against precomputed baselines
     "Leaderboard": ("raman_bench.leaderboard", "Leaderboard"),
+    "compute_elo": ("raman_bench.leaderboard", "compute_elo"),
     # Metrics
     "ClassificationMetrics": ("raman_bench.metrics", "ClassificationMetrics"),
     "RegressionMetrics": ("raman_bench.metrics", "RegressionMetrics"),
     "compute_metrics": ("raman_bench.metrics", "compute_metrics"),
+    "compute_metrics_from_predictions": ("raman_bench.evaluation", "compute_metrics_from_predictions"),
+    # Seeds
+    "get_seeds": ("raman_bench.seeds", "get_seeds"),
     # Config
     "load_config": ("raman_bench.config", "load_config"),
 }

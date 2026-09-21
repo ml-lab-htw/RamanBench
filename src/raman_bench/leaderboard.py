@@ -505,6 +505,116 @@ class Leaderboard:
         )
 
 
+def compute_elo(
+    df: pd.DataFrame,
+    reference_model: str = "RF",
+    n_bootstrap: int = 200,
+    seed: int = 42,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Compute Elo ratings for a set of models from per-dataset metrics.
+
+    Uses TabArena's Elo estimator (``bencheval.elo_utils.EloHelper``): a
+    Bradley-Terry maximum-likelihood Elo fit with ``LogisticRegression`` over
+    per-dataset head-to-head battles, task-weighted so each dataset
+    contributes equally, with a task-level bootstrap (``n_bootstrap`` rounds)
+    for the 2.5/97.5% CIs. The point estimate is the bootstrap median. The
+    reference model is calibrated to Elo = 1000.
+
+    The pairwise winner on each dataset is the lower error — ``1 - metric``
+    for a higher-is-better metric (e.g. F1), the metric itself otherwise
+    (e.g. RMSE) — so models with no result on a dataset simply do not
+    compete there (present-only pairing).
+
+    Requires the ``benchmark`` extra (``pip install raman-bench[benchmark]``,
+    or directly ``pip install bencheval``).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Columns ``key`` (dataset id), ``model``, ``metric`` (a single scalar
+        per row), ``higher_is_better`` (bool, per row). Optionally
+        ``learnable`` (bool): when present, a dataset with no learnable model
+        is scored as an all-draw across models rather than rewarding noise.
+    reference_model : str
+        Model calibrated to Elo = 1000 (default ``"RF"``).
+    n_bootstrap : int
+        Bootstrap rounds for the Elo confidence intervals.
+    seed : int
+        Random seed for the bootstrap.
+
+    Returns
+    -------
+    tuple of pd.Series
+        ``(elo, ci_lo, ci_hi)``, each indexed by model name.
+    """
+    try:
+        from bencheval.elo_utils import EloHelper
+    except ImportError as e:
+        raise ImportError(
+            "compute_elo() requires the 'benchmark' extra: "
+            "pip install raman-bench[benchmark]  (or: pip install bencheval)"
+        ) from e
+
+    models = sorted(df["model"].unique())
+
+    keep_cols = ["key", "model", "metric", "higher_is_better"]
+    if "learnable" in df.columns:
+        keep_cols.append("learnable")
+    d = df[keep_cols].copy()
+    d["error"] = np.where(d["higher_is_better"], 1.0 - d["metric"], d["metric"])
+    sel = ["method", "task", "error"] + (["learnable"] if "learnable" in d.columns else [])
+    d = (
+        d.rename(columns={"key": "task", "model": "method"})[sel]
+        .dropna(subset=["error"])
+        .drop_duplicates(subset=["method", "task"])
+    )
+
+    if "learnable" in d.columns and len(d):
+        task_has_learnable = d.groupby("task")["learnable"].transform("any")
+        unlearnable = ~task_has_learnable.astype(bool)
+        if unlearnable.any():
+            sentinel = float(np.nanmax(d["error"].to_numpy())) + 1.0
+            d.loc[unlearnable, "error"] = sentinel
+            logger.info(
+                "compute_elo: learnability draw rule applied to %d target(s) with "
+                "no learnable model.",
+                int(d.loc[unlearnable, "task"].nunique()),
+            )
+        d = d[["method", "task", "error"]]
+
+    helper = EloHelper(method_col="method", task_col="task", error_col="error", split_col=None)
+    battles = helper.convert_results_to_battles(d)
+
+    # Bootstrap without per-round calibration, then anchor the reference once at
+    # the end, so its bootstrap interval keeps real width instead of collapsing
+    # to zero (calibrating every round would pin it to 1000 each time).
+    boot = helper.compute_elo_ratings(
+        battles=battles,
+        seed=seed,
+        calibration_framework=None,
+        calibration_elo=1000.0,
+        INIT_RATING=1000.0,
+        BOOTSTRAP_ROUNDS=int(n_bootstrap),
+        SCALE=400,
+        show_process=False,
+    )
+    elo = boot.median(axis=0)
+    ci_lo = boot.quantile(0.025, axis=0)
+    ci_hi = boot.quantile(0.975, axis=0)
+
+    if reference_model in elo.index and not np.isnan(elo[reference_model]):
+        offset = 1000.0 - elo[reference_model]
+        elo = elo + offset
+        ci_lo = ci_lo + offset
+        ci_hi = ci_hi + offset
+
+    elo = elo.reindex(models).fillna(1000.0)
+    elo.name = "elo"
+    ci_lo = ci_lo.reindex(models).fillna(elo)
+    ci_hi = ci_hi.reindex(models).fillna(elo)
+    return elo, ci_lo, ci_hi
+
+
 # ------------------------------------------------------------------
 # Helpers for building leaderboard from raw metrics
 # ------------------------------------------------------------------
