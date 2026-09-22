@@ -192,6 +192,22 @@
     "excluded": false
   },
   {
+    "dataset": "marine_pathogens",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1138,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
+    "dataset": "marine_pathogens_binary",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 261,
+    "n_repeats": 10,
+    "excluded": false
+  },
+  {
     "dataset": "amino_acids_glycine",
     "target_idx": 0,
     "target_name": "target",
