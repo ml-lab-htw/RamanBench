@@ -7,7 +7,7 @@ institution-specific values -- HTW/TU account, partition, mail, workspace path -
 stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
 
 - `datasets/classification_all.json`, `datasets/regression_all.json` -- the curated
-  66-dataset v1 scope (23 classification + 43 regression), by `raman_data` key.
+  68-dataset v1 scope (25 classification + 43 regression), by `raman_data` key.
   Mirrors (and is the canonical source for) the same lists historically kept in
   `raman_bench_paper/configs/datasets/`; that copy stays in place since the paper
   repo's own already-published results were produced by the older `run_benchmark.py`/

@@ -129,6 +129,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
   checks to match. New regression tests:
   `tests/test_opportunistic_scheduler_capacity.py`.
 
+### Added
+
+- **Two new v1 classification datasets**: `marine_pathogens` (1138 spectra, 8-class
+  identification of *Urechis unicinctus* isolates, Yu et al. 2021, *Anal. Chem.*
+  93(32), 11089–11098, CC BY-NC-SA/non-commercial) and `marine_pathogens_binary`
+  (261 spectra, binary *Acinetobacter baumannii* vs. *Pseudomonas nitritireducens*
+  classification, rehosted alongside `marine_pathogens` and attributed to the same
+  paper by the source, though that specific experiment could not be independently
+  confirmed against the paper's own abstract — see the dataset's `DatasetInfo`
+  citation-confidence note in `raman-data`). Sourced via `raman-data>=1.6.4`. Added
+  to `configs/v1/datasets/classification_all.json`; `configs/v1/target_list.json`
+  regenerated (68 datasets total, 25 classification + 43 regression). Both verified
+  loadable via the HF mirror and pass a PLS sanity check (near-chance-beating on
+  `marine_pathogens`, near-perfect separation on `marine_pathogens_binary`,
+  consistent with the source paper's own reported ~99% accuracy on that task).
+
 ## [2.0.1] — 2026-09-19
 
 ### Fixed
