@@ -9,6 +9,31 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`TABICLV2` model key**, wrapping `tabarena.models.tabicl.model.TabICLv2Model`
+  with Raman preprocessing (`Prep_TABICLV2`), alongside the existing `TABICL`
+  (v1) wrapper — both are now separate, independently-selectable `--model`
+  values. Unlike `TABICL` (which wraps the AutoGluon-core-graduated
+  `autogluon.tabular.models.TabICLModel`), `TabICLv2Model` hasn't graduated
+  into AutoGluon core yet and lives only in tabarena's own package (confirmed
+  against the pinned commit in `requirements-tabarena-git.txt`,
+  `d06f406aee0f...`), so it's imported the same defensive,
+  possibly-missing way as `TabFMModel`/`TabPFN3Model`/`TabSwiftModel`/
+  `ModernNCAModel` (`wrapped_models.py`'s `_OPTIONAL_TABARENA_MODEL_IMPORTS`),
+  not the `_OPTIONAL_AG_MODEL_NAMES` list `TABICL` uses. Its HPO search space
+  is rebound from TabArena's own `tabarena.models.tabicl.hpo.gen_tabiclv2`
+  (`models/generate/tabiclv2.py`, mirroring `tabicl.py`'s `gen_tabicl`
+  rebind) — both `gen_tabicl`/`gen_tabiclv2` already coexist side by side in
+  that upstream module. Added to `configs/models/all.json` and
+  `cluster/gpu_models.json` next to `TABICL`. Deliberately does NOT reuse
+  `TABICL`'s `max_memory_usage_ratio=0.8` memory-safety cap
+  (`_TABICL_MEMORY_SAFETY`, added for a confirmed live OOM on v1) — no
+  equivalent incident has been observed for v2 yet, and fabricating a cap
+  without one to calibrate against would just be guessing; see the comment
+  above `Prep_TABICLV2` in `wrapped_models.py` for the (plausible but
+  unconfirmed) risk this leaves open.
+
 ### Verified
 
 - **TabDPT needs no many-class (ECOC) fix.** Previously documented as a

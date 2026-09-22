@@ -2,7 +2,7 @@
 
 Uses ``tabarena.models.tabicl.hpo.gen_tabicl`` (the plain ``TabICLModel``
 generator), not ``gen_tabiclv2`` (a separate ``TabICLv2Model``/``TA-TABICLv2``
-key RamanBench doesn't currently wrap).
+key -- see ``tabiclv2.py`` for that generator, wired onto ``Prep_TABICLV2``).
 
 ``TabICLModel`` is one of the optional foundation-model classes that may be
 missing from a given AutoGluon build (see ``wrapped_models.py``'s

@@ -107,6 +107,16 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "TabPFN3Model": "tabarena.models.tabpfn_3.model",
     "TabSwiftModel": "tabarena.models.tabswift.model",
     "ModernNCAModel": "tabarena.models.modernnca.model",
+    # TabICLv2 (tabarena.models.tabicl.model.TabICLv2Model) is a *different* class
+    # from the "TabICL" (v1) wrapped above via autogluon.tabular.models.TabICLModel
+    # (_OPTIONAL_AG_MODEL_NAMES): v1 has graduated into AutoGluon core, v2 hasn't --
+    # it exists only in tabarena's own package, same staging situation as
+    # TabFM/TabPFN-3/TabSwift/ModernNCA above (confirmed: no `TabICLv2Model` anywhere
+    # in `autogluon.tabular.models`, checked against the pinned tabarena commit in
+    # requirements-tabarena-git.txt). Its own hpo module (tabarena.models.tabicl.hpo)
+    # already exposes both `gen_tabicl` (bound to `TabICLModel`) and `gen_tabiclv2`
+    # (bound to this class) side by side -- see generate/tabiclv2.py.
+    "TabICLv2Model": "tabarena.models.tabicl.model",
     # Batch 2 (EBM, PerpetualBooster, xRFM, ChimeraBoost): same "not yet graduated
     # into AutoGluon core" situation, EXCEPT EBM, which already lives in
     # autogluon.tabular.models (imported unconditionally above) -- it graduated
@@ -419,6 +429,30 @@ _TABICL_MEMORY_SAFETY = {**_NO_FOUNDATION_MODEL_FEATURE_CAP, "max_memory_usage_r
 Prep_TABICL = _make_optional_prep_class(
     "Prep_TABICL", TabICLModel, _default_auxiliary_params_extra=_TABICL_MEMORY_SAFETY
 )
+# TabICLv2 (tabarena.models.tabicl.model.TabICLv2Model, see the
+# _OPTIONAL_TABARENA_MODEL_IMPORTS block above) hasn't graduated into AutoGluon
+# core, so -- like TabFM/TabPFN-3/TabSwift/ModernNCA -- its ag_key still carries
+# tabarena's "TA-" staging prefix (TabICLv2Model.ag_key == "TA-TABICLv2"),
+# overridden here to the short form for the same reason as Prep_TABFM above.
+# Feature/row/class cap: checked TabICLv2Model's own MRO (TabICLModelBase ->
+# AbstractTorchModel -> AbstractModel) for a `_default_auxiliary_params_extra`
+# override the way v1's plain-AutoGluon TabICLModel has -- there isn't one, so
+# max_features/max_rows/max_classes are already uncapped (AutoGluon's base
+# default), same situation as TabFM/TabPFN-3/TabSwift/ModernNCA, not
+# Mitra/TabDPT/TabICL(v1); _NO_FOUNDATION_MODEL_FEATURE_CAP intentionally not
+# applied here for that reason.
+# Memory safety: NOT applying `_TABICL_MEMORY_SAFETY`'s `max_memory_usage_ratio`
+# cap here (unlike v1 immediately above) -- that cap was added in response to a
+# confirmed live OOM incident specific to v1's memory estimator
+# (`TabICLModelBase._estimate_memory_usage_static`, shared by both v1 and v2 via
+# the same base class). No equivalent incident has been observed for v2 yet, and
+# v2 overrides that estimator with its own, deliberately simpler one
+# (`TabICLv2Model._estimate_memory_usage_static`, whose own docstring says memory
+# estimation for v2 on large data "is not supported yet... we ignore it for
+# now") -- so the same OOM risk plausibly exists here too, but fabricating a cap
+# without a confirmed incident to calibrate it against would just be guessing.
+# Revisit if/when a real v2 OOM is observed, same as v1's own history.
+Prep_TABICLV2 = _make_optional_prep_class("Prep_TABICLV2", TabICLv2Model, ag_key="TABICLV2")
 Prep_REALTABPFN_V2 = _make_optional_prep_class(
     "Prep_REALTABPFN_V2",
     RealTabPFNv2Model,
@@ -835,6 +869,7 @@ PREPROCESSED_MODELS = {
     "TABDPT": Prep_TABDPT,
     "TABFM": Prep_TABFM,
     "TABICL": Prep_TABICL,
+    "TABICLV2": Prep_TABICLV2,
     "REALTABPFN-V2": Prep_REALTABPFN_V2,
     "REALTABPFN-V2.5": Prep_REALTABPFN_V25,
     "REALTABPFN-V2.6": Prep_REALTABPFN_V26,
