@@ -273,6 +273,27 @@ Versions follow [Semantic Versioning](https://semver.org/).
   -- `pyproject.toml`'s `tabarena` dependency was moved to a pinned upstream git
   commit that includes it.
 
+- **`TA-EXAONE-TABULAR` model.** Wraps
+  [EXAONE-Tabular](https://github.com/LGAI-Research/EXAONE-Tabular) (LG AI Research's
+  Cross-axis Summary Transformer, an in-context-learning tabular foundation model,
+  ~21M parameters, no per-dataset gradient training) with RamanBench's tunable
+  preprocessing recipe (`src/raman_bench/models/custom/ta_exaone_tabular/`).
+  TabArena already ships a full integration
+  (`tabarena.models.exaone_tabular`, `ag_key="TA-EXAONE-TABULAR"`) as an
+  AutoGluon-native `AbstractTorchModel`, so this reuses that class directly
+  rather than reimplementing anything — same pattern as `Prep_GBM`/`ta_tabpfn_3`.
+  Supports both classification and regression. `compute="gpu"` (the released
+  wrapper hard-requires CUDA when `num_gpus>0` is requested, though it also runs
+  correctly on CPU when no GPU is requested, confirmed by a local smoke run).
+  Git-only install (`requirements-models-git.txt`, not `pyproject.toml`'s
+  `models` extra — PyPI forbids direct-URL dependencies in an uploaded package).
+  **License note:** the `exaonetabular` inference code is
+  BSD-3-Clause-LG AI Research (commercial use permitted), but the released
+  *weights* (downloaded from Hugging Face on first fit) are under the separate
+  EXAONE AI Model License Agreement 1.2-NC — non-commercial research/education
+  use only. Fine for RamanBench's own academic benchmarking; flag this before
+  using `Prep_EXAONE_TABULAR` in any commercial context.
+
 ## [1.1.1] — 2026-09-10
 
 ### Fixed
