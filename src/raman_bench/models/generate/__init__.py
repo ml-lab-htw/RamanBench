@@ -5,7 +5,8 @@ Two kinds of model live here:
 - **TabArena-native "built-in" AutoGluon models** (``rf.py``, ``cat.py``,
   ``xgb.py``, ``xt.py``, ``knn.py``, ``lr.py``, ``nn_torch.py``, ``fastai.py``,
   ``dummy.py``, ``realmlp.py``, ``mitra.py``, ``tabm.py``, ``tabdpt.py``,
-  ``tabicl.py``, ``realtabpfn_v2.py``, ``realtabpfn_v25.py``): these already have
+  ``tabicl.py``, ``tabiclv2.py``, ``realtabpfn_v2.py``, ``realtabpfn_v25.py``):
+  these already have
   a ``Prep_*`` class in ``preprocessing/wrapped_models.py`` (no per-model
   ``model.py`` of their own -- they're thin Raman-preprocessing subclasses of an
   existing AutoGluon model, not a from-scratch architecture). Most of these just

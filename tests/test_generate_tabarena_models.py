@@ -52,6 +52,12 @@ TABARENA_NATIVE_KEYS = [
     "TABM",
     "TABDPT",
     "TABICL",
+    # TABICLV2 wraps a separate, not-yet-AutoGluon-core-graduated class
+    # (tabarena.models.tabicl.model.TabICLv2Model) than TABICL's
+    # autogluon.tabular.models.TabICLModel -- both coexist as independent model
+    # keys (see wrapped_models.py's _OPTIONAL_TABARENA_MODEL_IMPORTS entry and
+    # generate/tabiclv2.py).
+    "TABICLV2",
     "REALTABPFN-V2",
     "REALTABPFN-V2.5",
 ]
