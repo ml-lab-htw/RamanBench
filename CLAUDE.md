@@ -78,7 +78,13 @@ Default is `use_mirror=True`. Tests and integration scripts that need raw source
 4. Commit: `git commit -m "Release vX.Y.Z: <summary>"`
 5. Tag: `git tag -a vX.Y.Z -m "<release notes>"`
 6. Push: `git push origin main vX.Y.Z` (or create PR if main is protected)
-7. Tag will trigger PyPI publish via CI (if configured)
+7. Create a GitHub Release from that tag (`gh release create vX.Y.Z --generate-notes` or via the UI) —
+   this, not the tag push itself, is what triggers `.github/workflows/publish.yml`'s PyPI publish
+   (trusted-publisher, registered on PyPI for that workflow specifically). Pushing the tag alone does
+   **not** publish anything; `ci.yml` deliberately has no publish job (see its git history for why —
+   its previous tag-triggered publish job was never registered as a PyPI trusted publisher and failed
+   every single time it ran, on every release from v1.0.0 through v2.0.1, harmlessly racing the real
+   `publish.yml` publish and always losing).
 
 **Current version**: 1.0.0 (released Sept 1, 2026)
 
