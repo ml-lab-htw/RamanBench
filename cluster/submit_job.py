@@ -473,10 +473,21 @@ def submit_jobs(
 def _k8s_name(*parts: str) -> str:
     """A DNS-1123-safe k8s object name: lowercase, alnum + '-' only, <=63 chars.
     Collisions from truncation are astronomically unlikely for this project's
-    (model, dataset, part) name space and aren't guarded against."""
+    (model, dataset, part) name space and aren't guarded against.
+
+    Truncated to 57, not 63: an Indexed Job's own pods are named
+    ``<job-name>-<index>``, so a job name using the full 63-char DNS-1123
+    budget produces an invalid (>63-char) pod name the moment the index
+    suffix is appended -- confirmed failing for real
+    (``rb-perpetual-booster-marine-pathogens-binary-0-perpetual-booste``,
+    64 chars, rejected by the API server with "will not able to create pod
+    with invalid DNS label"). 57 leaves room for "-" plus up to a 5-digit
+    index (this project's own ``tasks_per_pod`` ceiling), i.e. jobs with up
+    to 99999 pods.
+    """
     raw = "-".join(parts).lower().replace("_", "-").replace(".", "-").replace("/", "-")
     raw = "".join(c for c in raw if c.isalnum() or c == "-").strip("-")
-    return raw[:63].rstrip("-")
+    return raw[:57].rstrip("-")
 
 
 def _abs_under_workspace(path: str, workspace: str) -> str:
