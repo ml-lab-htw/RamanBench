@@ -43,7 +43,12 @@ class _RamanFormerNetwork(nn.Module):
         self.n_patches = math.ceil(n_features / patch_size)
         self.padded_len = self.n_patches * patch_size
 
+        # Paper fidelity fix: Koyun et al. 2024 describe the patchify layer as "a
+        # linear transformation using a 128x256 weight matrix WITH RELU ACTIVATION"
+        # (Sec. 2, architecture description) -- this Linear had no activation applied
+        # after it at all. patch_act restores that.
         self.patch_proj = nn.Linear(patch_size, d_model)
+        self.patch_act = nn.ReLU(inplace=True)
         self.pos_enc = _PositionalEncoding(d_model, max_len=self.n_patches)
 
         encoder_layer = nn.TransformerEncoderLayer(
@@ -77,6 +82,7 @@ class _RamanFormerNetwork(nn.Module):
             x = nn.functional.pad(x, (0, self.padded_len - x.size(1)))
         x = x.view(batch_size, self.n_patches, self.patch_size)
         x = self.patch_proj(x)
+        x = self.patch_act(x)
         x = self.pos_enc(x)
         x = self.transformer(x)
         x = x.permute(0, 2, 1)
@@ -139,6 +145,24 @@ class RamanFormerModel(BaseRamanEstimator):
         self.aug_max_train_samples = aug_max_train_samples
         self.aug_n_per_epoch = aug_n_per_epoch
         self.grad_clip_norm = grad_clip_norm
+
+    def _prepare_labels(self, X, y):
+        """Paper fidelity fix: Koyun et al. 2024 train with L1 loss ("Loss Function"
+        section), not the shared base class's default MSELoss. Regression-only --
+        classification (CrossEntropyLoss) is unaffected and isn't part of the paper's
+        own task (component-ratio quantification), so it keeps the shared default.
+        L1 also grows only linearly (not quadratically) with a large early-training
+        error, which is plausibly relevant here: some datasets in this benchmark
+        (unlike the paper's own single controlled mixture experiment) carry raw,
+        un-normalized intensities up to the low millions and/or wide-range integer-
+        coded regression targets (e.g. synthetic_organic_pigments_raw's target spans
+        0-324), either of which can produce a very large squared error against an
+        untrained network's initial predictions.
+        """
+        X_np, y_np, n_outputs, criterion = super()._prepare_labels(X, y)
+        if isinstance(criterion, nn.MSELoss):
+            criterion = nn.L1Loss()
+        return X_np, y_np, n_outputs, criterion
 
     def fit(self, X, y, time_limit=None):
         self.problem_type_ = self._infer_problem_type(y)

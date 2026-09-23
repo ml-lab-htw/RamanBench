@@ -9,6 +9,33 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed (paper-fidelity — pending real-cluster validation)
+
+- **`RAMANFORMER` deviated from its own paper (Koyun et al. 2024, ACS Omega) in two
+  places, found while investigating why it collapses to a constant NaN-loss output on
+  `adenine_colloidal_silver`, `adenine_solid_silver`, and
+  `synthetic_organic_pigments_raw`.** Compared the implementation directly against the
+  paper's architecture description:
+  - The patchify layer's linear projection had no activation applied after it. The
+    paper: *"a linear transformation using a 128×256 weight matrix with ReLU
+    activation."* Added the missing ReLU.
+  - Regression used the shared base class's default `MSELoss`; the paper explicitly
+    trains with **L1 loss**. Overridden for `RamanFormerModel` specifically (not the
+    shared base other models use) — plausibly relevant to the actual collapse, since
+    MSE grows quadratically with a large early-training error while L1 grows only
+    linearly, and this benchmark's raw (unnormalized, `preprocessing=false`) inputs on
+    these three datasets reach the low millions, with `synthetic_organic_pigments_raw`'s
+    regression target additionally spanning a wide integer-coded range (0-324) — either
+    is plausible to produce a very large squared error against an untrained network's
+    initial predictions.
+
+  An earlier, more speculative attempt at this fix (adding an input `BatchNorm1d` +
+  switching to Pre-LN) was reverted in favor of these two paper-grounded corrections.
+  Existing tests pass; the exact collapse still could not be reproduced locally (needs
+  AutoGluon's real bagged k-fold pipeline at the full ~100-epoch budget) — **not yet
+  confirmed fixed**. Next real cluster run against these three datasets is the actual
+  test.
+
 ### Added
 
 - **`TABICLV2` model key**, wrapping `tabarena.models.tabicl.model.TabICLv2Model`
