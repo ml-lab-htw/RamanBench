@@ -105,6 +105,14 @@ del _name, _ag_tabular_models
 _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "TabFMModel": "tabarena.models.tabfm.model",
     "TabPFN3Model": "tabarena.models.tabpfn_3.model",
+    # TabPFN-3.5 (September 2026 release, one multitask checkpoint for both
+    # classification and regression) -- same staging situation as TabPFN-3
+    # above: TabArena-package-only, not (yet) graduated into AutoGluon core.
+    # Its own ag_key ("TA-TABPFN-3.5") carries the same "TA-" staging prefix,
+    # overridden below (Prep_TABPFN_V3_5) purely for naming consistency with
+    # REALTABPFN-V2.5/V2.6 -- no collision to dodge (nothing else in this
+    # registry uses "TA-TABPFN-3.5").
+    "TabPFN35Model": "tabarena.models.tabpfn_3_5.model",
     "TabSwiftModel": "tabarena.models.tabswift.model",
     "ModernNCAModel": "tabarena.models.modernnca.model",
     # TabICLv2 (tabarena.models.tabicl.model.TabICLv2Model) is a *different* class
@@ -478,6 +486,12 @@ Prep_TABPFN_V3 = _make_optional_prep_class(
 Prep_TABPFN_V3_THINKING = _make_optional_prep_class(
     "Prep_TABPFN_V3_THINKING", TabPFNv3ThinkingModel
 )
+# Wraps tabarena.models.tabpfn_3_5.model.TabPFN35Model (TabArena's own TabPFN-3.5
+# integration -- see the _OPTIONAL_TABARENA_MODEL_IMPORTS block above). ag_key
+# overridden to the spelled-out "TABPFN-V3.5" for consistency with
+# REALTABPFN-V2.5/V2.6 and TABPFN-V3 above -- no collision to dodge, unlike
+# Prep_TABPFN_V3's ag_name override.
+Prep_TABPFN_V3_5 = _make_optional_prep_class("Prep_TABPFN_V3_5", TabPFN35Model, ag_key="TABPFN-V3.5")
 Prep_TABSWIFT = _make_optional_prep_class("Prep_TABSWIFT", TabSwiftModel, ag_key="TABSWIFT")
 # ModernNCAModel's own ag_key ("MNCA") predates the "TA-" staging-prefix convention (it's
 # an older tabarena model than TabFM/TabPFN-3/TabSwift) -- overridden to the spelled-out
@@ -875,6 +889,7 @@ PREPROCESSED_MODELS = {
     "REALTABPFN-V2.6": Prep_REALTABPFN_V26,
     "TABPFN-V3": Prep_TABPFN_V3,
     "TABPFN-V3-THINKING": Prep_TABPFN_V3_THINKING,
+    "TABPFN-V3.5": Prep_TABPFN_V3_5,
     "TABSWIFT": Prep_TABSWIFT,
     "MODERNNCA": Prep_MODERNNCA,
     "EBM": Prep_EBM,
