@@ -192,6 +192,8 @@ def main() -> None:
                 }
             )
 
+    rows.sort(key=lambda r: float(r["percent_complete"]))
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", newline="") as f:
         writer = csv.DictWriter(
