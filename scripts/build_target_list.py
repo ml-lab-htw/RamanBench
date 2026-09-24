@@ -11,6 +11,13 @@ the dataset-size-adaptive ``n_repeats`` TabArena's own real protocol uses (see
 "time_h") is marked ``excluded`` rather than dropped, so the full list stays a complete,
 auditable record of what was and wasn't run.
 
+A target whose ``{dataset}_{target_idx}`` key appears in ``--quality-exclusions`` (a JSON
+registry shaped like ``configs/v1/quality_exclusions.json``, with top-level ``"trivial"``/
+``"not_learnable"`` maps of ``{key: reason}``) is likewise marked ``excluded``, with
+``exclusion_reason`` set to ``"trivial"``/``"not_learnable"`` (``None`` for targets excluded
+by ``--exclude-targets`` or not excluded at all). See ``configs/v1/EXCLUDED_TARGETS.md`` for
+what these two quality criteria mean and how/when they get re-derived.
+
 Loads each dataset via ``RamanBenchmark._load_raman_dataset``, mirror-first by default
 (falling back to the original raman-data source only on a mirror miss) -- the same path
 ``scripts/run_experiment.py`` uses. The mirror is much faster and more reliable than
@@ -41,13 +48,37 @@ from raman_bench.benchmark import RamanBenchmark
 from raman_bench.splitting import get_n_repeats
 
 
+def load_quality_exclusions(path: str | None) -> dict[str, str]:
+    """Flatten a ``configs/v1/quality_exclusions.json``-shaped registry into
+    ``{"{dataset}_{target_idx}": reason_category}``, where ``reason_category`` is
+    ``"trivial"`` or ``"not_learnable"`` (the registry's two top-level keys; any
+    ``_``-prefixed key, e.g. ``"_comment"``/``"_criterion"``, is metadata and skipped).
+    Returns ``{}`` if ``path`` is ``None``.
+    """
+    if path is None:
+        return {}
+    with open(path) as f:
+        registry = json.load(f)
+    flat: dict[str, str] = {}
+    for category, entries in registry.items():
+        if category.startswith("_") or not isinstance(entries, dict):
+            continue
+        for key in entries:
+            if key.startswith("_"):
+                continue
+            flat[key] = category
+    return flat
+
+
 def build_target_list(
     dataset_lists: list[str],
     exclude_targets: set[str],
+    quality_exclusions: dict[str, str] | None = None,
     cache_dir: str | None = None,
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
     use_mirror: bool = True,
 ) -> tuple[list[dict], list[str]]:
+    quality_exclusions = quality_exclusions or {}
     names: list[str] = []
     for path in dataset_lists:
         with open(path) as f:
@@ -90,13 +121,15 @@ def build_target_list(
             target_entries = list(enumerate(target_names))
 
         for idx, tname in target_entries:
+            quality_reason = quality_exclusions.get(f"{name}_{idx}")
             targets.append({
                 "dataset": name,
                 "target_idx": idx,
                 "target_name": tname,
                 "num_instances": num_instances,
                 "n_repeats": n_repeats,
-                "excluded": tname in exclude_targets,
+                "excluded": tname in exclude_targets or quality_reason is not None,
+                "exclusion_reason": quality_reason,
             })
     return targets, failed
 
@@ -111,6 +144,12 @@ def main():
         "--exclude-targets", nargs="+", default=["time_h"],
         help="Target names to mark excluded rather than run (e.g. a raw elapsed-time column)",
     )
+    parser.add_argument(
+        "--quality-exclusions", default="configs/v1/quality_exclusions.json",
+        help="Path to a trivial/not_learnable exclusion registry (see "
+             "configs/v1/quality_exclusions.json and EXCLUDED_TARGETS.md); pass an "
+             "empty string to disable.",
+    )
     parser.add_argument("--output", required=True)
     parser.add_argument("--cache-dir", default=None)
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
@@ -122,8 +161,10 @@ def main():
     )
     args = parser.parse_args()
 
+    quality_exclusions = load_quality_exclusions(args.quality_exclusions or None)
+
     targets, failed = build_target_list(
-        args.dataset_lists, set(args.exclude_targets),
+        args.dataset_lists, set(args.exclude_targets), quality_exclusions,
         cache_dir=args.cache_dir, mirror_repo=args.mirror_repo, use_mirror=args.use_mirror,
     )
 
@@ -133,11 +174,15 @@ def main():
     n_total = len(targets)
     n_excluded = sum(t["excluded"] for t in targets)
     n_repeats_counts = {}
+    reason_counts: dict[str, int] = {}
     for t in targets:
         if not t["excluded"]:
             n_repeats_counts[t["n_repeats"]] = n_repeats_counts.get(t["n_repeats"], 0) + 1
+        else:
+            reason = t["exclusion_reason"] or "name_match"
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
     print(f"Wrote {n_total} target(s) to {args.output}")
-    print(f"  excluded: {n_excluded}, to run: {n_total - n_excluded}")
+    print(f"  excluded: {n_excluded} ({reason_counts}), to run: {n_total - n_excluded}")
     print(f"  n_repeats distribution among targets to run: {n_repeats_counts}")
     if failed:
         print(f"  FAILED to load ({len(failed)}): {failed}")

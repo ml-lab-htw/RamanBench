@@ -27,11 +27,24 @@ tables with flagged keys dropped) alongside a ``trivial_keys.csv``
 ``model_results.csv``/``hpo_results.csv`` are always written regardless, so
 this is purely additive.
 
+Optionally also applies the "not learnable" filter (``raman_bench.filters``,
+off by default) with ``--learnability-filter``: flags (dataset, target) keys
+where no in-scope model meaningfully beats the ``Dummy`` baseline, and writes
+``model_results_learnable.csv``/``hpo_results_learnable.csv`` +
+``unlearnable_keys.csv``. This is the periodic "learnability sweep" re-check
+described in ``configs/v1/EXCLUDED_TARGETS.md`` -- intended to be run now and
+then against a curated top-model results set, not on every routine sweep, to
+see whether a key previously excluded as not-learnable has since been beaten
+by a newer/better model.
+
 Usage:
     python scripts/aggregate_results.py --results-dir results/v1/data --output-dir results/v1/aggregated
 
     # Also flag and drop trivial (dataset, target) keys:
     python scripts/aggregate_results.py --trivial-filter --trivial-filter-min-tie-models 2
+
+    # Periodic learnability re-check (see configs/v1/EXCLUDED_TARGETS.md):
+    python scripts/aggregate_results.py --learnability-filter
 """
 
 from __future__ import annotations
@@ -203,6 +216,56 @@ def apply_trivial_filter(
     logger.info("Wrote %d row(s) to %s", len(hpo_nontrivial), hpo_nontrivial_path)
 
 
+def apply_learnability_filter(
+    model_results: pd.DataFrame,
+    hpo_results: pd.DataFrame,
+    output_dir: str,
+    args: argparse.Namespace,
+) -> None:
+    """Compute and write the "not learnable" filter's output (see
+    ``raman_bench.filters.compute_unlearnable_keys`` and
+    ``configs/v1/EXCLUDED_TARGETS.md``).
+
+    No-op (nothing computed, nothing written) unless ``args.learnability_filter``
+    is set -- keeps the default run byte-identical to before this was added.
+    This is the "learnability sweep" re-check mechanism: run periodically (not
+    every routine sweep) against a curated top-model results set to see if a
+    key previously flagged "not learnable" has since been beaten.
+    """
+    from raman_bench.filters import compute_unlearnable_keys, filter_trivial_keys
+
+    if not args.learnability_filter:
+        return
+
+    flagged = compute_unlearnable_keys(
+        hpo_results,
+        min_dummy_margin=args.learnability_filter_min_dummy_margin,
+        dummy_model=args.learnability_filter_dummy_model,
+    )
+    unlearnable_keys = set(flagged.keys())
+    if flagged:
+        logger.info("[learnability-filter] excluding %d dataset key(s):", len(flagged))
+        for key, reason in sorted(flagged.items()):
+            logger.info("  - %s  (%s)", key, reason)
+
+    unlearnable_keys_path = os.path.join(output_dir, "unlearnable_keys.csv")
+    unlearnable_df = pd.DataFrame(sorted(flagged.items()), columns=["dataset", "reason"])
+    unlearnable_df.to_csv(unlearnable_keys_path, index=False)
+    logger.info("Wrote %d unlearnable key(s) to %s", len(unlearnable_keys), unlearnable_keys_path)
+
+    if not unlearnable_keys:
+        return
+
+    model_learnable = filter_trivial_keys(model_results, unlearnable_keys)
+    hpo_learnable = filter_trivial_keys(hpo_results, unlearnable_keys)
+    model_learnable_path = os.path.join(output_dir, "model_results_learnable.csv")
+    hpo_learnable_path = os.path.join(output_dir, "hpo_results_learnable.csv")
+    model_learnable.to_csv(model_learnable_path, index=False)
+    hpo_learnable.to_csv(hpo_learnable_path, index=False)
+    logger.info("Wrote %d row(s) to %s", len(model_learnable), model_learnable_path)
+    logger.info("Wrote %d row(s) to %s", len(hpo_learnable), hpo_learnable_path)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", default="results/v1/data")
@@ -245,6 +308,28 @@ def main():
         default=[],
         help="Model (ta_name) to exclude before evaluating either criterion; repeatable.",
     )
+    parser.add_argument(
+        "--learnability-filter",
+        action="store_true",
+        help=(
+            "Also flag 'not learnable' (dataset, target) keys -- no in-scope model "
+            "meaningfully beats Dummy (raman_bench.filters, off by default) -- and "
+            "write *_learnable.csv / unlearnable_keys.csv. This is the periodic "
+            "'learnability sweep' re-check, see configs/v1/EXCLUDED_TARGETS.md."
+        ),
+    )
+    parser.add_argument(
+        "--learnability-filter-min-dummy-margin",
+        type=float,
+        default=0.05,
+        help="How much lower (better) the best model's mean metric_error must be than "
+             "Dummy's for a key to count as learnable (default 0.05).",
+    )
+    parser.add_argument(
+        "--learnability-filter-dummy-model",
+        default="DUMMY",
+        help="Model (ta_name) treated as the baseline (default 'DUMMY').",
+    )
     args = parser.parse_args()
 
     model_results, hpo_results = aggregate(args.results_dir)
@@ -262,6 +347,7 @@ def main():
             logger.info("\n%s", hpo_results.to_string(index=False))
 
     apply_trivial_filter(model_results, hpo_results, args.output_dir, args)
+    apply_learnability_filter(model_results, hpo_results, args.output_dir, args)
 
 
 if __name__ == "__main__":

@@ -38,6 +38,47 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Benchmark-scope quality exclusions**: `configs/v1/target_list.json` now marks
+  25 additional `(dataset, target)` keys `excluded` (on top of the pre-existing
+  2 raw-`time_h`-column exclusions) for one of two reasons, tracked in the new
+  `exclusion_reason` field:
+  - **`"trivial"`** (8 keys) — TabArena's own dataset-curation rule
+    (arXiv:2506.16791, Appendix B.1): one model scores perfectly on every seed,
+    or 2+ models tie for the best score on every seed. Permanently excluded.
+  - **`"not_learnable"`** (17 keys) — ports the paper's own baseline-check
+    ablation (`raman_bench_paper/scripts/ablation_baseline_check.py`): no
+    in-scope model meaningfully beats the `DUMMY` baseline. Not permanent — a
+    future model can flip this, see the re-check process below.
+
+  Both criteria are computed against `raman_bench_paper/results/v0_default_backup_splitfix`
+  (77 datasets, 171 keys, 31 models — the most complete single snapshot with
+  full model coverage available; v1's own sweep didn't have that yet). New
+  registry file: `configs/v1/quality_exclusions.json`. New CLI wiring:
+  `scripts/build_target_list.py --quality-exclusions` (on by default, merges
+  the registry into `target_list.json`). Reduces the routine sweep from 160 to
+  135 in-scope targets (15.6%), cutting total tasks/model from 4,278 to 3,609
+  (config_index=0, no HPO) — roughly 29,400 fewer task submissions across the
+  ~44-model v1 scope for one full sweep.
+
+  **These exclusions are benchmark-scope only** — every dataset/target stays
+  fully loadable via `raman_data`/`RamanBench` itself; only the model-comparison
+  sweep skips them. Full policy, exact per-key reasons, and the periodic
+  "learnability sweep" re-check process (curated top-models-only, run from time
+  to time, not every routine sweep) are documented in the new
+  `configs/v1/EXCLUDED_TARGETS.md`.
+
+  New reusable machinery in `raman_bench.filters` (v1-native, off by default,
+  same pattern as the existing `compute_trivial_keys`): `compute_unlearnable_keys`
+  / `LearnabilityFilterConfig` / `get_unlearnable_keys` /
+  `get_unlearnable_keys_from_dir` — generalizes the paper's two differently-shaped
+  formulas (classification F1 margin, regression R² floor) into one metric-agnostic
+  rule ("best model beats Dummy's `metric_error` by more than a margin"), since
+  RamanBench's `DUMMY` model predicts the training mean for regression, making
+  "beats the mean predictor" (R²>0) and "beats Dummy" the same test. Wired into
+  `scripts/aggregate_results.py --learnability-filter` (mirrors the existing
+  `--trivial-filter`), for re-deriving this list against real v1 results once
+  full model coverage exists, and for running the periodic re-check sweep.
+
 - **`TABICLV2` model key**, wrapping `tabarena.models.tabicl.model.TabICLv2Model`
   with Raman preprocessing (`Prep_TABICLV2`), alongside the existing `TABICL`
   (v1) wrapper — both are now separate, independently-selectable `--model`
