@@ -27,6 +27,15 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
   A handful of targets are marked `excluded` for quality reasons (not just the
   raw `time_h`-style name exclusions) -- see `quality_exclusions.json` and
   `EXCLUDED_TARGETS.md` below.
+
+  **Current state (2026-09-24): every non-excluded target is pinned to
+  `n_repeats=1`** via `--force-n-repeats 1`, overriding TabArena's own
+  dataset-size-adaptive 10/3/1 schedule -- a deliberate compute-scaling
+  decision (cuts tasks/model from 3,609 to 405, an 88.8% reduction), not a
+  change to what the split protocol itself means. This does not touch or
+  invalidate any already-completed `results.pkl` for `repeat >= 1` -- those
+  stay on disk and remain usable if repeats are ever raised again. To restore
+  the original adaptive schedule, regenerate without `--force-n-repeats`.
 - `quality_exclusions.json` / `EXCLUDED_TARGETS.md` -- the benchmark-scope "trivial"
   and "not learnable" target exclusions (TabArena's own dataset-curation criteria,
   and the paper's baseline-check ablation), merged into `target_list.json` by

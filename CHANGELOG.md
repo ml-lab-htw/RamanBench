@@ -9,6 +9,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Reduced `configs/v1/target_list.json`'s `n_repeats` to `1` for every non-excluded
+  target**, via a new `scripts/build_target_list.py --force-n-repeats` flag that
+  overrides TabArena's own dataset-size-adaptive 10/3/1 schedule
+  (`raman_bench.splitting.get_n_repeats`) with one uniform value — a deliberate
+  compute-scaling decision, not a change to the split protocol itself. Cuts total
+  tasks/model in the routine sweep from 3,609 to 405 (88.8%). Does not touch or
+  invalidate any already-completed `results.pkl` for `repeat >= 1` (cached by
+  `(model, dataset, repeat, fold)`, see `scripts/run_experiment.py`) — those stay
+  on disk and remain usable if repeats are ever raised again; this only changes
+  what gets resubmitted going forward. See `configs/v1/README.md`.
+
 ### Fixed (paper-fidelity — pending real-cluster validation)
 
 - **`RAMANFORMER` deviated from its own paper (Koyun et al. 2024, ACS Omega) in two

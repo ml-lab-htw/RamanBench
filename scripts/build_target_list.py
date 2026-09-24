@@ -11,6 +11,15 @@ the dataset-size-adaptive ``n_repeats`` TabArena's own real protocol uses (see
 "time_h") is marked ``excluded`` rather than dropped, so the full list stays a complete,
 auditable record of what was and wasn't run.
 
+``--force-n-repeats`` overrides that dataset-size-adaptive default with one uniform
+value for every dataset -- a deliberate compute-scaling knob, not TabArena's own
+protocol. Existing cached ``results.pkl`` files (keyed by (model, dataset, repeat,
+fold), see ``scripts/run_experiment.py``) for repeat-indices at or above the new
+value are simply not resubmitted going forward -- they stay on disk untouched and
+still count as real completed evaluations if this is ever raised again later; this
+flag never deletes or invalidates anything, it only changes what gets requested
+next.
+
 A target whose ``{dataset}_{target_idx}`` key appears in ``--quality-exclusions`` (a JSON
 registry shaped like ``configs/v1/quality_exclusions.json``, with top-level ``"trivial"``/
 ``"not_learnable"`` maps of ``{key: reason}``) is likewise marked ``excluded``, with
@@ -77,6 +86,7 @@ def build_target_list(
     cache_dir: str | None = None,
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
     use_mirror: bool = True,
+    force_n_repeats: int | None = None,
 ) -> tuple[list[dict], list[str]]:
     quality_exclusions = quality_exclusions or {}
     names: list[str] = []
@@ -103,7 +113,7 @@ def build_target_list(
             failed.append(name)
             continue
         num_instances = ds.spectra.shape[0]
-        n_repeats = get_n_repeats(num_instances)
+        n_repeats = force_n_repeats if force_n_repeats is not None else get_n_repeats(num_instances)
 
         # ``target_names`` means two different things depending on target
         # dimensionality: for a 1D ``targets`` array (always true for
@@ -150,6 +160,14 @@ def main():
              "configs/v1/quality_exclusions.json and EXCLUDED_TARGETS.md); pass an "
              "empty string to disable.",
     )
+    parser.add_argument(
+        "--force-n-repeats", type=int, default=None,
+        help="Override TabArena's own dataset-size-adaptive n_repeats "
+             "(raman_bench.splitting.get_n_repeats) with one uniform value for "
+             "every dataset -- a deliberate compute-scaling knob, not a protocol "
+             "change to reproduce. Does not affect already-cached results.pkl "
+             "files, only what gets resubmitted going forward.",
+    )
     parser.add_argument("--output", required=True)
     parser.add_argument("--cache-dir", default=None)
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
@@ -166,6 +184,7 @@ def main():
     targets, failed = build_target_list(
         args.dataset_lists, set(args.exclude_targets), quality_exclusions,
         cache_dir=args.cache_dir, mirror_repo=args.mirror_repo, use_mirror=args.use_mirror,
+        force_n_repeats=args.force_n_repeats,
     )
 
     with open(args.output, "w") as f:
