@@ -61,6 +61,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
   above `Prep_TABICLV2` in `wrapped_models.py` for the (plausible but
   unconfirmed) risk this leaves open.
 
+- **`TABPFN-V3.5` model key**, wrapping `tabarena.models.tabpfn_3_5.model.TabPFN35Model`
+  with Raman preprocessing (`Prep_TABPFN_V3_5`) — TabArena's integration of Prior
+  Labs' September 2026 TabPFN-3.5 release, which unifies classification and
+  regression under one multitask checkpoint. Same shape as `TABPFN-V3`: no tunable
+  HPO surface (manual-config-only), imported defensively via
+  `_OPTIONAL_TABARENA_MODEL_IMPORTS` since `TabPFN35Model` isn't (yet) graduated
+  into AutoGluon core, and its `ag_key` overridden from TabArena's `"TA-"`-prefixed
+  form to the spelled-out `"TABPFN-V3.5"` for consistency with
+  `REALTABPFN-V2.5`/`REALTABPFN-V2.6`. HPO search space rebound from
+  `tabarena.models.tabpfn_3_5.hpo.gen_tabpfn_3_5` (`models/generate/tabpfn_v35.py`).
+  Requires `tabpfn>=9.0.0` (the floor RamanBench already carries — see the
+  `tabpfnwide` removal note in `pyproject.toml`). Added to
+  `configs/models/all.json`, `configs/models/tabular_foundation.json`,
+  `cluster/gpu_models.json`, and `configs/v1/scope_default.json`. TabArena's
+  smaller sibling `TabPFN35FastModel`/`gen_tabpfn_3_5_fast` is out of scope here.
+  Local validation was limited to a CPU smoke test on this machine: AutoGluon
+  started fitting correctly (memory-estimate/CPU-fallback warnings fired as
+  expected) before hitting a `NotEnoughMemoryError` on the second fold — a local
+  ~11GB-RAM hardware ceiling against TabPFN-3.5's ~9.3GB-per-fold estimate, not a
+  wrapper bug. Full validation happens on the cluster's GPU nodes, same as the
+  other foundation models onboarded this session.
+
 ### Verified
 
 - **TabDPT needs no many-class (ECOC) fix.** Previously documented as a
