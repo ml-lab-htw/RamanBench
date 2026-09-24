@@ -24,6 +24,17 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
       --dataset-list configs/v1/datasets/regression_all.json \
       --output configs/v1/target_list.json
   ```
+  A handful of targets are marked `excluded` for quality reasons (not just the
+  raw `time_h`-style name exclusions) -- see `quality_exclusions.json` and
+  `EXCLUDED_TARGETS.md` below.
+- `quality_exclusions.json` / `EXCLUDED_TARGETS.md` -- the benchmark-scope "trivial"
+  and "not learnable" target exclusions (TabArena's own dataset-curation criteria,
+  and the paper's baseline-check ablation), merged into `target_list.json` by
+  `build_target_list.py --quality-exclusions`. Read `EXCLUDED_TARGETS.md` before
+  touching either file -- it covers both criteria's exact definitions, how the
+  current list was derived, the periodic re-check process, and the compute impact.
+  Datasets/targets excluded here stay fully available via `raman_data`/`RamanBench`
+  itself -- this only controls what the benchmark's own sweep runs against.
 - `models.json` -- the curated roster of models considered "real-benchmark ready"
   under the new pipeline (currently just `PLS`; grows as more models are validated
   end-to-end against `scripts/run_experiment.py`, see `.claude/agents/model-agent.md`).

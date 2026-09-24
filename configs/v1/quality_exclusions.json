@@ -1,0 +1,36 @@
+{
+  "_comment": "Benchmark-scope quality exclusions for RamanBench v1: (dataset, target_idx) keys that carry little or no signal for finding a SOTA model, so they are skipped by the routine sweep (cluster/submit_full_benchmark.py -> scripts/build_target_list.py --quality-exclusions). This does NOT remove the underlying dataset/target from raman_data or from RamanBench's own package -- every dataset/target stays fully loadable via RamanBench(...)/raman_data(...) for general use; only the benchmark's own model-comparison sweep skips these keys. See configs/v1/EXCLUDED_TARGETS.md for the full policy, both criteria's exact definitions, and the periodic re-check ('learnability sweep') process that can un-exclude a key later.",
+  "_source": "Computed against raman_bench_paper/results/v0_default_backup_splitfix (77 datasets, 171 (dataset, target) keys, 31 models -- the most complete single snapshot available with every model's results at the time this list was built; v1's own sweep did not yet have full model coverage). Re-derive on v1's own hpo_results once coverage allows, via raman_bench.filters.compute_trivial_keys / compute_unlearnable_keys.",
+  "_computed_date": "2026-09-24",
+  "trivial": {
+    "_criterion": "TabArena's own dataset-curation rule (arXiv:2506.16791, Appendix B.1): a key is trivial if (1) one model scores perfectly on every seed, or (2) >=2 models tie for the best score on every seed. See raman_bench.filters.compute_trivial_keys (perfect_clf=1.0/perfect_reg=0.0 in v0.1's F1/RMSE units, tie_decimals=4). This criterion is stable -- a new, better model cannot make an already-perfect or already-tied key non-trivial -- so these keys are not part of the periodic learnability re-check.",
+    "cancer_cell_(cooh)2_0": "perfect:DEEPCNN",
+    "hair_dyes_sers_0": "perfect:AUTOGLUON",
+    "microplastics_weathered_0": "perfect:LR",
+    "pharmaceutical_ingredients_0": "perfect:LR",
+    "citric_acid_species_0": "tie:2",
+    "itaconic_acid_species_2": "tie:5",
+    "diabetes_skin_inner_arm_0": "tie:6",
+    "diabetes_skin_thumbnail_0": "tie:9"
+  },
+  "not_learnable": {
+    "_criterion": "Paper's own baseline-check ablation (raman_bench_paper/scripts/ablation_baseline_check.py): a key fails if no non-Dummy/non-AutoGluon model beats the Dummy (mean/majority-class) baseline by a meaningful margin, averaged over seeds -- classification: best F1 - Dummy F1 <= 0.05; regression: best R^2 <= 0 (equivalent to 'no model beats Dummy's mean-predictor RMSE', since Dummy predicts the training mean for regression). Unlike 'trivial', this CAN change as new/better models are added -- see EXCLUDED_TARGETS.md's re-check policy.",
+    "amino_acids_leucine_0": "best_r2=-0.018 (Dummy not beaten)",
+    "amino_acids_phenylalanine_0": "best_r2=-0.010 (Dummy not beaten)",
+    "kaiser_ecoli_fermentation_0": "best_r2=-0.092 (Dummy not beaten; also raw time_h column, already excluded for that reason too)",
+    "kaiser_ecoli_fermentation_1": "best_r2=-0.457 (Dummy not beaten)",
+    "kaiser_ecoli_fermentation_3": "best_r2=-1.556 (Dummy not beaten)",
+    "kaiser_ecoli_fermentation_supernatant_3": "best_r2=-1.299 (Dummy not beaten)",
+    "streptococcus_thermophilus_fermentation_kaiser_0": "best_r2=-9.415 (Dummy not beaten)",
+    "streptococcus_thermophilus_fermentation_kaiser_2": "best_r2=-4.084 (Dummy not beaten)",
+    "streptococcus_thermophilus_fermentation_kaiser_3": "best_r2=-0.237 (Dummy not beaten)",
+    "streptococcus_thermophilus_fermentation_timegate_0": "best_r2=-14657.7 (Dummy not beaten, badly)",
+    "streptococcus_thermophilus_fermentation_timegate_1": "best_r2=-308.5 (Dummy not beaten, badly)",
+    "streptococcus_thermophilus_fermentation_timegate_2": "best_r2=-1968.4 (Dummy not beaten, badly)",
+    "streptococcus_thermophilus_fermentation_timegate_3": "best_r2=-930.7 (Dummy not beaten, badly)",
+    "tg_ecoli_fermentation_1": "best_r2=-4.580 (Dummy not beaten)",
+    "tg_ecoli_fermentation_supernatant_0": "best_r2=-2.704 (Dummy not beaten; also raw time_h column, already excluded for that reason too)",
+    "tg_ecoli_fermentation_supernatant_1": "best_r2=-3.644 (Dummy not beaten)",
+    "tg_ecoli_fermentation_supernatant_3": "best_r2=-0.095 (Dummy not beaten)"
+  }
+}

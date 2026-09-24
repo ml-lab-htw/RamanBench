@@ -403,8 +403,235 @@ def filter_trivial_keys(
     no-op-on-mismatch behavior, so callers can pass this both
     ``model_results`` and ``hpo_results`` (or any other frame keyed the same
     way) without checking shapes first.
+
+    Generic despite the name (it just drops rows by ``key_col`` membership) --
+    also the right function to call with :func:`get_unlearnable_keys`'s output,
+    rather than duplicating this for the "not learnable" criterion.
     """
     trivial_keys = set(trivial_keys)
     if df is None or not trivial_keys or key_col not in df.columns:
         return df
     return df[~df[key_col].isin(trivial_keys)].copy()
+
+
+# ── "Not learnable" filter (v1-native port of ablation_baseline_check.py) ──────
+
+DEFAULT_DUMMY_MODEL = "DUMMY"
+DEFAULT_EXCLUDE_FROM_BEST = frozenset({"DUMMY", "AUTOGLUON"})
+
+
+@dataclass
+class LearnabilityFilterConfig:
+    """Config-driven settings for the "not learnable" filter. Off by default.
+
+    v1-native reimplementation of ``raman_bench_paper/scripts/ablation_baseline_check.py``'s
+    ablation, generalized to a single metric-agnostic criterion -- see
+    :func:`compute_unlearnable_keys`'s docstring for why the paper's two separate
+    formulas (classification F1 margin, regression R² floor) collapse into one
+    "beats Dummy's error by more than a margin" check under v1's ``metric_error``
+    convention. Off by default, same as :class:`TrivialFilterConfig` and for the
+    same reason: this flags keys a downstream leaderboard/plot/table may want to
+    drop, it never excludes a key from being *run*.
+
+    Unlike the trivial filter, a key flagged here is not permanently trivial --
+    a new/better model can beat Dummy by more than ``min_dummy_margin`` on a key
+    that previously failed. See ``configs/v1/EXCLUDED_TARGETS.md``'s periodic
+    "learnability sweep" for the intended re-check process.
+    """
+
+    enabled: bool = False
+    min_dummy_margin: float = 0.05
+    method_subtype: str | None = "default"
+    dummy_model: str = DEFAULT_DUMMY_MODEL
+
+    @classmethod
+    def from_dict(cls, raw: dict | None) -> LearnabilityFilterConfig:
+        """Build from a plain dict, either the ``learnability_filter`` block
+        itself or a parent config containing one under that key (mirrors
+        :meth:`TrivialFilterConfig.from_dict`)."""
+        raw = raw or {}
+        cfg = raw.get("learnability_filter", raw) if isinstance(raw, dict) else {}
+        cfg = cfg or {}
+        return cls(
+            enabled=bool(cfg.get("enabled", False)),
+            min_dummy_margin=float(cfg.get("min_dummy_margin", 0.05)),
+            method_subtype=cfg.get("method_subtype", "default"),
+            dummy_model=cfg.get("dummy_model", DEFAULT_DUMMY_MODEL),
+        )
+
+
+def compute_unlearnable_keys(
+    hpo_results: pd.DataFrame,
+    *,
+    min_dummy_margin: float = 0.05,
+    method_subtype: str | None = "default",
+    key_col: str = "dataset",
+    model_col: str = "ta_name",
+    error_col: str = "metric_error",
+    dummy_model: str = DEFAULT_DUMMY_MODEL,
+    exclude_from_best: Iterable[str] = DEFAULT_EXCLUDE_FROM_BEST,
+) -> dict[str, str]:
+    """Return ``{key: reason}`` for every key flagged "not learnable".
+
+    Pure function, same shape/conventions as :func:`compute_trivial_keys`
+    (see that docstring for the ``hpo_results``/column-name background).
+
+    Port of ``raman_bench_paper.filters``' ablation-check criterion
+    (``scripts/ablation_baseline_check.py``): a key fails if no in-scope model
+    meaningfully beats the ``Dummy`` (mean/majority-class) baseline, *averaged
+    over folds* -- not an AND-across-folds like :func:`compute_trivial_keys`'s
+    criteria, matching the paper script's own ``groupby(...).mean()`` before
+    thresholding.
+
+    Why one criterion instead of the paper's two
+    -----------------------------------------------
+    The paper script used two *differently-shaped* formulas: classification
+    passed if ``best F1 - Dummy F1 > 0.05``; regression passed if
+    ``best R² > 0`` (no Dummy comparison at all -- R²>0 is, by definition,
+    "beats the mean predictor"). Porting both literally would need R² in
+    ``hpo_results``, which v1's schema doesn't carry (only ``metric_error``,
+    TabArena/AutoGluon's own problem-type-appropriate *error* -- see the
+    module docstring's "Unlike the v0.1-era metrics" section).
+
+    These two formulas are the same underlying idea in different clothes,
+    though: RamanBench's own ``DUMMY`` model predicts the training mean for
+    regression (``raman_bench/models/generate/dummy.py``), so "beats the mean
+    predictor" (R²>0) *is* "beats Dummy" -- for regression, Dummy's RMSE and
+    the mean-predictor RMSE are the same number. So both problem types reduce
+    to one general rule: "does the best in-scope model beat Dummy's error by
+    more than ``min_dummy_margin``?" -- computed directly against
+    ``metric_error`` (always lower-is-better, always zero-is-perfect, per the
+    module docstring), with no problem-type branching needed at all.
+
+    This is *not* claimed to be numerically identical to the paper's original
+    regression check (an error-margin threshold vs. an R²-floor threshold are
+    different units), so re-deriving ``configs/v1/quality_exclusions.json``'s
+    ``not_learnable`` entries with this function against real v1 data may not
+    reproduce the exact v0.1-era list byte-for-byte -- expected, and fine:
+    the intent (flag keys nothing beats Dummy on) is preserved, the specific
+    keys flagged may legitimately shift once real v1-model coverage exists.
+
+    Parameters
+    ----------
+    hpo_results : pd.DataFrame
+        Must contain ``key_col``, ``model_col``, ``error_col``. Extra columns
+        ignored except ``method_subtype`` when that filter parameter is not
+        ``None`` (same restriction-to-one-row-per-architecture-per-key
+        rationale as :func:`compute_trivial_keys`).
+    min_dummy_margin : float
+        How much lower (better) the best in-scope model's mean error must be
+        than Dummy's mean error to count as "learnable". Default ``0.05``,
+        carried over from the paper's classification threshold -- an
+        ``error_col`` unit, not an F1 unit, so this is a reasonable starting
+        point rather than a like-for-like port; tune per deployment.
+    dummy_model : str
+        Model name treated as the baseline (default ``"DUMMY"``).
+    exclude_from_best : Iterable[str]
+        Models dropped before picking the "best" (default ``DUMMY`` +
+        ``AUTOGLUON``, matching ``ablation_baseline_check.py``'s own
+        ``other_scores.drop(index=[DUMMY_MODEL, "AUTOGLUON"])`` -- AUTOGLUON
+        is TabArena's own bagged-ensemble-of-everything meta-model, excluded
+        so a key can't look "learnable" purely because the ensemble
+        arithmetically outperforms Dummy while every individual architecture
+        still fails to).
+
+    Returns
+    -------
+    dict[str, str]
+        Empty if ``hpo_results`` is empty/None or nothing is flagged. Reason
+        is ``"best_error=<value> (Dummy not beaten by >= <margin>)"``, or
+        ``"no_dummy_baseline"`` if the key has no Dummy row to compare
+        against (flagged conservatively rather than silently passed).
+    """
+    if hpo_results is None or len(hpo_results) == 0:
+        return {}
+
+    required = {key_col, model_col, error_col}
+    missing = required - set(hpo_results.columns)
+    if missing:
+        raise ValueError(
+            f"hpo_results is missing required column(s): {sorted(missing)}. "
+            f"Available columns: {sorted(hpo_results.columns)}"
+        )
+
+    df = hpo_results.copy()
+    if method_subtype is not None and "method_subtype" in df.columns:
+        df = df[df["method_subtype"] == method_subtype]
+    df = df.dropna(subset=[error_col])
+    if df.empty:
+        return {}
+
+    flagged: dict[str, str] = {}
+    exclude_from_best = set(exclude_from_best)
+    agg = df.groupby([key_col, model_col])[error_col].mean().reset_index()
+
+    for key, grp in agg.groupby(key_col):
+        scores = grp.set_index(model_col)[error_col]
+        dummy_error = scores.get(dummy_model)
+        if dummy_error is None or pd.isna(dummy_error):
+            flagged[key] = "no_dummy_baseline"
+            continue
+        candidates = scores.drop(index=exclude_from_best, errors="ignore")
+        if candidates.empty:
+            flagged[key] = "no_dummy_baseline"
+            continue
+        best_error = candidates.min()
+        if (dummy_error - best_error) <= min_dummy_margin:
+            flagged[key] = f"best_error={best_error:.4g} (Dummy not beaten by >= {min_dummy_margin})"
+
+    return flagged
+
+
+def get_unlearnable_keys(
+    hpo_results: pd.DataFrame,
+    config: dict | LearnabilityFilterConfig | None,
+) -> set[str]:
+    """Config-gated entry point, mirroring :func:`get_trivial_keys`.
+
+    Returns the empty set (no computation performed) unless
+    ``config``/``config["learnability_filter"]`` has ``"enabled": true``.
+    """
+    cfg = (
+        config
+        if isinstance(config, LearnabilityFilterConfig)
+        else LearnabilityFilterConfig.from_dict(config)
+    )
+    if not cfg.enabled:
+        return set()
+
+    flagged = compute_unlearnable_keys(
+        hpo_results,
+        min_dummy_margin=cfg.min_dummy_margin,
+        method_subtype=cfg.method_subtype,
+        dummy_model=cfg.dummy_model,
+    )
+    if flagged:
+        logger.info("[learnability-filter] excluding %d dataset key(s):", len(flagged))
+        for key, reason in sorted(flagged.items()):
+            logger.info("  - %s  (%s)", key, reason)
+    return set(flagged.keys())
+
+
+def get_unlearnable_keys_from_dir(
+    aggregated_dir: str,
+    config: dict | LearnabilityFilterConfig | None,
+    filename: str = "hpo_results.csv",
+) -> set[str]:
+    """Convenience wrapper, mirroring :func:`get_trivial_keys_from_dir`: load
+    ``hpo_results.csv`` from an aggregated results directory and call
+    :func:`get_unlearnable_keys` on it. Returns the empty set (without
+    reading the file) if the filter is disabled or the file doesn't exist.
+    """
+    cfg = (
+        config
+        if isinstance(config, LearnabilityFilterConfig)
+        else LearnabilityFilterConfig.from_dict(config)
+    )
+    if not cfg.enabled:
+        return set()
+    path = os.path.join(aggregated_dir, filename)
+    if not os.path.isfile(path):
+        logger.warning("[learnability-filter] %s not found -- nothing to filter.", path)
+        return set()
+    hpo_results = pd.read_csv(path)
+    return get_unlearnable_keys(hpo_results, cfg)
