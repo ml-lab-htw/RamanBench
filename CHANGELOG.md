@@ -9,6 +9,27 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Global, dataset-keyed row-subsampling override**
+  (`configs/v1/scope_default.json`'s `max_train_samples_overrides`, e.g.
+  `{"mlrod": 10000}`) — mirrors `time_limit_overrides`'s shape but applies to
+  every model (not per-model), and works on both the SLURM and k8s backends
+  (`time_limit_overrides`/`model_time_limit_overrides` are SLURM-only —
+  `submit_full_benchmark.py`'s k8s branch never read them). New
+  `cluster/submit_job.py:resolve_max_train_samples`, an 8th jobspec field
+  (`write_jobspec`), and matching parsing in `k8s_entrypoint.sh`/
+  `run_experiment.sbatch` (empty field when no override → `--max-train-samples`
+  simply omitted, matching `run_experiment.py`'s own no-subsampling default).
+  Added after REZERONET's real `TimeLimitExceeded` on `mlrod` (130,061 rows)
+  under the 600s/3-bag-fold compute-scaling settings — 90/93 large-pod tasks
+  succeeded with confirmed real GPU utilization (the GPU-tier
+  resource-declaration fix), only `mlrod`'s 3 tasks failed on time budget.
+  `mlrod: 10000` is a deliberate cap (~13x fewer rows), not recalibrated
+  against a measured runtime the way `time_limit_overrides`' `10800` was —
+  revisit if a model still times out on `mlrod` at this cap. Needs a cluster
+  image rebuild to reach `k8s_entrypoint.sh`'s new field-parsing.
+
 ### Fixed
 
 - **All 9 GPU-tier custom PyTorch architectures (COATNET, DEEPCNN, FCRESNEXT,

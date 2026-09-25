@@ -123,8 +123,16 @@ fi
 #     6-field lines leave it unset by `read`, so ${TASK_TIME_LIMIT:-...}
 #     below falls back to the array-wide TIME_LIMIT env var unchanged. ---
 LINE_NO=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
-read -r DATASET TARGET_IDX REPEAT FOLD CONFIG_INDEX N_REPEATS TASK_TIME_LIMIT <<< "$(sed -n "${LINE_NO}p" "${JOBSPEC}")"
+read -r DATASET TARGET_IDX REPEAT FOLD CONFIG_INDEX N_REPEATS TASK_TIME_LIMIT TASK_MAX_TRAIN_SAMPLES <<< "$(sed -n "${LINE_NO}p" "${JOBSPEC}")"
 EFFECTIVE_TIME_LIMIT="${TASK_TIME_LIMIT:-${TIME_LIMIT}}"
+# TASK_MAX_TRAIN_SAMPLES (8th field) is a per-dataset row-subsampling override
+# (cluster/scope_default.json's max_train_samples_overrides, e.g. mlrod) --
+# unset/empty for every other dataset, in which case --max-train-samples is
+# simply omitted (run_experiment.py's own default, no subsampling).
+MAX_TRAIN_SAMPLES_FLAG=()
+if [ -n "${TASK_MAX_TRAIN_SAMPLES}" ]; then
+    MAX_TRAIN_SAMPLES_FLAG=(--max-train-samples "${TASK_MAX_TRAIN_SAMPLES}")
+fi
 echo "Task line ${LINE_NO} of ${JOBSPEC}: dataset=${DATASET} target_idx=${TARGET_IDX} repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX} time_limit=${EFFECTIVE_TIME_LIMIT}"
 
 cat > "${SCRATCH_DIR}/job.json" <<JOBMETA
@@ -150,6 +158,7 @@ python scripts/run_experiment.py \
     --cache-dir "${CACHE_DIR}" \
     --mirror-repo "${MIRROR_REPO}" \
     --scratch-dir "${SCRATCH_DIR}" \
+    "${MAX_TRAIN_SAMPLES_FLAG[@]}" \
     ${GPU_FLAG}
 RC=$?
 

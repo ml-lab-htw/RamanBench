@@ -101,8 +101,17 @@ TASK_NUM=0
 while IFS= read -r LINE; do
     TASK_NUM=$(( TASK_NUM + 1 ))
     [ -z "${LINE}" ] && continue
-    read -r DATASET TARGET_IDX REPEAT FOLD CONFIG_INDEX N_REPEATS TASK_TIME_LIMIT <<< "${LINE}"
+    read -r DATASET TARGET_IDX REPEAT FOLD CONFIG_INDEX N_REPEATS TASK_TIME_LIMIT TASK_MAX_TRAIN_SAMPLES <<< "${LINE}"
     EFFECTIVE_TIME_LIMIT="${TASK_TIME_LIMIT:-${TIME_LIMIT}}"
+    # TASK_MAX_TRAIN_SAMPLES (8th field) is a per-dataset row-subsampling
+    # override (cluster/scope_default.json's max_train_samples_overrides,
+    # e.g. mlrod) -- unset/empty for every other dataset, in which case
+    # --max-train-samples is simply omitted (run_experiment.py's own default,
+    # no subsampling).
+    MAX_TRAIN_SAMPLES_FLAG=()
+    if [ -n "${TASK_MAX_TRAIN_SAMPLES}" ]; then
+        MAX_TRAIN_SAMPLES_FLAG=(--max-train-samples "${TASK_MAX_TRAIN_SAMPLES}")
+    fi
     echo ""
     echo "=== Task ${TASK_NUM}/${TASKS_PER_POD} (jobspec line $(( FIRST_LINE + TASK_NUM - 1 ))): dataset=${DATASET} target_idx=${TARGET_IDX} repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX} time_limit=${EFFECTIVE_TIME_LIMIT} ==="
 
@@ -137,6 +146,7 @@ JOBMETA
         --cache-dir "${CACHE_DIR}" \
         --mirror-repo "${MIRROR_REPO}" \
         --scratch-dir "${SCRATCH_DIR}" \
+        "${MAX_TRAIN_SAMPLES_FLAG[@]}" \
         ${GPU_FLAG}
     TASK_RC=$?
     rm -rf "${SCRATCH_DIR}" "${OPENML_CACHE_DIR}"

@@ -213,6 +213,31 @@ def resolve_time_limit(
     return max(candidates)
 
 
+def resolve_max_train_samples(
+    dataset: str,
+    max_train_samples_overrides: dict[str, int] | None = None,
+) -> int | None:
+    """The ``--max-train-samples`` row-subsampling cap for ONE task, resolved
+    from its own dataset -- ``None`` (no subsampling) unless ``dataset`` has an
+    entry in ``max_train_samples_overrides`` (``configs/v1/scope_default.json``'s
+    ``max_train_samples_overrides``, dataset-keyed, e.g. ``{"mlrod": 10000}``).
+
+    Global, applies to every model (not a per-model override like
+    ``model_time_limit_overrides`` -- there's no known need for a
+    model-specific version of this yet, unlike time_limit's EBM/ORIONMSP/LR
+    cases). Added 2026-09-25 after REZERONET's real ``TimeLimitExceeded`` on
+    ``mlrod`` (130,061 rows) under the 600s/3-bag-fold compute-scaling
+    settings -- subsampling the row count directly addresses the actual cost
+    driver (more rows -> proportionally more per-epoch compute), rather than
+    raising the time budget (which ``time_limit_overrides``/
+    ``model_time_limit_overrides`` already do, but only through the SLURM
+    path -- ``submit_full_benchmark.py``'s k8s branch doesn't read them).
+    """
+    if max_train_samples_overrides and dataset in max_train_samples_overrides:
+        return max_train_samples_overrides[dataset]
+    return None
+
+
 def write_jobspec(
     jobs: list[Job],
     slug: str,
@@ -220,18 +245,30 @@ def write_jobspec(
     default_time_limit: float,
     dataset_time_limit_overrides: dict[str, float] | None = None,
     model_time_limit_overrides: dict[str, float] | float | None = None,
+    max_train_samples_overrides: dict[str, int] | None = None,
 ) -> Path:
     """One line per (dataset, target_idx, repeat, fold, config_index,
-    n_repeats, time_limit) task; array task N reads line N+1. ``time_limit``
-    (the 7th field) is resolved PER TASK from its own dataset via
-    ``resolve_time_limit`` -- not one flat value for the whole array -- so a
-    chunk mixing an oversized dataset (e.g. ``mlrod``) in with ordinary ones
-    no longer forces every task in that chunk onto the oversized dataset's
-    budget. ``run_experiment.sbatch`` reads this field directly; the
-    array-wide ``--export TIME_LIMIT=...`` env var (still the whole-chunk max
-    -- see ``submit_jobs``) is kept only as a fallback for jobspec lines
-    without this field (backward compat with any already-queued array whose
-    jobspec predates this field)."""
+    n_repeats, time_limit, max_train_samples) task; array task N reads line
+    N+1. ``time_limit`` (the 7th field) is resolved PER TASK from its own
+    dataset via ``resolve_time_limit`` -- not one flat value for the whole
+    array -- so a chunk mixing an oversized dataset (e.g. ``mlrod``) in with
+    ordinary ones no longer forces every task in that chunk onto the
+    oversized dataset's budget. ``run_experiment.sbatch``/``k8s_entrypoint.sh``
+    read this field directly; the array-wide ``--export TIME_LIMIT=...`` env
+    var (still the whole-chunk max -- see ``submit_jobs``) is kept only as a
+    fallback for jobspec lines without this field (backward compat with any
+    already-queued array whose jobspec predates this field).
+
+    ``max_train_samples`` (the 8th field, added 2026-09-25) is resolved PER
+    TASK from its own dataset via ``resolve_max_train_samples`` -- empty
+    (blank field) unless the dataset has a ``max_train_samples_overrides``
+    entry, in which case ``run_experiment.sbatch``/``k8s_entrypoint.sh`` add
+    ``--max-train-samples <value>`` to the task's command; empty otherwise
+    (the flag is simply omitted, matching ``run_experiment.py``'s own
+    no-subsampling default). Global across every model, unlike
+    ``model_time_limit_overrides`` -- no known need yet for a model-specific
+    version.
+    """
     JOBSPEC_DIR.mkdir(exist_ok=True)
     path = JOBSPEC_DIR / f"{slug}.txt"
     with open(path, "w") as f:
@@ -239,8 +276,11 @@ def write_jobspec(
             task_time_limit = resolve_time_limit(
                 default_time_limit, dataset, dataset_time_limit_overrides, model_time_limit_overrides,
             )
+            task_max_train_samples = resolve_max_train_samples(dataset, max_train_samples_overrides)
+            max_train_samples_field = "" if task_max_train_samples is None else str(task_max_train_samples)
             f.write(
-                f"{dataset} {target_idx} {repeat} {fold} {config_index} {n_repeats} {task_time_limit}\n"
+                f"{dataset} {target_idx} {repeat} {fold} {config_index} {n_repeats} "
+                f"{task_time_limit} {max_train_samples_field}\n"
             )
     return path
 
@@ -306,6 +346,7 @@ def submit_jobs(
     dataset_time_limit_overrides: dict[str, float] | None = None,
     model_time_limit_overrides: dict[str, float] | float | None = None,
     default_time_limit: float | None = None,
+    max_train_samples_overrides: dict[str, int] | None = None,
 ) -> list[str]:
     """Submit ``jobs`` (all for one ``model`` -- resource flags are resolved once per
     call, so every task in an array must share the same GPU/CPU and memory tier) as
@@ -356,6 +397,7 @@ def submit_jobs(
             dataset_time_limit_overrides=dataset_time_limit_overrides,
             model_time_limit_overrides=model_time_limit_overrides,
             default_time_limit=base_time_limit,
+            max_train_samples_overrides=max_train_samples_overrides,
         )
 
     if not profile.get("slurm", True):
@@ -365,6 +407,7 @@ def submit_jobs(
             task_time_limit = resolve_time_limit(
                 base_time_limit, dataset, dataset_time_limit_overrides, model_time_limit_overrides,
             )
+            task_max_train_samples = resolve_max_train_samples(dataset, max_train_samples_overrides)
             task_slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
             scratch_dir = str(REPO_ROOT / ".scratch_v1" / f"local_{task_slug}_{repeat}_{fold}_{cfg}")
             cmd = [
@@ -377,6 +420,8 @@ def submit_jobs(
                 "--results-dir", results_dir, "--cache-dir", cache_dir, "--mirror-repo", mirror_repo,
                 "--scratch-dir", scratch_dir,
             ]
+            if task_max_train_samples is not None:
+                cmd += ["--max-train-samples", str(task_max_train_samples)]
             if use_gpu:
                 cmd.append("--use-gpu")
             print(f"  {dataset}[{target_idx}] repeat={repeat} fold={fold} config_index={cfg}: {' '.join(cmd)}")
@@ -403,6 +448,7 @@ def submit_jobs(
             default_time_limit=base_time_limit,
             dataset_time_limit_overrides=dataset_time_limit_overrides,
             model_time_limit_overrides=model_time_limit_overrides,
+            max_train_samples_overrides=max_train_samples_overrides,
         )
 
         sbatch_args = [
@@ -654,6 +700,7 @@ def submit_jobs_k8s(
     dataset_time_limit_overrides: dict[str, float] | None = None,
     model_time_limit_overrides: dict[str, float] | float | None = None,
     default_time_limit: float | None = None,
+    max_train_samples_overrides: dict[str, int] | None = None,
 ) -> list[str]:
     """k8s analogue of the SLURM branch of ``submit_jobs`` above: one
     Kubernetes Indexed Job per chunk (k8s's array-job equivalent --
@@ -694,6 +741,7 @@ def submit_jobs_k8s(
             default_time_limit=base_time_limit,
             dataset_time_limit_overrides=dataset_time_limit_overrides,
             model_time_limit_overrides=model_time_limit_overrides,
+            max_train_samples_overrides=max_train_samples_overrides,
         )
         job_name, configmap_name, n_pods, job_manifest = _build_k8s_job_manifest(
             model=model, part_slug=part_slug, n_tasks=len(chunk_jobs), n_splits=n_splits,
@@ -739,6 +787,7 @@ def submit(
     profile: dict,
     throttle: int,
     dry_run: bool,
+    max_train_samples: int | None = None,
 ) -> None:
     jobs: list[Job] = [
         (dataset, target_idx, repeat, fold, cfg, n_repeats)
@@ -747,11 +796,13 @@ def submit(
         for cfg in config_indices
     ]
     slug = f"{dataset}_{target_idx}_{model}".replace("/", "_")
+    max_train_samples_overrides = {dataset: max_train_samples} if max_train_samples is not None else None
     submit_jobs(
         model=model, jobs=jobs, slug=slug, n_splits=n_splits,
         num_random_configs=num_random_configs, num_bag_folds=num_bag_folds, time_limit=time_limit,
         results_dir=results_dir, cache_dir=cache_dir, mirror_repo=mirror_repo,
         profile=profile, throttle=throttle, dry_run=dry_run,
+        max_train_samples_overrides=max_train_samples_overrides,
     )
 
 
@@ -778,6 +829,11 @@ def main():
     parser.add_argument("--profile", default=None, help="Path to a cluster profile YAML")
     parser.add_argument("--cluster", default=None, choices=["htw", "tu", "local", "k8s"])
     parser.add_argument("--throttle", type=int, default=8, help="Max concurrent array tasks")
+    parser.add_argument(
+        "--max-train-samples", type=int, default=None,
+        help="Row-subsampling cap for this dataset (see resolve_max_train_samples); "
+             "omitted means no subsampling.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -788,6 +844,7 @@ def main():
         num_random_configs=args.num_random_configs, num_bag_folds=args.num_bag_folds,
         time_limit=args.time_limit, results_dir=args.results_dir, cache_dir=args.cache_dir,
         mirror_repo=args.mirror_repo, profile=profile, throttle=args.throttle, dry_run=args.dry_run,
+        max_train_samples=args.max_train_samples,
     )
 
 
