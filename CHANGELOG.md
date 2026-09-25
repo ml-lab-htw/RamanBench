@@ -22,6 +22,42 @@ Versions follow [Semantic Versioning](https://semver.org/).
   on disk and remain usable if repeats are ever raised again; this only changes
   what gets resubmitted going forward. See `configs/v1/README.md`.
 
+- **Reduced `configs/v1/scope_default.json`'s `num_bag_folds` (8 → 3) and
+  `time_limit` (3600s → 600s)**, alongside the `n_repeats=1` change above — a
+  further deliberate compute-scaling decision. Impact differs by model class:
+  compute-bound models (LIMIX/TABICL/TABFM/TabPFN-family) get a roughly
+  proportional ~(3/8) compute cut per task with no real quality risk.
+  Time-budget-bound models (MITRA is the confirmed case — consistently used
+  ~59 of its 60 allotted minutes every fold, never early-stopping) are a real
+  risk: AutoGluon's fold time-budgeting (`time_limit_fold = (time_left /
+  folds_left) * 0.8`) means the new 600s total is now split across only 3
+  folds instead of 8, so MITRA-class fine-tuning likely gets a meaningfully
+  undertrained fit relative to its earlier (already not fully converged)
+  runs. Not fixed here — flagged so a future review of MITRA/RAMANFORMER/
+  REALMLP/TABM-class results interprets a score drop correctly (compute
+  starvation, not necessarily a worse architecture). Pre-existing
+  `model_time_limit_overrides` (EBM/ORIONMSP/LR) are unaffected — they're
+  already-calibrated absolute floors well above 600s and stay in force. See
+  `configs/v1/scope_default.json`'s new `_comment_compute_scaling`.
+
+- **Wired `scripts/run_experiment.py` into TabArena's own built-in small-dataset
+  regime** (`ValidationProtocol(..., tiny_num_bag_folds=2, tiny_num_bag_sets=1,
+  tiny_max_group_instances=100)`) instead of a new RamanBench-side formula —
+  any dataset whose real training-partition size (resolved by TabArena itself
+  at fit time, not a pre-split estimate) falls under 100 now gets TabArena's
+  own hard minimum of 2 bag folds. This is the closest available equivalent to
+  "disable bagging" for a small dataset: true single-holdout (0 or 1 fold,
+  achievable in the old v0.1 pipeline via a direct AutoGluon kwarg) is **not**
+  reachable in v1 — `tabarena.benchmark.validation_protocol.ValidationProtocol`
+  hard-rejects `num_bag_folds < 2` for either the main or tiny regime
+  (`ValidationProtocol(num_bag_folds=1)` raises `"num_bag_folds must be an int
+  >= 2, got 1"`). Separate from, and on top of, the pre-existing
+  `min_class_count`/`n_train_est`-based crash-prevention formula
+  (`resolve_effective_bag_folds`, added for a real production crash on a
+  20-row dataset) — that one reacts to class imbalance specifically, which a
+  flat row-count threshold alone wouldn't catch on an otherwise-large,
+  severely imbalanced dataset. The two are independent and both apply.
+
 ### Fixed (paper-fidelity — pending real-cluster validation)
 
 - **`RAMANFORMER` deviated from its own paper (Koyun et al. 2024, ACS Omega) in two

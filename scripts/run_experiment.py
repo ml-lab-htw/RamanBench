@@ -251,6 +251,42 @@ def _import_generator(model_key: str):
     return getattr(module, gen_name)
 
 
+def resolve_effective_bag_folds(
+    *,
+    num_bag_folds: int,
+    n_rows: int,
+    n_splits: int,
+    problem_type: str,
+    min_class_count: int | None = None,
+) -> int:
+    """Scale ``num_bag_folds`` down for a small dataset, floored at TabArena's
+    own hard minimum of 2 (``ValidationProtocol`` rejects anything below 2 --
+    confirmed directly: ``ValidationProtocol(num_bag_folds=1)`` raises
+    "num_bag_folds must be an int >= 2, got 1").
+
+    Real production incident this fixes: ``diabetes_skin_ear_lobe``, 20 rows,
+    9/11 class split -- 8 folds over a ~16-row training set averaged ~2
+    rows/fold, a real chance of an entirely-one-class validation fold
+    crashing AutoGluon's ROC AUC computation. Classification uses
+    ``min_class_count // 2``; regression estimates the training partition
+    size (``n_rows * (n_splits-1) / n_splits``) and uses ``// 4``.
+
+    This is deliberately narrower than TabArena's own built-in small-dataset
+    regime (``ValidationProtocol``'s ``tiny_num_bag_folds``/
+    ``tiny_max_group_instances``, wired into ``run_one``'s own
+    ``ValidationProtocol(...)`` construction) -- that one reacts to a flat
+    row-count threshold; this one reacts to class imbalance specifically,
+    which a flat threshold alone wouldn't catch on an otherwise-large,
+    severely imbalanced dataset. The two are independent and both apply.
+    """
+    if problem_type == "classification":
+        if min_class_count is None:
+            raise ValueError("min_class_count is required when problem_type='classification'")
+        return max(2, min(num_bag_folds, min_class_count // 2))
+    n_train_est = max(1, int(n_rows * (n_splits - 1) / n_splits))
+    return max(2, min(num_bag_folds, n_train_est // 4))
+
+
 def run_one(
     *,
     dataset_name: str,
@@ -563,13 +599,20 @@ def run_one(
     # real chance of landing a validation fold that's entirely one class,
     # crashing AutoGluon's ROC AUC computation ("Only one class present in
     # y_true"). Scale bag folds down for small data rather than let that
-    # crash the whole job.
-    if problem_type == "classification":
-        min_class_count = int(df[label_col].value_counts().min())
-        effective_bag_folds = max(2, min(num_bag_folds, min_class_count // 2))
-    else:
-        n_train_est = max(1, int(len(df) * (n_splits - 1) / n_splits))
-        effective_bag_folds = max(2, min(num_bag_folds, n_train_est // 4))
+    # crash the whole job. See ValidationProtocol(..., tiny_num_bag_folds=2,
+    # tiny_max_group_instances=100) above for the separate, flatter <100-row
+    # rule (TabArena's own built-in small-dataset regime).
+    min_class_count = (
+        int(df[label_col].value_counts().min()) if problem_type == "classification" else None
+    )
+    effective_bag_folds = resolve_effective_bag_folds(
+        num_bag_folds=num_bag_folds,
+        n_rows=len(df),
+        n_splits=n_splits,
+        problem_type=problem_type,
+        min_class_count=min_class_count,
+    )
+
     if effective_bag_folds < num_bag_folds:
         logger.info(
             "%s target %d: reducing num_bag_folds %d -> %d for a small dataset (%d rows)",
@@ -628,16 +671,33 @@ def run_one(
     # `tabarena` entry) takes bagging counts from a ValidationProtocol object rather
     # than a bare num_bag_folds= kwarg -- passing the old kwarg now raises a TypeError
     # (tabarena.benchmark.experiment.experiment_constructor's
-    # _reject_legacy_bagging_kwargs). Only num_bag_folds is meaningful here;
-    # num_bag_sets/tiny-regime fields keep their dataclass defaults (1 repeat, no
-    # tiny-data regime), matching this repo's own repeated-k-fold split (raman_bench.
-    # splitting) already handling the "small dataset" case RamanBench cares about.
+    # _reject_legacy_bagging_kwargs).
+    #
+    # tiny_num_bag_folds/tiny_num_bag_sets/tiny_max_group_instances (2026-09-25) use
+    # TabArena's own built-in small-dataset regime -- ValidationProtocol.resolve_num_splits
+    # is called internally with the REAL training-partition size at fit time
+    # (num_group_instances, not our own len(df) pre-split estimate), so this is both
+    # more precise and avoids duplicating logic TabArena already provides. This is the
+    # closest available equivalent to "disable bagging" for a <100-row dataset: true
+    # single-holdout (0 or 1 fold, reachable in the old v0.1 pipeline via a direct
+    # AutoGluon kwarg) isn't possible here -- ValidationProtocol hard-rejects anything
+    # below 2 (confirmed directly: ValidationProtocol(num_bag_folds=1) raises
+    # "num_bag_folds must be an int >= 2, got 1"), for either the main or tiny regime.
+    # Separate from, and on top of, resolve_effective_bag_folds's own
+    # min_class_count/n_train_est-based crash-prevention formula below (that one
+    # reacts to class imbalance specifically, which a flat row-count threshold alone
+    # wouldn't catch on an otherwise-large, severely imbalanced dataset).
     from tabarena.benchmark.validation_protocol import ValidationProtocol
 
     generate_kwargs = dict(
         num_random_configs=num_random_configs,
         time_limit=time_limit,
-        validation_protocol=ValidationProtocol(num_bag_folds=num_bag_folds),
+        validation_protocol=ValidationProtocol(
+            num_bag_folds=num_bag_folds,
+            tiny_num_bag_folds=2,
+            tiny_num_bag_sets=1,
+            tiny_max_group_instances=100,
+        ),
         fold_fitting_strategy="sequential_local",
         # require_warmup=True (TabArena's new default as of the 2026-09-18 pin
         # bump) runs a pre-flight "dummy fit" before the real timed fit and
