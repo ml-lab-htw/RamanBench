@@ -9,6 +9,39 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`RAMANTRANSFORMER` briefly excluded, then restored the same day** (still 43
+  models in `configs/v1/scope_default.json`) — initially removed as the
+  worst-performing custom architecture in the v0.1 leaderboard, sharing the same
+  NaN-validation-loss collapse class already tracked for RAMANFORMER/SANET (GitHub
+  issue #10). Confirmed live on the v1 cluster once the GPU-tier resource-declaration
+  bug was fixed (2026-09-25): RAMANFORMER alone failed 47/312 tasks with the
+  identical `NaN validation loss on every epoch` error once it was actually training
+  on GPU as designed (previously silently masked by running CPU-only);
+  RAMANTRANSFORMER showed the same pattern. Its two running k8s jobs
+  (`rb-ramantransformer-full`/`rb-ramantransformer-large`) were cancelled at that
+  point. On reconsideration, outright exclusion was inconsistent with the standing
+  policy already applied to RAMANFORMER for the identical failure class — "document
+  the failure via the leaderboard's existing imputed-% transparency, don't chase a
+  genuine model weakness further," not "remove the model." Restored to keep both
+  on equal footing, now listed last in the model roster and, separately, placed at
+  the end of the manual k8s resubmission queue this session is tracking — it will
+  be resubmitted, just deliberately last rather than immediately.
+
+### Fixed (documentation)
+
+- **Two wrong paper references on the public leaderboard** (`HF_spaces/RamanBench`
+  and `HF_spaces/RamanBench-Nightly`'s `app.py`): `RamanTransformer` was linked to
+  `10.1038/s41598-023-44358-2` (a copy-paste of `RamanNet`'s entry, and wrong for
+  both — `RamanNet`'s own real reference is `arXiv:2307.07312`, not that DOI
+  either). `DeepCNN` was linked to `10.1039/C7AN01371J`, off by one Analyst article
+  ID from its real reference, `10.1039/C7AN01042G`. All three corrected to match
+  each model's own docstring citation in `src/raman_bench/models/custom/*/model.py`
+  (the actual source of truth). `ReZeroNet`'s link to arXiv:2003.04887 ("ReZero is
+  All You Need") was checked and left as-is — that's the real underlying technique
+  ReZeroNet's blocks are built on, not a mis-copy.
+
 ### Added
 
 - **Global, dataset-keyed row-subsampling override**
