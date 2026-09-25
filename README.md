@@ -5,6 +5,7 @@
 [![CI](https://github.com/ml-lab-htw/RamanBench/actions/workflows/ci.yml/badge.svg)](https://github.com/ml-lab-htw/RamanBench/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-2605.02003-b31b1b)](https://arxiv.org/abs/2605.02003)
+[![NeurIPS 2026](https://img.shields.io/badge/NeurIPS-2026-9370DB)](https://arxiv.org/abs/2605.02003)
 [![Leaderboard](https://img.shields.io/badge/🏆_Leaderboard-HuggingFace-orange)](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
 
 **A machine-learning benchmark for Raman spectroscopy.**
@@ -31,7 +32,7 @@ PyPI / GitHub     PyPI / GitHub
 | **raman-data** (dataset loader) | [GitHub](https://github.com/ml-lab-htw/raman_data) · [PyPI](https://pypi.org/project/raman-data/)  |
 | **raman-bench** (this package)  | [GitHub](https://github.com/ml-lab-htw/RamanBench) · [PyPI](https://pypi.org/project/raman-bench/) |
 | **Live Leaderboard**            | [huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) |
-| **Paper**                       | [arXiv:2605.02003](https://arxiv.org/abs/2605.02003)                                                             |
+| **Paper**                       | Accepted at NeurIPS 2026 · [arXiv:2605.02003](https://arxiv.org/abs/2605.02003)                                  |
 
 ---
 
@@ -573,14 +574,15 @@ has its own "How to Contribute" section.
 
 ## Citation
 
-If you use RamanBench in your research, please cite:
+RamanBench has been accepted at NeurIPS 2026. If you use RamanBench in your research, please cite:
 
 ```bibtex
-@article{koddenbrock2026ramanbench,
+@inproceedings{koddenbrock2026ramanbench,
   title={RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy},
   author={Koddenbrock, Mario and Lange, Christoph and Legner, Robin and J{\"a}ger, Martin and K{\"o}gler, Martin and Bournazou, Mariano N Cruz and Neubauer, Peter and Biessmann, Felix and Rodner, Erik},
-  journal={arXiv preprint arXiv:2605.02003},
-  year={2026}
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  year={2026},
+  note={arXiv preprint arXiv:2605.02003}
 }
 ```
 
