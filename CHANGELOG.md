@@ -9,23 +9,25 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Removed
+### Changed
 
-- **`RAMANTRANSFORMER` excluded from the routine v1 sweep** (`configs/v1/scope_default.json`,
-  42 models, down from 43) — explicit decision: it was the worst-performing custom
-  architecture in the v0.1 leaderboard, and shares the same NaN-validation-loss
-  collapse class already tracked for RAMANFORMER/SANET (GitHub issue #10) across a
-  wide range of datasets. Confirmed live on the v1 cluster once the GPU-tier
-  resource-declaration bug was fixed (2026-09-25): RAMANFORMER alone failed 47/312
-  tasks with the identical `NaN validation loss on every epoch` error once it was
-  actually training on GPU as designed (previously silently masked by running
-  CPU-only); RAMANTRANSFORMER showed the same pattern. Per the standing "only fix
-  real paper deviations, don't chase a genuine model weakness further" policy, this
-  is excluded rather than debugged. Its two running k8s jobs
-  (`rb-ramantransformer-full`/`rb-ramantransformer-large`) were cancelled the same
-  day. Existing `RAMANTRANSFORMER` results stay as historical data (same convention
-  as `TABPFN-WIDE`'s earlier removal below) — nothing was deleted, it's just no
-  longer part of the routine sweep going forward.
+- **`RAMANTRANSFORMER` briefly excluded, then restored the same day** (still 43
+  models in `configs/v1/scope_default.json`) — initially removed as the
+  worst-performing custom architecture in the v0.1 leaderboard, sharing the same
+  NaN-validation-loss collapse class already tracked for RAMANFORMER/SANET (GitHub
+  issue #10). Confirmed live on the v1 cluster once the GPU-tier resource-declaration
+  bug was fixed (2026-09-25): RAMANFORMER alone failed 47/312 tasks with the
+  identical `NaN validation loss on every epoch` error once it was actually training
+  on GPU as designed (previously silently masked by running CPU-only);
+  RAMANTRANSFORMER showed the same pattern. Its two running k8s jobs
+  (`rb-ramantransformer-full`/`rb-ramantransformer-large`) were cancelled at that
+  point. On reconsideration, outright exclusion was inconsistent with the standing
+  policy already applied to RAMANFORMER for the identical failure class — "document
+  the failure via the leaderboard's existing imputed-% transparency, don't chase a
+  genuine model weakness further," not "remove the model." Restored to keep both
+  on equal footing, now listed last in the model roster and, separately, placed at
+  the end of the manual k8s resubmission queue this session is tracking — it will
+  be resubmitted, just deliberately last rather than immediately.
 
 ### Fixed (documentation)
 
