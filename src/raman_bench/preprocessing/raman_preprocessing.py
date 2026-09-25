@@ -4,11 +4,15 @@ Pure numpy/scipy implementations of Raman spectral preprocessing steps.
 No RamanSPy dependency — these are used inside AutoGluon models as tunable hyperparameters.
 """
 
+import logging
+
 import numpy as np
 import torch
 from scipy.signal import savgol_filter
 from scipy.sparse import csc_matrix, diags
 from scipy.sparse.linalg import spsolve
+
+logger = logging.getLogger(__name__)
 
 
 def _despike_single(spectrum: np.ndarray, threshold: float, kernel_size: int) -> np.ndarray:
@@ -670,6 +674,141 @@ def crop_spectra(X, start_frac=0.15, end_frac=0.75):
     i_start = max(0, min(i_start, n_features - 1))
     i_end = max(i_start + 1, min(i_end, n_features))
     return X[:, i_start:i_end]
+
+
+def crop_spectra_physical(X, wavenumbers, start_cm, end_cm):
+    """Crop spectra to a physical wavenumber (cm^-1) interval, using the true axis.
+
+    Unlike :func:`crop_spectra` (which crops by *fractional feature-index*
+    position because the real wavenumber axis historically was not threaded
+    through this pipeline — see that function's docstring), this crops using
+    the actual per-column wavenumber values in *wavenumbers*, so the same
+    ``[start_cm, end_cm]`` interval selects the *same physical region* (e.g.
+    a genuine 400-1800 cm^-1 fingerprint window) regardless of a dataset's
+    acquisition span. This function is purely additive: :func:`crop_spectra`
+    and its existing recipes/configs are untouched.
+
+    A column ``j`` is kept iff ``start_cm <= wavenumbers[j] <= end_cm``
+    (inclusive on both ends). ``wavenumbers`` need not be sorted ascending —
+    the boolean mask is applied positionally, so descending-axis datasets
+    (high-to-low cm^-1 column order) are also handled correctly, and the
+    output preserves the input column order (no re-sorting).
+
+    Edge cases (deliberately fail-loud, not silent, per this project's
+    crop-study eligibility checklist — see
+    ``RamanPreprocessing/docs/config_schema_notes.md``):
+
+    - **No overlap at all** between ``[start_cm, end_cm]`` and
+      ``[wavenumbers.min(), wavenumbers.max()]``: raises ``ValueError``.
+      There is nothing sensible to return (an empty spectrum would silently
+      propagate into every downstream step and produce misleading results
+      rather than an obvious failure), so this is treated as a
+      misconfiguration, not a degenerate-but-valid crop.
+    - **Partial overlap** (the requested interval extends past the
+      dataset's actual range on one or both sides — the expected case when
+      applying one shared interval across a heterogeneous corpus with
+      different acquisition spans, e.g. asking for 400-1800 cm^-1 on a
+      500-1800 cm^-1 dataset): this is *not* an error. It keeps the
+      achievable intersection and logs a warning naming the requested vs.
+      actually-kept interval, so the truncation is visible in logs rather
+      than silently producing a narrower-than-requested crop that looks
+      identical to a full match. This mirrors this pipeline's existing
+      precedent for legitimate-but-unusual combinations (see the GCU/LVSE +
+      standard-scaling warning in ``mixin.py``'s ``_preprocess_fit``):
+      loud-but-non-fatal, because raising here would make it impossible to
+      apply one physical interval across a corpus of datasets with
+      genuinely different acquisition windows — exactly the use case this
+      function exists for.
+    - **Exact boundary values** (``wavenumbers[j] == start_cm`` or
+      ``== end_cm``) are kept (inclusive interval), matching the intuitive
+      reading of "crop to 400-1800 cm^-1" as including both endpoints.
+    - **Missing/unavailable axis** (``wavenumbers is None``, or an axis
+      whose length does not match ``X``'s column count) is *not* handled
+      inside this function — callers (``RamanPreprocessingMixin`` in
+      ``mixin.py``) are responsible for checking ``hasattr(self,
+      "_wavenumbers")`` before calling this function at all and raising an
+      informative error themselves if it is unset; see
+      ``_preprocess_fit``/``_preprocess_transform``. This function itself
+      still validates shape defensively below and raises if it does not
+      match, as a second line of defense.
+    - **Pre-cropped / already fingerprint-restricted datasets** (no general
+      way to detect this from data alone): explicitly out of scope for this
+      function and for the mixin wiring — this is a config-level/study-
+      design responsibility (documented as an open question for whoever
+      builds the physical-crop study on top of this).
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+        Input spectra.
+    wavenumbers : np.ndarray, shape (n_features,)
+        Physical wavenumber (cm^-1) value for each column of ``X``, in the
+        same column order as ``X``.
+    start_cm : float
+        Lower bound (inclusive) of the wavenumber interval to keep, in cm^-1.
+    end_cm : float
+        Upper bound (inclusive) of the wavenumber interval to keep, in cm^-1.
+        Must be strictly greater than ``start_cm``.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_kept_features)
+        Cropped spectra. Like :func:`crop_spectra`, this changes the feature
+        count, so it must run before any fixed-shape assumption downstream.
+    """
+    wavenumbers = np.asarray(wavenumbers, dtype=float)
+    if wavenumbers.ndim != 1 or wavenumbers.shape[0] != X.shape[1]:
+        raise ValueError(
+            f"crop_spectra_physical: wavenumbers must be a 1-D array with one entry per "
+            f"column of X ({X.shape[1]} columns), got shape {wavenumbers.shape}."
+        )
+    if not np.isfinite(start_cm) or not np.isfinite(end_cm) or start_cm >= end_cm:
+        raise ValueError(
+            f"crop_spectra_physical: start_cm ({start_cm}) must be finite and strictly "
+            f"less than end_cm ({end_cm})."
+        )
+
+    axis_min = float(np.min(wavenumbers))
+    axis_max = float(np.max(wavenumbers))
+    if end_cm < axis_min or start_cm > axis_max:
+        raise ValueError(
+            f"crop_spectra_physical: requested interval [{start_cm}, {end_cm}] cm^-1 does "
+            f"not overlap this dataset's actual wavenumber range "
+            f"[{axis_min}, {axis_max}] cm^-1 at all — there is nothing to keep. This is "
+            f"treated as a misconfiguration (wrong dataset for this interval, or wrong "
+            f"interval for this dataset) rather than producing an empty/degenerate crop."
+        )
+
+    mask = (wavenumbers >= start_cm) & (wavenumbers <= end_cm)
+    if not mask.any():
+        # Overlapping ranges but no actual grid point falls inside them (a
+        # pathologically sparse/coarse axis). Still fail loud rather than
+        # returning a 0-width array.
+        raise ValueError(
+            f"crop_spectra_physical: requested interval [{start_cm}, {end_cm}] cm^-1 "
+            f"overlaps this dataset's range [{axis_min}, {axis_max}] cm^-1, but no column's "
+            f"wavenumber value falls within it (grid too coarse for this interval)."
+        )
+
+    if start_cm < axis_min or end_cm > axis_max:
+        kept = wavenumbers[mask]
+        logger.warning(
+            "crop_spectra_physical: requested interval [%.4g, %.4g] cm^-1 only partially "
+            "overlaps this dataset's actual wavenumber range [%.4g, %.4g] cm^-1; kept the "
+            "achievable intersection [%.4g, %.4g] cm^-1 (%d/%d columns) instead of raising, "
+            "since partial coverage is expected when applying one shared physical interval "
+            "across datasets with different acquisition spans.",
+            start_cm,
+            end_cm,
+            axis_min,
+            axis_max,
+            float(np.min(kept)),
+            float(np.max(kept)),
+            int(mask.sum()),
+            wavenumbers.shape[0],
+        )
+
+    return X[:, mask]
 
 
 def vector_normalize(X):

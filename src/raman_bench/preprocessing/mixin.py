@@ -12,10 +12,23 @@ When absent, all steps are included in the search space.
 
 Preprocessing order (when enabled) — matches the sequential wiring in
 ``_preprocess_fit``/``_preprocess_transform`` below:
-1. Crop (fingerprint-region, fractional-index proxy) — runs first because it
-   changes the array's feature count; every later step must see the final
-   (cropped) width, so cropping before smoothing/baseline/etc. keeps the
-   window-length-relative-to-n_features logic in those steps consistent.
+0. Crop-by-physical-axis (``crop_physical``, true cm^-1 interval) — runs
+   *before* the fractional-index crop (step 1) because it is the only step
+   that indexes into ``self._wavenumbers``, the true wavenumber axis
+   captured once from ``X.columns`` at fit time (see ``_fit`` below) and
+   never re-sliced. Any prior shape-changing step (fractional crop
+   included) would desynchronize column *positions* from
+   ``self._wavenumbers`` entries, so ``crop_physical`` must see the
+   original, full-width column layout. Enabling both ``crop_physical`` and
+   the fractional ``crop`` together is unusual (two independent
+   feature-count-reducing steps) but not forbidden; a warning is logged
+   when both are enabled, and ``crop`` then operates on whatever
+   ``crop_physical`` already narrowed the spectrum down to.
+1. Crop (fingerprint-region, fractional-index proxy) — runs first (of the
+   *shape-preserving-step* group) because it changes the array's feature
+   count; every later step must see the final (cropped) width, so cropping
+   before smoothing/baseline/etc. keeps the window-length-relative-to-
+   n_features logic in those steps consistent.
 2. Cosmic ray removal — spikes must be removed before any smoothing/baseline
    step, or they get spread/baked into neighbouring points.
 3. Denoising (Savitzky-Golay smoothing) — smooth before baseline estimation
@@ -88,6 +101,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     baseline_correction_arpls,
     cosmic_ray_removal,
     crop_spectra,
+    crop_spectra_physical,
     denoise_savgol,
     emsc_fit,
     emsc_transform,
@@ -128,6 +142,49 @@ _PREP_STEP_DEFINITIONS = {
             "prep_crop_enabled": False,
             "prep_crop_start_frac": 0.15,
             "prep_crop_end_frac": 0.75,
+        },
+    },
+    # Physical-axis (true cm^-1) crop — distinct from "crop" above, which
+    # crops by fractional feature-index position because the real
+    # wavenumber axis previously was not threaded through this pipeline.
+    # This step uses ``self._wavenumbers`` (captured from the input
+    # DataFrame's column labels at fit time — see ``RamanPreprocessingMixin
+    # ._fit``), so the same requested interval selects the same physical
+    # region across datasets regardless of each one's own acquisition span.
+    # See ``crop_spectra_physical``'s docstring in ``raman_preprocessing.py``
+    # for the full edge-case contract (partial/no overlap, missing axis).
+    #
+    # Defaults: disabled by default (``prep_crop_physical_enabled=False``,
+    # same convention as every other step here), but the numeric defaults
+    # are set to a concrete, literature-typical Raman "fingerprint region"
+    # (400-1800 cm^-1) rather than left as ``None`` -- this makes the step
+    # usable out of the box the moment it is enabled (e.g. via
+    # ``preprocessing_config={"crop_physical": True}``) without also having
+    # to specify bounds, consistent with how "crop"'s own fractional bounds
+    # (0.15/0.75) are pre-populated. Whoever builds the actual physical-crop
+    # study is still expected to choose intervals deliberately per the
+    # eligibility checklist in ``RamanPreprocessing/docs/config_schema_notes.md``
+    # (a-priori interval, partial-coverage handling, no double-cropping of
+    # already fingerprint-restricted datasets) -- these defaults are a safe
+    # fallback, not a study design decision made here.
+    #
+    # HPO search bounds for start_cm/end_cm are disjoint (200-800 vs.
+    # 1200-2200) so that every sampled combination satisfies start_cm <
+    # end_cm by construction, mirroring how "crop"'s own start_frac
+    # (0.0-0.3) / end_frac (0.5-1.0) ranges are kept disjoint for the same
+    # reason. This study runs with HPO disabled (``optimize: false``), so
+    # these ranges are present for interface completeness/future use, not
+    # exercised here.
+    "crop_physical": {
+        "search_params": {
+            "prep_crop_physical_enabled": space.Categorical(True, False),
+            "prep_crop_physical_start_cm": space.Real(lower=200.0, upper=800.0),
+            "prep_crop_physical_end_cm": space.Real(lower=1200.0, upper=2200.0),
+        },
+        "defaults": {
+            "prep_crop_physical_enabled": False,
+            "prep_crop_physical_start_cm": 400.0,
+            "prep_crop_physical_end_cm": 1800.0,
         },
     },
     "cosmic_ray_removal": {
@@ -311,6 +368,7 @@ _PREP_STEP_DEFINITIONS = {
 # Params that control transform-path steps (not augmentation)
 _TRANSFORM_ENABLED_PARAMS = [
     "prep_crop_enabled",
+    "prep_crop_physical_enabled",
     "prep_crr_enabled",
     "prep_bl_enabled",
     "prep_airpls_enabled",
@@ -464,6 +522,37 @@ class RamanPreprocessingMixin:
         np.ndarray, shape (n_samples, n_features)
         """
         params = self._get_model_params()
+
+        if params.get("prep_crop_physical_enabled", False):
+            if getattr(self, "_wavenumbers", None) is None:
+                raise ValueError(
+                    "prep_crop_physical_enabled=True but self._wavenumbers is unset. "
+                    "Physical-axis cropping requires the true wavenumber (cm^-1) value "
+                    "for every input column, captured from X.columns at fit time (see "
+                    "RamanPreprocessingMixin._fit). This is missing here, which means "
+                    "either the input DataFrame's columns were not the true wavenumber "
+                    "axis (e.g. positional/generic column labels), or preprocessing ran "
+                    "through a code path that never captured them. Refusing to silently "
+                    "fall back to fractional-index cropping, since that would produce an "
+                    "uncalibrated crop while claiming to be a physical-axis one."
+                )
+            start_cm = params.get("prep_crop_physical_start_cm", 400.0)
+            end_cm = params.get("prep_crop_physical_end_cm", 1800.0)
+            if params.get("prep_crop_enabled", False):
+                logger.warning(
+                    "Both prep_crop_physical_enabled and prep_crop_enabled (fractional) "
+                    "are True; crop_physical runs first (it needs the original, "
+                    "full-width column layout to match self._wavenumbers), then the "
+                    "fractional crop runs on its narrowed output. This combination is "
+                    "unusual — two independent feature-count-reducing steps — but not "
+                    "forbidden."
+                )
+            logger.debug(
+                "Fit — crop_physical (true wavenumber axis): start_cm=%s, end_cm=%s",
+                start_cm,
+                end_cm,
+            )
+            X = crop_spectra_physical(X, self._wavenumbers, start_cm=start_cm, end_cm=end_cm)
 
         if params.get("prep_crop_enabled", False):
             start_frac = params.get("prep_crop_start_frac", 0.15)
@@ -679,6 +768,28 @@ class RamanPreprocessingMixin:
         """
         if params is None:
             params = self._get_model_params()
+
+        if params.get("prep_crop_physical_enabled", False):
+            if getattr(self, "_wavenumbers", None) is None:
+                raise ValueError(
+                    "prep_crop_physical_enabled=True but self._wavenumbers is unset. "
+                    "Physical-axis cropping requires the true wavenumber (cm^-1) value "
+                    "for every input column, captured from X.columns at fit time (see "
+                    "RamanPreprocessingMixin._fit). This is missing here, which means "
+                    "either the input DataFrame's columns were not the true wavenumber "
+                    "axis (e.g. positional/generic column labels), or preprocessing ran "
+                    "through a code path that never captured them. Refusing to silently "
+                    "fall back to fractional-index cropping, since that would produce an "
+                    "uncalibrated crop while claiming to be a physical-axis one."
+                )
+            start_cm = params.get("prep_crop_physical_start_cm", 400.0)
+            end_cm = params.get("prep_crop_physical_end_cm", 1800.0)
+            logger.debug(
+                "Transform — crop_physical (true wavenumber axis): start_cm=%s, end_cm=%s",
+                start_cm,
+                end_cm,
+            )
+            X = crop_spectra_physical(X, self._wavenumbers, start_cm=start_cm, end_cm=end_cm)
 
         if params.get("prep_crop_enabled", False):
             start_frac = params.get("prep_crop_start_frac", 0.15)
@@ -1040,6 +1151,31 @@ class RamanPreprocessingMixin:
         logger.debug("Has preprocessing: %s", has_preprocessing)
 
         if has_preprocessing:
+            # Capture the true wavenumber (cm^-1) axis from the training
+            # fold's column labels, right where they would otherwise be
+            # discarded by the X.values conversion below — the same spot the
+            # RamanPreprocessing project's crop-study scoping doc
+            # (``docs/config_schema_notes.md``) identified as where the axis
+            # is currently thrown away. Stored once, here, at fit time
+            # (never re-derived at transform time) — same fold-safety
+            # pattern as ``_msc_reference``/``_emsc_reference``: fit only on
+            # the training fold, reused read-only by ``_preprocess_transform``
+            # via ``self._wavenumbers``. Only ``crop_physical`` consumes this;
+            # every other step ignores it, so a non-numeric column axis (e.g.
+            # positional ``feature_0..N`` labels after an earlier
+            # shape-changing step, or synthetic test data with default
+            # RangeIndex columns — both are still float-castable, this only
+            # fails for genuinely non-numeric string labels) simply leaves
+            # ``self._wavenumbers`` as ``None``; ``crop_physical`` fails loud
+            # with an informative error only if it is actually requested
+            # (see ``_preprocess_fit``/``_preprocess_transform`` below),
+            # rather than raising here and breaking every model that never
+            # uses this step.
+            try:
+                self._wavenumbers = X.columns.to_numpy(dtype=float)
+            except (TypeError, ValueError):
+                self._wavenumbers = None
+
             X_np = X.values.astype(np.float64)
             logger.info(
                 "Fit preprocessing — %d spectra (%s)",

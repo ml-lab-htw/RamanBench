@@ -9,6 +9,7 @@ from raman_bench.preprocessing import (
     baseline_correction_asls,
     cosmic_ray_removal,
     crop_spectra,
+    crop_spectra_physical,
     denoise_savgol,
     emsc_fit,
     emsc_transform,
@@ -300,6 +301,73 @@ def test_crop_clips_degenerate_fractions():
     out = crop_spectra(np.ones((2, 10)), start_frac=0.9, end_frac=0.1)
     assert out.shape[0] == 2
     assert out.shape[1] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Crop by physical axis (true cm^-1 interval)
+# ---------------------------------------------------------------------------
+
+
+def test_crop_physical_full_coverage_keeps_everything():
+    """Requested interval fully covers the dataset's actual wavenumber range."""
+    wavenumbers = np.linspace(200.0, 2000.0, 50)
+    X = np.tile(wavenumbers, (3, 1))
+    out = crop_spectra_physical(X, wavenumbers, start_cm=100.0, end_cm=2100.0)
+    assert out.shape == (3, 50)
+    np.testing.assert_array_equal(out, X)
+
+
+def test_crop_physical_exact_boundary_match_is_inclusive():
+    wavenumbers = np.arange(0.0, 10.0)  # 0..9
+    X = np.tile(wavenumbers, (2, 1))
+    out = crop_spectra_physical(X, wavenumbers, start_cm=3.0, end_cm=7.0)
+    # Inclusive on both ends: columns with wavenumber in {3, 4, 5, 6, 7}.
+    assert out.shape == (2, 5)
+    np.testing.assert_array_equal(out[0], np.array([3.0, 4.0, 5.0, 6.0, 7.0]))
+
+
+def test_crop_physical_partial_overlap_keeps_intersection_and_warns(caplog):
+    """Requested interval extends beyond the dataset's actual range on one side."""
+    wavenumbers = np.linspace(500.0, 1800.0, 14)  # dataset only covers 500-1800
+    X = np.tile(wavenumbers, (2, 1))
+    with caplog.at_level("WARNING"):
+        out = crop_spectra_physical(X, wavenumbers, start_cm=400.0, end_cm=1800.0)
+    # Nothing below 500 exists, so the achievable intersection is [500, 1800].
+    assert out.shape[1] == 14
+    np.testing.assert_array_equal(out, X)
+    assert any("partially overlaps" in rec.message for rec in caplog.records)
+
+
+def test_crop_physical_no_overlap_raises():
+    wavenumbers = np.linspace(500.0, 1800.0, 14)
+    X = np.tile(wavenumbers, (2, 1))
+    with pytest.raises(ValueError, match="does not overlap"):
+        crop_spectra_physical(X, wavenumbers, start_cm=2000.0, end_cm=2500.0)
+
+
+def test_crop_physical_invalid_interval_raises():
+    wavenumbers = np.linspace(500.0, 1800.0, 14)
+    X = np.tile(wavenumbers, (2, 1))
+    with pytest.raises(ValueError, match="strictly less than"):
+        crop_spectra_physical(X, wavenumbers, start_cm=1800.0, end_cm=500.0)
+
+
+def test_crop_physical_wavenumbers_shape_mismatch_raises():
+    X = np.ones((2, 10))
+    wavenumbers = np.linspace(500.0, 1800.0, 5)  # wrong length
+    with pytest.raises(ValueError, match="one entry per"):
+        crop_spectra_physical(X, wavenumbers, start_cm=500.0, end_cm=1800.0)
+
+
+def test_crop_physical_distinct_from_fractional_crop():
+    """A regression guard that the two crop functions stay independent."""
+    wavenumbers = np.linspace(0.0, 100.0, 21)  # 0, 5, 10, ..., 100
+    X = np.tile(wavenumbers, (1, 1))
+    physical_out = crop_spectra_physical(X, wavenumbers, start_cm=40.0, end_cm=60.0)
+    fractional_out = crop_spectra(X, start_frac=0.15, end_frac=0.75)
+    assert physical_out.shape != fractional_out.shape or not np.array_equal(
+        physical_out, fractional_out
+    )
 
 
 # ---------------------------------------------------------------------------
