@@ -762,6 +762,7 @@ def run_tick(
     flat_default_time_limit = scope.get("time_limit", DEFAULT_TIME_LIMIT)
     dataset_time_limit_overrides = scope.get("time_limit_overrides", {})
     model_time_limit_overrides = scope.get("model_time_limit_overrides", {}).get(model, {})
+    max_train_samples_overrides = scope.get("max_train_samples_overrides", {})
     throttle = (
         scope.get("throttle", DEFAULT_THROTTLE)
         if model in GPU_MODELS
@@ -779,6 +780,7 @@ def run_tick(
         dataset_time_limit_overrides=dataset_time_limit_overrides,
         model_time_limit_overrides=model_time_limit_overrides,
         default_time_limit=flat_default_time_limit,
+        max_train_samples_overrides=max_train_samples_overrides,
     )
 
     # Per-task values actually written to the jobspec (see write_jobspec) --

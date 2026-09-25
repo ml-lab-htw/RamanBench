@@ -69,11 +69,12 @@ def main():
     parser.add_argument("--throttle", type=int, default=8)
     parser.add_argument(
         "--scope", default=None,
-        help="k8s only: path to a scope JSON (e.g. configs/v1/scope_default.json) to read "
-             "'large_datasets' from -- those datasets get routed to a separate pod on a "
-             "bigger GPU (H100/H200) instead of the main sweep's A100 pod. Defaults to "
+        help="Path to a scope JSON (e.g. configs/v1/scope_default.json) to read "
+             "'large_datasets' (k8s only, routes those datasets to a separate pod on a "
+             "bigger GPU) and 'max_train_samples_overrides' (both backends, a dataset-keyed "
+             "row-subsampling cap, e.g. {'mlrod': 10000}) from. Defaults to "
              "configs/v1/scope_default.json next to this script's repo root if present; "
-             "pass an empty scope (or a file with no 'large_datasets' key) to disable the split.",
+             "pass an empty scope (or a file with neither key) to disable both.",
     )
     parser.add_argument(
         "--big-gpu-types", nargs="+", default=["h100", "h200"],
@@ -99,6 +100,21 @@ def main():
     from submit_job import resolve_profile, submit_jobs
 
     profile = resolve_profile(args.profile, args.cluster)
+
+    # Global across both backends: a dataset-keyed row-subsampling cap (e.g.
+    # {"mlrod": 10000}), see submit_job.resolve_max_train_samples's docstring
+    # for why (REZERONET's real TimeLimitExceeded on mlrod under the reduced
+    # 600s/3-bag-fold compute-scaling settings). large_datasets (k8s-only,
+    # big-GPU pod routing) is loaded from the same scope file.
+    large_datasets: set[str] = set()
+    max_train_samples_overrides: dict[str, int] = {}
+    scope_path = Path(args.scope) if args.scope else CLUSTER_DIR.parent / "configs" / "v1" / "scope_default.json"
+    if scope_path.exists():
+        with open(scope_path) as f:
+            scope_data = json.load(f)
+        large_datasets = set(scope_data.get("large_datasets", []))
+        max_train_samples_overrides = scope_data.get("max_train_samples_overrides", {})
+
     if profile.get("backend") == "k8s":
         # One pod for THIS MODEL'S ENTIRE sweep across every target -- unlike
         # the SLURM path below (one array per target, proven/unchanged), a
@@ -108,11 +124,6 @@ def main():
         # keeps it to the single pod the profile's tasks_per_pod/max_array_size
         # are now sized for (see k8s.yaml's own comment) -- TWO pods, not one,
         # when large_datasets splits off a big-GPU pod (see below).
-        large_datasets: set[str] = set()
-        scope_path = Path(args.scope) if args.scope else CLUSTER_DIR.parent / "configs" / "v1" / "scope_default.json"
-        if scope_path.exists():
-            with open(scope_path) as f:
-                large_datasets = set(json.load(f).get("large_datasets", []))
 
         def _jobs_for(target_subset):
             return [
@@ -137,6 +148,7 @@ def main():
                 num_bag_folds=args.num_bag_folds, time_limit=args.time_limit,
                 results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                 profile=profile, throttle=args.throttle, dry_run=args.dry_run,
+                max_train_samples_overrides=max_train_samples_overrides,
             )
         if large_targets:
             large_jobs = _jobs_for(large_targets)
@@ -160,6 +172,7 @@ def main():
                 num_bag_folds=args.num_bag_folds, time_limit=args.time_limit,
                 results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                 profile=big_gpu_profile, throttle=args.throttle, dry_run=args.dry_run,
+                max_train_samples_overrides=max_train_samples_overrides,
             )
         print(f"Done: {len(all_job_ids)} k8s Job(s) created: {all_job_ids}")
         return
@@ -179,6 +192,8 @@ def main():
             "--results-dir", args.results_dir, "--cache-dir", args.cache_dir,
             "--throttle", str(args.throttle),
         ]
+        if t["dataset"] in max_train_samples_overrides:
+            cmd += ["--max-train-samples", str(max_train_samples_overrides[t["dataset"]])]
         if args.profile:
             cmd += ["--profile", args.profile]
         if args.cluster:
