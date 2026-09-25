@@ -9,6 +9,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`run_one` now skips (uses as-is) an already-cached `results.pkl` instead of
+  attempting to refit it**, if one already exists at that
+  `(model, dataset, repeat, fold)` cache path. Real production bug: after
+  `num_bag_folds` was scaled 8→3, every already-cached key from the earlier
+  8-fold run started failing instantly with
+  `tabarena.benchmark.validation_protocol.ValidationProtocolError` (`"was fit
+  under validation protocol '8x1' ...; this run asks for '3x1'"`) — the cache
+  path doesn't encode `num_bag_folds`/the validation protocol, so any
+  already-computed key permanently conflicted with a differently-configured
+  resubmission instead of just being skipped. Deliberate policy: an
+  already-cached result stands as final for that key; a changed
+  `num_bag_folds`/`time_limit` only ever applies to genuinely new
+  (not-yet-cached) work — never triggers a silent refit or overwrite.
+
 ### Changed
 
 - **Reduced `configs/v1/target_list.json`'s `n_repeats` to `1` for every non-excluded

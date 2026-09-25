@@ -680,6 +680,33 @@ def run_one(
         cache_name="results", cache_path=cache_path, include_self_in_call=True
     )
 
+    # A result already cached at this exact path (any prior run of this
+    # (model, dataset, repeat, fold), possibly under a different
+    # num_bag_folds/validation-protocol -- the cache path doesn't encode that)
+    # is used as-is, skipping experiment.run() entirely. Without this,
+    # tabarena's own ExperimentBatchRunner._check_cached_validation_protocol
+    # raises ValidationProtocolError the moment a cached result's protocol
+    # (e.g. "8x1" from an earlier num_bag_folds=8 run) doesn't match the
+    # current one ("3x1") -- confirmed real: every already-cached key failed
+    # instantly this way after num_bag_folds was scaled down 8->3 (2026-09-25).
+    # Deliberate policy: an already-cached result stands as final for that
+    # key; a changed num_bag_folds/time_limit only applies to genuinely new
+    # (not-yet-cached) work going forward, never triggers a silent refit or
+    # overwrite of what's already on disk.
+    if cacher.exists:
+        out = cacher.load_cache()
+        logger.info(
+            "%s on %s repeat=%d fold=%d: using existing cached result at %s "
+            "(possibly fit under a different num_bag_folds/time_limit -- not refit)",
+            experiment.name,
+            task_name,
+            repeat,
+            fold,
+            cache_path,
+        )
+        logger.info("Done: metric_error=%s", out.get("metric_error"))
+        return out
+
     logger.info(
         "Running %s on %s repeat=%d fold=%d -> %s",
         experiment.name,
