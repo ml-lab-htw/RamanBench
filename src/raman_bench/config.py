@@ -4,6 +4,20 @@ import json
 import os
 
 _ALL_PREPROCESSING_STEPS = {
+    # NOTE: "crop_physical" (true cm^-1 axis crop, see mixin.py's
+    # _PREP_STEP_DEFINITIONS) is deliberately NOT listed here. This dict is
+    # what ``preprocessing: true`` (bool shorthand for "enable every step")
+    # expands to; crop_physical requires a deliberately-chosen
+    # [start_cm, end_cm] interval per dataset (see the eligibility checklist
+    # in RamanPreprocessing/docs/config_schema_notes.md — partial-coverage
+    # behavior, no double-cropping of already-fingerprint-restricted
+    # datasets), so it must always be opted into explicitly via
+    # ``preprocessing_config``, never silently switched on for every config
+    # that happens to use the "enable everything" shorthand. Explicit-dict
+    # ``preprocessing_config`` usage is unaffected: set
+    # ``"crop_physical": true`` there (plus prep_crop_physical_start_cm/
+    # end_cm via preprocessing_params, if the 400/1800 defaults are wrong for
+    # your study) to enable it for a specific run.
     "crop": True,
     "baseline_correction": True,
     "airpls": True,
@@ -23,14 +37,33 @@ _ALL_PREPROCESSING_STEPS = {
     "standard_scaling": True,
 }
 
+# Step keys that are valid inside an *explicit* preprocessing_config dict but
+# are deliberately excluded from _ALL_PREPROCESSING_STEPS (the "enable every
+# step" expansion of the ``preprocessing: true`` bool shorthand). Currently
+# just "crop_physical" — see the NOTE above _ALL_PREPROCESSING_STEPS. Without
+# this, the dict-branch comprehension below (which historically iterated
+# only ``_ALL_PREPROCESSING_STEPS``' keys) would silently drop a user's
+# explicit ``{"crop_physical": true}`` entry, since it wasn't in the
+# whitelist at all -- opt-in-only steps still need to be a *recognized* key,
+# just not part of the "everything" default.
+_OPT_IN_ONLY_PREPROCESSING_STEPS = {
+    "crop_physical": False,
+}
+
+_KNOWN_PREPROCESSING_STEP_KEYS = {**_ALL_PREPROCESSING_STEPS, **_OPT_IN_ONLY_PREPROCESSING_STEPS}
+
 
 def _normalize_preprocessing_config(config):
     """Normalize the preprocessing field into a preprocessing_config dict.
 
     Handles three forms:
-    - ``True``  → all steps enabled
+    - ``True``  → all steps enabled (``_ALL_PREPROCESSING_STEPS`` only --
+      opt-in-only steps like ``crop_physical`` stay off; see the NOTE above
+      ``_ALL_PREPROCESSING_STEPS``)
     - ``False`` → no preprocessing (``None``)
-    - ``dict``  → use as-is (missing keys default to ``False``)
+    - ``dict``  → use as-is (missing keys default to ``False``); recognizes
+      every key in ``_KNOWN_PREPROCESSING_STEP_KEYS``, i.e. both the
+      "enable everything" steps and opt-in-only steps like ``crop_physical``
     """
     raw = config.get("preprocessing", False)
 
@@ -40,7 +73,9 @@ def _normalize_preprocessing_config(config):
         else:
             config["preprocessing_config"] = None
     elif isinstance(raw, dict):
-        config["preprocessing_config"] = {k: raw.get(k, False) for k in _ALL_PREPROCESSING_STEPS}
+        config["preprocessing_config"] = {
+            k: raw.get(k, False) for k in _KNOWN_PREPROCESSING_STEP_KEYS
+        }
     else:
         config["preprocessing_config"] = None
 

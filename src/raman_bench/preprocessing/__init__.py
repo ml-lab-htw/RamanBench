@@ -33,6 +33,13 @@ Available preprocessing steps
     arXiv:2608.02157
 17. LVSE (Local Vibrational Subspace Encoding, representation-replacing) —
     RamanPFN, arXiv:2608.02157
+18. Physical-axis (true cm^-1) cropping — like #14, but keyed on the actual
+    per-column wavenumber values (``RamanPreprocessingMixin._wavenumbers``,
+    captured from the input DataFrame's column labels at fit time) rather
+    than a fractional index proxy, so the same requested interval selects
+    the same physical region across datasets with different acquisition
+    spans. Opt-in only (``preprocessing_config={"crop_physical": True}``) —
+    excluded from the ``preprocessing: true`` "enable everything" shorthand.
 
 """
 
@@ -44,6 +51,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     baseline_correction_asls,
     cosmic_ray_removal,
     crop_spectra,
+    crop_spectra_physical,
     denoise_savgol,
     emsc_fit,
     emsc_transform,
@@ -68,6 +76,7 @@ __all__ = [
     "baseline_correction_asls",
     "cosmic_ray_removal",
     "crop_spectra",
+    "crop_spectra_physical",
     "denoise_savgol",
     "emsc_fit",
     "emsc_transform",
