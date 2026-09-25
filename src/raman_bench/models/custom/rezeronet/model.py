@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from raman_bench.models.custom.base import BaseRamanEstimator
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _RamanDLBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _RamanDLBase
 
 
 class _DepthwiseSeparableConv1d(nn.Module):
@@ -212,7 +212,7 @@ class ReZeroNetModel(BaseRamanEstimator):
         return self
 
 
-class _ReZeroNetBridge(SklearnAutoGluonBridge):
+class _ReZeroNetBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = ReZeroNetModel
     ag_key = "REZERONET"
     ag_name = "ReZeroNet"

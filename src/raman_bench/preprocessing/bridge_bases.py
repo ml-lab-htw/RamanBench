@@ -93,6 +93,35 @@ class SklearnAutoGluonBridge(AbstractModel):
         return {}
 
 
+class _GPURequiredBridge:
+    """Mixin declaring to AutoGluon's own resource manager that this model needs a GPU.
+
+    ``AbstractModel``'s defaults are ``minimum_num_gpus=0`` / ``default_num_gpus=0``
+    / ``gpu_required=False`` -- a subclass must explicitly opt in via these class
+    attributes (or override ``get_minimum_resources``/``_get_default_resources``),
+    or AutoGluon's own ``SequentialLocalFoldFittingStrategy`` allocates ``gpus=0``
+    to it regardless of the pod's actual GPU, RamanBench's own ``--use-gpu`` CLI
+    flag (confirmed unused for this purpose -- ``scripts/run_experiment.py``'s
+    ``_resolve_num_gpus`` is computed and logged but never actually wired into the
+    fit call), or ``cluster/gpu_models.json``'s own GPU-tier tagging. This is not
+    just a resource-bookkeeping label mismatch: confirmed empirically (2026-09-25,
+    a peer session's real 18-task cluster test, job 188906) that a model without
+    this declaration measurably runs CPU-only -- e.g. one fold of ``REZERONET``
+    took >9.75 minutes on CPU vs ~1-2 minutes for a model that does declare GPU
+    need. Every RamanBench custom-architecture ``_XBridge(SklearnAutoGluonBridge)``
+    class tagged GPU-tier in ``cluster/gpu_models.json`` needs this mixin ahead of
+    ``SklearnAutoGluonBridge`` in its own class's bases -- confirmed as a real,
+    previously-undiscovered gap across all 9 GPU-tier custom architectures
+    (COATNET, DEEPCNN, FCRESNEXT, RAMANFORMER, RAMANNET, RAMANPFN,
+    RAMANTRANSFORMER, REZERONET, SANET), none of which declared this before.
+    CPU-tier custom models sharing the same ``SklearnAutoGluonBridge`` base
+    (PLS, ROCKET, HYDRA, etc.) must NOT get this mixin.
+    """
+
+    minimum_num_gpus = 1
+    default_num_gpus = 1
+
+
 class _NoAugBase(RamanPreprocessingMixin):
     """Disable preprocessing augmentation by default."""
 

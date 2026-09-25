@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 from raman_bench.models.custom.base import BaseRamanEstimator
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _RamanDLBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _RamanDLBase
 
 
 class _DeepCNNNetwork(nn.Module):
@@ -129,7 +129,7 @@ class DeepCNNModel(BaseRamanEstimator):
         return self
 
 
-class _DeepCNNBridge(SklearnAutoGluonBridge):
+class _DeepCNNBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = DeepCNNModel
     ag_key = "DEEPCNN"
     ag_name = "DeepCNN"
