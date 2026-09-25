@@ -149,7 +149,7 @@ If you're about to start significant work, create a feature branch, but assume m
 
 - Public repo: https://github.com/ml-lab-htw/RamanBench
 - PyPI: https://pypi.org/project/raman-bench/
-- Paper: https://arxiv.org/abs/2605.02003
+- Paper: https://arxiv.org/abs/2605.02003 (accepted at NeurIPS 2026)
 - Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
 - Upstream TabArena: https://github.com/ml-lab-htw/tabarena (our fork; original at https://github.com/automl/tabarena)
 - raman_data: https://github.com/ml-lab-htw/raman_data
