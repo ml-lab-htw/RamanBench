@@ -49,8 +49,9 @@
     ],
     "n_splits": 3,
     "num_random_configs": 0,
-    "num_bag_folds": 8,
-    "time_limit": 3600,
+    "_comment_compute_scaling": "num_bag_folds (was 8) and time_limit (was 3600) both cut 2026-09-25 as a deliberate compute-scaling decision, alongside target_list.json's n_repeats=1 (see configs/v1/README.md). Impact differs by model class: compute-bound models (LIMIX/TABICL/TABFM/TabPFN-family -- finish well under their old time budget regardless of fold count) get a roughly proportional ~(3/8) compute cut per task with no real quality risk. Time-budget-bound models (MITRA is the confirmed case: consistently used ~59 of its 60 allotted minutes every fold, never early-stopping) are a real risk here -- AutoGluon's fold time-budgeting (time_limit_fold = (time_left/folds_left)*0.8) means the full 600s is now split across only 3 folds instead of 8, so MITRA-class fine-tuning gets meaningfully fewer training epochs per fold than before, likely undertrained relative to its earlier (still not fully converged) runs. Not fixed here -- flagged so a future review of MITRA/RAMANFORMER/REALMLP/TABM-class results interprets a score drop correctly (compute starvation, not necessarily a worse architecture). model_time_limit_overrides below are unaffected (they're already-calibrated absolute floors well above 600s for specific slow/wide (model, dataset) pairs) and stay in force.",
+    "num_bag_folds": 3,
+    "time_limit": 600,
     "time_limit_overrides": {
         "mlrod": 10800
     },
