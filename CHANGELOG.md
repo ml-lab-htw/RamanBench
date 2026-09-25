@@ -11,6 +11,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **All 9 GPU-tier custom PyTorch architectures (COATNET, DEEPCNN, FCRESNEXT,
+  RAMANFORMER, RAMANNET, RAMANPFN, RAMANTRANSFORMER, REZERONET, SANET) never
+  declared a GPU resource requirement to AutoGluon's own resource manager** —
+  a real, previously-undiscovered bug, confirmed via a peer session's real
+  18-task cluster test (job 188906, 2026-09-25): `AbstractModel`'s
+  `minimum_num_gpus`/`default_num_gpus`/`gpu_required` all default to
+  `0`/`0`/`False`, and none of RamanBench's custom architectures ever
+  overrode them, so AutoGluon's `SequentialLocalFoldFittingStrategy`
+  allocated `gpus=0` to every one of them regardless of the pod's actual GPU,
+  `--use-gpu`, or `cluster/gpu_models.json`'s own GPU-tier tagging
+  (`scripts/run_experiment.py`'s `_resolve_num_gpus` is computed and logged
+  but never actually wired into the fit call). Not just a bookkeeping
+  mismatch — measurably ran CPU-only (`REZERONET` took >9.75 min/fold on CPU
+  vs ~1-2 min for a model that does declare GPU need). Fixed via a new
+  `raman_bench.preprocessing.bridge_bases._GPURequiredBridge` mixin, added
+  ahead of `SklearnAutoGluonBridge` in each affected model's own
+  `_XBridge(...)` class. CPU-tier custom models sharing the same
+  `SklearnAutoGluonBridge` base (PLS, ROCKET, HYDRA, ...) are confirmed
+  unaffected. **Real end-to-end GPU dispatch verification is pending** — the
+  local dev machine has no GPU, so only the resource-declaration mechanism
+  itself was verified locally; real confirmation needs a cluster resubmission.
+
 - **`run_one` now skips (uses as-is) an already-cached `results.pkl` instead of
   attempting to refit it**, if one already exists at that
   `(model, dataset, repeat, fold)` cache path. Real production bug: after

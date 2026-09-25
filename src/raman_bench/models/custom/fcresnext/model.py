@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 from raman_bench.models.custom.base import BaseRamanEstimator
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _RamanDLBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _RamanDLBase
 
 
 class _ResNeXtBlock(nn.Module):
@@ -151,7 +151,7 @@ class FCResNeXtModel(BaseRamanEstimator):
         return self
 
 
-class _FCResNeXtBridge(SklearnAutoGluonBridge):
+class _FCResNeXtBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = FCResNeXtModel
     ag_key = "FCRESNEXT"
     ag_name = "FCResNeXt"

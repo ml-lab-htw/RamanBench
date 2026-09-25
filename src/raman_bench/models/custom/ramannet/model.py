@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 from raman_bench.models.custom.base import BaseRamanEstimator
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _RamanDLBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _RamanDLBase
 
 
 class _RamanNetNetwork(nn.Module):
@@ -145,7 +145,7 @@ class RamanNetModel(BaseRamanEstimator):
         return self
 
 
-class _RamanNetBridge(SklearnAutoGluonBridge):
+class _RamanNetBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = RamanNetModel
     ag_key = "RAMANNET"
     ag_name = "RamanNet"

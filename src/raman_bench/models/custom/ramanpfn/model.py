@@ -90,7 +90,7 @@ from __future__ import annotations
 import numpy as np
 from sklearn.base import BaseEstimator
 
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _NoAugBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _NoAugBase
 from raman_bench.preprocessing.raman_preprocessing import (
     gcu_fit,
     gcu_transform,
@@ -278,7 +278,7 @@ class RamanPFNModel(BaseEstimator):
         return aligned
 
 
-class _RamanPFNBridge(SklearnAutoGluonBridge):
+class _RamanPFNBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = RamanPFNModel
     ag_key = "RAMANPFN"
     ag_name = "RamanPFN"

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from raman_bench.models.custom.base import BaseRamanEstimator
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _RamanDLBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _RamanDLBase
 
 
 class _PositionalEncoding(nn.Module):
@@ -205,7 +205,7 @@ class RamanFormerModel(BaseRamanEstimator):
         return self
 
 
-class _RamanFormerBridge(SklearnAutoGluonBridge):
+class _RamanFormerBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = RamanFormerModel
     ag_key = "RAMANFORMER"
     ag_name = "RamanFormer"

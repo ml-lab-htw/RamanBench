@@ -10,7 +10,7 @@ from raman_bench.models.custom.rezeronet.model import (  # noqa: F401
     _DepthwiseSeparableConv1d,
     _ReZeroBlock,
 )
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _RamanDLBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _RamanDLBase
 
 
 class _SelfAttention1d(nn.Module):
@@ -199,7 +199,7 @@ class CoAtNetModel(BaseRamanEstimator):
         return self
 
 
-class _CoAtNetBridge(SklearnAutoGluonBridge):
+class _CoAtNetBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = CoAtNetModel
     ag_key = "COATNET"
     ag_name = "CoAtNet"

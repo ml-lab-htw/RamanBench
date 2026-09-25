@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F  # noqa: N812
 
 from raman_bench.models.custom.base import BaseRamanEstimator
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _RamanDLBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _RamanDLBase
 
 
 class _MultiScaleBlock(nn.Module):
@@ -188,7 +188,7 @@ class SANetModel(BaseRamanEstimator):
         return self
 
 
-class _SANetBridge(SklearnAutoGluonBridge):
+class _SANetBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = SANetModel
     ag_key = "SANET"
     ag_name = "SANet"
