@@ -40,23 +40,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
   already-calibrated absolute floors well above 600s and stay in force. See
   `configs/v1/scope_default.json`'s new `_comment_compute_scaling`.
 
-- **Wired `scripts/run_experiment.py` into TabArena's own built-in small-dataset
-  regime** (`ValidationProtocol(..., tiny_num_bag_folds=2, tiny_num_bag_sets=1,
-  tiny_max_group_instances=100)`) instead of a new RamanBench-side formula —
-  any dataset whose real training-partition size (resolved by TabArena itself
-  at fit time, not a pre-split estimate) falls under 100 now gets TabArena's
-  own hard minimum of 2 bag folds. This is the closest available equivalent to
-  "disable bagging" for a small dataset: true single-holdout (0 or 1 fold,
-  achievable in the old v0.1 pipeline via a direct AutoGluon kwarg) is **not**
-  reachable in v1 — `tabarena.benchmark.validation_protocol.ValidationProtocol`
-  hard-rejects `num_bag_folds < 2` for either the main or tiny regime
-  (`ValidationProtocol(num_bag_folds=1)` raises `"num_bag_folds must be an int
-  >= 2, got 1"`). Separate from, and on top of, the pre-existing
-  `min_class_count`/`n_train_est`-based crash-prevention formula
-  (`resolve_effective_bag_folds`, added for a real production crash on a
-  20-row dataset) — that one reacts to class imbalance specifically, which a
-  flat row-count threshold alone wouldn't catch on an otherwise-large,
-  severely imbalanced dataset. The two are independent and both apply.
+- **`num_bag_folds` no longer scales down for small/imbalanced datasets at
+  all** — a deliberate 2026-09-25 policy decision: bagging stays at the
+  configured value (currently 3) regardless of dataset size or class balance.
+  A model that fails on a tiny dataset (e.g. an entirely-one-class validation
+  fold crashing AutoGluon's ROC AUC computation, the real incident that
+  originally motivated scaling folds down) is now an accepted outcome, not
+  something this pipeline works around. This reverts, same day, both the
+  pre-existing `min_class_count`/`n_train_est`-based crash-prevention formula
+  and the TabArena tiny-regime wiring (`ValidationProtocol`'s
+  `tiny_num_bag_folds`/`tiny_max_group_instances`) briefly added earlier —
+  neither had actually reached the cluster yet (the running k8s image
+  predates both changes), so this is a pure source-level reversal with no
+  live-job impact.
 
 ### Fixed (paper-fidelity — pending real-cluster validation)
 
