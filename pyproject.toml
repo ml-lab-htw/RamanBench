@@ -248,6 +248,16 @@ models = [
     # rather than force-downgrading torch for every other GPU model in this
     # extras group.
     "causilo>=1.0.0",
+    # fastai (Prep_FASTAI) -- referenced by name in the causilo/torch-ceiling note
+    # just above, but never actually declared as its own dependency anywhere in
+    # this extras group, a real gap: confirmed live on the k8s cluster, every
+    # FASTAI task failed with "ModuleNotFoundError: No module named 'fastai'"
+    # (autogluon.tabular's own try_import_fastai has no hard dependency on the
+    # package -- AutoGluon only imports it lazily inside NeuralNetFastAiModel._fit,
+    # so a missing `fastai` install is silent until the first real fit). No version
+    # pin needed beyond what's already noted above (torch<2.10 ceiling, confirmed
+    # benign under torch 2.14).
+    "fastai",
     # torchvision was NOT previously declared anywhere in this dependency tree
     # -- it only arrived transitively (torchmetrics -> torchvision, pulled in
     # by pytorch_lightning -> pytabkit -> AutoGluon's RealMLP integration,

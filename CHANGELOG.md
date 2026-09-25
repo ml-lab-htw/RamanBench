@@ -29,6 +29,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the end of the manual k8s resubmission queue this session is tracking — it will
   be resubmitted, just deliberately last rather than immediately.
 
+### Fixed
+
+- **`fastai` package missing from the `models` extra** (`pyproject.toml`) —
+  `Prep_FASTAI` was referenced in a neighboring comment but the `fastai` package
+  itself was never actually declared as a dependency, so every FASTAI task on the
+  k8s cluster failed with `ModuleNotFoundError: No module named 'fastai'`
+  (AutoGluon's own `try_import_fastai` is a lazy import, so this was silent until
+  the first real fit). Added `fastai` to the `models` extra.
+
 ### Fixed (documentation)
 
 - **Two wrong paper references on the public leaderboard** (`HF_spaces/RamanBench`
