@@ -74,17 +74,26 @@ def _exec_python(namespace: str, pod: str, script: str) -> str:
 
 def _compute_partition_totals(
     scope_path: Path, targets_path: Path
-) -> tuple[dict, dict, int, int, set[str]]:
+) -> tuple[dict, dict, int, int, set[str], dict[str, int]]:
     """Per-dataset expected task counts (n_repeats * n_splits), split into the full-
     and large-partition dicts {dataset: expected_tasks}, plus their sums, plus the
     set of excluded ``"{dataset}__{target_idx}"`` keys (same on-disk naming as
     ``main()``'s ``dataset_target``) -- so completed results.pkl files for a target
     that's since been quality-excluded (``configs/v1/quality_exclusions.json``,
     see ``EXCLUDED_TARGETS.md``) can be excluded from the numerator too, not just
-    the denominator. Without this, a model that already ran against a target
-    before it was excluded reports >100% (real bug, hit in practice: v1's own
-    quality-exclusions rollout dropped the denominator by 25 targets while
-    already-completed results.pkl files for those targets stayed on disk).
+    the denominator. Without this, a model that already ran before the exclusion
+    (or, see the last return value's docstring, before a lowered n_repeats) reports
+    >100%.
+
+    Also returns ``dataset_target_n_repeats``: ``{"{dataset}__{target_idx}":
+    n_repeats}`` for every non-excluded target, so ``main()`` can drop a completed
+    ``results.pkl`` whose own ``repeat`` index is at or beyond the target's
+    *current* ``n_repeats`` from the numerator too. Real bug hit in practice: after
+    ``n_repeats`` was cut from TabArena's adaptive 10/3/1 schedule to a flat 1
+    (2026-09-25 compute-scaling decision), models that had already completed
+    ``repeat=1..9`` before that change kept counting those old results toward
+    "done" while the denominator shrank to just ``repeat=0``'s tasks -- same
+    >100% failure mode as the quality-exclusions case, different trigger.
     """
     scope = json.loads(scope_path.read_text())
     n_splits = scope["n_splits"]
@@ -94,11 +103,15 @@ def _compute_partition_totals(
     full_by_dataset: dict = defaultdict(int)
     large_by_dataset: dict = defaultdict(int)
     excluded_dataset_targets: set[str] = set()
+    dataset_target_n_repeats: dict[str, int] = {}
     for t in targets:
+        key = f"{t['dataset']}__{t['target_idx']}"
         if t.get("excluded"):
-            excluded_dataset_targets.add(f"{t['dataset']}__{t['target_idx']}")
+            excluded_dataset_targets.add(key)
             continue
-        tasks = t.get("n_repeats", 10) * n_splits
+        n_repeats = t.get("n_repeats", 10)
+        dataset_target_n_repeats[key] = n_repeats
+        tasks = n_repeats * n_splits
         if t["dataset"] in large_datasets:
             large_by_dataset[t["dataset"]] += tasks
         else:
@@ -109,6 +122,7 @@ def _compute_partition_totals(
         sum(full_by_dataset.values()),
         sum(large_by_dataset.values()),
         excluded_dataset_targets,
+        dataset_target_n_repeats,
     )
 
 
@@ -126,9 +140,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    full_by_dataset, large_by_dataset, full_total_all, large_total_all, excluded_dataset_targets = (
-        _compute_partition_totals(args.scope, args.targets)
-    )
+    (
+        full_by_dataset,
+        large_by_dataset,
+        full_total_all,
+        large_total_all,
+        excluded_dataset_targets,
+        dataset_target_n_repeats,
+    ) = _compute_partition_totals(args.scope, args.targets)
 
     pod = _pick_any_running_pod(args.namespace)
 
@@ -147,7 +166,7 @@ def main() -> None:
         parts = rel.split("/")
         if len(parts) != 4:
             continue
-        model_dir, dataset_target, _repeat_fold, _ = parts
+        model_dir, dataset_target, repeat_fold, _ = parts
         if not model_dir.endswith("_c1_BAG_L1"):
             continue
         if dataset_target in excluded_dataset_targets:
@@ -156,6 +175,20 @@ def main() -> None:
             # tasks_done can exceed tasks_total for a model that ran before the
             # exclusion existed.
             continue
+        n_repeats = dataset_target_n_repeats.get(dataset_target)
+        if n_repeats is not None:
+            repeat_str, _, _fold_str = repeat_fold.partition("_")
+            try:
+                repeat = int(repeat_str)
+            except ValueError:
+                repeat = None
+            if repeat is not None and repeat >= n_repeats:
+                # A completed result whose repeat index is at or beyond this
+                # target's CURRENT n_repeats (see _compute_partition_totals's
+                # docstring) -- e.g. a repeat=3 result from before n_repeats was
+                # cut to 1. Don't count it, same >100% failure mode as the
+                # quality-exclusions case above, different trigger.
+                continue
         ag_name = model_dir[: -len("_c1_BAG_L1")]
         key = ag_name_to_key.get(ag_name)
         if key is None:
