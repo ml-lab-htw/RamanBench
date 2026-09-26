@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- **`TABSTAR` excluded from the routine sweep** (`configs/v1/scope_default.json`,
+  down to 42 models) — confirmed too slow for the 600s/3-bag-fold budget: it
+  trains up to 10,000 epochs at ~58s/epoch, so every fit runs until the time
+  budget cuts it off after ~9-10 epochs, never converging. Also hits a real
+  `torch.OutOfMemoryError` mid-backward-pass on several datasets (a
+  text-embedding-based model whose memory scales with dataset vocabulary/
+  feature complexity, not just row count). Existing results stay as
+  historical data, same convention as `TABPFN-WIDE`'s earlier removal.
+
 ### Added
 
 - **`model_max_train_samples_overrides` extended to MITRA, TABFM, REALTABPFN-V2,
