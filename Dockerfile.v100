@@ -21,22 +21,41 @@
 # faster) cu130 build for A100/H100/H200/B200.
 FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
 
+# build-essential: same reason as the main Dockerfile -- torch>=2.13 (still
+# true here, just a different CUDA build of the same 2.13.0 release) pulls in
+# a triton version whose kernels are JIT-compiled at call time via
+# `triton.runtime.build`, which shells out to `cc`. Missing here until a real
+# smoke test caught it (a single-target ILTM job failed before even reaching
+# that path, on the missing tabarena import below -- but this would have been
+# the next failure once that was fixed).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
+        build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
+# Same two-step install as the main Dockerfile (see its own comment for the
+# full rationale) -- missing here until a real smoke test caught it: every
+# task on this image failed with "ModuleNotFoundError: No module named
+# 'tabarena'" (confirmed live via a real single-target ILTM job on an actual
+# V100 pod), since this file never had the requirements-tabarena-git.txt /
+# requirements-models-git.txt install steps the main Dockerfile has.
+COPY pyproject.toml README.md requirements-tabarena-git.txt requirements-models-git.txt ./
 COPY src ./src
-RUN pip install --no-cache-dir --pre -e ".[models,benchmark,tracking]"
+RUN pip install --no-cache-dir --pre -e ".[models,benchmark,tracking]" \
+    && pip install --no-cache-dir --pre -r requirements-tabarena-git.txt \
+    && pip install --no-cache-dir --pre -r requirements-models-git.txt \
+    && pip uninstall -y torchaudio
 
-# The only real difference from the main Dockerfile: force torch onto a
+# The only intentional difference from the main Dockerfile: force torch onto a
 # cu126 build (V100/Volta-compatible) after the main resolve already picked
 # whatever CUDA variant it wanted. Same torch version (2.13.0) as the main
 # image -- only the bundled CUDA kernels differ -- so this doesn't change
 # which API surface autogluon/tabarena/etc. see, only which GPU archs the
-# actual kernels support.
+# actual kernels support. Placed AFTER the tabarena/models-git installs above
+# (not before) so neither of those can pull torch back onto its own default
+# cu130 resolve as a transitive dependency.
 #
 # --force-reinstall is required, not optional: without it, pip sees
 # "torch==2.13.0" as already satisfied by the installed "2.13.0+cu130" (pip

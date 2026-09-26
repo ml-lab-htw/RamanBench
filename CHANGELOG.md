@@ -11,6 +11,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`Dockerfile.v100` missing `tabarena`/`requirements-models-git.txt`/`build-essential`**
+  — confirmed as a real production failure via a real single-target ILTM smoke test
+  on an actual V100 pod: every task failed with `ModuleNotFoundError: No module
+  named 'tabarena'`, since this file never had the two-step install the main
+  `Dockerfile` has (see its own comment). Also missing `build-essential`
+  (needed for triton JIT on torch>=2.13, same class of bug the main Dockerfile
+  already documents fixing) and the `torchaudio` uninstall. Rebuilt+repushed
+  `registry.datexis.com/mkoddenbrock-ext/ramanbench:v1-v100`; a real GPU-kernel
+  smoke test (`sm_70` present, real matmul) had already confirmed the CUDA/torch
+  side works, this fixes the application-layer gap on top of that.
+
 - **`kubectl apply --validate=false`** (`cluster/submit_job.py`'s k8s configmap/Job
   applies, `cluster/sync_results.py`'s helper-pod apply) — client-side `kubectl apply`
   downloads the full OpenAPI schema on every call to validate against it; this
