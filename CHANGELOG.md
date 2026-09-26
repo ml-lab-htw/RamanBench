@@ -9,6 +9,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`Prep_NORI` now wraps `Nori30MModel`, not the base `NoriModel`**
+  (`src/raman_bench/preprocessing/wrapped_models.py`) — confirmed as a real
+  production failure on the k8s cluster: `NoriModel` leaves `NoriRegressor`'s
+  `model=` variant kwarg unset, and `synthefy_nori`'s own auto-selection only
+  resolves it for some datasets (deterministic per-dataset, not flaky —
+  `alzheimer`/`cancer_cell_cooh`/`parkinson` always succeeded,
+  `amino_acids_glycine`/`ecoli_fermentation`/`fuel_benchtop` always failed with
+  `ValueError: download_checkpoint requires model= (...) or an explicit
+  repo_id=`). `Nori30MModel` is tabarena's own fix for exactly this — its
+  `_set_default_params` explicitly sets `model="nori-30m"`. Also confirmed,
+  separately, that NORI's previously-suspected torch/causilo dependency
+  conflict is not real in practice: both packages coexist and import fine in
+  the deployed image (the declared `ResolutionImpossible` is a static
+  metadata conflict that pip's two-step install never actually enforces).
+
 ### Changed
 
 - **`max_train_samples_overrides` extended to `wheat_lines` and `bacteria_identification`**
