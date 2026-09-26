@@ -143,6 +143,8 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # fine-tuned tabular *foundation* models (in-context learning or LoRA
     # fine-tuning), unlike batch 2's tree/boosting family.
     "NoriModel": "tabarena.models.nori.model",
+    # Nori-30M (not the base NoriModel above): see Prep_NORI's own comment below for why.
+    "Nori30MModel": "tabarena.models.nori.model",
     "SAPRPTOSSModel": "tabarena.models.sap_rpt_oss.model",
     "OrionMSPModel": "tabarena.models.orionmsp.model",
     "ILTMModel": "tabarena.models.iltm.model",
@@ -570,7 +572,19 @@ Prep_CHIMERABOOST = _make_optional_prep_class(
 # collision. TabSTARModel's own ag_key ("TABSTAR") already matches exactly -- no
 # override needed (nor is ag_name: "TabSTAR" doesn't collide with anything already
 # in this registry).
-Prep_NORI = _make_optional_prep_class("Prep_NORI", NoriModel, ag_key="NORI")
+# Wraps Nori30MModel, not the base NoriModel -- confirmed as a real production
+# failure on the k8s cluster: NoriModel leaves NoriRegressor's `model=` variant
+# kwarg unset, and synthefy_nori.hf.download_checkpoint's own auto-selection
+# only works for some datasets (deterministic per-dataset, not flaky -- e.g.
+# alzheimer/cancer_cell_cooh/parkinson always succeeded, amino_acids_glycine/
+# ecoli_fermentation/fuel_benchtop always failed with "ValueError:
+# download_checkpoint requires model= ('nori-6m'/'nori-30m'/'nori-100m') or an
+# explicit repo_id="). Nori30MModel is tabarena's own fix for exactly this --
+# its `_set_default_params` explicitly sets `model="nori-30m"`, sidestepping
+# the broken auto-selection entirely. ag_key overridden to "NORI" (not
+# Nori30MModel's own "TA-NORI-30M") since RamanBench only wraps one Nori
+# variant, matching every other single-variant entry in this registry.
+Prep_NORI = _make_optional_prep_class("Prep_NORI", Nori30MModel, ag_key="NORI")
 Prep_SAP_RPT_OSS = _make_optional_prep_class(
     "Prep_SAP_RPT_OSS", SAPRPTOSSModel, ag_key="SAP_RPT_OSS"
 )
