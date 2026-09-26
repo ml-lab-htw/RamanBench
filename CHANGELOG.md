@@ -9,6 +9,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Per-model row-subsampling override** (`configs/v1/scope_default.json`'s
+  `model_max_train_samples_overrides`, `cluster/submit_job.py`'s
+  `resolve_max_train_samples`) — on top of the existing global, dataset-keyed
+  `max_train_samples_overrides`, a model can now get its own cap (flat, across
+  every dataset, or dataset-keyed, mirroring `model_time_limit_overrides`'s
+  shape). When both apply, the smaller cap wins. Applied to
+  `PERPETUAL_BOOSTER` (3000 rows) after a real `OOMKilled` crash on
+  `wheat_lines` — already capped to 10000 rows, only 1738 features/44MB, yet
+  OOMKilled a 256GB pod within ~27s, pointing to a per-fit memory blowup in
+  the `perpetual` library itself rather than anything row-count-driven; this
+  is a cheap mitigation attempt, not a confirmed fix.
+
 ### Fixed
 
 - **`Dockerfile.v100` missing `tabarena`/`requirements-models-git.txt`/`build-essential`**
