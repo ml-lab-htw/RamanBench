@@ -126,7 +126,12 @@ def sync_via_pod(
         if dry_run:
             print(manifest)
         else:
-            subprocess.run(["kubectl", "apply", "-f", "-"], input=manifest, text=True, check=True)
+            # --validate=false: see cluster/submit_job.py's own comment on the same
+            # flag -- client-side `kubectl apply` schema validation has repeatedly
+            # timed out against this cluster's API server.
+            subprocess.run(
+                ["kubectl", "apply", "--validate=false", "-f", "-"], input=manifest, text=True, check=True,
+            )
             print("Waiting for helper pod to become Ready...")
             subprocess.run(
                 ["kubectl", "wait", "--for=condition=Ready", f"pod/{_HELPER_POD_NAME}",
