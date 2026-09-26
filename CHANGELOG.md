@@ -11,6 +11,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`model_max_train_samples_overrides` extended to MITRA, TABFM, REALTABPFN-V2,
+  REALTABPFN-V2.5, TABICL** (5000 rows each) — all confirmed `TimeLimitExceeded`
+  on `wheat_lines`/`mlrod` even at the global 10000-row cap; unlike
+  `PERPETUAL_BOOSTER`'s OOM, these are genuinely row-count-driven
+  (foundation/transformer models whose per-fit cost scales with training-set
+  size). `TABICL`'s `NotEnoughCudaMemoryError` is the same driver from a
+  different angle — an in-context transformer whose GPU memory scales with
+  training rows held in context.
+
 - **Per-model row-subsampling override** (`configs/v1/scope_default.json`'s
   `model_max_train_samples_overrides`, `cluster/submit_job.py`'s
   `resolve_max_train_samples`) — on top of the existing global, dataset-keyed
