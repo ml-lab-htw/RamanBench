@@ -108,12 +108,19 @@ def main():
     # big-GPU pod routing) is loaded from the same scope file.
     large_datasets: set[str] = set()
     max_train_samples_overrides: dict[str, int] = {}
+    model_max_train_samples_override: dict[str, int] | int | None = None
     scope_path = Path(args.scope) if args.scope else CLUSTER_DIR.parent / "configs" / "v1" / "scope_default.json"
     if scope_path.exists():
         with open(scope_path) as f:
             scope_data = json.load(f)
         large_datasets = set(scope_data.get("large_datasets", []))
         max_train_samples_overrides = scope_data.get("max_train_samples_overrides", {})
+        # Per-model row-subsampling cap (e.g. {"PERPETUAL_BOOSTER": 3000}), applied
+        # across EVERY dataset for that model -- not just the ones already in
+        # max_train_samples_overrides above. See submit_job.resolve_max_train_samples's
+        # docstring for why (a real OOMKilled crash, not row-count-driven, but cheap
+        # to try shrinking further regardless).
+        model_max_train_samples_override = scope_data.get("model_max_train_samples_overrides", {}).get(args.model)
 
     if profile.get("backend") == "k8s":
         # One pod for THIS MODEL'S ENTIRE sweep across every target -- unlike
@@ -149,6 +156,7 @@ def main():
                 results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                 profile=profile, throttle=args.throttle, dry_run=args.dry_run,
                 max_train_samples_overrides=max_train_samples_overrides,
+                model_max_train_samples_overrides=model_max_train_samples_override,
             )
         if large_targets:
             large_jobs = _jobs_for(large_targets)
@@ -173,6 +181,7 @@ def main():
                 results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                 profile=big_gpu_profile, throttle=args.throttle, dry_run=args.dry_run,
                 max_train_samples_overrides=max_train_samples_overrides,
+                model_max_train_samples_overrides=model_max_train_samples_override,
             )
         print(f"Done: {len(all_job_ids)} k8s Job(s) created: {all_job_ids}")
         return
@@ -192,8 +201,18 @@ def main():
             "--results-dir", args.results_dir, "--cache-dir", args.cache_dir,
             "--throttle", str(args.throttle),
         ]
+        # Same min-combine as submit_job.resolve_max_train_samples -- the global
+        # dataset-keyed cap and this model's own cap (flat or dataset-keyed) can
+        # both apply; the smaller one wins.
+        task_caps = []
         if t["dataset"] in max_train_samples_overrides:
-            cmd += ["--max-train-samples", str(max_train_samples_overrides[t["dataset"]])]
+            task_caps.append(max_train_samples_overrides[t["dataset"]])
+        if isinstance(model_max_train_samples_override, int):
+            task_caps.append(model_max_train_samples_override)
+        elif model_max_train_samples_override and t["dataset"] in model_max_train_samples_override:
+            task_caps.append(model_max_train_samples_override[t["dataset"]])
+        if task_caps:
+            cmd += ["--max-train-samples", str(min(task_caps))]
         if args.profile:
             cmd += ["--profile", args.profile]
         if args.cluster:
