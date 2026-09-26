@@ -11,6 +11,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`max_train_samples_overrides` extended to `wheat_lines` and `bacteria_identification`**
+  (`configs/v1/scope_default.json`) — same flat 10000-row cap already applied to `mlrod`,
+  after the identical `TimeLimitExceeded` pattern was confirmed live for these two other
+  row-count outliers in `large_datasets` (COATNET, SANET, ROCKET, TABICLV2, all on GPU).
+
+
 - **`RAMANTRANSFORMER` briefly excluded, then restored the same day** (still 43
   models in `configs/v1/scope_default.json`) — initially removed as the
   worst-performing custom architecture in the v0.1 leaderboard, sharing the same
