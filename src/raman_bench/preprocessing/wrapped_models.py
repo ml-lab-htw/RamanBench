@@ -519,13 +519,14 @@ Prep_TABICLV2 = _make_optional_prep_class("Prep_TABICLV2", TabICLv2Model, ag_key
 # the codebook and training data, then fits each sub-estimator lazily, inside
 # the first `predict`/`predict_proba` call. Against the one dataset in this
 # batch large enough to matter (`bacteria_identification`, capped to 10,000
-# rows by `max_train_samples_overrides`), that lazy fit alone ran past 30
-# minutes wall-clock in a real cluster test before being superseded by a
-# faster synthetic-data check -- far past the routine sweep's 600s per-task
-# `time_limit`. So for that one dataset specifically, this fix trades one
+# rows by `max_train_samples_overrides`), that lazy fit completed successfully
+# (0.86 accuracy, correct proba shape) but took ~15 minutes wall-clock in a
+# real cluster test -- past the routine sweep's 600s per-task `time_limit`,
+# though that test ran on a GPU shared with another live job, so an isolated
+# production pod may well come in faster. Worst case, this dataset trades one
 # failure mode for another (`TabPFNValidationError` crash -> `TimeLimitExceeded`
-# timeout) rather than actually producing a result; still strictly no worse
-# than before it (still no `results.pkl`), so left enabled rather than
+# timeout) rather than producing a result -- still strictly no worse than
+# before it (no `results.pkl` either way), so left enabled rather than
 # special-cased. The other four confirmed many-class datasets this fixes
 # (`pharmaceutical_ingredients` 3,510 rows, `rruff_mineral_raw` 1,162,
 # `cancer_cell_nh2`/`cancer_cell_cooh` ~632 each) are all far smaller and
