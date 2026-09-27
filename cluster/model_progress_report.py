@@ -74,7 +74,7 @@ def _exec_python(namespace: str, pod: str, script: str) -> str:
 
 def _compute_partition_totals(
     scope_path: Path, targets_path: Path
-) -> tuple[dict, dict, int, int, set[str], dict[str, int]]:
+) -> tuple[dict, dict, int, int, set[str], dict[str, int], set[str]]:
     """Per-dataset expected task counts (n_repeats * n_splits), split into the full-
     and large-partition dicts {dataset: expected_tasks}, plus their sums, plus the
     set of excluded ``"{dataset}__{target_idx}"`` keys (same on-disk naming as
@@ -94,10 +94,17 @@ def _compute_partition_totals(
     ``repeat=1..9`` before that change kept counting those old results toward
     "done" while the denominator shrank to just ``repeat=0``'s tasks -- same
     >100% failure mode as the quality-exclusions case, different trigger.
+
+    Also returns ``active_models``: ``scope["models"]`` as a set, so ``main()``
+    can drop rows for models that have since been removed from the routine sweep
+    (e.g. TABSTAR, TABPFN-WIDE) but still have historical results.pkl files on
+    disk from before their removal -- without this, they'd keep showing up
+    stuck at their last-attempted %, indistinguishable from a real stalled model.
     """
     scope = json.loads(scope_path.read_text())
     n_splits = scope["n_splits"]
     large_datasets = set(scope.get("large_datasets", []))
+    active_models = set(scope["models"])
     targets = json.loads(targets_path.read_text())
 
     full_by_dataset: dict = defaultdict(int)
@@ -123,6 +130,7 @@ def _compute_partition_totals(
         sum(large_by_dataset.values()),
         excluded_dataset_targets,
         dataset_target_n_repeats,
+        active_models,
     )
 
 
@@ -147,6 +155,7 @@ def main() -> None:
         large_total_all,
         excluded_dataset_targets,
         dataset_target_n_repeats,
+        active_models,
     ) = _compute_partition_totals(args.scope, args.targets)
 
     pod = _pick_any_running_pod(args.namespace)
@@ -199,7 +208,7 @@ def main() -> None:
         else:
             done_full[key][dataset] += 1
 
-    all_keys = sorted(set(done_full) | set(done_large))
+    all_keys = sorted((set(done_full) | set(done_large)) & active_models)
     rows = []
     for key in all_keys:
         full_done = sum(done_full[key].values())
