@@ -360,9 +360,11 @@ def run_one(
         raise RuntimeError(f"Failed to load dataset {dataset_name!r}")
 
     df = dataset.to_dataframe(target_idx)
+    sample_idx = None
     if max_train_samples is not None and len(df) > max_train_samples:
         n_before = len(df)
         df = df.sample(n=max_train_samples, random_state=0)
+        sample_idx = df.index.to_numpy()
         logger.info(
             "Subsampled %s: %d -> %d rows (max_train_samples=%d); this is a real change to "
             "what is measured for this dataset, not a performance-neutral optimisation.",
@@ -448,7 +450,15 @@ def run_one(
     # why this is invalid for classification) rather than silently running
     # every dataset ungrouped.
     if GROUP_COL not in df.columns and problem_type == "regression":
-        inferred = infer_group_ids_from_targets(dataset.targets)
+        # dataset.targets is row-aligned with the FULL dataframe returned by
+        # to_dataframe() (both indexed 0..n-1 positionally) -- if max_train_samples
+        # subsampled df above, sample_idx re-selects the matching rows so
+        # `inferred` comes back the same length as (already-subsampled) df,
+        # not the pre-subsample dataset size.
+        targets_for_grouping = (
+            dataset.targets[sample_idx] if sample_idx is not None else dataset.targets
+        )
+        inferred = infer_group_ids_from_targets(targets_for_grouping)
         if inferred is not None:
             df[GROUP_COL] = inferred
             logger.info(
