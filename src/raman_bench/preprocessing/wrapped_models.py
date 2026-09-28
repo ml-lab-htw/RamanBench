@@ -768,6 +768,68 @@ Prep_CTBOOST = _make_optional_prep_class("Prep_CTBOOST", CTBoostModel, ag_key="C
 # Nori30MModel's own "TA-NORI-30M") since RamanBench only wraps one Nori
 # variant, matching every other single-variant entry in this registry.
 Prep_NORI = _make_optional_prep_class("Prep_NORI", Nori30MModel, ag_key="NORI")
+
+
+def _patch_sap_rpt_oss_single_row_predict_bug(sap_rpt_oss_rpt_module) -> None:
+    """Fix ``SAP_RPT_OSS_Regressor.predict``'s crash on a single-row test set.
+
+    Confirmed live on the cluster (``tg_ecoli_fermentation`` target 2, an
+    8-row dataset after NaN-label rows are dropped -- its 3-fold CV leaves a
+    1-row test fold on one split) and reproduced directly against the
+    installed ``sap_rpt_oss`` package outside AutoGluon entirely::
+
+        File ".../sap_rpt_oss/rpt.py", line 378, in predict
+            preds = np.concatenate(preds)
+        ValueError: zero-dimensional arrays cannot be concatenated
+
+    Root cause: ``predict()`` chunks ``X`` into ``test_chunk_size``-sized
+    pieces, calls ``self._predict(chunk)`` per chunk, and concatenates the
+    per-chunk results -- but ``_predict`` does
+    ``np.mean(all_preds, axis=0)`` over a per-bagging-model prediction list,
+    which numpy collapses to a bare 0-d scalar (not a 1-element 1-d array)
+    when the chunk has exactly one row, so ``np.concatenate`` on a list of
+    0-d arrays fails. Filed upstream: reported (see
+    https://github.com/SAP-samples/sap-rpt-1-oss/issues/33), still open as
+    of this note.
+
+    The classifier's own ``predict``/``predict_proba`` do NOT share this bug
+    -- they concatenate with ``torch.cat`` over softmax output, which always
+    keeps the batch dimension even for a single row (checked directly against
+    the installed package). Regressor-only fix.
+
+    This function reproduces the obvious fix (wrap each chunk's prediction in
+    ``np.atleast_1d`` before concatenating) at runtime, monkeypatching the
+    installed ``sap_rpt_oss`` package in place, so SAP_RPT_OSS runs don't have
+    to wait for the upstream fix to merge and release. Idempotent (a no-op if
+    already patched). Remove once RamanBench's ``sap_rpt_oss`` pin includes
+    the merged upstream fix.
+    """
+    regressor_cls = sap_rpt_oss_rpt_module.SAP_RPT_OSS_Regressor
+    if getattr(regressor_cls, "_ramanbench_patched_single_row_predict", False):
+        return
+
+    def _patched_predict(self, X):
+        import numpy as np
+        import pandas as pd
+
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X, columns=self.X_.columns)
+        preds = []
+        for start in range(0, len(X), self.test_chunk_size):
+            end = start + self.test_chunk_size
+            preds.append(np.atleast_1d(self._predict(X.iloc[start:end])))
+        return np.concatenate(preds)
+
+    regressor_cls.predict = _patched_predict
+    regressor_cls._ramanbench_patched_single_row_predict = True
+
+
+if SAPRPTOSSModel is not None:
+    import sap_rpt_oss.rpt as _sap_rpt_oss_module
+
+    _patch_sap_rpt_oss_single_row_predict_bug(_sap_rpt_oss_module)
+    del _sap_rpt_oss_module
+
 Prep_SAP_RPT_OSS = _make_optional_prep_class(
     "Prep_SAP_RPT_OSS", SAPRPTOSSModel, ag_key="SAP_RPT_OSS"
 )
