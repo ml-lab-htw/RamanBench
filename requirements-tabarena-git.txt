@@ -28,4 +28,18 @@
 # partition was failing every task reached so far, all with
 # "ModuleNotFoundError: No module named 'synthefy_nori'" (tabarena's own
 # `nori` extra is `synthefy-nori>=0.10.0`, never installed here).
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori] @ git+https://github.com/autogluon/tabarena.git@d06f406aee0fbd11e74ed9bba9b78e097ad6fd2f#subdirectory=packages/tabarena
+#
+# Points at mario-koddenbrock/tabarena (a personal fork), not autogluon/tabarena
+# directly, as of 2026-09-28: the previous pin (d06f406, on a since-deleted
+# benchmark/rerun-new-pipeline-16092026 branch) had diverged from autogluon/
+# tabarena's main (27 commits ahead, 23 behind -- confirmed via the GitHub
+# compare API), so bumping straight to main to pick up one fix would have
+# silently dropped or reordered unrelated work. Instead: branched off the
+# exact previous pin and cherry-picked just the one commit needed
+# (3db69f9 = d06f406 + upstream 8b08bf2 verbatim, "TabSwift: fix batched
+# regression inference", autogluon/tabarena#620 fixing #618) -- confirmed live
+# on the cluster: every TabSwift attempt at a small dataset (<~14 rows after
+# CV split, e.g. microgel_synthesis) failed with exactly the tensor-shape
+# RuntimeError this fixes. Only the vendored TabSwift file changed; every
+# other model is untouched from the previous pin.
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori] @ git+https://github.com/mario-koddenbrock/tabarena.git@3db69f97c628b302767c332bd12f32338e4b8c8d#subdirectory=packages/tabarena
