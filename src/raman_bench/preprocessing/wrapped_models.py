@@ -156,6 +156,11 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # autogluon.tabular.models).
     "APLRModel": "tabarena.models.aplr.model",
     "CTBoostModel": "tabarena.models.ctboost.model",
+    # TabLDM (2026-09-28): GPU-only tabular foundation model (dual-stream column
+    # embedder + MoE backbone), TabArena-package-only like every foundation model
+    # above. Own third-party pip package (``tabldm``, git-pinned via TabArena's
+    # ``tabldm`` extra -- see ``requirements-tabarena-git.txt``), not on PyPI.
+    "TabLDMModel": "tabarena.models.tabldm.model",
 }
 _missing_optional_tabarena_models = []
 for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
@@ -728,6 +733,22 @@ Prep_CHIMERABOOST = _make_optional_prep_class(
 Prep_APLR = _make_optional_prep_class("Prep_APLR", APLRModel, ag_key="APLR")
 Prep_CTBOOST = _make_optional_prep_class("Prep_CTBOOST", CTBoostModel, ag_key="CTBOOST")
 
+# TabLDM (ag_key "TA-XIAOMI-TABLDM" -- overridden to the shorter "TABLDM", same
+# "TA-" staging-prefix strip as TabFM/TabPFN-3/TabSwift above). GPU-only
+# (``default_num_gpus = 1``, ``minimum_num_gpus = 1``). Checked the same way as
+# TabFM/TabPFN-3/TabSwift/ModernNCA (see the batch-3 comment above): TabLDMModel
+# declares no ``_default_auxiliary_params_extra`` at all, and its base class
+# (``AbstractTorchModel``) doesn't cap max_features/max_rows/max_classes either
+# (confirmed against ``AuxiliaryParams.base_defaults()`` directly -- no such keys
+# there, so they resolve to uncapped/None) -- so, like those four, it does NOT get
+# ``_NO_FOUNDATION_MODEL_FEATURE_CAP`` applied here. No row cap
+# (``model_max_train_samples_overrides`` in ``configs/v1/scope_default.json``)
+# either at onboarding time -- every existing entry there (PERPETUAL_BOOSTER,
+# MITRA, TABFM, REALTABPFN-V2/V2.5, TABICL) was added only after a real observed
+# cluster failure (OOM or TimeLimitExceeded), not speculatively; same policy here,
+# revisit if TabLDM shows the same failure mode in production.
+Prep_TABLDM = _make_optional_prep_class("Prep_TABLDM", TabLDMModel, ag_key="TABLDM")
+
 # Batch 3 (NORI, SAP_RPT_OSS, ORIONMSP, ILTM, LIMIX, TABSTAR) -- the final batch of
 # the 14-model TabArena-native onboarding effort. All six are tabular *foundation*
 # models. Checked the same way as every batch above: instantiated each class and
@@ -1180,6 +1201,7 @@ PREPROCESSED_MODELS = {
     "TABSTAR": Prep_TABSTAR,
     "APLR": Prep_APLR,
     "CTBOOST": Prep_CTBOOST,
+    "TABLDM": Prep_TABLDM,
 }
 
 # Drop any entry whose AutoGluon base class wasn't available on this build (see

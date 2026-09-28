@@ -22,6 +22,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`TABLDM` onboarded** (`Prep_TABLDM`, thin rebind of
+  `tabarena.models.tabldm.model.TabLDMModel`, ag_key `TA-XIAOMI-TABLDM` ->
+  `TABLDM`) — a GPU-only tabular foundation model (dual-stream column embedder
+  + MoE backbone, `occams/Xiaomi-TabLDM` HF checkpoints). Added to
+  `configs/v1/scope_default.json`'s routine sweep and `cluster/gpu_models.json`.
+  `tabldm` (git-pinned, not on PyPI) added to `requirements-tabarena-git.txt`'s
+  `tabarena[...]` extras bracket, same mechanism as `nori`. Neither caps
+  `max_features`/`max_rows`/`max_classes` (checked directly against the
+  installed class and its `AbstractTorchModel` base), so no
+  `_NO_FOUNDATION_MODEL_FEATURE_CAP` applied and no
+  `model_max_train_samples_overrides` entry added preemptively — that list has
+  so far only ever been populated reactively, after a real observed cluster
+  failure.
+
 - **`model_max_train_samples_overrides` extended to MITRA, TABFM, REALTABPFN-V2,
   REALTABPFN-V2.5, TABICL** (5000 rows each) — all confirmed `TimeLimitExceeded`
   on `wheat_lines`/`mlrod` even at the global 10000-row cap; unlike
