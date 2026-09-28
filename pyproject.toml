@@ -168,6 +168,11 @@ models = [
     "xrfm",
     "ramanspy>=0.2.10,<0.3.0",
     "imodels>=2.0.4",
+    # APLR/CTBoost (2026-09-28 onboarding batch) -- own third-party packages
+    # below TabArena's own pip_extra metadata (tabarena.models.{aplr,ctboost}
+    # .info), same convention as perpetual/chimeraboost above. Both CPU-only.
+    "aplr>=10.26.0",
+    "ctboost==0.1.61",
     # >=9.0.0: required for TabPFN-3.5's multitask checkpoint format (tabarena.
     # models.tabpfn_3_5) -- see the tabpfnwide-removal comment above for why
     # this floor and tabpfnwide can no longer coexist.
