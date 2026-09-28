@@ -176,6 +176,7 @@ del _name, _module_path, _OPTIONAL_TABARENA_MODEL_IMPORTS
 
 from raman_bench.models.discover import discover_custom_models
 from raman_bench.preprocessing.bridge_bases import _make_optional_prep_class, _NoAugBase
+from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
 
 # ---------------------------------------------------------------------------
 # Built-in AutoGluon models (not yet migrated to the per-model-directory
@@ -607,18 +608,34 @@ class _ManyClassTabPFNProxy:
         return (torch.device(device),)
 
 
-def _make_many_class_tabpfn_fit(base_fit_owner):
-    def _fit(self, X, y, **kwargs):
-        import tabpfn
+def _many_class_tabpfn_fit(self, X, y, **kwargs):
+    """``_fit`` override for the many-class-capable REALTABPFN-V2/V2.5 classes.
 
-        original_cls = tabpfn.TabPFNClassifier
-        tabpfn.TabPFNClassifier = lambda **hps: _ManyClassTabPFNProxy(original_cls, **hps)
-        try:
-            return base_fit_owner._fit(self, X, y, **kwargs)
-        finally:
-            tabpfn.TabPFNClassifier = original_cls
+    Must call ``RamanPreprocessingMixin._fit`` here, NOT the raw TabPFN model
+    class's own ``_fit`` directly -- confirmed as a real bug via a live
+    cluster failure (``TypeError: TabPFNClassifier.__init__() got an
+    unexpected keyword argument 'prep_aug_enabled'``): calling the raw
+    model's ``_fit`` skips ``RamanPreprocessingMixin._fit``'s own
+    ``prep_*``-key stripping/preprocessing setup entirely (this class's MRO
+    puts the mixin before the raw TabPFN model class, and overriding ``_fit``
+    directly on this class -- the same declarative-dict mechanism
+    ``_make_optional_prep_class`` uses everywhere else -- shadows the
+    mixin's ``_fit`` rather than chaining through it). Calling the mixin's
+    ``_fit`` here instead reproduces the normal MRO: it does its own
+    preprocessing/prep_*-stripping work and then calls ``super()._fit(...)``
+    itself, which (since ``self``'s real class still has the raw TabPFN
+    model class right after the mixin in the MRO) correctly reaches that
+    class's ``_fit`` next -- exactly the normal chain, just entered here
+    instead of at the top.
+    """
+    import tabpfn
 
-    return _fit
+    original_cls = tabpfn.TabPFNClassifier
+    tabpfn.TabPFNClassifier = lambda **hps: _ManyClassTabPFNProxy(original_cls, **hps)
+    try:
+        return RamanPreprocessingMixin._fit(self, X, y, **kwargs)
+    finally:
+        tabpfn.TabPFNClassifier = original_cls
 
 
 def _many_class_get_memory_size(self, **kwargs):
@@ -635,14 +652,14 @@ Prep_REALTABPFN_V2 = _make_optional_prep_class(
     "Prep_REALTABPFN_V2",
     RealTabPFNv2Model,
     _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
-    _fit=_make_many_class_tabpfn_fit(RealTabPFNv2Model),
+    _fit=_many_class_tabpfn_fit,
     _get_memory_size=_many_class_get_memory_size,
 )
 Prep_REALTABPFN_V25 = _make_optional_prep_class(
     "Prep_REALTABPFN_V25",
     RealTabPFNv25Model,
     _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
-    _fit=_make_many_class_tabpfn_fit(RealTabPFNv25Model),
+    _fit=_many_class_tabpfn_fit,
     _get_memory_size=_many_class_get_memory_size,
 )
 Prep_REALTABPFN_V26 = _make_optional_prep_class("Prep_REALTABPFN_V26", RealTabPFNv26Model)
