@@ -150,6 +150,12 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "ILTMModel": "tabarena.models.iltm.model",
     "LimiXModel": "tabarena.models.limix.model",
     "TabSTARModel": "tabarena.models.tabstar.model",
+    # Batch 4 (2026-09-28): APLR, CTBoost. Both CPU-only, own third-party pip
+    # packages (aplr, ctboost -- see pyproject.toml), TabArena-package-only
+    # like every entry above (confirmed: neither exists under any name in
+    # autogluon.tabular.models).
+    "APLRModel": "tabarena.models.aplr.model",
+    "CTBoostModel": "tabarena.models.ctboost.model",
 }
 _missing_optional_tabarena_models = []
 for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
@@ -693,6 +699,17 @@ Prep_XRFM = _make_optional_prep_class("Prep_XRFM", XRFMModel)
 Prep_CHIMERABOOST = _make_optional_prep_class(
     "Prep_CHIMERABOOST", ChimeraBoostModel, ag_key="CHIMERABOOST"
 )
+# APLR (ag_key "TA-APLR" -- overridden to the spelled-out short form, no collision
+# to dodge) and CTBoost (ag_key "CTB" -- overridden to "CTBOOST" purely for
+# readability, same reasoning as CHIMERABOOST/PERPETUAL_BOOSTER above; "CTB" stays
+# available for TabArena's own un-preprocessed baseline entries). Both CPU-only
+# (verified: neither declares any GPU resource requirement in its own class body),
+# neither caps max_features/max_rows/max_classes (checked _get_default_auxiliary_params/
+# _default_auxiliary_params_extra directly against the installed classes -- APLR
+# declares no auxiliary-params override at all; CTBoost's only overrides
+# valid_raw_types/ignored_type_group_special, same shape as Prep_EBM in batch 2).
+Prep_APLR = _make_optional_prep_class("Prep_APLR", APLRModel, ag_key="APLR")
+Prep_CTBOOST = _make_optional_prep_class("Prep_CTBOOST", CTBoostModel, ag_key="CTBOOST")
 
 # Batch 3 (NORI, SAP_RPT_OSS, ORIONMSP, ILTM, LIMIX, TABSTAR) -- the final batch of
 # the 14-model TabArena-native onboarding effort. All six are tabular *foundation*
@@ -1082,6 +1099,8 @@ PREPROCESSED_MODELS = {
     "ILTM": Prep_ILTM,
     "LIMIX": Prep_LIMIX,
     "TABSTAR": Prep_TABSTAR,
+    "APLR": Prep_APLR,
+    "CTBOOST": Prep_CTBOOST,
 }
 
 # Drop any entry whose AutoGluon base class wasn't available on this build (see
