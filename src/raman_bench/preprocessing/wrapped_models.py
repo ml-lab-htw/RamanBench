@@ -463,15 +463,181 @@ Prep_TABICL = _make_optional_prep_class(
 # without a confirmed incident to calibrate it against would just be guessing.
 # Revisit if/when a real v2 OOM is observed, same as v1's own history.
 Prep_TABICLV2 = _make_optional_prep_class("Prep_TABICLV2", TabICLv2Model, ag_key="TABICLV2")
+
+# REALTABPFN-V2/V2.5 many-class support: the installed tabpfn>=9.0.0's own
+# tabpfn.validation.validate_num_classes hard-crashes (TabPFNValidationError,
+# no bypass -- unlike tabpfn's separate row/feature ignore_pretraining_limits
+# flag, this check takes no such kwarg at all, confirmed by reading
+# tabpfn/validation.py directly) whenever a dataset has more classes than this
+# checkpoint's InferenceConfig.MAX_NUMBER_OF_CLASSES (10 for both the v2 and
+# v2.5 checkpoints -- confirmed via tabpfn/inference_config.py's
+# _get_v2_config/_get_v2_5_config). Confirmed live on the cluster: every
+# REALTABPFN-V2/V2.5 attempt at bacteria_identification (30 classes),
+# pharmaceutical_ingredients (32), rruff_mineral_raw (79), mlrod (16), and the
+# cancer_cell_* trio (12 each) failed exactly this way.
+#
+# tabpfn-extensions (already a hard dependency, see pyproject.toml's
+# setuptools<80 comment) ships tabpfn_extensions.many_class.ManyClassClassifier,
+# an ECOC-style meta-estimator built specifically to decompose a >max_classes
+# problem into an ensemble of in-range sub-problems for exactly this situation
+# -- same class of fix as LIMIX's max_classes=10 override above, but LIMIX's
+# own model class doesn't hard-crash without it (AutoGluon's declarative cap
+# was the only thing stopping it), whereas TabPFN's crash lives inside the
+# `tabpfn` library itself and needs the actual estimator swapped, not just an
+# AutoGluon-level cap lifted. Verified end-to-end on the real cluster image,
+# against real RamanBench data (bacteria_identification, 30 classes): fit,
+# predict_proba (correct (n_samples, 30) shape), and predict all succeed
+# (0.82 accuracy), and with integer class labels (AutoGluon's own y encoding
+# convention, confirmed via a synthetic 25-class check) `classes_` comes back
+# as exactly `np.arange(n_classes)` -- i.e. predict_proba's column order
+# already matches what AutoGluon's `_convert_proba_to_unified_form` assumes
+# (that function does no reindexing of its own; it trusts the column order
+# outright), so no relabeling step is needed on top of this.
+#
+# Implementation: `_fit` temporarily monkeypatches `tabpfn.TabPFNClassifier`
+# (module-global, but scoped to this one call via try/finally -- safe because
+# RamanBench's job runner fits exactly one model per process, never
+# concurrently) to `_ManyClassTabPFNProxy`, a constructor-compatible stand-in
+# that only wraps with `ManyClassClassifier` when the actual fit-time class
+# count exceeds `_TABPFN_OFFICIAL_MAX_CLASSES`; below that, it constructs and
+# fits the real `TabPFNClassifier` exactly as before, so this is a pure
+# extension, never a behavior change, for every dataset that already worked.
+# `_get_memory_size` needs its own override alongside `_fit`: the base
+# class's version (`TabPFNModel._get_memory_size`) reaches directly into
+# `estimator.executor_`/`estimator.models_` for a weightless-pickle size
+# optimisation, attributes `ManyClassClassifier` doesn't expose (it holds a
+# per-codeword list of separately-fitted estimators, not one `executor_`) --
+# falls back to `AbstractModel`'s generic accounting in that case instead of
+# crashing with `AttributeError`. `_narrow_inference_context` (a separate
+# memory optimisation, halving stored float precision) doesn't need an
+# override: it already reads `self.model`'s TabPFN-specific attributes via
+# `getattr(..., None)` defensively, so it already no-ops harmlessly on a
+# wrapped model, just skipping that optimisation.
+#
+# Real performance tradeoff, confirmed live (not assumed): `ManyClassClassifier`
+# does NOT eagerly fit its per-codeword sub-estimators in `.fit()` -- it stores
+# the codebook and training data, then fits each sub-estimator lazily, inside
+# the first `predict`/`predict_proba` call. Against the one dataset in this
+# batch large enough to matter (`bacteria_identification`, capped to 10,000
+# rows by `max_train_samples_overrides`), that lazy fit completed successfully
+# (0.86 accuracy, correct proba shape) but took ~15 minutes wall-clock in a
+# real cluster test -- past the routine sweep's 600s per-task `time_limit`,
+# though that test ran on a GPU shared with another live job, so an isolated
+# production pod may well come in faster. Worst case, this dataset trades one
+# failure mode for another (`TabPFNValidationError` crash -> `TimeLimitExceeded`
+# timeout) rather than producing a result -- still strictly no worse than
+# before it (no `results.pkl` either way), so left enabled rather than
+# special-cased. The other four confirmed many-class datasets this fixes
+# (`pharmaceutical_ingredients` 3,510 rows, `rruff_mineral_raw` 1,162,
+# `cancer_cell_nh2`/`cancer_cell_cooh` ~632 each) are all far smaller and
+# were not observed to have this problem in testing.
+_TABPFN_OFFICIAL_MAX_CLASSES = 10
+
+
+class _ManyClassTabPFNProxy:
+    """Constructor-compatible stand-in for ``tabpfn.TabPFNClassifier``.
+
+    See the many-class comment block above this class's two call sites
+    (``Prep_REALTABPFN_V2``/``Prep_REALTABPFN_V25``) for why this exists and
+    how it's wired in (a `_fit`-scoped monkeypatch, not a global change).
+    """
+
+    def __init__(self, _real_cls, **hps):
+        self._real_cls = _real_cls
+        self._hps = hps
+        self._impl = None
+
+    def fit(self, X, y):
+        from tabpfn_extensions.many_class import ManyClassClassifier
+
+        base = self._real_cls(**self._hps)
+        n_classes = len(np.unique(np.asarray(y)))
+        if n_classes > _TABPFN_OFFICIAL_MAX_CLASSES:
+            self._impl = ManyClassClassifier(
+                estimator=base, random_state=self._hps.get("random_state")
+            )
+        else:
+            self._impl = base
+        self._impl.fit(X, y)
+        return self
+
+    def predict(self, X):
+        return self._impl.predict(X)
+
+    def predict_proba(self, X):
+        return self._impl.predict_proba(X)
+
+    @property
+    def classes_(self):
+        return self._impl.classes_
+
+    def __getattr__(self, name):
+        # Delegates everything else (executor_, models_,
+        # forced_inference_dtype_, ...) to the underlying real
+        # TabPFNClassifier when NOT many-class-wrapped. When wrapped, this
+        # naturally raises AttributeError (ManyClassClassifier doesn't have
+        # these either) -- exactly what every real call site here
+        # (_narrow_inference_context) already handles via getattr(..., None).
+        return getattr(self._impl, name)
+
+    @property
+    def devices_(self):
+        # TabPFNModel.get_device() reads self.model.devices_[0].type directly
+        # (no getattr fallback, unlike _narrow_inference_context), so this one
+        # needs a real answer even when wrapped. ManyClassClassifier does not
+        # persist fitted per-codeword estimator instances when a real codebook
+        # is in use (self.estimators_ = None, confirmed by reading
+        # tabpfn_extensions.many_class.fit directly -- sub-fits happen lazily
+        # inside predict/predict_proba, not stored), so there is no wrapped
+        # TabPFNClassifier instance to introspect for this. Constructed
+        # directly from the same device string AutoGluon already resolved and
+        # passed into our constructor kwargs instead -- correct regardless of
+        # whether ManyClassClassifier ends up in play.
+        import torch
+
+        device = self._hps.get("device", "cpu")
+        if isinstance(device, list):
+            return tuple(torch.device(d) for d in device)
+        return (torch.device(device),)
+
+
+def _make_many_class_tabpfn_fit(base_fit_owner):
+    def _fit(self, X, y, **kwargs):
+        import tabpfn
+
+        original_cls = tabpfn.TabPFNClassifier
+        tabpfn.TabPFNClassifier = lambda **hps: _ManyClassTabPFNProxy(original_cls, **hps)
+        try:
+            return base_fit_owner._fit(self, X, y, **kwargs)
+        finally:
+            tabpfn.TabPFNClassifier = original_cls
+
+    return _fit
+
+
+def _many_class_get_memory_size(self, **kwargs):
+    from tabpfn_extensions.many_class import ManyClassClassifier
+
+    if isinstance(self.model, _ManyClassTabPFNProxy) and isinstance(
+        self.model._impl, ManyClassClassifier
+    ):
+        return DummyModel._get_memory_size(self, **kwargs)
+    return type(self).__mro__[1]._get_memory_size(self, **kwargs)
+
+
 Prep_REALTABPFN_V2 = _make_optional_prep_class(
     "Prep_REALTABPFN_V2",
     RealTabPFNv2Model,
     _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    _fit=_make_many_class_tabpfn_fit(RealTabPFNv2Model),
+    _get_memory_size=_many_class_get_memory_size,
 )
 Prep_REALTABPFN_V25 = _make_optional_prep_class(
     "Prep_REALTABPFN_V25",
     RealTabPFNv25Model,
     _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    _fit=_make_many_class_tabpfn_fit(RealTabPFNv25Model),
+    _get_memory_size=_many_class_get_memory_size,
 )
 Prep_REALTABPFN_V26 = _make_optional_prep_class("Prep_REALTABPFN_V26", RealTabPFNv26Model)
 # Wraps tabarena.models.tabpfn_3.model.TabPFN3Model (TabArena's own, actively-maintained
