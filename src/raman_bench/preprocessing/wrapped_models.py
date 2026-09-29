@@ -871,6 +871,78 @@ if SAPRPTOSSModel is not None:
 Prep_SAP_RPT_OSS = _make_optional_prep_class(
     "Prep_SAP_RPT_OSS", SAPRPTOSSModel, ag_key="SAP_RPT_OSS"
 )
+
+
+def _patch_orionmsp_v15_sklearn_compat_bug(preprocessing_module) -> None:
+    """Fix ``tabtune.models.orionmsp_v15.sklearn.preprocessing``'s own sklearn
+    version-compat shim, which is itself broken against the sklearn actually
+    installed here.
+
+    That module ships a backport of ``BaseEstimator._validate_data`` (applied as a
+    global monkeypatch onto ``sklearn.base.BaseEstimator`` when the running sklearn
+    doesn't have it natively -- true for the sklearn pinned here), hardcoding the
+    ``force_all_finite`` kwarg to ``check_array``/``check_X_y``. That kwarg was
+    renamed to ``ensure_all_finite`` upstream (sklearn deprecates then removes it
+    across versions), so on an installed sklearn past that point the shim itself
+    raises. Confirmed live on the cluster -- every ORIONMSP task on any
+    non-skipped (classification) dataset failed identically::
+
+        Xc, yc = check_X_y(
+        TypeError: check_X_y() got an unexpected keyword argument
+        'force_all_finite'
+
+    Fix: monkeypatch just the ``check_array``/``check_X_y`` names inside this one
+    module (not sklearn globally -- several *other* installed packages, e.g.
+    tabpfn/skrub/lightgbm, reference the same deprecated kwarg via their own compat
+    shims and should not be touched here) to translate ``force_all_finite`` to
+    whichever kwarg name the installed sklearn's ``check_array`` actually accepts
+    before delegating to the real function. ``_validate_data`` (defined in this same
+    module) looks up ``check_array``/``check_X_y`` as module globals at call time, so
+    patching the module's own names here takes effect for every call site.
+    Idempotent (a no-op if already patched). Remove once upstream fixes this shim (or
+    drops it once the installed sklearn always has a native ``_validate_data``).
+    """
+    if getattr(preprocessing_module, "_ramanbench_patched_sklearn_compat", False):
+        return
+
+    import inspect
+
+    from sklearn.utils.validation import check_array as _real_check_array
+    from sklearn.utils.validation import check_X_y as _real_check_X_y
+
+    _finite_kwarg = (
+        "ensure_all_finite"
+        if "ensure_all_finite" in inspect.signature(_real_check_array).parameters
+        else "force_all_finite"
+    )
+
+    def _translate_finite_kwarg(kwargs):
+        if "force_all_finite" in kwargs:
+            kwargs[_finite_kwarg] = kwargs.pop("force_all_finite")
+        return kwargs
+
+    def _compat_check_array(*args, **kwargs):
+        return _real_check_array(*args, **_translate_finite_kwarg(kwargs))
+
+    def _compat_check_X_y(*args, **kwargs):
+        return _real_check_X_y(*args, **_translate_finite_kwarg(kwargs))
+
+    preprocessing_module.check_array = _compat_check_array
+    preprocessing_module.check_X_y = _compat_check_X_y
+    preprocessing_module._ramanbench_patched_sklearn_compat = True
+
+
+if OrionMSPModel is not None:
+    # Same reasoning as SAPRPTOSSModel above: the tabarena wrapper class importing
+    # cleanly doesn't guarantee the backing `tabtune` package is installed.
+    try:
+        import tabtune.models.orionmsp_v15.sklearn.preprocessing as _orionmsp_v15_preprocessing_module
+    except ImportError:
+        pass
+    else:
+        _patch_orionmsp_v15_sklearn_compat_bug(_orionmsp_v15_preprocessing_module)
+        del _orionmsp_v15_preprocessing_module
+
 Prep_ORIONMSP = _make_optional_prep_class("Prep_ORIONMSP", OrionMSPModel, ag_key="ORIONMSP")
 Prep_ILTM = _make_optional_prep_class("Prep_ILTM", ILTMModel, ag_key="ILTM")
 
