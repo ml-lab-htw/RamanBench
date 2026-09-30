@@ -24,9 +24,12 @@ image_pull_secret: null     # e.g. "private-registry-auth"; null = no imagePullS
 # before falling back to `image` above. For a model whose dependencies
 # genuinely conflict with the main image (different Python/torch requirement,
 # not just an extra package) -- e.g. LIMIX2, built from this repo's
-# Dockerfile.limix2 (Python 3.12, torch==2.9.1) because the main image is
-# Python 3.11.10 / torch~=2.14. Same schema idea as mem_tiers below.
-image_overrides: {}          # e.g. {"LIMIX2": "registry.example.org/you/raman-bench:limix2"}
+# Dockerfile.py312 (Python 3.12, torch==2.9.1) because the main image is
+# Python 3.11.10 / torch~=2.14. Named after the Python version, not LIMIX2
+# specifically -- route any other >=3.12-only model here too, same axis as
+# Dockerfile.v100's GPU-architecture naming. Same schema idea as mem_tiers
+# below.
+image_overrides: {}          # e.g. {"LIMIX2": "registry.example.org/you/raman-bench:py312"}
 
 # Persistent storage. The workspace (RamanBench + raman_data checkouts,
 # .cache_v1, results/) lives on this PVC, mounted at pvc_mount_path in every
