@@ -22,6 +22,36 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`KUMO-TABULAR` / `KUMO-TABULAR-MEDIUM` / `KUMO-TABULAR-SMALL` onboarded**
+  (`Prep_KUMO_TABULAR{,_MEDIUM,_SMALL}`, thin rebinds of
+  `tabarena.models.kumo_tabular.model.{KumoTabularModel,KumoTabularMediumModel,
+  KumoTabularSmallModel}`) — NVIDIA's pretrained in-context-learning tabular
+  foundation model in its three released checkpoint sizes
+  (https://huggingface.co/blog/nvidia/kumo-tabular). **Provisional**: sourced
+  from an unmerged upstream PR (`autogluon/tabarena#625`, branch
+  `kumo-tabular`, commit `bd22348ac1b895c54728d59edc37454f83c054c4`), not a
+  merged-`main` release — `requirements-tabarena-git.txt`'s tabarena pin moved
+  to that PR branch (verified the fork's one cherry-picked fix is a strict git
+  ancestor of it, so nothing already relied on is lost). Revisit the pin once
+  #625 merges. GPU-only (`default_num_gpus=1`, `minimum_num_gpus=1` on all
+  three), added to `cluster/gpu_models.json`. Neither caps `max_features`/
+  `max_rows`/`max_classes` (checked directly against the installed classes and
+  their shared `AbstractTorchModel` base), so no
+  `_NO_FOUNDATION_MODEL_FEATURE_CAP` applied and no
+  `model_max_train_samples_overrides` entry added preemptively. Own
+  third-party pip package (`structured-data-models`, imported as `sdm`,
+  git-pinned via TabArena's own PR-local `kumo_tabular` extra), not on PyPI;
+  runs in the shared main image (Python 3.11.10, torch~=2.14) — its own
+  dependencies (`requires-python>=3.11`, `torch>=2.7`) are compatible, so no
+  dedicated container was needed (unlike LIMIX2). Smoke-tested end-to-end on
+  the real k8s cluster (`alzheimer`, large checkpoint, 3-fold CV): all 3 folds
+  passed cleanly, validation ROC AUC 0.998–0.999, `metric_error` ~0.001,
+  real `results.pkl` written each time. Only the large checkpoint
+  (`KUMO-TABULAR`) added to `configs/v1/scope_default.json`'s routine sweep
+  for now — `-MEDIUM`/`-SMALL` are registered and import cleanly (sharing the
+  same fit/predict code path via inheritance) but weren't separately
+  smoke-tested on GPU, so left out of the tracked sweep pending that.
+
 - **`TABLDM` onboarded** (`Prep_TABLDM`, thin rebind of
   `tabarena.models.tabldm.model.TabLDMModel`, ag_key `TA-XIAOMI-TABLDM` ->
   `TABLDM`) — a GPU-only tabular foundation model (dual-stream column embedder
