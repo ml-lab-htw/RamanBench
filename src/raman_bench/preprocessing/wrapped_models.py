@@ -186,6 +186,44 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "KumoTabularModel": "tabarena.models.kumo_tabular.model",
     "KumoTabularMediumModel": "tabarena.models.kumo_tabular.model",
     "KumoTabularSmallModel": "tabarena.models.kumo_tabular.model",
+    # TabPFN-3.5-Fast (2026-09-30) -- the smaller/faster sibling of TabPFN-3.5
+    # (Prior Labs reports up to 6x faster inference; marked alpha upstream),
+    # released from the same Hugging Face repo alongside TabPFN-3.5 itself.
+    # Subclasses TabPFN35Model (same file/module) -- same estimator surface,
+    # limits and license as TabPFN-3.5; only the checkpoint differs.
+    "TabPFN35FastModel": "tabarena.models.tabpfn_3_5.model",
+    # TabDPT v1.3 (2026-09-30) -- tabarena.models.tabdpt.model.TabDPTv13Model,
+    # NOT the same class as the already-wrapped TABDPT below (that one is
+    # autogluon.tabular.models.TabDPTModel, a *different*, already-graduated-
+    # into-AutoGluon-core class -- see Prep_TABDPT's own comment). This class
+    # subclasses TabDPTTurboModel (v1.2), itself a sibling of TabDPTModel (v1.1)
+    # under tabarena's own TabDPTModelBase.
+    #
+    # Checkpoint-compatibility check performed before onboarding (2026-09-30):
+    # tabarena's own `tabdpt` extra (see its pyproject.toml, pinned via
+    # requirements-tabarena-git.txt) requires `tabdpt>=1.3.1` -- the first
+    # `tabdpt` release with a separable `TabDPTEstimator._load_model` (the
+    # shared-weights loader `TabDPTv13Model` needs) and the release that
+    # renamed the network's internal label encoders (`y_encoders` ->
+    # `cls_y_encoders`/`reg_y_encoders`), making the 1.2 and 1.3 checkpoint
+    # formats mutually unreadable. Verified live on a running k8s pod
+    # (`rb-realtabpfn-v2-*`, 2026-09-30): the actually-installed `tabdpt` there
+    # is already 1.3.1, matching this requirement. The existing `TABDPT` entry
+    # below wraps AutoGluon-core's OWN `TabDPTModel`, which (unlike tabarena's
+    # own v1.1 `TabDPTModel`, hardcoded to the `tabdpt1_1.safetensors`
+    # checkpoint and pinned to `tabdpt<1.2` upstream) leaves `_checkpoint_filename`
+    # at `None` and simply uses whatever checkpoint the installed `tabdpt`
+    # package defaults to -- i.e. it floats with the installed package version
+    # rather than hardcoding a specific one. So `TABDPT` is NOT stuck on a
+    # v1.1/v1.2-only checkpoint format that `tabdpt>=1.3.1` would break: 2708+
+    # real `results.pkl` files for `TabDPT_c1_BAG_L1` on the cluster PVC are
+    # dated 2026-09-24/25 (checked via `find -printf '%T@'`), i.e. AFTER this
+    # tabarena pin (and its `tabdpt>=1.3.1` floor) was already in place, and a
+    # spot-checked result (`alzheimer__0/0_0`) has a sane, non-NaN
+    # `metric_error` (0.0044, roc_auc). So `TABDPT` already empirically works
+    # against tabdpt 1.3.1 -- no genuine coexistence conflict, and the existing
+    # `TABDPT` entry is left untouched.
+    "TabDPTv13Model": "tabarena.models.tabdpt.model",
 }
 _missing_optional_tabarena_models = []
 for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
@@ -445,6 +483,22 @@ Prep_TABM = _make_optional_prep_class("Prep_TABM", TabMModel)
 Prep_TABDPT = _make_optional_prep_class(
     "Prep_TABDPT", TabDPTModel, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
 )
+# TabDPT v1.3 -- tabarena.models.tabdpt.model.TabDPTv13Model, a DIFFERENT sibling class
+# from the plain TabDPTModel wrapped just above (that one is AutoGluon-core's own
+# checkpoint-version-agnostic class, not tabarena's). See this module's
+# _OPTIONAL_TABARENA_MODEL_IMPORTS entry for TabDPTv13Model for the full checkpoint-
+# compatibility investigation (tabdpt>=1.3.1 required, confirmed already installed and
+# empirically working on the cluster) that cleared this for coexistence with TABDPT.
+# Checked (like the TabFM/TabPFN-3/TabSwift/ModernNCA batch above) whether
+# _NO_FOUNDATION_MODEL_FEATURE_CAP is needed: inspected tabarena's own
+# TabDPTModelBase/TabDPTTurboModel/TabDPTv13Model (the whole MRO) for a
+# _get_default_auxiliary_params override -- none of the three define one, so
+# max_rows/max_features/max_classes are already AutoGluon's uncapped default
+# (None); applying the extra here would be a no-op, so (matching that batch's own
+# convention) it's deliberately left off.
+# ag_key overridden to the spelled-out "TABDPT-V1.3" for consistency with TABPFN-V3.5
+# above (inherited ag_key/ag_name would otherwise carry tabarena's "TA-" staging prefix).
+Prep_TABDPT_V13 = _make_optional_prep_class("Prep_TABDPT_V13", TabDPTv13Model, ag_key="TABDPT-V1.3")
 # TabFM/TabPFN-3/TabSwift's ag_key as inherited from their tabarena base class carries a
 # "TA-" prefix (e.g. TabFMModel.ag_key == "TA-TABFM") -- TabArena's own marker for a model
 # that hasn't (yet) graduated into AutoGluon core, unlike e.g. MitraModel/TabDPTModel/
@@ -713,6 +767,15 @@ Prep_TABPFN_V3_THINKING = _make_optional_prep_class(
 # REALTABPFN-V2.5/V2.6 and TABPFN-V3 above -- no collision to dodge, unlike
 # Prep_TABPFN_V3's ag_name override.
 Prep_TABPFN_V3_5 = _make_optional_prep_class("Prep_TABPFN_V3_5", TabPFN35Model, ag_key="TABPFN-V3.5")
+# TabPFN-3.5-Fast: the smaller/faster sibling of TabPFN-3.5, released alongside it from
+# the same Hugging Face repo (Prior Labs reports up to 6x faster inference; the model is
+# marked alpha upstream). Subclasses TabPFN35Model directly (same file) -- same limits,
+# license and estimator surface as TabPFN-3.5, only the checkpoint differs. ag_key
+# overridden to the spelled-out "TABPFN-V3.5-FAST" for consistency with TABPFN-V3.5 above
+# (inherited ag_key/ag_name would otherwise carry tabarena's "TA-" staging prefix).
+Prep_TABPFN_V3_5_FAST = _make_optional_prep_class(
+    "Prep_TABPFN_V3_5_FAST", TabPFN35FastModel, ag_key="TABPFN-V3.5-FAST"
+)
 Prep_TABSWIFT = _make_optional_prep_class("Prep_TABSWIFT", TabSwiftModel, ag_key="TABSWIFT")
 # ModernNCAModel's own ag_key ("MNCA") predates the "TA-" staging-prefix convention (it's
 # an older tabarena model than TabFM/TabPFN-3/TabSwift) -- overridden to the spelled-out
@@ -1357,6 +1420,7 @@ PREPROCESSED_MODELS = {
     "MITRA": Prep_MITRA,
     "TABM": Prep_TABM,
     "TABDPT": Prep_TABDPT,
+    "TABDPT-V1.3": Prep_TABDPT_V13,
     "TABFM": Prep_TABFM,
     "TABICL": Prep_TABICL,
     "TABICLV2": Prep_TABICLV2,
@@ -1366,6 +1430,7 @@ PREPROCESSED_MODELS = {
     "TABPFN-V3": Prep_TABPFN_V3,
     "TABPFN-V3-THINKING": Prep_TABPFN_V3_THINKING,
     "TABPFN-V3.5": Prep_TABPFN_V3_5,
+    "TABPFN-V3.5-FAST": Prep_TABPFN_V3_5_FAST,
     "TABSWIFT": Prep_TABSWIFT,
     "MODERNNCA": Prep_MODERNNCA,
     "EBM": Prep_EBM,
