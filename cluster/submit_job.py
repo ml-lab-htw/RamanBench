@@ -719,6 +719,210 @@ def _build_k8s_job_manifest(
     return job_name, configmap_name, n_pods, job_manifest
 
 
+# --- Dataset-centric (multi-model-per-pod) path -----------------------------
+# Counterpart to the per-model path above: one pod per (Python-version image,
+# CPU/GPU tier) GROUP instead of one pod per model. Built for cluster/
+# submit_dataset_sweep.py -- see that script's own module docstring for why
+# (recomputing one or a few datasets across the whole model roster used to
+# mean one pod PER MODEL). Kept fully separate from _build_k8s_job_manifest/
+# write_jobspec above rather than generalizing them: the existing, currently-
+# running per-model path is never at risk of a regression from this one.
+
+# One multi-model task's full identity: (model, dataset, target_idx, repeat,
+# fold, config_index, n_repeats). Same shape as Job above, with model
+# prepended -- it's no longer fixed via a pod-level env var.
+MultiModelTask = tuple[str, str, int, int, int, int, int]
+
+
+def _max_memory_tier(memories: list[str]) -> str:
+    """The largest of a list of k8s memory quantities like "128G"/"64G" --
+    used to size one pod generously enough for whichever model in its group
+    happens to be running, since (unlike the per-model path) one pod here
+    runs many models with different memory needs sequentially. Assumes a
+    plain "<int><unit>" shape (this project's own mem_tiers never use a
+    fractional value or a different k8s memory suffix) -- falls back to
+    string comparison (still deterministic, just not unit-aware) if that
+    assumption doesn't hold for some future tier value."""
+    import re
+
+    def _key(m: str):
+        match = re.match(r"^(\d+)([A-Za-z]*)$", m.strip())
+        return (int(match.group(1)), match.group(2)) if match else (0, m)
+
+    return max(memories, key=_key)
+
+
+def write_jobspec_multimodel(
+    tasks: list[MultiModelTask],
+    slug: str,
+    *,
+    default_time_limit: float,
+    dataset_time_limit_overrides: dict[str, float] | None = None,
+    model_time_limit_overrides: dict[str, dict[str, float] | float] | None = None,
+    max_train_samples_overrides: dict[str, int] | None = None,
+    model_max_train_samples_overrides: dict[str, dict[str, int] | int] | None = None,
+) -> Path:
+    """Multi-model counterpart to write_jobspec: one line per (model, dataset,
+    target_idx, repeat, fold, config_index) task, model-specific overrides
+    resolved PER TASK from its own (model, dataset) pair -- unlike
+    write_jobspec, where model is fixed for the whole file so only the
+    dataset side needs resolving. ``model_time_limit_overrides``/
+    ``model_max_train_samples_overrides`` are keyed by model here (one level
+    up from resolve_time_limit's/resolve_max_train_samples's own per-call
+    shape), since a single jobspec now spans many models.
+
+    Field order: model dataset target_idx repeat fold config_index n_repeats
+    time_limit max_train_samples -- same trailing fields/meaning as
+    write_jobspec, with model prepended. Read by
+    cluster/k8s_entrypoint_by_dataset.sh.
+    """
+    JOBSPEC_DIR.mkdir(exist_ok=True)
+    path = JOBSPEC_DIR / f"{slug}.txt"
+    with open(path, "w") as f:
+        for model, dataset, target_idx, repeat, fold, config_index, n_repeats in tasks:
+            task_time_limit = resolve_time_limit(
+                default_time_limit, dataset, dataset_time_limit_overrides,
+                (model_time_limit_overrides or {}).get(model),
+            )
+            task_max_train_samples = resolve_max_train_samples(
+                dataset, max_train_samples_overrides,
+                (model_max_train_samples_overrides or {}).get(model),
+            )
+            f.write(
+                f"{model} {dataset} {target_idx} {repeat} {fold} {config_index} {n_repeats} "
+                f"{task_time_limit} {task_max_train_samples if task_max_train_samples is not None else ''}\n"
+            )
+    return path
+
+
+def build_k8s_job_manifest_multimodel(
+    *,
+    group_slug: str,
+    part_slug: str,
+    n_tasks: int,
+    n_splits: int,
+    num_random_configs: int,
+    num_bag_folds: int,
+    time_limit: float,
+    results_dir: str,
+    cache_dir: str,
+    mirror_repo: str,
+    profile: dict,
+    image: str,
+    mem_tier: str,
+    use_gpu: bool,
+    tasks_per_pod: int,
+    throttle: int,
+) -> tuple[str, str, int, dict]:
+    """Multi-model counterpart to _build_k8s_job_manifest: ``image``/``mem_tier``
+    are already resolved by the caller (the SHARED image and the MAX memory
+    tier across every model in this group), and there's no per-pod ``MODEL``
+    env var -- k8s_entrypoint_by_dataset.sh reads model from each jobspec
+    line instead. Everything else (secrets, volumes, node affinity, priority
+    class) is identical to the per-model manifest."""
+    job_name = _k8s_name("rb", group_slug, part_slug)
+    configmap_name = _k8s_name("rb-jobspec", group_slug, part_slug)
+    n_pods = -(-n_tasks // tasks_per_pod)
+    namespace = profile.get("namespace", "default")
+    workspace = profile.get("workspace") or ""
+
+    cpu = str(profile.get("default_cpu", "16"))
+    limits = {"cpu": cpu, "memory": mem_tier}
+    if use_gpu:
+        limits[profile.get("gpu_resource_key", "nvidia.com/gpu")] = str(profile.get("gpu_count", 1))
+    resources = {"requests": {"cpu": cpu, "memory": mem_tier}, "limits": limits}
+
+    env = [
+        {"name": "N_SPLITS", "value": str(n_splits)},
+        {"name": "NUM_RANDOM_CONFIGS", "value": str(num_random_configs)},
+        {"name": "NUM_BAG_FOLDS", "value": str(num_bag_folds)},
+        {"name": "TIME_LIMIT", "value": str(time_limit)},
+        {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir, workspace)},
+        {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir, workspace)},
+        {"name": "MIRROR_REPO", "value": mirror_repo},
+        {"name": "USE_GPU", "value": "1" if use_gpu else "0"},
+        {"name": "JOBSPEC", "value": "/jobspec/jobspec.txt"},
+        {"name": "TASKS_PER_POD", "value": str(tasks_per_pod)},
+    ]
+    if profile.get("hf_secret"):
+        env += [
+            {"name": "HF_TOKEN", "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HF_TOKEN"}}},
+            {"name": "HUGGING_FACE_HUB_TOKEN",
+             "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HUGGING_FACE_HUB_TOKEN"}}},
+        ]
+    if profile.get("tabpfn_secret"):
+        env.append({
+            "name": "TABPFN_TOKEN",
+            "valueFrom": {"secretKeyRef": {"name": profile["tabpfn_secret"], "key": "TABPFN_TOKEN"}},
+        })
+    if profile.get("wandb_secret"):
+        env.append({
+            "name": "WANDB_API_KEY",
+            "valueFrom": {"secretKeyRef": {"name": profile["wandb_secret"], "key": "WANDB_API_KEY"}},
+        })
+        if profile.get("wandb_project"):
+            env.append({"name": "WANDB_PROJECT", "value": profile["wandb_project"]})
+        if profile.get("wandb_entity"):
+            env.append({"name": "WANDB_ENTITY", "value": profile["wandb_entity"]})
+
+    volume_mounts = [{"name": "workspace", "mountPath": profile.get("pvc_mount_path", "/data")},
+                      {"name": "jobspec", "mountPath": "/jobspec"}]
+    volumes = [
+        {"name": "workspace", "persistentVolumeClaim": {"claimName": profile["pvc_claim_name"]}},
+        {"name": "jobspec", "configMap": {"name": configmap_name}},
+    ]
+    if profile.get("kaggle_secret"):
+        volume_mounts.append({"name": "kaggle", "mountPath": "/root/.kaggle"})
+        volumes.append({"name": "kaggle", "secret": {"secretName": profile["kaggle_secret"]}})
+
+    pod_spec: dict = {
+        "restartPolicy": "Never",
+        "containers": [{
+            "name": "run-experiment",
+            "image": image,
+            "imagePullPolicy": "Always",
+            # The image's own ENTRYPOINT is baked to the per-model
+            # k8s_entrypoint.sh (see Dockerfile) -- this overrides it, since
+            # a multi-model pod needs k8s_entrypoint_by_dataset.sh's
+            # model-varies-per-jobspec-line reading instead. Confirmed the
+            # hard way: without this override, a real submission ran the
+            # wrong entrypoint (expects a MODEL env var this manifest never
+            # sets, and a different jobspec field order) before it was
+            # caught and the jobs were deleted, unrun.
+            "command": ["/bin/bash", "cluster/k8s_entrypoint_by_dataset.sh"],
+            "env": env,
+            "volumeMounts": volume_mounts,
+            "resources": resources,
+        }],
+        "volumes": volumes,
+    }
+    if profile.get("image_pull_secret"):
+        pod_spec["imagePullSecrets"] = [{"name": profile["image_pull_secret"]}]
+    if profile.get("node_selector"):
+        pod_spec["nodeSelector"] = profile["node_selector"]
+    if profile.get("node_affinity_match_expressions"):
+        pod_spec["affinity"] = {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {
+            "nodeSelectorTerms": [{"matchExpressions": profile["node_affinity_match_expressions"]}]
+        }}}
+    if profile.get("priority_class_name"):
+        pod_spec["priorityClassName"] = profile["priority_class_name"]
+
+    job_manifest = {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {"name": job_name, "namespace": namespace,
+                     "labels": {"app": "raman-bench", **profile.get("extra_pod_labels", {})}},
+        "spec": {
+            "completions": n_pods,
+            "parallelism": min(throttle, n_pods) or 1,
+            "completionMode": "Indexed",
+            "backoffLimit": 0,
+            "template": {"metadata": {"labels": {"app": "raman-bench"}}, "spec": pod_spec},
+        },
+    }
+    return job_name, configmap_name, n_pods, job_manifest
+
+
 def submit_jobs_k8s(
     *,
     model: str,
