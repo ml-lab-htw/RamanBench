@@ -70,16 +70,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
     works fine against `tabdpt` 1.3.1 and needed no changes. GPU-only
     (`minimum_num_gpus=0.5`, `default_num_gpus=1`, inherited from
     `TabDPTModelBase`), added to `cluster/gpu_models.json`.
-  - **Not yet smoke-tested on the real cluster**: both were submitted via
-    `cluster/submit_job.py` against the `alzheimer` dataset (3-fold CV,
-    default config), but the deployed k8s image bakes in a pinned source
-    checkout (no `git pull` at task start — see `cluster/k8s_entrypoint.sh`),
-    so the submitted jobs ran against the *previous* image and failed with
-    `AssertionError: Unknown model_cls` (the new `Prep_*` classes aren't in
-    that image yet). A rebuilt/pushed image is needed before a real
-    end-to-end smoke test can pass; not done in this change — see the PR
-    description. Neither added to `configs/v1/scope_default.json`'s routine
-    sweep yet, pending that real smoke test.
+  - **Smoke-tested end-to-end on the real k8s cluster** (`alzheimer`, 3-fold
+    CV, default config): first attempt against the shared `:v1` image failed
+    with `AssertionError: Unknown model_cls` (that image bakes in a pinned
+    source checkout — no `git pull` at task start, see
+    `cluster/k8s_entrypoint.sh`), so a new, separately-tagged image
+    (`ramanbench:v1-onboard-tabpfn35fast-tabdpt13`) was built and pushed and
+    the jobs resubmitted via a temporary per-model `image_overrides` entry
+    against that tag. Both passed with sane, non-NaN `metric_error`:
+    `TABPFN-V3.5-FAST` 0.0231 (fold 2, roc_auc; validation score 0.987),
+    `TABDPT-V1.3` 0.0079 (fold 2, roc_auc; validation score 0.995), real
+    `results.pkl` written per fold. The shared `:v1` image still needs a real
+    rebuild/push with this code before either model can be submitted through
+    the normal profile. Neither added to `configs/v1/scope_default.json`'s
+    routine sweep yet, pending that image rebuild.
   - Both covered by structure/registration tests only (`tests/models/
     test_tabpfn_3_5_fast.py`, `tests/models/test_tabdpt_v13.py`), matching
     the existing GPU-foundation-model test posture (e.g. `test_tabldm.py`) —
