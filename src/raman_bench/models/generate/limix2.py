@@ -24,7 +24,7 @@ have LIMIX v1's hard CPU-retrieval crash -- but it is still GPU-tier in
 practice (in-context prediction over a 400M-parameter network on every
 predict call), so it's still listed in ``cluster/gpu_models.json``.
 
-Needs its own dedicated container (``Dockerfile.limix2``, not the main
+Needs its own dedicated container (``Dockerfile.py312``, not the main
 ``Dockerfile``): its inference package (``LimiX @
 git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e1a994cbe38f33758e3d663e9951855554``)
 declares ``requires-python = ">=3.12"`` and pins ``torch==2.9.1``, both

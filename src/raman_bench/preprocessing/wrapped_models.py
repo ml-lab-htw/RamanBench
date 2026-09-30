@@ -152,7 +152,7 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # LimiX-2 (Stable AI, released 2026-09-15) -- a separate model/checkpoint from
     # LimiXModel above, not a version bump of it (different HF repo, different
     # inference package pin, own ``tabarena.models.limix_2`` package). Runs in a
-    # dedicated container (Dockerfile.limix2) because its inference package
+    # dedicated container (Dockerfile.py312) because its inference package
     # (``LimiX @ git+.../LimiX.git@774aa3e``) requires Python >=3.12 and pins
     # torch==2.9.1, both incompatible with the main image's Python 3.11.10 base
     # and shared torch~=2.14 floor (see requirements-limix2-git.txt). The import
@@ -882,7 +882,7 @@ if SAPRPTOSSModel is not None:
     # other foundation model here: the tabarena wrapper class can be defined
     # without its backing package). Confirmed as a real failure building a
     # minimal environment that installs tabarena but not
-    # requirements-models-git.txt (e.g. Dockerfile.limix2, a LIMIX2-only
+    # requirements-models-git.txt (e.g. Dockerfile.py312, a LIMIX2-only
     # image): this module-level `import sap_rpt_oss.rpt` crashed the entire
     # `wrapped_models` import with a bare `ModuleNotFoundError`, taking every
     # other Prep_* model down with it -- exactly the failure mode the "keep
@@ -1075,7 +1075,7 @@ else:
 # GPU-tier, and its own inference package requires Python >=3.12 and pins
 # torch==2.9.1 -- incompatible with the main image (Python 3.11.10,
 # torch~=2.14 floor). Runs in a dedicated container built from
-# Dockerfile.limix2 instead (see requirements-limix2-git.txt and
+# Dockerfile.py312 instead (see requirements-limix2-git.txt and
 # cluster/submit_job.py's model_image_overrides). A LIMIX2 job submitted
 # against the main image's environment will fail to import the LimiX
 # inference package at fit time (a clean ModuleNotFoundError/ImportError from

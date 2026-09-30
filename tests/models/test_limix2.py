@@ -4,7 +4,7 @@
 model/checkpoint (Stable AI's second-generation tabular foundation model, not
 a version bump of the first). See ``raman_bench/models/generate/limix2.py``
 and ``wrapped_models.py``'s ``Prep_LIMIX2`` comment block for the full
-rationale, and ``Dockerfile.limix2``/``requirements-limix2-git.txt`` for why
+rationale, and ``Dockerfile.py312``/``requirements-limix2-git.txt`` for why
 this model needs a dedicated container (Python >=3.12, torch>=2.9.1 -- both
 incompatible with the main image).
 

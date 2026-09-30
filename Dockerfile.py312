@@ -1,8 +1,27 @@
-# Dedicated image for the LIMIX2 model only (see cluster/submit_job.py's
+# The Python 3.12 image, for any model whose inference package needs a newer
+# Python than the main image ships (see cluster/submit_job.py's
 # resolve_k8s_image / a k8s profile's `image_overrides`). NOT a replacement
-# for the main Dockerfile -- every other model still runs from that image.
+# for the main Dockerfile -- every model whose dependencies fit the main
+# image's Python 3.11.10 + torch~=2.14 floor still runs from that image;
+# route a model here only when it genuinely can't.
 #
-# Why a separate image at all: LIMIX2's inference package
+# Named after the Python version, not any one model, so the NEXT model that
+# needs >=3.12 can potentially reuse this same image (if its dependency tree
+# doesn't conflict with what's already installed below) instead of getting
+# its own dedicated Dockerfile -- same axis this repo already uses for
+# Dockerfile.v100 (GPU architecture, not model name). Renamed from
+# Dockerfile.limix2 (2026-09-30) once a second Python-3.12-only model became
+# plausible; LIMIX2 is still, as of this rename, the ONLY model actually
+# built into this image -- the package-install section below (COPY/RUN pip
+# install) is still LIMIX2-specific, not yet generalized, since there's only
+# one real consumer to generalize FROM. If you're adding a second model here:
+# check its dependencies don't conflict with LIMIX2's `torch>=2.9.1` pin (this
+# image has no shared-floor protection the way the main image does -- see the
+# `--no-deps`-free install below) before assuming it can share this image
+# rather than needing its own.
+#
+# Why a separate-from-main image at all (LIMIX2's original reason, still the
+# only concrete case): LIMIX2's inference package
 # (github.com/limix-ldm-ai/LimiX) declares `requires-python = ">=3.12"` and
 # `dependencies = ["torch>=2.9.1", ...]`. The main image is Python 3.11.10
 # (inherited from its pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime base) with
@@ -19,11 +38,12 @@
 # image's own "runtime"-not-"devel" base).
 #
 # Build and push (fill in your own registry -- keep this a DISTINCT tag from
-# the main image's, e.g. `:limix2`, never overwriting `:v1`):
-#   docker build -f Dockerfile.limix2 -t <registry>/<you>/raman-bench:limix2 .
-#   docker push <registry>/<you>/raman-bench:limix2
-# Then add `image_overrides: {"LIMIX2": "<registry>/<you>/raman-bench:limix2"}`
-# to your k8s profile (see cluster/profiles/k8s_example.yaml).
+# the main image's, e.g. `:py312`, never overwriting `:v1`):
+#   docker build --platform linux/amd64 -f Dockerfile.py312 -t <registry>/<you>/raman-bench:py312 .
+#   docker push <registry>/<you>/raman-bench:py312
+# Then add `image_overrides: {"LIMIX2": "<registry>/<you>/raman-bench:py312"}`
+# (plus any other model routed here) to your k8s profile (see
+# cluster/profiles/k8s_example.yaml).
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

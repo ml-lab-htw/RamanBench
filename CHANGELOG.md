@@ -20,6 +20,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
   feature complexity, not just row count). Existing results stay as
   historical data, same convention as `TABPFN-WIDE`'s earlier removal.
 
+### Changed
+
+- **`Dockerfile.limix2` renamed to `Dockerfile.py312`** — named after the
+  Python version it provides, not the one model that currently needs it, so
+  the next model requiring Python >=3.12 can potentially reuse this same
+  image (if its dependencies don't conflict with what's already installed)
+  instead of getting its own dedicated Dockerfile. Same naming axis this repo
+  already uses for `Dockerfile.v100` (GPU architecture, not model name). Pure
+  rename — the package-install section is still LIMIX2-specific (only one
+  real consumer so far); `cluster/submit_job.py`'s `resolve_k8s_image`,
+  `cluster/profiles/k8s_example.yaml`, and every LIMIX2 reference updated to
+  match. Image retagged `:py312` (previously `:limix2`).
+
 ### Added
 
 - **`TABLDM` onboarded** (`Prep_TABLDM`, thin rebind of
