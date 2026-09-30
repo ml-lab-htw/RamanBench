@@ -24,5 +24,6 @@
   "bacteria_identification",
   "cspp_serum_metabolites",
   "marine_pathogens",
-  "marine_pathogens_binary"
+  "marine_pathogens_binary",
+  "synthetic_organic_pigments_raw"
 ]
