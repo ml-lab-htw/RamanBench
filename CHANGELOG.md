@@ -35,6 +35,58 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`TABPFN-V3.5-FAST` / `TABDPT-V1.3` onboarded** (`Prep_TABPFN_V3_5_FAST`,
+  `Prep_TABDPT_V13` — thin rebinds of
+  `tabarena.models.tabpfn_3_5.model.TabPFN35FastModel` and
+  `tabarena.models.tabdpt.model.TabDPTv13Model` respectively). Both already
+  present at the currently-pinned `tabarena` commit
+  (`bd22348ac1b895c54728d59edc37454f83c054c4`, PR #625's branch) — no
+  dependency-pin change needed.
+  - `TABPFN-V3.5-FAST`: the smaller/faster sibling of `TABPFN-V3.5` (Prior
+    Labs reports up to 6x faster inference; marked alpha upstream), released
+    from the same Hugging Face repo. Subclasses `TabPFN35Model` directly —
+    same limits, license and estimator surface as `TABPFN-V3.5`, only the
+    checkpoint differs. GPU-only (`default_num_gpus=1`,
+    `minimum_num_gpus=1`), added to `cluster/gpu_models.json`.
+  - `TABDPT-V1.3`: **not** the same class as the existing `TABDPT` entry.
+    `TABDPT` wraps AutoGluon-core's own (already-graduated)
+    `TabDPTModel`, which leaves its checkpoint filename unset and simply
+    uses whichever `tabdpt` package version is installed — it floats with
+    the installed package rather than hardcoding one. `TABDPT-V1.3` instead
+    wraps tabarena's own `TabDPTv13Model` (a `TabDPTTurboModel` subclass),
+    which hardcodes the `tabdpt1_3.safetensors` checkpoint and needs
+    `tabdpt>=1.3.1` (the first release with a separable, shared-weights
+    `TabDPTEstimator._load_model` — 1.3 also renamed the network's label
+    encoders, `y_encoders` -> `cls_y_encoders`/`reg_y_encoders`, making 1.2
+    and 1.3 checkpoints mutually unreadable). Checked before onboarding
+    whether this conflicts with the existing `TABDPT` entry: tabarena's own
+    `tabdpt` extra (pinned via `requirements-tabarena-git.txt`) already
+    requires `tabdpt>=1.3.1`; confirmed live on a running k8s pod that the
+    installed `tabdpt` there is already `1.3.1`; and confirmed 2708+ real
+    `TabDPT_c1_BAG_L1` `results.pkl` files on the cluster PVC are dated
+    2026-09-24/25 (after this tabarena pin took effect), with a
+    spot-checked result (`alzheimer__0/0_0`) giving a sane, non-NaN
+    `metric_error` (0.0044, roc_auc) — so `TABDPT` already empirically
+    works fine against `tabdpt` 1.3.1 and needed no changes. GPU-only
+    (`minimum_num_gpus=0.5`, `default_num_gpus=1`, inherited from
+    `TabDPTModelBase`), added to `cluster/gpu_models.json`.
+  - **Not yet smoke-tested on the real cluster**: both were submitted via
+    `cluster/submit_job.py` against the `alzheimer` dataset (3-fold CV,
+    default config), but the deployed k8s image bakes in a pinned source
+    checkout (no `git pull` at task start — see `cluster/k8s_entrypoint.sh`),
+    so the submitted jobs ran against the *previous* image and failed with
+    `AssertionError: Unknown model_cls` (the new `Prep_*` classes aren't in
+    that image yet). A rebuilt/pushed image is needed before a real
+    end-to-end smoke test can pass; not done in this change — see the PR
+    description. Neither added to `configs/v1/scope_default.json`'s routine
+    sweep yet, pending that real smoke test.
+  - Both covered by structure/registration tests only (`tests/models/
+    test_tabpfn_3_5_fast.py`, `tests/models/test_tabdpt_v13.py`), matching
+    the existing GPU-foundation-model test posture (e.g. `test_tabldm.py`) —
+    no local fit/predict test, since no local dev environment here has a
+    matching `autogluon`/`tabarena` build (same pre-existing condition
+    already noted for `test_tabldm.py`).
+
 - **`KUMO-TABULAR` / `KUMO-TABULAR-MEDIUM` / `KUMO-TABULAR-SMALL` onboarded**
   (`Prep_KUMO_TABULAR{,_MEDIUM,_SMALL}`, thin rebinds of
   `tabarena.models.kumo_tabular.model.{KumoTabularModel,KumoTabularMediumModel,
