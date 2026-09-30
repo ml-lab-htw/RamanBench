@@ -73,11 +73,22 @@ def _kubectl(*args: str) -> str:
 
 
 def _pick_any_running_pod(namespace: str) -> str:
+    """Pick a Running pod to exec into -- the NEWEST one (by ``startTime``), not just
+    the first one kubectl happens to return. Real bug hit in practice: a long-running
+    pod started before a ``:v1`` image rebuild keeps its OLD pulled image (k8s doesn't
+    refresh a running pod's image just because the tag was repushed), so its installed
+    ``raman_bench`` registry doesn't know about any model onboarded since -- silently
+    dropping that model's entire results from the report (``ag_name_to_key.get(ag_name)``
+    returns ``None`` for it, see main()). Confirmed live: KUMO-TABULAR vanished from a
+    real report because the picked pod's imageID predated its onboarding. The newest
+    Running pod is the one most likely to have pulled the current image, since it was
+    the most recently submitted/scheduled."""
     pods = json.loads(_kubectl("get", "pods", "-n", namespace, "-o", "json"))
-    for pod in pods["items"]:
-        if pod["status"].get("phase") == "Running":
-            return pod["metadata"]["name"]
-    raise RuntimeError(f"No Running pod found in namespace {namespace!r} to exec into.")
+    running = [p for p in pods["items"] if p["status"].get("phase") == "Running"]
+    if not running:
+        raise RuntimeError(f"No Running pod found in namespace {namespace!r} to exec into.")
+    running.sort(key=lambda p: p["status"].get("startTime", ""), reverse=True)
+    return running[0]["metadata"]["name"]
 
 
 def _exec_python(namespace: str, pod: str, script: str) -> str:
