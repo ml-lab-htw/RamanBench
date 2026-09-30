@@ -1,0 +1,532 @@
+[
+  {
+    "dataset": "alzheimer",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1151,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "cancer_cell_cooh",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 633,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "cancer_cell_nh2",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 632,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "chlorinated_samples",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 230,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "comfile_stroke",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 4020,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "covid19_salvia",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 2501,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "head_neck_cancer",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 111,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "locust_phase_hemolymph",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 5000,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "parkinson",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1476,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "serum_alzheimer_disease",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 3417,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "rruff_mineral_raw",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 5244,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "cspp_serum_metabolites",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 150,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "marine_pathogens",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1138,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "marine_pathogens_binary",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 261,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "synthetic_organic_pigments_raw",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 325,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "amino_acids_glycine",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 90,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "amino_acids_tryptophan",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 90,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ecoli_fermentation",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 379,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ecoli_fermentation",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 379,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ecoli_metabolites",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 1920,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ecoli_metabolites",
+    "target_idx": 1,
+    "target_name": "Sodium_Acetate",
+    "num_instances": 1920,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ecoli_metabolites_dig4bio",
+    "target_idx": 0,
+    "target_name": "Glucose (g/L)",
+    "num_instances": 384,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ecoli_metabolites_dig4bio",
+    "target_idx": 1,
+    "target_name": "Sodium Acetate (g/L)",
+    "num_instances": 384,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ht_raman_bio_catalysis_axp",
+    "target_idx": 0,
+    "target_name": "Adenosin",
+    "num_instances": 344,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ht_raman_bio_catalysis_axp",
+    "target_idx": 1,
+    "target_name": "ADP",
+    "num_instances": 344,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 0,
+    "target_name": "Research Octane Number",
+    "num_instances": 179,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "fuel_benchtop",
+    "target_idx": 1,
+    "target_name": "Motor Octane Number",
+    "num_instances": 179,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 0,
+    "target_name": "Research Octane Number",
+    "num_instances": 179,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "fuel_handheld",
+    "target_idx": 1,
+    "target_name": "Motor Octane Number",
+    "num_instances": 179,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "yeast_fermentation",
+    "target_idx": 0,
+    "target_name": "Glucose [mol / L]",
+    "num_instances": 58,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "yeast_fermentation",
+    "target_idx": 1,
+    "target_name": "Fructose [mol / L]",
+    "num_instances": 58,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ralstonia_fermentations",
+    "target_idx": 0,
+    "target_name": "Cell Dry Weight [g/L]",
+    "num_instances": 82,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "ralstonia_fermentations",
+    "target_idx": 1,
+    "target_name": "Fructose HPLC [g/L]",
+    "num_instances": 82,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_532",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 270,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_532",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 270,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_785",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 270,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_anton_785",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 270,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_metrohm",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 399,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_metrohm",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 399,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_mettler_toledo",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 275,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_mettler_toledo",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 275,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_tec5",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 395,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_tec5",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 395,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_timegate",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 133,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_timegate",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 133,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_tornado",
+    "target_idx": 0,
+    "target_name": "Glucose",
+    "num_instances": 385,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "bioprocess_analytes_tornado",
+    "target_idx": 1,
+    "target_name": "Acetate",
+    "num_instances": 385,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "sugar_mixtures_high_snr",
+    "target_idx": 0,
+    "target_name": "Sucrose",
+    "num_instances": 1960,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "sugar_mixtures_high_snr",
+    "target_idx": 1,
+    "target_name": "Fructose",
+    "num_instances": 1960,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "adenine_colloidal_gold",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 225,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "adenine_solid_gold",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 810,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "adenine_colloidal_silver",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 630,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  },
+  {
+    "dataset": "adenine_solid_silver",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 1851,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": true
+  }
+]

@@ -52,3 +52,21 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
   thresholds. No institution-specific values -- a private wrapper
   (`raman_bench_paper/cluster/submit_v1_opportunistic.sh`) supplies the actual
   cluster profile (`--profile cluster/profiles/htw.yaml`) alongside this scope.
+- `core_target_list.json` / `scope_core.json` -- the "core" subset: 53 targets across
+  37 datasets, meant for people without cluster-scale GPUs/time to still run a real,
+  representative RamanBench sweep and compare against the main leaderboard. Derived
+  by `scripts/build_core_subset.py` from `target_list.json` + `scope_default.json`'s
+  `large_datasets`: excludes every large (heavy/OOM-prone) dataset, excludes any
+  target with `num_instances < 50` (too small to trust), then caps each remaining
+  dataset at 2 targets (lowest `target_idx` values) so no single multi-target dataset
+  dominates. `target_list.json` itself also carries an `is_core` bool on every entry
+  (same membership, single source of truth) for anything that already reads the full
+  list, e.g. computing a main-vs-core leaderboard delta. Regenerate after changing
+  `target_list.json` or `large_datasets`:
+  ```
+  python scripts/build_core_subset.py
+  ```
+  Run a core-only sweep the same way as the main one, just pointed at this scope/
+  targets file, e.g. `cluster/submit_full_benchmark.py --targets-file
+  configs/v1/core_target_list.json ...` or `cluster/opportunistic_scheduler.py
+  --scope configs/v1/scope_core.json`.

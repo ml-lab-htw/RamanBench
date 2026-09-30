@@ -41,7 +41,12 @@ dependencies = [
     "matplotlib>=3.5,<4.0",
     "seaborn>=0.12",
     "tqdm>=4.64,<5.0",
-    "raman-data>=1.6.2",
+    # >=1.6.5: fixes synthetic_organic_pigments_{raw,baseline_corrected} being
+    # mis-registered as Regression when the loader already produced
+    # classification-shaped output -- any benchmark run below this floor
+    # regresses against an arbitrary sample ordering on those two datasets,
+    # not a real quantity (ml-lab-htw/raman_data#44).
+    "raman-data>=1.6.5",
     "torch>=2.0,<3.0",
     "python-dotenv>=1.0",
 ]
