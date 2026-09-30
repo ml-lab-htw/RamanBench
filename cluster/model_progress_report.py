@@ -45,6 +45,18 @@ for key, cls in raman_bench_model_registry.key_to_cls_map().items():
 print(json.dumps(out))
 """
 
+_ONLY_MODELS_DUMP_SCRIPT = """
+import json
+from raman_bench.preprocessing.wrapped_models import (
+    CLASSIFICATION_ONLY_MODELS,
+    REGRESSION_ONLY_MODELS,
+)
+print(json.dumps({
+    "classification_only": sorted(CLASSIFICATION_ONLY_MODELS),
+    "regression_only": sorted(REGRESSION_ONLY_MODELS),
+}))
+"""
+
 _FIND_RESULTS_SCRIPT = f"""
 import subprocess
 out = subprocess.run(
@@ -73,8 +85,11 @@ def _exec_python(namespace: str, pod: str, script: str) -> str:
 
 
 def _compute_partition_totals(
-    scope_path: Path, targets_path: Path
-) -> tuple[dict, dict, int, int, set[str], dict[str, int], set[str]]:
+    scope_path: Path,
+    targets_path: Path,
+    classification_datasets_path: Path,
+    regression_datasets_path: Path,
+) -> tuple[dict, dict, int, int, set[str], dict[str, int], set[str], dict[str, int], dict[str, int]]:
     """Per-dataset expected task counts (n_repeats * n_splits), split into the full-
     and large-partition dicts {dataset: expected_tasks}, plus their sums, plus the
     set of excluded ``"{dataset}__{target_idx}"`` keys (same on-disk naming as
@@ -100,15 +115,33 @@ def _compute_partition_totals(
     (e.g. TABSTAR, TABPFN-WIDE) but still have historical results.pkl files on
     disk from before their removal -- without this, they'd keep showing up
     stuck at their last-attempted %, indistinguishable from a real stalled model.
+
+    Finally returns ``full_total_by_tasktype``/``large_total_by_tasktype``:
+    ``{"classification": N, "regression": M}`` per partition, computed by
+    cross-referencing each target's dataset against ``configs/v1/datasets/
+    {classification,regression}_all.json``. A ``CLASSIFICATION_ONLY_MODELS``/
+    ``REGRESSION_ONLY_MODELS`` model (``wrapped_models.py`` -- e.g. ORIONMSP,
+    NORI) has a real, lower ceiling than the full task count: it cleanly skips
+    every task of the opposite problem type (see ``run_experiment.py``'s
+    "only supports classification/regression tasks" skip), so counting those
+    skips as "not done" against the FULL denominator produces a misleadingly
+    low percentage that looks like a stalled/broken model when it's actually
+    already at its true 100% (confirmed in practice for ORIONMSP: 45/303=14.9%
+    against the full denominator vs. its real ceiling of 45/48 once regression
+    targets are correctly excluded from ITS denominator).
     """
     scope = json.loads(scope_path.read_text())
     n_splits = scope["n_splits"]
     large_datasets = set(scope.get("large_datasets", []))
     active_models = set(scope["models"])
     targets = json.loads(targets_path.read_text())
+    classification_datasets = set(json.loads(classification_datasets_path.read_text()))
+    regression_datasets = set(json.loads(regression_datasets_path.read_text()))
 
     full_by_dataset: dict = defaultdict(int)
     large_by_dataset: dict = defaultdict(int)
+    full_total_by_tasktype = {"classification": 0, "regression": 0}
+    large_total_by_tasktype = {"classification": 0, "regression": 0}
     excluded_dataset_targets: set[str] = set()
     dataset_target_n_repeats: dict[str, int] = {}
     for t in targets:
@@ -119,10 +152,16 @@ def _compute_partition_totals(
         n_repeats = t.get("n_repeats", 10)
         dataset_target_n_repeats[key] = n_repeats
         tasks = n_repeats * n_splits
-        if t["dataset"] in large_datasets:
+        is_large = t["dataset"] in large_datasets
+        if is_large:
             large_by_dataset[t["dataset"]] += tasks
         else:
             full_by_dataset[t["dataset"]] += tasks
+        totals = large_total_by_tasktype if is_large else full_total_by_tasktype
+        if t["dataset"] in classification_datasets:
+            totals["classification"] += tasks
+        elif t["dataset"] in regression_datasets:
+            totals["regression"] += tasks
     return (
         full_by_dataset,
         large_by_dataset,
@@ -131,6 +170,8 @@ def _compute_partition_totals(
         excluded_dataset_targets,
         dataset_target_n_repeats,
         active_models,
+        full_total_by_tasktype,
+        large_total_by_tasktype,
     )
 
 
@@ -146,6 +187,14 @@ def main() -> None:
         "--targets", type=Path, default=REPO_ROOT / "configs" / "v1" / "target_list.json",
         help="Target list JSON (as written by scripts/build_target_list.py).",
     )
+    parser.add_argument(
+        "--classification-datasets", type=Path,
+        default=REPO_ROOT / "configs" / "v1" / "datasets" / "classification_all.json",
+    )
+    parser.add_argument(
+        "--regression-datasets", type=Path,
+        default=REPO_ROOT / "configs" / "v1" / "datasets" / "regression_all.json",
+    )
     args = parser.parse_args()
 
     (
@@ -156,11 +205,18 @@ def main() -> None:
         excluded_dataset_targets,
         dataset_target_n_repeats,
         active_models,
-    ) = _compute_partition_totals(args.scope, args.targets)
+        full_total_by_tasktype,
+        large_total_by_tasktype,
+    ) = _compute_partition_totals(
+        args.scope, args.targets, args.classification_datasets, args.regression_datasets
+    )
 
     pod = _pick_any_running_pod(args.namespace)
 
     ag_name_to_key = json.loads(_exec_python(args.namespace, pod, _REGISTRY_DUMP_SCRIPT))
+    only_models = json.loads(_exec_python(args.namespace, pod, _ONLY_MODELS_DUMP_SCRIPT))
+    classification_only_models = set(only_models["classification_only"])
+    regression_only_models = set(only_models["regression_only"])
 
     find_output = _exec_python(args.namespace, pod, _FIND_RESULTS_SCRIPT)
 
@@ -213,24 +269,41 @@ def main() -> None:
     for key in all_keys:
         full_done = sum(done_full[key].values())
         large_done = sum(done_large[key].values())
-        if full_total_all:
+        # A CLASSIFICATION_ONLY_MODELS/REGRESSION_ONLY_MODELS model has a real,
+        # lower ceiling than the full task count -- it cleanly skips every task
+        # of the opposite problem type (see run_experiment.py's "only supports
+        # classification/regression tasks" skip), so its denominator must be
+        # just its own problem type's totals, not everything (see
+        # _compute_partition_totals's docstring for the ORIONMSP false-alarm
+        # this fixes: 45/303=14.9% against the full denominator vs. its real
+        # ceiling of 45/48 once regression targets are excluded).
+        if key in classification_only_models:
+            full_total = full_total_by_tasktype["classification"]
+            large_total = large_total_by_tasktype["classification"]
+        elif key in regression_only_models:
+            full_total = full_total_by_tasktype["regression"]
+            large_total = large_total_by_tasktype["regression"]
+        else:
+            full_total = full_total_all
+            large_total = large_total_all
+        if full_total:
             rows.append(
                 {
                     "model": key,
                     "partition": "full",
                     "tasks_done": full_done,
-                    "tasks_total": full_total_all,
-                    "percent_complete": f"{100 * full_done / full_total_all:.1f}",
+                    "tasks_total": full_total,
+                    "percent_complete": f"{100 * full_done / full_total:.1f}",
                 }
             )
-        if large_total_all:
+        if large_total:
             rows.append(
                 {
                     "model": key,
                     "partition": "large",
                     "tasks_done": large_done,
-                    "tasks_total": large_total_all,
-                    "percent_complete": f"{100 * large_done / large_total_all:.1f}",
+                    "tasks_total": large_total,
+                    "percent_complete": f"{100 * large_done / large_total:.1f}",
                 }
             )
 
