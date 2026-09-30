@@ -149,6 +149,19 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "OrionMSPModel": "tabarena.models.orionmsp.model",
     "ILTMModel": "tabarena.models.iltm.model",
     "LimiXModel": "tabarena.models.limix.model",
+    # LimiX-2 (Stable AI, released 2026-09-15) -- a separate model/checkpoint from
+    # LimiXModel above, not a version bump of it (different HF repo, different
+    # inference package pin, own ``tabarena.models.limix_2`` package). Runs in a
+    # dedicated container (Dockerfile.limix2) because its inference package
+    # (``LimiX @ git+.../LimiX.git@774aa3e``) requires Python >=3.12 and pins
+    # torch==2.9.1, both incompatible with the main image's Python 3.11.10 base
+    # and shared torch~=2.14 floor (see requirements-limix2-git.txt). The import
+    # here still resolves normally in the main image (tabarena's own package
+    # doesn't need the LimiX pip package just to define ``LimiX2Model`` -- only
+    # actually fitting one does, inside ``LimiX2Model._fit``'s own deferred
+    # import), so ``Prep_LIMIX2`` is always registered; only fitting it needs
+    # the limix2 image/environment.
+    "LimiX2Model": "tabarena.models.limix_2.model",
     "TabSTARModel": "tabarena.models.tabstar.model",
     # Batch 4 (2026-09-28): APLR, CTBoost. Both CPU-only, own third-party pip
     # packages (aplr, ctboost -- see pyproject.toml), TabArena-package-only
@@ -863,10 +876,27 @@ def _patch_sap_rpt_oss_single_row_predict_bug(sap_rpt_oss_rpt_module) -> None:
 
 
 if SAPRPTOSSModel is not None:
-    import sap_rpt_oss.rpt as _sap_rpt_oss_module
-
-    _patch_sap_rpt_oss_single_row_predict_bug(_sap_rpt_oss_module)
-    del _sap_rpt_oss_module
+    # `SAPRPTOSSModel is not None` only means tabarena's own thin wrapper class
+    # imported cleanly -- it does NOT guarantee the actual third-party
+    # `sap_rpt_oss` inference package is installed (same situation as every
+    # other foundation model here: the tabarena wrapper class can be defined
+    # without its backing package). Confirmed as a real failure building a
+    # minimal environment that installs tabarena but not
+    # requirements-models-git.txt (e.g. Dockerfile.limix2, a LIMIX2-only
+    # image): this module-level `import sap_rpt_oss.rpt` crashed the entire
+    # `wrapped_models` import with a bare `ModuleNotFoundError`, taking every
+    # other Prep_* model down with it -- exactly the failure mode the "keep
+    # optional imports out of module top-level" convention (see this module's
+    # docstring) exists to prevent. Guarded the same way as every other
+    # optional import in this file; Prep_SAP_RPT_OSS itself still degrades to
+    # unavailable below via the same _unavailable_models sweep.
+    try:
+        import sap_rpt_oss.rpt as _sap_rpt_oss_module
+    except ImportError:
+        SAPRPTOSSModel = None
+    else:
+        _patch_sap_rpt_oss_single_row_predict_bug(_sap_rpt_oss_module)
+        del _sap_rpt_oss_module
 
 Prep_SAP_RPT_OSS = _make_optional_prep_class(
     "Prep_SAP_RPT_OSS", SAPRPTOSSModel, ag_key="SAP_RPT_OSS"
@@ -1027,6 +1057,36 @@ else:
             default_auxiliary_params = super()._get_default_auxiliary_params()
             default_auxiliary_params.update(_NO_FOUNDATION_MODEL_FEATURE_CAP)
             return default_auxiliary_params
+
+
+# LimiX-2 -- Stable AI's second-generation tabular foundation model
+# (tabarena.models.limix_2.model.LimiX2Model), distinct from LimiXModel above
+# (different checkpoint, different HF repo, own inference package pin). Unlike
+# LimiXModel, LimiX2Model caps max_classes=10 via the normal DECLARATIVE
+# `_default_auxiliary_params_extra` class attribute (confirmed by reading
+# tabarena/models/limix_2/model.py directly, not assumed from LimiXModel's
+# shape) -- so, unlike Prep_LIMIX, this one lifts the cap the same way
+# Mitra/TabDPT/TabICL/RealTabPFN do, via `_make_optional_prep_class`'s
+# `_default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP` kwarg,
+# with no method override needed. ag_key overridden from LimiX2Model's own
+# staging-prefixed "TA-LIMIX-2" to the short "LIMIX2" for consistency with
+# every other entry in this registry (no collision to dodge).
+#
+# GPU-tier, and its own inference package requires Python >=3.12 and pins
+# torch==2.9.1 -- incompatible with the main image (Python 3.11.10,
+# torch~=2.14 floor). Runs in a dedicated container built from
+# Dockerfile.limix2 instead (see requirements-limix2-git.txt and
+# cluster/submit_job.py's model_image_overrides). A LIMIX2 job submitted
+# against the main image's environment will fail to import the LimiX
+# inference package at fit time (a clean ModuleNotFoundError/ImportError from
+# LimiX2Model's own deferred import inside `_fit`, not a hang or crash
+# elsewhere) -- always route LIMIX2 through the limix2 image.
+Prep_LIMIX2 = _make_optional_prep_class(
+    "Prep_LIMIX2",
+    LimiX2Model,
+    ag_key="LIMIX2",
+    _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
+)
 
 
 # TabSTAR builds a per-column LM text embedding (see tabstar/arch/arch.py's
@@ -1270,6 +1330,7 @@ PREPROCESSED_MODELS = {
     "ORIONMSP": Prep_ORIONMSP,
     "ILTM": Prep_ILTM,
     "LIMIX": Prep_LIMIX,
+    "LIMIX2": Prep_LIMIX2,
     "TABSTAR": Prep_TABSTAR,
     "APLR": Prep_APLR,
     "CTBOOST": Prep_CTBOOST,

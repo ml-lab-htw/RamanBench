@@ -36,6 +36,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
   so far only ever been populated reactively, after a real observed cluster
   failure.
 
+- **`LIMIX2`** (`Prep_LIMIX2`, wrapping `tabarena.models.limix_2.model.LimiX2Model`,
+  Stable AI's second-generation tabular foundation model) — thin rebind of
+  TabArena's own upstream model/search space, same pattern as `LIMIX` (v1).
+  Runs in a dedicated container (new `Dockerfile.limix2`, `nvidia/cuda:12.8.1-
+  cudnn-runtime-ubuntu24.04` + Python 3.12), not the main image: its inference
+  package (`LimiX @ git+github.com/limix-ldm-ai/LimiX`) requires Python >=3.12
+  and `torch>=2.9.1`, both incompatible with the main image's Python 3.11.10
+  base and shared `torch~=2.14` floor (forced by Causilo). `cluster/submit_job.py`
+  gained `resolve_k8s_image()` / a profile-level `image_overrides` dict (same
+  shape as `mem_tiers`) so a k8s job can route a specific model to a different
+  image; every other model is unaffected, still resolving to `profile["image"]`.
+  GPU-tier (`cluster/gpu_models.json`).
+
 - **`model_max_train_samples_overrides` extended to MITRA, TABFM, REALTABPFN-V2,
   REALTABPFN-V2.5, TABICL** (5000 rows each) — all confirmed `TimeLimitExceeded`
   on `wheat_lines`/`mlrod` even at the global 10000-row cap; unlike

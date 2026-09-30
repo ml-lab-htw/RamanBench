@@ -55,7 +55,6 @@ import time
 from pathlib import Path
 
 import yaml
-
 from detect_cluster import detect_cluster
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -150,6 +149,22 @@ def resolve_k8s_resources(profile: dict, model: str, use_gpu: bool) -> dict:
     if use_gpu:
         limits[profile.get("gpu_resource_key", "nvidia.com/gpu")] = str(profile.get("gpu_count", 1))
     return {"requests": {"cpu": cpu, "memory": mem}, "limits": limits}
+
+
+def resolve_k8s_image(profile: dict, model: str) -> str:
+    """Pick the container image for one model's pod, mirroring resolve_k8s_resources'
+    per-model tier lookup shape (``mem_tiers``) for a per-model image override.
+
+    Every model shares ``profile["image"]`` by default. LIMIX2 is the first
+    exception: its inference package requires Python >=3.12 and pins
+    torch==2.9.1, both incompatible with the main image's Python 3.11.10 base
+    and shared torch~=2.14 floor -- it needs a separate image built from
+    ``Dockerfile.limix2`` (see that file and requirements-limix2-git.txt).
+    ``image_overrides`` is a profile-level ``{model: image}`` dict, same place
+    ``mem_tiers`` lives, so a cluster profile can route any future model to its
+    own image without touching this function again.
+    """
+    return profile.get("image_overrides", {}).get(model, profile["image"])
 
 
 # A single array task's full identity: (dataset, target_idx, repeat, fold,
@@ -656,7 +671,7 @@ def _build_k8s_job_manifest(
         "restartPolicy": "Never",
         "containers": [{
             "name": "run-experiment",
-            "image": profile["image"],
+            "image": resolve_k8s_image(profile, model),
             # Without this, a node that already cached this tag from an earlier
             # submission silently keeps running the stale image after a rebuild+
             # push of the same mutable tag -- confirmed in practice: a real fix

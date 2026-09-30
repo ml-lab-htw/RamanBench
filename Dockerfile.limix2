@@ -1,0 +1,102 @@
+# Dedicated image for the LIMIX2 model only (see cluster/submit_job.py's
+# resolve_k8s_image / a k8s profile's `image_overrides`). NOT a replacement
+# for the main Dockerfile -- every other model still runs from that image.
+#
+# Why a separate image at all: LIMIX2's inference package
+# (github.com/limix-ldm-ai/LimiX) declares `requires-python = ">=3.12"` and
+# `dependencies = ["torch>=2.9.1", ...]`. The main image is Python 3.11.10
+# (inherited from its pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime base) with
+# a shared torch~=2.14 floor forced by Causilo (see pyproject.toml) -- a real,
+# unconditional incompatibility (confirmed: no `pytorch/pytorch` tag pairs
+# torch==2.9.1 with Python 3.12 -- pytorch/pytorch:2.9.1-cuda12.8-cudnn9-runtime
+# still ships Python 3.11.14), not a workaround-able version-range overlap.
+#
+# Base: plain nvidia/cuda (Ubuntu 24.04 ships Python 3.12 natively, confirmed
+# via `apt-get install python3.12`: Python 3.12.3), not pytorch/pytorch --
+# torch itself comes from pip (the cu128 wheel bundles its own CUDA runtime
+# libs, same as every other model's inference path in the main image; the
+# node's NVIDIA driver + container toolkit supplies the rest, same as the main
+# image's own "runtime"-not-"devel" base).
+#
+# Build and push (fill in your own registry -- keep this a DISTINCT tag from
+# the main image's, e.g. `:limix2`, never overwriting `:v1`):
+#   docker build -f Dockerfile.limix2 -t <registry>/<you>/raman-bench:limix2 .
+#   docker push <registry>/<you>/raman-bench:limix2
+# Then add `image_overrides: {"LIMIX2": "<registry>/<you>/raman-bench:limix2"}`
+# to your k8s profile (see cluster/profiles/k8s_example.yaml).
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.12 \
+        python3.12-venv \
+        python3.12-dev \
+        python3-pip \
+        git \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python
+# python3.12-venv: Ubuntu 24.04's system Python is "externally managed"
+# (PEP 668) and refuses a bare `pip install` outside a venv/--break-system-packages;
+# `--break-system-packages` below is fine here (this container runs nothing
+# but this one pinned dependency set, unlike a dev machine's system Python).
+# build-essential: same reasoning as the main Dockerfile -- torch's own triton
+# JIT compilation path shells out to `cc` at call time.
+# python3.12-dev: confirmed real crash without it -- triton's JIT-compiled CUDA
+# utility shim (`cuda_utils.c`) `#include <Python.h>`, which build-essential's
+# gcc alone doesn't provide (that only gives the compiler, not the interpreter's
+# own C headers). Every LIMIX2 task failed identically until this was added:
+# `fatal error: Python.h: No such file or directory`, raised during TabArena's
+# mandatory warm-up step (require_warmup=True) -- fatal to the whole task even
+# though the real fit code ran and produced a model afterward.
+
+WORKDIR /app
+
+# Install the released package WITHOUT the `[models]` extra (that extra pulls
+# in causilo>=1.0.0, whose own unpinned `torch>=2.13` floor is exactly the
+# conflict this dedicated image exists to avoid -- see the module-level note
+# above). `[autogluon,benchmark,tracking]` covers everything LIMIX2Model
+# itself needs (AbstractTorchModel lives in autogluon.tabular) plus
+# run_experiment.py's own tabarena/tracking requirements, without dragging in
+# every other model's third-party package (and torch constraint) along the
+# way.
+COPY pyproject.toml README.md requirements-limix2-git.txt ./
+COPY src ./src
+# --pre: same reasoning as the main Dockerfile (autogluon floor
+# >=1.6.3b20260917, a prerelease).
+#
+# tabarena installed WITHOUT requirements-tabarena-git.txt's extras bracket
+# (tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,
+# nori) -- confirmed as a real build failure: the `nori` extra pulls
+# `synthefy-nori` -> `synthefy` -> `pyvinecopulib`, which needs Eigen3 headers
+# at build time (`CMake Error ... Could not find ... Eigen3`) that this image
+# doesn't carry. None of those nine extras' models run in this image (it's
+# LIMIX2-only), so the bare package -- same git commit pin as
+# requirements-tabarena-git.txt, kept in sync by hand -- is all that's needed;
+# `tabarena.models.limix_2` itself has no extra-gated dependency.
+RUN pip install --no-cache-dir --break-system-packages --pre -e ".[autogluon,benchmark,tracking]" \
+    && pip install --no-cache-dir --break-system-packages --pre \
+        "tabarena @ git+https://github.com/mario-koddenbrock/tabarena.git@3db69f97c628b302767c332bd12f32338e4b8c8d#subdirectory=packages/tabarena"
+# requirements-limix2-git.txt installed WITHOUT --no-deps here, unlike the
+# main image's documented install path (see that file's own comment): the
+# --no-deps workaround exists only because the main image's shared
+# torch~=2.14 floor (from causilo, skipped above) would otherwise get
+# clobbered by LimiX's torch>=2.9.1 dependency. This image has no such floor
+# to protect -- LimiX-2 is the only model running in it -- so its dependency
+# tree (including its own torch>=2.9.1 pin) installs normally, letting pip's
+# resolver pick a consistent version across LimiX + autogluon + tabarena
+# instead of hand-pinning one.
+RUN pip install --no-cache-dir --break-system-packages --pre -r requirements-limix2-git.txt \
+    && pip install --no-cache-dir --break-system-packages nvtx
+# nvtx: the one extra LimiX needs that isn't in its own declared dependency
+# tree (see requirements-limix2-git.txt's own comment) -- still required even
+# without --no-deps above.
+
+# scripts/ and cluster/ are what run_experiment.py and k8s_entrypoint.sh need
+# at runtime -- same reasoning as the main Dockerfile.
+COPY scripts ./scripts
+COPY cluster ./cluster
+COPY configs ./configs
+
+RUN chmod +x cluster/k8s_entrypoint.sh
+
+ENTRYPOINT ["/bin/bash", "cluster/k8s_entrypoint.sh"]
