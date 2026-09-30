@@ -72,5 +72,24 @@
 # bump to a normal `@<main-commit>` pin (dropping the branch reference) so
 # this stops depending on an upstream branch that could be force-pushed or
 # deleted.
+#
+# FURTHER BUMPED 2026-09-30 (same day): off `bd22348a` onto
+# `mario-koddenbrock/tabarena@9d771c3` -- `bd22348a` plus one more cherry-pick,
+# a fix for a real crash found live on this cluster: KumoTabularModel's
+# `_estimator_batch_size` heuristic batches all ensemble members together on
+# small datasets, which raises `ValueError: Estimators in one batch must
+# share column names, category counts and classes` on ~26/303 full-partition
+# tasks (confirmed: diabetes_skin_ear_lobe/vein, fuel_benchtop[1],
+# fuel_handheld[1], kaiser_ecoli_fermentation[2],
+# kaiser_ecoli_fermentation_supernatant[1,2],
+# streptococcus_thermophilus_fermentation_kaiser[1],
+# ait_glucose_blood_sers[0]). Fix (fall back to `estimator_batch_size=1` on
+# exactly this error, compared against `sdm.models.base`'s own
+# `_INCOMPATIBLE_ESTIMATORS` constant rather than a guessed message
+# substring) opened upstream as `autogluon/tabarena#630` against the
+# `kumo-tabular` branch itself, not yet merged -- same provisional-pin
+# situation as #625 above, just one level deeper. `9d771c3` IS `bd22348a` plus
+# only this one commit (verified: same branch, `git log` shows a strict
+# linear history). Revisit alongside the #625 TODO above once #630 merges.
 # ############################################################################
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular] @ git+https://github.com/autogluon/tabarena.git@bd22348ac1b895c54728d59edc37454f83c054c4#subdirectory=packages/tabarena
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular] @ git+https://github.com/mario-koddenbrock/tabarena.git@9d771c3043d259f2111942870141a42582a7642d#subdirectory=packages/tabarena
