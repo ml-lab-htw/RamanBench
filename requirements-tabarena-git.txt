@@ -37,17 +37,40 @@
 # direct pyproject.toml pin (unlike APLR/CTBoost's `aplr`/`ctboost`, which ARE
 # on PyPI and so got a normal pyproject.toml dependency instead).
 #
-# Points at mario-koddenbrock/tabarena (a personal fork), not autogluon/tabarena
-# directly, as of 2026-09-28: the previous pin (d06f406, on a since-deleted
-# benchmark/rerun-new-pipeline-16092026 branch) had diverged from autogluon/
-# tabarena's main (27 commits ahead, 23 behind -- confirmed via the GitHub
-# compare API), so bumping straight to main to pick up one fix would have
-# silently dropped or reordered unrelated work. Instead: branched off the
-# exact previous pin and cherry-picked just the one commit needed
-# (3db69f9 = d06f406 + upstream 8b08bf2 verbatim, "TabSwift: fix batched
-# regression inference", autogluon/tabarena#620 fixing #618) -- confirmed live
-# on the cluster: every TabSwift attempt at a small dataset (<~14 rows after
-# CV split, e.g. microgel_synthesis) failed with exactly the tensor-shape
-# RuntimeError this fixes. Only the vendored TabSwift file changed; every
-# other model is untouched from the previous pin.
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm] @ git+https://github.com/mario-koddenbrock/tabarena.git@3db69f97c628b302767c332bd12f32338e4b8c8d#subdirectory=packages/tabarena
+# ############################################################################
+# PROVISIONAL 2026-09-30: bumped straight off the mario-koddenbrock/tabarena
+# personal fork (previous pin: 3db69f9, itself d06f406 -- the old
+# since-deleted benchmark/rerun-new-pipeline-16092026 branch -- plus one
+# cherry-picked TabSwift fix, 8b08bf2/PR #620) onto an UNMERGED upstream PR
+# branch -- `autogluon/tabarena#625` ("Add Kumo Tabular (large, medium,
+# small)"), branch `kumo-tabular`, head commit
+# `bd22348ac1b895c54728d59edc37454f83c054c4`. This is NOT a normal merged-main
+# pin: PR #625 is still OPEN as of this bump (CI green, a maintainer and the
+# author still discussing usage questions) -- the user explicitly asked for
+# Kumo Tabular onboarded now, ahead of the merge, rather than waiting.
+# Verified directly (not assumed): `8b08bf2` (the fork's one cherry-picked
+# fix) IS a strict git ancestor of `bd22348a`, so nothing from the fork is
+# lost; every model RamanBench imports (aplr, causilo, ctboost,
+# exaone_tabular, iltm, mitra, mitra_v2, nori, orionmsp, tabfm, tabldm,
+# tabpfn_3, tabpfn_3_5, tabpfnv2_5, tabpfnwide, tabstar, limix, limix_2) still
+# resolves against this commit. `kumo_tabular` added to the extras bracket
+# below (TabArena's own PR-local `kumo_tabular` extra, its
+# `structured-data-models` dependency git-pinned to
+# `NVIDIA/structured-data-models@ee6acd402176b0efa42527babd63f15672d63418`,
+# not on PyPI -- same "own extra, not a direct pyproject.toml pin" mechanism
+# as `nori`/`tabldm` above).
+#
+# Separate, independent bump also in flight (branch
+# `bump-tabarena-to-upstream-main`): moving off the personal fork onto
+# `autogluon/tabarena`'s actual `main` (52dac56, motivated by TabFM's
+# already-upstream many-class fix, unrelated to Kumo Tabular). That bump is a
+# STRICT ANCESTOR of this one (`bd22348a` branches off main after 52dac56),
+# so whichever of the two PRs merges first, the other's rebase is a clean
+# fast-forward, not a conflict.
+#
+# TODO revisit once #625 actually merges to `autogluon/tabarena`'s `main`:
+# bump to a normal `@<main-commit>` pin (dropping the branch reference) so
+# this stops depending on an upstream branch that could be force-pushed or
+# deleted.
+# ############################################################################
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular] @ git+https://github.com/autogluon/tabarena.git@bd22348ac1b895c54728d59edc37454f83c054c4#subdirectory=packages/tabarena

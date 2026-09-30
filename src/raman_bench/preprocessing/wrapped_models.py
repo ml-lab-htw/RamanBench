@@ -174,6 +174,18 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # above. Own third-party pip package (``tabldm``, git-pinned via TabArena's
     # ``tabldm`` extra -- see ``requirements-tabarena-git.txt``), not on PyPI.
     "TabLDMModel": "tabarena.models.tabldm.model",
+    # Kumo Tabular (2026-09-30) -- large/medium/small checkpoint variants (NVIDIA,
+    # https://huggingface.co/blog/nvidia/kumo-tabular). PROVISIONAL: sourced from
+    # an UNMERGED upstream PR (autogluon/tabarena#625, branch `kumo-tabular`), not
+    # a merged-main commit -- see requirements-tabarena-git.txt's own comment on
+    # the pin for the full reasoning. GPU-only tabular foundation model
+    # (interleaved row/column attention encoder + in-context-learning transformer),
+    # TabArena-package-only like every foundation model above. Own third-party pip
+    # package (``structured-data-models``, imported as ``sdm``, git-pinned via
+    # TabArena's own PR-local ``kumo_tabular`` extra), not on PyPI.
+    "KumoTabularModel": "tabarena.models.kumo_tabular.model",
+    "KumoTabularMediumModel": "tabarena.models.kumo_tabular.model",
+    "KumoTabularSmallModel": "tabarena.models.kumo_tabular.model",
 }
 _missing_optional_tabarena_models = []
 for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
@@ -762,6 +774,41 @@ Prep_CTBOOST = _make_optional_prep_class("Prep_CTBOOST", CTBoostModel, ag_key="C
 # revisit if TabLDM shows the same failure mode in production.
 Prep_TABLDM = _make_optional_prep_class("Prep_TABLDM", TabLDMModel, ag_key="TABLDM")
 
+# Kumo Tabular (2026-09-30) -- large/medium/small checkpoint variants of NVIDIA's
+# pretrained in-context-learning tabular foundation model
+# (https://huggingface.co/blog/nvidia/kumo-tabular). PROVISIONAL onboarding:
+# sourced from autogluon/tabarena PR #625 (still open/unmerged as of this
+# onboarding -- see requirements-tabarena-git.txt's pin comment) rather than a
+# merged-main release; revisit the ``ag_key`` overrides below (harmless either
+# way -- they just strip the "TA-" staging prefix, same convention as
+# TabFM/TabPFN-3/TabSwift/TabLDM above) once #625 merges.
+#
+# GPU-only (``default_num_gpus = 1``, ``minimum_num_gpus = 1`` on all three
+# sizes -- ``class_settings_per_subclass = True`` upstream, each size re-declares
+# its own ``shared_weights``/``ag_key``/``ag_name`` but all three inherit the same
+# GPU requirement from the base ``KumoTabularModel``). Checked the same way as
+# TabLDM immediately above: no ``_default_auxiliary_params_extra`` on any of the
+# three classes, and the shared base (``AbstractTorchModel``) doesn't cap
+# max_features/max_rows/max_classes either -- so, like TabLDM, none of the three
+# get ``_NO_FOUNDATION_MODEL_FEATURE_CAP`` applied here, and no row cap
+# (``model_max_train_samples_overrides`` in ``configs/v1/scope_default.json``) is
+# added preemptively (same reactive-only policy as TabLDM's comment above --
+# watch the first real cluster runs for OOM/TimeLimitExceeded).
+#
+# Own third-party pip package (``structured-data-models``, imported as ``sdm``,
+# git-pinned via TabArena's own PR-local ``kumo_tabular`` extra in
+# requirements-tabarena-git.txt), not on PyPI. ``requires-python = ">=3.11"`` and
+# ``torch>=2.7`` -- both satisfied by the main image's Python 3.11.10 base and
+# torch~=2.14 floor, so this runs in the shared main image, no dedicated
+# container needed (unlike LIMIX2's Dockerfile.limix2).
+Prep_KUMO_TABULAR = _make_optional_prep_class("Prep_KUMO_TABULAR", KumoTabularModel, ag_key="KUMO-TABULAR")
+Prep_KUMO_TABULAR_MEDIUM = _make_optional_prep_class(
+    "Prep_KUMO_TABULAR_MEDIUM", KumoTabularMediumModel, ag_key="KUMO-TABULAR-MEDIUM"
+)
+Prep_KUMO_TABULAR_SMALL = _make_optional_prep_class(
+    "Prep_KUMO_TABULAR_SMALL", KumoTabularSmallModel, ag_key="KUMO-TABULAR-SMALL"
+)
+
 # Batch 3 (NORI, SAP_RPT_OSS, ORIONMSP, ILTM, LIMIX, TABSTAR) -- the final batch of
 # the 14-model TabArena-native onboarding effort. All six are tabular *foundation*
 # models. Checked the same way as every batch above: instantiated each class and
@@ -1335,6 +1382,9 @@ PREPROCESSED_MODELS = {
     "APLR": Prep_APLR,
     "CTBOOST": Prep_CTBOOST,
     "TABLDM": Prep_TABLDM,
+    "KUMO-TABULAR": Prep_KUMO_TABULAR,
+    "KUMO-TABULAR-MEDIUM": Prep_KUMO_TABULAR_MEDIUM,
+    "KUMO-TABULAR-SMALL": Prep_KUMO_TABULAR_SMALL,
 }
 
 # Drop any entry whose AutoGluon base class wasn't available on this build (see
