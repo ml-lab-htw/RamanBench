@@ -274,6 +274,7 @@ def run_one(
     filter_unlabeled: bool = True,
     recipe_config: str | None = None,
     max_train_samples: int | None = None,
+    force_recompute: bool = False,
 ) -> dict | None:
     """Run exactly one (model, dataset, target, repeat, fold, config) job and cache the result.
 
@@ -702,8 +703,15 @@ def run_one(
     # Deliberate policy: an already-cached result stands as final for that
     # key; a changed num_bag_folds/time_limit only applies to genuinely new
     # (not-yet-cached) work going forward, never triggers a silent refit or
-    # overwrite of what's already on disk.
-    if cacher.exists:
+    # overwrite of what's already on disk -- UNLESS force_recompute is set
+    # (--force-recompute), the explicit, auditable opt-in for the one real
+    # case this should be bypassed: a dataset-DEFINITION fix (bad task_type,
+    # mislabeled targets, ...) makes the cached result itself meaningless,
+    # not just out of date relative to a compute-budget change. Added instead
+    # of a bulk `rm -rf` of the affected cache paths (see
+    # docs/internal/invalidating-results.md) -- this overwrites in place, one
+    # real recompute per task, no separate deletion step at all.
+    if cacher.exists and not force_recompute:
         out = cacher.load_cache()
         logger.info(
             "%s on %s repeat=%d fold=%d: using existing cached result at %s "
@@ -737,7 +745,7 @@ def run_one(
         # so this only matters for that internal scoping, not for where results land.
         cache_task_key=task_name,
         cacher=cacher,
-        ignore_cache=False,
+        ignore_cache=force_recompute,
     )
     logger.info("Done: metric_error=%s", out.get("metric_error"))
     return out
@@ -777,6 +785,16 @@ def main():
         "explicit, opt-in change to what is measured for a dataset, not a performance tweak; "
         "added 2026-09-18 for mlrod (~130k rows), whose per-fold AsLS baseline-correction cost "
         "(a pure-Python per-spectrum loop in raman_preprocessing.py) dominated wall-clock time.",
+    )
+    parser.add_argument(
+        "--force-recompute",
+        action="store_true",
+        help="Recompute and overwrite an already-cached result.pkl instead of using it as-is. "
+        "Default policy is to never touch a cached result (see run_one's own docstring on why), "
+        "so this is an explicit opt-in for the one case that should override it: a "
+        "dataset-DEFINITION fix (bad task_type, mislabeled targets, ...) makes the cached "
+        "result itself meaningless, not just out of date relative to a compute-budget change. "
+        "See docs/internal/invalidating-results.md.",
     )
     parser.add_argument(
         "--config-index",
@@ -863,6 +881,7 @@ def main():
         filter_unlabeled=not args.keep_unlabeled,
         recipe_config=args.recipe_config,
         max_train_samples=args.max_train_samples,
+        force_recompute=args.force_recompute,
     )
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")
