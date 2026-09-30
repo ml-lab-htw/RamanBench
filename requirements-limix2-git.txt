@@ -1,0 +1,18 @@
+# LimiX-2 (Prep_LIMIX2, tabarena.models.limix_2.model.LimiX2Model) -- NOT installable via a plain
+# `pip install -r requirements-models-git.txt` line like TabFM/SAP-RPT-OSS/OrionMSP: its inference
+# package pins torch==2.9.1, which would replace the torch every other model in this image runs on
+# (torch~=2.14, forced by causilo's floor -- see pyproject.toml). Install it WITHOUT its dependency
+# tree, next to the torch already present, plus the one extra it needs on top:
+#
+#     pip install --no-deps -r requirements-limix2-git.txt
+#     pip install nvtx
+#
+# Pinned to the exact commit tabarena's own LimiX-2 wrapper was written against (kept in sync with
+# tabarena.models.limix_2.info.ModelInfo.pip_extra upstream); bump deliberately when picking up a
+# newer LimiX-2 release.
+#
+# Also requires RamanBench's own tabarena pin (requirements-tabarena-git.txt) to include
+# `models/limix_2/` -- not present as of the currently-pinned commit (d06f406a), which predates
+# LimiX-2's release (2026-09-15). Until that pin is bumped, Prep_LIMIX2 stays unavailable (the
+# `models` extra's optional-import guard in wrapped_models.py degrades cleanly either way).
+LimiX @ git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e1a994cbe38f33758e3d663e9951855554
