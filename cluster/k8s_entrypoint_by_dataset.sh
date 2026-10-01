@@ -54,6 +54,14 @@ fi
 GPU_FLAG=""
 [ "${USE_GPU:-0}" = "1" ] && GPU_FLAG="--use-gpu"
 
+# Opt-in, whole-pod flag (not a per-task jobspec field): this entrypoint is
+# built for exactly the "recompute this dataset across the whole roster"
+# case, so a dataset-sweep submission either wants force-recompute for every
+# task in it or none at all -- see run_experiment.py's --force-recompute and
+# docs/internal/invalidating-results.md.
+FORCE_RECOMPUTE_FLAG=""
+[ "${FORCE_RECOMPUTE:-0}" = "1" ] && FORCE_RECOMPUTE_FLAG="--force-recompute"
+
 FIRST_LINE=$(( ${JOB_COMPLETION_INDEX:-0} * TASKS_PER_POD + 1 ))
 LAST_LINE=$(( FIRST_LINE + TASKS_PER_POD - 1 ))
 echo "This pod's jobspec lines: ${FIRST_LINE}-${LAST_LINE} of ${JOBSPEC}"
@@ -100,7 +108,8 @@ JOBMETA
         --mirror-repo "${MIRROR_REPO}" \
         --scratch-dir "${SCRATCH_DIR}" \
         "${MAX_TRAIN_SAMPLES_FLAG[@]}" \
-        ${GPU_FLAG}
+        ${GPU_FLAG} \
+        ${FORCE_RECOMPUTE_FLAG}
     TASK_RC=$?
     rm -rf "${SCRATCH_DIR}" "${OPENML_CACHE_DIR}"
 

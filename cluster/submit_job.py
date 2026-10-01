@@ -813,6 +813,7 @@ def build_k8s_job_manifest_multimodel(
     use_gpu: bool,
     tasks_per_pod: int,
     throttle: int,
+    force_recompute: bool = False,
 ) -> tuple[str, str, int, dict]:
     """Multi-model counterpart to _build_k8s_job_manifest: ``image``/``mem_tier``
     are already resolved by the caller (the SHARED image and the MAX memory
@@ -841,6 +842,7 @@ def build_k8s_job_manifest_multimodel(
         {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir, workspace)},
         {"name": "MIRROR_REPO", "value": mirror_repo},
         {"name": "USE_GPU", "value": "1" if use_gpu else "0"},
+        {"name": "FORCE_RECOMPUTE", "value": "1" if force_recompute else "0"},
         {"name": "JOBSPEC", "value": "/jobspec/jobspec.txt"},
         {"name": "TASKS_PER_POD", "value": str(tasks_per_pod)},
     ]
