@@ -35,6 +35,30 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`REALTABPFN-V2.6` added to the routine sweep** (`Prep_REALTABPFN_V26`,
+  `wrapped_models.py`) — the wrapper class and registry entries already
+  existed from an earlier onboarding pass but never actually resolved: the
+  optional-import guard looked for `autogluon.tabular.models.RealTabPFNv26Model`,
+  which never existed under that name (a bad assumption carried over from
+  V2/V2.5's `RealTabPFNvNModel` naming convention). Checked directly against
+  the installed `autogluon.tabular` wheel: the real class is `TabPFNv26Model`
+  (no "Real" prefix), and its own `ag_key`/`ag_name` (`"TABPFN-2.6"`) also
+  don't match RamanBench's `"REALTABPFN-V2.6"` naming — unlike V2/V2.5, which
+  inherit matching `ag_key`s unchanged, this one needs both explicitly
+  overridden, or `infer_model_cls("REALTABPFN-V2.6")` raises "Unknown
+  model_cls". Also added the many-class ECOC fit/memory overrides (same as
+  V2/V2.5, since `TabPFNv26Model`'s own `max_classes=10` cap matches
+  `_TABPFN_OFFICIAL_MAX_CLASSES` exactly) but deliberately did NOT apply the
+  `_NO_FOUNDATION_MODEL_FEATURE_CAP` override V2/V2.5 need: `TabPFNv26Model`'s
+  own `_default_auxiliary_params_extra` already sets `max_features=None`
+  itself (built for up to 22k columns per its docstring), and overriding
+  would also reset its calibrated `max_rows=100_000`/`max_classes=10` to
+  `None` for no benefit. Added the missing `generate/realtabpfn_v26.py`
+  `ConfigGenerator` wiring (rebinding TabArena's own
+  `tabpfnv2_5.hpo.gen_tabpfnv26` — yes, bundled under the `tabpfnv2_5`
+  subpackage upstream), confirmed end-to-end: registry resolution, generator
+  wiring, and a real local fit/predict against the `alzheimer` dataset.
+
 - **`TABPFN-WIDE` re-added to the routine sweep** (`Prep_TABPFN_WIDE`,
   `models/custom/tabpfn_wide/`) — removed 2026-09-18 because every published
   `tabpfnwide` release through 0.3.0 exact-pinned an old `tabpfn`, permanently
