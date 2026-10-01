@@ -64,6 +64,13 @@ def main():
     parser.add_argument("--mirror-repo", default=None)
     parser.add_argument("--throttle", type=int, default=None)
     parser.add_argument("--tasks-per-pod", type=int, default=5000)
+    parser.add_argument(
+        "--force-recompute", action="store_true",
+        help="Recompute and overwrite already-cached results instead of skipping them -- "
+             "the normal reason to use this script for a dataset that already has some "
+             "results, e.g. after a dataset-definition fix. See "
+             "docs/internal/invalidating-results.md.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -152,6 +159,7 @@ def main():
                 time_limit=time_limit, results_dir=results_dir, cache_dir=cache_dir, mirror_repo=mirror_repo,
                 profile=profile, image=image, mem_tier=mem_tier, use_gpu=use_gpu,
                 tasks_per_pod=args.tasks_per_pod, throttle=throttle,
+                force_recompute=args.force_recompute,
             )
             print(f"\n=== group ({image}, {'gpu' if use_gpu else 'cpu'}): {len(group_models)} model(s) "
                   f"x {len(matched)} target(s) x {n_splits} fold(s) x {len(args.config_indices)} config(s) "
