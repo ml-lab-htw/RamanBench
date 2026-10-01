@@ -37,10 +37,18 @@ COPY src ./src
 # a transitive requirement line that doesn't itself mention a prerelease,
 # conflicting with our own line that does -- confirmed real ResolutionImpossible
 # without this flag.
-RUN pip install --no-cache-dir --pre -e ".[models,benchmark,tracking]" \
-    && pip install --no-cache-dir --pre -r requirements-tabarena-git.txt \
-    && pip install --no-cache-dir --pre -r requirements-models-git.txt \
-    && pip uninstall -y torchaudio
+# Split into separate RUN layers (was one combined `&&`-chained layer) -- a single
+# layer bundling every dependency (torch/autogluon/tabarena/every model package) grew
+# to several GB in one blob, which a registry push repeatedly stalled on indefinitely
+# (zero progress, no error) through this network's path, even across a Docker Desktop
+# restart -- confirmed real, not a one-off: same exact layer digest failed identically
+# across 5 separate push attempts. Smaller per-step layers push independently, so a
+# transfer that stalls on one no longer blocks/invalidates the others, and a retry only
+# needs to redo the one still-missing layer instead of the whole multi-GB blob.
+RUN pip install --no-cache-dir --pre -e ".[models,benchmark,tracking]"
+RUN pip install --no-cache-dir --pre -r requirements-tabarena-git.txt
+RUN pip install --no-cache-dir --pre -r requirements-models-git.txt
+RUN pip uninstall -y torchaudio
 # torchaudio: the base image's bundled 2.5.1+cu124 build is left over from
 # before torch got bumped to 2.14.0+cu130 (same drift class as the
 # torchvision fix above), and unlike torchvision, PyPI has published no
