@@ -140,16 +140,19 @@ models = [
     # (tabpfn>=8.0.8) which RamanBench's own floor below (now >=9.0.0) already
     # exceeds.
     #
-    # tabpfnwide/TABPFN-WIDE REMOVED 2026-09-18: every published tabpfnwide
-    # release (0.1.0 -> tabpfn==6.0.6, 0.2.0/0.3.0 -> tabpfn==8.0.3) exact-pins
-    # an old tabpfn, permanently incompatible with tabpfn>=9.0.0 -- confirmed
-    # via a real pip resolve (ResolutionImpossible against ALL 3 tabpfnwide
-    # releases, not just the latest). That floor bump is required for
-    # TabPFN-3.5 (tabarena.models.tabpfn_3_5, onboarded this same commit bump),
-    # which needs it for its new multitask checkpoint format. Explicit call: drop tabpfnwide/
-    # TABPFN-WIDE from the roster rather than block TabPFN-3.5 on it --
-    # TABPFN-WIDE's already-computed results stay as historical data, just no
-    # new runs. Revisit if tabpfnwide ever republishes against a newer tabpfn.
+    # tabpfnwide/TABPFN-WIDE REMOVED 2026-09-18, RE-ADDED 2026-10-01: every tabpfnwide
+    # release through 0.3.0 (0.1.0 -> tabpfn==6.0.6, 0.2.0/0.3.0 -> tabpfn==8.0.3)
+    # exact-pinned an old tabpfn, permanently incompatible with tabpfn>=9.0.0 (required
+    # for TabPFN-3.5's multitask checkpoint format, tabarena.models.tabpfn_3_5) --
+    # confirmed via a real pip resolve (ResolutionImpossible against all 3 releases).
+    # tabpfnwide 0.4.0 (released after the removal) now exact-pins tabpfn==9.0.0 --
+    # exactly this floor, not a conflict -- confirmed via a real pip resolve of the
+    # entire `models` extras group plus tabpfnwide==0.4.0 together (clean, no
+    # ResolutionImpossible). The model code was never deleted (only pulled from this
+    # extras group and configs/v1/scope_default.json's active roster), so this just
+    # re-adds the dependency; see scope_default.json's comment for the re-add to the
+    # active sweep. Revisit again only if a future tabpfnwide release moves off
+    # tabpfn==9.0.0 exactly in a way that stops matching TabPFN-3.5's own floor.
     #
     # `tabarena` itself (with its `[tabicl,ebm,search_spaces,realmlp,tabdpt,
     # tabm,perpetualboosting,chimeraboost]` extras) is NOT declared here for
@@ -179,9 +182,13 @@ models = [
     "aplr>=10.26.0",
     "ctboost==0.1.61",
     # >=9.0.0: required for TabPFN-3.5's multitask checkpoint format (tabarena.
-    # models.tabpfn_3_5) -- see the tabpfnwide-removal comment above for why
-    # this floor and tabpfnwide can no longer coexist.
+    # models.tabpfn_3_5) -- see the tabpfnwide re-add comment above for the
+    # version history of why this floor and tabpfnwide briefly couldn't coexist.
     "tabpfn>=9.0.0",
+    # ==9.0.0 exactly, matching tabpfn's floor above -- tabpfnwide 0.4.0 exact-pins
+    # this version (confirmed via its PyPI metadata: requires_dist includes
+    # "tabpfn==9.0.0"); see the tabpfnwide re-add comment above for the full history.
+    "tabpfnwide>=0.4.0",
     # >=0.4.3: floor bumped alongside tabpfn above -- 0.3.0 (the old floor) pins
     # "tabpfn<8,>=6.0.5", a hard ResolutionImpossible against tabpfn>=9.0.0
     # (confirmed via a real pip resolve). 0.4.3 is the first tabpfn-extensions

@@ -10,5 +10,5 @@ tabpfn_wide_info = ModelInfo(
     display_name="TabPFN-Wide",
     compute="gpu",
     reference_url="https://doi.org/10.48550/arXiv.2510.06162",
-    pip_extra=("tabpfnwide",),
+    pip_extra=("tabpfnwide>=0.4.0",),
 )

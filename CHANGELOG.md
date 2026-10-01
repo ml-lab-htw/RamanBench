@@ -35,6 +35,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`TABPFN-WIDE` re-added to the routine sweep** (`Prep_TABPFN_WIDE`,
+  `models/custom/tabpfn_wide/`) — removed 2026-09-18 because every published
+  `tabpfnwide` release through 0.3.0 exact-pinned an old `tabpfn`, permanently
+  incompatible with the `tabpfn>=9.0.0` floor `TABPFN-V3.5` needs for its
+  multitask checkpoint format. `tabpfnwide` 0.4.0 (a new release, not
+  available at removal time) now exact-pins `tabpfn==9.0.0` — exactly that
+  floor, not a conflict — confirmed via a real pip resolve of the entire
+  `models` extras group plus `tabpfnwide==0.4.0` together, and via a real
+  install of that stack passing all 10 of `tests/models/test_tabpfn_wide.py`
+  plus a clean `raman_bench.models.registry.infer_model_cls("TABPFN-WIDE")`
+  resolution. Model code was never deleted, only pulled from
+  `pyproject.toml`'s `models` extra and `scope_default.json`'s active
+  roster; `pip_extra` bumped to `tabpfnwide>=0.4.0`. Re-added to
+  `cluster/gpu_models.json`. Existing historical `TABPFN-WIDE` results from
+  before the removal are unaffected — this resumes new runs, it does not
+  recompute old ones.
+
 - **`TABPFN-V3.5-FAST` / `TABDPT-V1.3` onboarded** (`Prep_TABPFN_V3_5_FAST`,
   `Prep_TABDPT_V13` — thin rebinds of
   `tabarena.models.tabpfn_3_5.model.TabPFN35FastModel` and
