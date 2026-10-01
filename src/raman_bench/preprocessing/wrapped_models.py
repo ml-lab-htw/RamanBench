@@ -230,7 +230,13 @@ for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
     try:
         _module = __import__(_module_path, fromlist=[_name])
         globals()[_name] = getattr(_module, _name)
-    except ImportError:
+    except (ImportError, AttributeError):
+        # AttributeError: the module itself imports fine (tabarena is installed) but an
+        # older build doesn't yet define this class -- e.g. tabdpt.model exists without
+        # TabDPTv13Model. Without catching this too, a stale tabarena takes down
+        # raman_bench.models.registry entirely (every model fails, not just this one),
+        # with a traceback naming an unrelated class and no hint the real cause is a
+        # version mismatch. Same degrade-gracefully intent as the ImportError case.
         globals()[_name] = None
         _missing_optional_tabarena_models.append(_name)
 if _missing_optional_tabarena_models:
