@@ -1064,6 +1064,151 @@ def submit(
     )
 
 
+# --- AutoGluon whole-predictor baseline path --------------------------------
+# Counterpart to the per-model path above, for cluster/submit_autogluon_baseline.py
+# (scripts/run_autogluon_baseline.py's submission mechanism -- see that script's own
+# module docstring for why it needs a different runner entirely, not just a different
+# --model value: there is no model_key/config_index/num_bag_folds here, only a dataset/
+# target/repeat/fold and a preset time budget). Kept fully separate from
+# _build_k8s_job_manifest/write_jobspec above, same reasoning as the dataset-centric
+# path's own separation comment: the existing, currently-running per-model path is
+# never at risk of a regression from this one.
+
+# One AutoGluon-baseline task's full identity: (dataset, target_idx, repeat, fold,
+# time_limit, budget_label, n_repeats, n_splits).
+AutoGluonTask = tuple[str, int, int, int, float, str, int, int]
+
+
+def write_jobspec_autogluon(jobs: list[AutoGluonTask], slug: str) -> Path:
+    """One line per (dataset, target_idx, repeat, fold, time_limit, budget_label,
+    n_repeats, n_splits) task -- read by cluster/k8s_entrypoint_autogluon.sh, task N
+    reads line N+1 (0-based completion index), same convention as write_jobspec's own
+    per-array-task line indexing."""
+    JOBSPEC_DIR.mkdir(exist_ok=True)
+    path = JOBSPEC_DIR / f"{slug}.txt"
+    with open(path, "w") as f:
+        for dataset, target_idx, repeat, fold, time_limit, budget_label, n_repeats, n_splits in jobs:
+            f.write(
+                f"{dataset} {target_idx} {repeat} {fold} {time_limit} {budget_label} "
+                f"{n_repeats} {n_splits}\n"
+            )
+    return path
+
+
+def build_k8s_job_manifest_autogluon(
+    *,
+    slug: str,
+    n_tasks: int,
+    results_dir: str,
+    cache_dir: str,
+    mirror_repo: str,
+    profile: dict,
+    use_gpu: bool,
+    tasks_per_pod: int,
+    throttle: int,
+) -> tuple[str, str, int, dict]:
+    """Build the (job_name, configmap_name, n_pods, job_manifest) for one AutoGluon-
+    baseline k8s Indexed Job. Mirrors _build_k8s_job_manifest's shape (same secrets/
+    volumes/node-affinity/priority-class handling), but resolves image/memory via the
+    fixed "AUTOGLUON" mem_tiers/image_overrides key (there is no per-task model key to
+    look up a tier for -- every task here is the same whole-predictor AutoGluon run),
+    and points the pod's command at cluster/k8s_entrypoint_autogluon.sh instead of the
+    baked-in image ENTRYPOINT (same reason submit_dataset_sweep.py's manifest builder
+    needs an explicit command override: the image's own ENTRYPOINT runs
+    k8s_entrypoint.sh, which doesn't know about this jobspec format at all).
+
+    ``tasks_per_pod``/``throttle`` are passed explicitly by the caller (rather than read
+    from the profile's own default, as the per-model path does) -- AutoGluon-extreme's
+    per-task time budgets (up to 4h) make the profile's "one pod per model's entire
+    sweep" default (tasks_per_pod=5000, effectively always 1 pod) far too slow; the
+    caller is expected to pass a small tasks_per_pod so this collapses to many
+    short(er)-running pods instead, with real parallelism across them.
+    """
+    job_name = _k8s_name("rb-autogluon", slug)
+    configmap_name = _k8s_name("rb-jobspec-autogluon", slug)
+    n_pods = -(-n_tasks // tasks_per_pod)
+    namespace = profile.get("namespace", "default")
+    workspace = profile.get("workspace") or ""
+
+    env = [
+        {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir, workspace)},
+        {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir, workspace)},
+        {"name": "MIRROR_REPO", "value": mirror_repo},
+        {"name": "USE_GPU", "value": "1" if use_gpu else "0"},
+        {"name": "JOBSPEC", "value": "/jobspec/jobspec.txt"},
+        {"name": "TASKS_PER_POD", "value": str(tasks_per_pod)},
+    ]
+    if profile.get("hf_secret"):
+        env += [
+            {"name": "HF_TOKEN", "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HF_TOKEN"}}},
+            {"name": "HUGGING_FACE_HUB_TOKEN",
+             "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HUGGING_FACE_HUB_TOKEN"}}},
+        ]
+    if profile.get("wandb_secret"):
+        env.append({
+            "name": "WANDB_API_KEY",
+            "valueFrom": {"secretKeyRef": {"name": profile["wandb_secret"], "key": "WANDB_API_KEY"}},
+        })
+        if profile.get("wandb_project"):
+            env.append({"name": "WANDB_PROJECT", "value": profile["wandb_project"]})
+        if profile.get("wandb_entity"):
+            env.append({"name": "WANDB_ENTITY", "value": profile["wandb_entity"]})
+
+    volume_mounts = [{"name": "workspace", "mountPath": profile.get("pvc_mount_path", "/data")},
+                      {"name": "jobspec", "mountPath": "/jobspec"}]
+    volumes = [
+        {"name": "workspace", "persistentVolumeClaim": {"claimName": profile["pvc_claim_name"]}},
+        {"name": "jobspec", "configMap": {"name": configmap_name}},
+    ]
+    if profile.get("kaggle_secret"):
+        volume_mounts.append({"name": "kaggle", "mountPath": "/root/.kaggle"})
+        volumes.append({"name": "kaggle", "secret": {"secretName": profile["kaggle_secret"]}})
+
+    pod_spec: dict = {
+        "restartPolicy": "Never",
+        "containers": [{
+            "name": "run-autogluon-baseline",
+            "image": resolve_k8s_image(profile, "AUTOGLUON"),
+            "imagePullPolicy": "Always",
+            # The image's own ENTRYPOINT is baked to the per-model k8s_entrypoint.sh
+            # (see Dockerfile) -- this overrides it, since this pod needs
+            # k8s_entrypoint_autogluon.sh's jobspec format instead (no MODEL env var,
+            # a different per-line field order). Same reasoning/precedent as
+            # build_k8s_job_manifest_multimodel's own command override above.
+            "command": ["/bin/bash", "cluster/k8s_entrypoint_autogluon.sh"],
+            "env": env,
+            "volumeMounts": volume_mounts,
+            "resources": resolve_k8s_resources(profile, "AUTOGLUON", use_gpu),
+        }],
+        "volumes": volumes,
+    }
+    if profile.get("image_pull_secret"):
+        pod_spec["imagePullSecrets"] = [{"name": profile["image_pull_secret"]}]
+    if profile.get("node_selector"):
+        pod_spec["nodeSelector"] = profile["node_selector"]
+    if profile.get("node_affinity_match_expressions"):
+        pod_spec["affinity"] = {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {
+            "nodeSelectorTerms": [{"matchExpressions": profile["node_affinity_match_expressions"]}]
+        }}}
+    if profile.get("priority_class_name"):
+        pod_spec["priorityClassName"] = profile["priority_class_name"]
+
+    job_manifest = {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {"name": job_name, "namespace": namespace,
+                     "labels": {"app": "raman-bench", **profile.get("extra_pod_labels", {})}},
+        "spec": {
+            "completions": n_pods,
+            "parallelism": min(throttle, n_pods) or 1,
+            "completionMode": "Indexed",
+            "backoffLimit": 0,
+            "template": {"metadata": {"labels": {"app": "raman-bench"}}, "spec": pod_spec},
+        },
+    }
+    return job_name, configmap_name, n_pods, job_manifest
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dataset", required=True)

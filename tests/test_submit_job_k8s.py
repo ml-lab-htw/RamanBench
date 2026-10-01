@@ -30,6 +30,7 @@ _spec.loader.exec_module(submit_job)
 _abs_under_workspace = submit_job._abs_under_workspace
 _build_k8s_job_manifest = submit_job._build_k8s_job_manifest
 _sbatch_with_retry = submit_job._sbatch_with_retry
+build_k8s_job_manifest_autogluon = submit_job.build_k8s_job_manifest_autogluon
 
 
 def _minimal_profile(**overrides) -> dict:
@@ -214,6 +215,93 @@ class TestBuildK8sJobManifest:
         _, _, _, manifest = _build(profile)
         assert manifest["metadata"]["labels"]["team"] == "ml-lab"
         assert manifest["metadata"]["labels"]["app"] == "raman-bench"
+
+
+class TestBuildK8sJobManifestAutogluon:
+    """build_k8s_job_manifest_autogluon is scripts/run_autogluon_baseline.py's
+    submission path -- structurally different from _build_k8s_job_manifest (no
+    model_key, a different jobspec format/entrypoint), so covered separately rather
+    than parametrizing the tests above."""
+
+    def _build(self, profile, **overrides):
+        kwargs = dict(
+            slug="extreme",
+            n_tasks=10,
+            results_dir="results/v1/data",
+            cache_dir="cache/v1",
+            mirror_repo="HTW-KI-Werkstatt/RamanBench",
+            profile=profile,
+            use_gpu=True,
+            tasks_per_pod=4,
+            throttle=16,
+        )
+        kwargs.update(overrides)
+        return build_k8s_job_manifest_autogluon(**kwargs)
+
+    def test_command_overrides_the_image_entrypoint(self):
+        # The image's own baked-in ENTRYPOINT runs k8s_entrypoint.sh, which expects a
+        # MODEL env var and a different jobspec field order this pod never sets --
+        # confirmed the hard way for the dataset-sweep path's own command override
+        # (see build_k8s_job_manifest_multimodel), same risk here.
+        _, _, _, manifest = self._build(_minimal_profile())
+        container = manifest["spec"]["template"]["spec"]["containers"][0]
+        assert container["command"] == ["/bin/bash", "cluster/k8s_entrypoint_autogluon.sh"]
+
+    def test_image_and_resources_resolved_via_autogluon_key(self):
+        # No per-task model key here -- every task is the same whole-predictor
+        # AutoGluon run, so image/memory are resolved via the fixed "AUTOGLUON" key
+        # (already present in real profiles' mem_tiers/image_overrides).
+        profile = _minimal_profile(
+            image_overrides={"AUTOGLUON": "registry.example.com/ns/ramanbench:special"},
+            mem_tiers={"AUTOGLUON": "256G"},
+        )
+        _, _, _, manifest = self._build(profile)
+        container = manifest["spec"]["template"]["spec"]["containers"][0]
+        assert container["image"] == "registry.example.com/ns/ramanbench:special"
+        assert container["resources"]["limits"]["memory"] == "256G"
+
+    def test_no_model_env_var(self):
+        # Unlike _build_k8s_job_manifest, there is no MODEL to set.
+        _, _, _, manifest = self._build(_minimal_profile())
+        env_names = {e["name"] for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]}
+        assert "MODEL" not in env_names
+        assert "NUM_RANDOM_CONFIGS" not in env_names
+        assert "NUM_BAG_FOLDS" not in env_names
+
+    def test_results_and_cache_dirs_resolved_absolute_under_workspace(self):
+        profile = _minimal_profile(workspace="/data")
+        _, _, _, manifest = self._build(profile, results_dir="results/v1/data", cache_dir="cache/v1")
+        env = {e["name"]: e["value"] for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]
+               if "value" in e}
+        assert env["RESULTS_DIR"] == "/data/results/v1/data"
+        assert env["CACHE_DIR"] == "/data/cache/v1"
+
+    def test_n_pods_is_ceil_division_of_tasks_per_pod(self):
+        # The whole point of this path: a small tasks_per_pod (unlike the per-model
+        # path's profile default of 5000, which collapses to 1 pod) means many real
+        # pods for genuine parallelism across AutoGluon-extreme's long (up to 4h)
+        # per-task budgets.
+        _, _, n_pods, _ = self._build(_minimal_profile(), n_tasks=41, tasks_per_pod=4)
+        assert n_pods == 11
+
+    def test_parallelism_capped_by_throttle_and_n_pods(self):
+        _, _, n_pods, manifest = self._build(_minimal_profile(), n_tasks=41, tasks_per_pod=4, throttle=8)
+        assert n_pods == 11
+        assert manifest["spec"]["parallelism"] == 8
+
+    def test_job_and_configmap_names_distinguishable_from_per_model_path(self):
+        job_name, configmap_name, _, _ = self._build(_minimal_profile(), slug="extreme")
+        assert job_name.startswith("rb-autogluon-")
+        assert configmap_name.startswith("rb-jobspec-autogluon-")
+
+    def test_wandb_secret_wired_same_as_per_model_path(self):
+        profile = _minimal_profile(wandb_secret="wandb-secret", wandb_project="raman-bench")
+        _, _, _, manifest = self._build(profile)
+        env = {e["name"]: e for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]}
+        assert env["WANDB_API_KEY"]["valueFrom"]["secretKeyRef"] == {
+            "name": "wandb-secret", "key": "WANDB_API_KEY",
+        }
+        assert env["WANDB_PROJECT"]["value"] == "raman-bench"
 
 
 class TestSbatchWithRetry:
