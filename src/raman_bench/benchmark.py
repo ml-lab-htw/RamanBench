@@ -306,9 +306,30 @@ class RamanBenchmark:
         return os.path.exists(train) and os.path.exists(test)
 
     def _save_dataset(self, key: str, train: DataFrame, test: DataFrame):
+        # Atomic write, same reasoning/pattern as _save_index: this cache dir can now be
+        # shared by multiple independent SLURM arrays (possibly from different sessions/
+        # checkouts) racing on the same first-ever cache miss for a given key. A plain
+        # to_pickle(train_path) writes in place -- a concurrent _has_dataset_in_cache
+        # check only looks at os.path.exists, so a reader could observe a half-written
+        # file mid-write. _load_dataset_from_cache already catches and self-heals that
+        # (regenerates on an unpickling error), but that's wasted duplicate computation,
+        # not a guarantee -- writing to a unique temp file in the same directory, then
+        # os.replace (atomic on POSIX), means a reader only ever sees a fully-written
+        # file or none at all.
         train_path, test_path = self._get_cache_paths(key)
-        train.to_pickle(train_path)
-        test.to_pickle(test_path)
+        dir_ = os.path.dirname(train_path) or "."
+        for path, df in ((train_path, train), (test_path, test)):
+            fd, tmp = tempfile.mkstemp(dir=dir_, prefix=".dataset.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "wb") as f:
+                    df.to_pickle(f)
+                os.replace(tmp, path)
+            except BaseException:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+                raise
 
     def _load_dataset_from_cache(self, key: str) -> tuple[DataFrame | None, DataFrame | None]:
         train_path, test_path = self._get_cache_paths(key)
