@@ -57,6 +57,19 @@ print(json.dumps({
 }))
 """
 
+# scripts/run_autogluon_baseline.py's AGExperiment-named result directories don't
+# follow the per-model ConfigGenerator convention (no "_c1_BAG_L1" suffix -- there is
+# no model_key/config_index at all for a whole-predictor AutoGluon run) and have no
+# raman_bench.models.registry entry to resolve an ag_name through (it isn't a
+# registered Prep_* model class). Mapped here by exact directory name instead of
+# through the registry dump -- kept in sync with that script's own
+# EXTREME_TIME_BUDGETS/_experiment_name by hand (no automated check for drift).
+_BASELINE_EXPERIMENT_NAME_TO_KEY = {
+    "AutoGluon_extreme_5m": "AUTOGLUON-EXTREME-5M",
+    "AutoGluon_extreme_1h": "AUTOGLUON-EXTREME-1H",
+    "AutoGluon_extreme_4h": "AUTOGLUON-EXTREME-4H",
+}
+
 _FIND_RESULTS_SCRIPT = f"""
 import subprocess
 out = subprocess.run(
@@ -232,6 +245,9 @@ def main() -> None:
     find_output = _exec_python(args.namespace, pod, _FIND_RESULTS_SCRIPT)
 
     # Path shape: <RESULTS_ROOT>/<ag_name>_c1_BAG_L1/<dataset>__<target_idx>/<repeat>_<fold>/results.pkl
+    # -- or, for the AutoGluon-extreme whole-predictor baseline (no ag_name/config_index at
+    # all), <RESULTS_ROOT>/AutoGluon_extreme_{5m,1h,4h}/<dataset>__<target_idx>/<repeat>_<fold>/
+    # results.pkl, recognized via _BASELINE_EXPERIMENT_NAME_TO_KEY instead of the registry dump.
     done_full: dict = defaultdict(lambda: defaultdict(int))
     done_large: dict = defaultdict(lambda: defaultdict(int))
     for line in find_output.splitlines():
@@ -243,7 +259,8 @@ def main() -> None:
         if len(parts) != 4:
             continue
         model_dir, dataset_target, repeat_fold, _ = parts
-        if not model_dir.endswith("_c1_BAG_L1"):
+        baseline_key = _BASELINE_EXPERIMENT_NAME_TO_KEY.get(model_dir)
+        if baseline_key is None and not model_dir.endswith("_c1_BAG_L1"):
             continue
         if dataset_target in excluded_dataset_targets:
             # A completed result for a target that's since been quality-excluded
@@ -265,10 +282,13 @@ def main() -> None:
                 # cut to 1. Don't count it, same >100% failure mode as the
                 # quality-exclusions case above, different trigger.
                 continue
-        ag_name = model_dir[: -len("_c1_BAG_L1")]
-        key = ag_name_to_key.get(ag_name)
-        if key is None:
-            continue
+        if baseline_key is not None:
+            key = baseline_key
+        else:
+            ag_name = model_dir[: -len("_c1_BAG_L1")]
+            key = ag_name_to_key.get(ag_name)
+            if key is None:
+                continue
         dataset = dataset_target.rsplit("__", 1)[0]
         if dataset in large_by_dataset:
             done_large[key][dataset] += 1
