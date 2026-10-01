@@ -12,7 +12,10 @@
 # newer LimiX-2 release.
 #
 # Also requires RamanBench's own tabarena pin (requirements-tabarena-git.txt) to include
-# `models/limix_2/` -- not present as of the currently-pinned commit (d06f406a), which predates
-# LimiX-2's release (2026-09-15). Until that pin is bumped, Prep_LIMIX2 stays unavailable (the
-# `models` extra's optional-import guard in wrapped_models.py degrades cleanly either way).
+# `models/limix_2/` -- confirmed present as of the currently-pinned commit (9d771c3, bumped
+# 2026-09-30 for the Kumo Tabular onboarding, well after this one landed 2026-09-15), verified
+# directly against a real install (site-packages/tabarena/models/limix_2/ exists). Older comment
+# here referenced the since-superseded d06f406a pin, which did predate LimiX-2 -- stale, corrected
+# 2026-10-01. The `models` extra's optional-import guard in wrapped_models.py would still degrade
+# cleanly if a future pin ever regressed this, same as any other optional foundation model here.
 LimiX @ git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e1a994cbe38f33758e3d663e9951855554

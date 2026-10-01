@@ -93,9 +93,19 @@ COPY src ./src
 # LIMIX2-only), so the bare package -- same git commit pin as
 # requirements-tabarena-git.txt, kept in sync by hand -- is all that's needed;
 # `tabarena.models.limix_2` itself has no extra-gated dependency.
-RUN pip install --no-cache-dir --break-system-packages --pre -e ".[autogluon,benchmark,tracking]" \
-    && pip install --no-cache-dir --break-system-packages --pre \
-        "tabarena @ git+https://github.com/mario-koddenbrock/tabarena.git@3db69f97c628b302767c332bd12f32338e4b8c8d#subdirectory=packages/tabarena"
+# Split into separate RUN layers (same reasoning as the main Dockerfile's own split,
+# 2026-10-01): a single layer bundling torch+autogluon+tabarena+LimiX grew to several
+# GB in one blob, which a registry push repeatedly stalled on indefinitely through this
+# network's path. Smaller per-step layers push independently.
+RUN pip install --no-cache-dir --break-system-packages --pre -e ".[autogluon,benchmark,tracking]"
+# Bumped 2026-10-01: was still pinned to 3db69f9 (the commit current when this Dockerfile was
+# written, 2026-09-15), two bumps behind requirements-tabarena-git.txt's actual current pin
+# (9d771c3) despite this comment's own "kept in sync by hand" claim -- confirmed stale, not assumed;
+# fixed when actually activating LIMIX2 for the first real cluster run. Keep this in sync with
+# requirements-tabarena-git.txt's pin going forward -- there is no automated check for drift between
+# the two files.
+RUN pip install --no-cache-dir --break-system-packages --pre \
+    "tabarena @ git+https://github.com/mario-koddenbrock/tabarena.git@9d771c3043d259f2111942870141a42582a7642d#subdirectory=packages/tabarena"
 # requirements-limix2-git.txt installed WITHOUT --no-deps here, unlike the
 # main image's documented install path (see that file's own comment): the
 # --no-deps workaround exists only because the main image's shared
@@ -105,8 +115,11 @@ RUN pip install --no-cache-dir --break-system-packages --pre -e ".[autogluon,ben
 # tree (including its own torch>=2.9.1 pin) installs normally, letting pip's
 # resolver pick a consistent version across LimiX + autogluon + tabarena
 # instead of hand-pinning one.
-RUN pip install --no-cache-dir --break-system-packages --pre -r requirements-limix2-git.txt \
-    && pip install --no-cache-dir --break-system-packages nvtx
+RUN pip install --no-cache-dir --break-system-packages --pre -r requirements-limix2-git.txt
+# nvtx: the one extra LimiX needs that isn't in its own declared dependency
+# tree (see requirements-limix2-git.txt's own comment) -- still required even
+# without --no-deps above.
+RUN pip install --no-cache-dir --break-system-packages nvtx
 # nvtx: the one extra LimiX needs that isn't in its own declared dependency
 # tree (see requirements-limix2-git.txt's own comment) -- still required even
 # without --no-deps above.
