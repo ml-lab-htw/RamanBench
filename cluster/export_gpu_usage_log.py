@@ -58,6 +58,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--entity", default=DEFAULT_ENTITY)
+    parser.add_argument(
+        "--skip-existing", action="store_true",
+        help="Skip a project if its output CSV already exists -- for resuming after a "
+             "transient wandb API failure without re-fetching everything already done. "
+             "The wandb API (not this script) is what's actually slow/flaky here: a real "
+             "run hit 'WandbApiFailedError: the service process is busy' partway through "
+             "a multi-hour export across ~50 projects.",
+    )
     args = parser.parse_args()
 
     import wandb
@@ -69,28 +77,26 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     total_rows = 0
     for project in projects:
-        rows = []
-        model_key = None
-        for run in api.runs(f"{args.entity}/{project.name}"):
-            cfg = run.config
-            meta = run.metadata or {}
-            if model_key is None and cfg.get("model"):
-                model_key = cfg["model"]
-            gpu_list = meta.get("gpu_nvidia") or []
-            rows.append({
-                "dataset": cfg.get("dataset"),
-                "target_idx": cfg.get("target_idx"),
-                "repeat": cfg.get("repeat"),
-                "fold": cfg.get("fold"),
-                "config_index": cfg.get("config_index"),
-                "num_bag_folds": cfg.get("num_bag_folds"),
-                "gpu": meta.get("gpu") or (gpu_list[0]["name"] if gpu_list else None),
-                "gpu_count": meta.get("gpu_count"),
-                "cuda_version": meta.get("cudaVersion"),
-                "run_state": run.state,
-                "started_at": meta.get("startedAt"),
-                "wandb_run_id": run.id,
-            })
+        # Skip BEFORE the API call (not just the write) when resuming after a
+        # crash -- the whole point is avoiding re-fetching ~50 projects' worth
+        # of runs just to retry the one or two that failed. Guessed from the
+        # project name rather than the real (config-derived) model_key, since
+        # getting the real one requires the API call this is trying to skip;
+        # good enough for a resume heuristic -- worst case a project that
+        # wasn't actually done yet gets skipped too, rerun without the flag.
+        guessed_path = args.out_dir / f"{_model_key_from_project(project.name).upper()}.csv"
+        if args.skip_existing and guessed_path.exists():
+            print(f"  {project.name} -> {guessed_path} (skipped, already exists)")
+            continue
+        # A real, confirmed failure mode: the wandb API itself times out
+        # partway through a long multi-project export ("the service process
+        # is busy and did not respond in time") -- catching per-project means
+        # one flaky project doesn't lose everything already fetched before it.
+        try:
+            model_key, rows = _export_one_project(api, args.entity, project.name)
+        except Exception as e:
+            print(f"  {project.name}: FAILED ({e}) -- skipping, rerun with --skip-existing to retry just this one")
+            continue
         if not rows:
             continue
         model_key = model_key or _model_key_from_project(project.name).upper()
@@ -103,6 +109,35 @@ def main() -> None:
         total_rows += len(rows)
 
     print(f"Done: {total_rows} row(s) across {len(projects)} model(s) in {args.out_dir}")
+
+
+def _export_one_project(api, entity: str, project_name: str) -> tuple[str | None, list[dict]]:
+    """Fetch every run's (dataset/fold/.../gpu) row for one wandb project.
+    Split out of main() so a per-project API failure can be caught around
+    just this call, not the whole multi-project loop."""
+    rows = []
+    model_key = None
+    for run in api.runs(f"{entity}/{project_name}"):
+        cfg = run.config
+        meta = run.metadata or {}
+        if model_key is None and cfg.get("model"):
+            model_key = cfg["model"]
+        gpu_list = meta.get("gpu_nvidia") or []
+        rows.append({
+            "dataset": cfg.get("dataset"),
+            "target_idx": cfg.get("target_idx"),
+            "repeat": cfg.get("repeat"),
+            "fold": cfg.get("fold"),
+            "config_index": cfg.get("config_index"),
+            "num_bag_folds": cfg.get("num_bag_folds"),
+            "gpu": meta.get("gpu") or (gpu_list[0]["name"] if gpu_list else None),
+            "gpu_count": meta.get("gpu_count"),
+            "cuda_version": meta.get("cudaVersion"),
+            "run_state": run.state,
+            "started_at": meta.get("startedAt"),
+            "wandb_run_id": run.id,
+        })
+    return model_key, rows
 
 
 if __name__ == "__main__":
