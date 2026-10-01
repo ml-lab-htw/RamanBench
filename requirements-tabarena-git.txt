@@ -93,3 +93,19 @@
 # linear history). Revisit alongside the #625 TODO above once #630 merges.
 # ############################################################################
 tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular] @ git+https://github.com/mario-koddenbrock/tabarena.git@9d771c3043d259f2111942870141a42582a7642d#subdirectory=packages/tabarena
+
+# tabicl -- pinned to an EXACT version, not left floating on tabarena's own
+# `tabicl` extra (`tabicl>=2.0.0`, unbounded upward). Flagged by a downstream
+# consumer (RamanICL): a TabICL checkpoint carries its architecture config,
+# splatted into `TabICL.__init__` at load time -- a build that doesn't
+# recognize a key the checkpoint was trained with hard-fails
+# (`TypeError: ... got an unexpected keyword argument ...`), or worse, if the
+# mismatch lands on a key with a default, silently changes the architecture
+# instead of erroring. TabArena's own TABICLV2 baseline uses an official,
+# PyPI-released checkpoint (not a bleeding-edge retrain), so this specific
+# failure mode isn't known to be live for us today -- but an unbounded floor
+# means a future `pip install --upgrade` could silently pick one up with no
+# warning, exactly the risk flagged. Pinned to 2.2.0, the version already
+# confirmed running in production (verified live on a real cluster pod) --
+# not a guess at some other "safer" version.
+tabicl==2.2.0
