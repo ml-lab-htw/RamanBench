@@ -1200,6 +1200,37 @@ else:
         """
 
         ag_key = "LIMIX"
+        # ag_name ALSO overridden, not just ag_key: left inherited it collides with
+        # LimiXModel's own native ag_name ("TA-LimiX") -- confirmed as a REAL, live
+        # bug, not theoretical: both this wrapper and TabArena's raw native entry
+        # (registered separately under ag_key "TA-LIMIX") would write results.pkl to
+        # the exact same "TA-LimiX_c1_BAG_L1"-named cache directory, since the cache
+        # path is keyed by ag_name, not ag_key -- confirmed directly against a real
+        # registry dump (both "LIMIX" and "TA-LIMIX" resolved to ag_name "TA-LimiX").
+        #
+        # NOT a preprocessing difference -- checked directly, not assumed: every
+        # Prep_*-wrapped tabular foundation model (LIMIX/LIMIX2/TABPFN-V3/MITRA/...)
+        # has EVERY prep_*_enabled flag False by default (RamanPreprocessingMixin's
+        # own base default, see its class docstring -- "_NoAugBase" only adds the
+        # augmentation flag on top, which was already False). No preprocessing is
+        # applied here by default, matching v0.1's behavior for these model families
+        # deliberately carried into v1 -- tabular foundation models are evaluated on
+        # raw spectra, same as their native baselines. The real, substantive
+        # difference this wrapper makes is AutoGluon's own max_rows/max_features/
+        # max_classes safety caps: this class's own `_get_default_auxiliary_params`
+        # override just below explicitly re-clobbers those to uncapped (confirmed via
+        # a real instantiation check) where the native LimiXModel leaves them at
+        # whatever AutoGluon's own built-in default ceiling is -- on Raman spectra
+        # routinely running 500-4000+ wavenumber points, that default ceiling would
+        # silently reject or truncate inputs the native class was never verified
+        # against for this domain. That's what makes these two genuinely different
+        # experiments worth keeping on separate cache paths, not a preprocessing
+        # distinction. LIMIX's own ~1000 real results were confirmed
+        # NOT corrupted by the collision (the native "TA-LIMIX" entry has never been
+        # submitted, checked directly), but this needed fixing before that ever
+        # changes. Same fix as Prep_TABPFN_V3's own ag_name override just above, for
+        # the identical TA-TABPFN-3 collision.
+        ag_name = "RamanBench-LimiX"
 
         def _get_default_auxiliary_params(self) -> dict:
             """Re-clobber ``LimiXModel``'s own hardcoded ``max_classes=10`` back to
@@ -1224,7 +1255,40 @@ else:
 # `_default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP` kwarg,
 # with no method override needed. ag_key overridden from LimiX2Model's own
 # staging-prefixed "TA-LIMIX-2" to the short "LIMIX2" for consistency with
-# every other entry in this registry (no collision to dodge).
+# every other entry in this registry.
+#
+# ag_name ALSO explicitly overridden below (a prior version of this comment claimed
+# "no collision to dodge" -- confirmed WRONG, not just theoretically risky: left
+# inherited, this class's ag_name collides with LimiX2Model's own native ag_name
+# ("TA-LimiX-2"), and since the results cache path is keyed by ag_name (not
+# ag_key), this wrapper and TabArena's raw native entry (registered separately
+# under ag_key "TA-LIMIX-2") would silently write results.pkl to the exact same
+# "TA-LimiX-2_c1_BAG_L1" cache directory.
+#
+# NOT a preprocessing difference -- checked directly, not assumed: this class has
+# EVERY prep_*_enabled flag False by default, same as every other Prep_*-wrapped
+# tabular foundation model (see RamanPreprocessingMixin's own class docstring --
+# "all preprocessing steps default to disabled"; `_make_optional_prep_class`'s
+# `_NoAugBase` base only adds the augmentation flag on top, which was already
+# False). No preprocessing is applied here by default, matching v0.1's behavior
+# for these model families, deliberately carried into v1. The real, substantive
+# difference is the `_default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP`
+# kwarg just below: this wrapper explicitly re-clobbers AutoGluon's own
+# max_rows/max_features/max_classes safety caps to uncapped (confirmed via a real
+# instantiation check) where the native class leaves those keys undeclared
+# entirely, falling back to AutoGluon's own built-in default ceiling -- on Raman
+# spectra routinely running 500-4000+ wavenumber points, that default ceiling
+# would silently reject or truncate inputs the native class was never verified
+# against for this domain. That's what makes these two genuinely different
+# experiments worth keeping on separate cache paths -- sharing one path would let
+# either one silently overwrite the other's real results. Caught live: 3 real
+# results already sit in
+# that directory from the native class (not this one -- this wrapper had never
+# been run yet), found via cluster/model_progress_report.py misattributing them to
+# "LIMIX2"'s progress. Same fix/reasoning as Prep_TABPFN_V3's own ag_name override
+# above, for the identical TA-TABPFN-3 collision -- and as Prep_LIMIX's own (see
+# that class, same bug, same fix, confirmed its ~1000 real results were NOT
+# corrupted since "TA-LIMIX" itself has never been submitted).
 #
 # GPU-tier, and its own inference package requires Python >=3.12 and pins
 # torch==2.9.1 -- incompatible with the main image (Python 3.11.10,
@@ -1239,6 +1303,7 @@ Prep_LIMIX2 = _make_optional_prep_class(
     "Prep_LIMIX2",
     LimiX2Model,
     ag_key="LIMIX2",
+    ag_name="RamanBench-LimiX2",
     _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
 )
 
