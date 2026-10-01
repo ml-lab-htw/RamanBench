@@ -85,6 +85,6 @@ COPY scripts ./scripts
 COPY cluster ./cluster
 COPY configs ./configs
 
-RUN chmod +x cluster/k8s_entrypoint.sh cluster/k8s_entrypoint_by_dataset.sh
+RUN chmod +x cluster/k8s_entrypoint.sh cluster/k8s_entrypoint_by_dataset.sh cluster/k8s_entrypoint_autogluon.sh
 
 ENTRYPOINT ["/bin/bash", "cluster/k8s_entrypoint.sh"]

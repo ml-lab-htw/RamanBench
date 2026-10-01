@@ -322,6 +322,7 @@ def run_one(
     from tabarena.utils.cache import CacheFunctionPickle
 
     from raman_bench.benchmark import RamanBenchmark
+    from raman_bench.experiment_utils import build_task
     from raman_bench.model import build_prep_model_hyperparameters
     from raman_bench.models.registry import infer_model_cls
     from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
@@ -330,14 +331,6 @@ def run_one(
         MAX_FEATURES_MODELS,
         REGRESSION_ONLY_MODELS,
         VRAM_CAPPED_MODELS,
-    )
-    from raman_bench.splitting import (
-        GROUP_COL,
-        RamanBenchTaskWrapper,
-        TooFewClassesError,
-        build_user_task,
-        filter_rare_classes,
-        infer_group_ids_from_targets,
     )
 
     num_cpus = _resolve_num_cpus()
@@ -371,7 +364,6 @@ def run_one(
             "what is measured for this dataset, not a performance-neutral optimisation.",
             dataset_name, n_before, len(df), max_train_samples,
         )
-    label_col = df.columns[-1]
     problem_type = (
         "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
     )
@@ -443,127 +435,25 @@ def run_one(
             )
             return None
 
-    # Explicit per-spectrum group ids (from a loader that knows the dataset's
-    # replicate structure, e.g. locust_phase_hemolymph's real Sample column)
-    # take priority. Most datasets don't have one yet, so fall back to
-    # inferring group structure from the dataset's own full target matrix
-    # (regression only -- see infer_group_ids_from_targets's docstring for
-    # why this is invalid for classification) rather than silently running
-    # every dataset ungrouped.
-    if GROUP_COL not in df.columns and problem_type == "regression":
-        # dataset.targets is row-aligned with the FULL dataframe returned by
-        # to_dataframe() (both indexed 0..n-1 positionally) -- if max_train_samples
-        # subsampled df above, sample_idx re-selects the matching rows so
-        # `inferred` comes back the same length as (already-subsampled) df,
-        # not the pre-subsample dataset size.
-        targets_for_grouping = (
-            dataset.targets[sample_idx] if sample_idx is not None else dataset.targets
-        )
-        inferred = infer_group_ids_from_targets(targets_for_grouping)
-        if inferred is not None:
-            df[GROUP_COL] = inferred
-            logger.info(
-                "%s: no explicit group_ids -- inferred %d group(s) from matching target values",
-                dataset_name,
-                len(set(inferred.tolist())),
-            )
-
-    # Drop rows with any NaN in their *feature* (spectral) columns, before any
-    # preprocessing recipe or split (but after the group-id inference above,
-    # which must see one row per original sample to align positionally with
-    # ``dataset.targets``). Confirmed isolated to exactly two datasets across
-    # the full 77-dataset corpus (checked directly, not assumed):
-    # adenine_colloidal_silver (45/630 rows) and adenine_solid_silver
-    # (135/1851 rows) each carry a block of NaN columns for a subset of
-    # samples -- a genuine measurement-range gap in the source data (those
-    # samples were acquired over a narrower Raman-shift window than the
-    # dataset's common resampled column grid, not a raman_data loader bug:
-    # colloidal_silver's NaN block is a single contiguous trailing run
-    # (indices 467-533 of 534 columns), solid_silver's is a leading+trailing
-    # pair (indices 0-38 and 394-533) -- both consistent with "these samples
-    # just weren't measured over the full range", not corruption. Sklearn's
-    # own `fit()` for PLS/RIDGE/SVM rejects NaN outright (`ValueError: Input
-    # X contains NaN`), while KNN's sklearn wrapper tolerates it -- so
-    # without this fix, PLS/RIDGE/SVM failed 100% deterministically on these
-    # two datasets regardless of model/recipe/repeat/fold (see
-    # docs/kfold_priority_plan.md finding 3 in the RamanPreprocessing repo).
-    # Applied here unconditionally for every dataset (not gated to these two
-    # by name), so it's a single, traceable fix rather than a per-dataset
-    # special case, and so sample counts stay identical across every model
-    # for a given dataset (KNN included) -- this mirrors the older, still-live
-    # `RamanBenchmark._load_dataset_from_key`'s `data_df.dropna()`, which
-    # already handled this silently; this script had no equivalent until now.
-    feature_cols = [c for c in df.columns if c not in (label_col, GROUP_COL)]
-    nan_feature_mask = df[feature_cols].isna().any(axis=1)
-    n_nan_feature_rows = int(nan_feature_mask.sum())
-    if n_nan_feature_rows:
-        logger.info(
-            "%s target %d: dropping %d/%d rows with a NaN value in their feature "
-            "(spectral) columns before any split or preprocessing",
-            dataset_name,
-            target_idx,
-            n_nan_feature_rows,
-            len(df),
-        )
-        df = df[~nan_feature_mask]
-
-    # Drop rows with a missing (NaN) label. Common in multi-target regression
-    # datasets where not every sample was characterized for every analyte
-    # (e.g. fuel_benchtop: target 0 has 0 NaNs, every other target has
-    # 15-157 out of 179) -- AutoGluon refuses to fit on a NaN label, and
-    # until this was added that crashed the whole job instead of just
-    # excluding the unmeasured rows for this particular target.
-    #
-    # Optional (filter_unlabeled=False): keep unlabeled rows instead, for
-    # semi-supervised benchmarking -- see this function's docstring.
-    n_before = len(df)
-    if filter_unlabeled:
-        df = df[df[label_col].notna()]
-        if len(df) < n_before:
-            logger.info(
-                "%s target %d: dropped %d/%d rows with a missing (NaN) label",
-                dataset_name,
-                target_idx,
-                n_before - len(df),
-                n_before,
-            )
-    else:
-        n_unlabeled = int(df[label_col].isna().sum())
-        if n_unlabeled:
-            logger.info(
-                "%s target %d: keeping %d/%d unlabeled (NaN-label) rows for "
-                "semi-supervised splitting (filter_unlabeled=False)",
-                dataset_name,
-                target_idx,
-                n_unlabeled,
-                n_before,
-            )
-    if df.empty or df[label_col].notna().sum() == 0:
-        logger.info(
-            "Skipping %s target %d: every row has a missing label", dataset_name, target_idx
-        )
-        return None
-
-    if problem_type == "classification":
-        try:
-            df = filter_rare_classes(
-                df, label_col=label_col, min_samples_per_class=min_samples_per_class
-            )
-        except TooFewClassesError as e:
-            logger.info("Skipping %s target %d: %s", dataset_name, target_idx, e)
-            return None
-
-    task_name = f"{dataset_name}__{target_idx}"
-    _, task_obj = build_user_task(
-        task_name=task_name,
+    # Group-id inference, NaN-feature/NaN-label row drops, rare-class filtering, and
+    # the actual repeated-k-fold split are all shared with scripts/run_autogluon_baseline.py
+    # (the whole-predictor AutoGluon baseline runner) -- see
+    # raman_bench.experiment_utils.build_task's own docstring for why this must stay
+    # one shared implementation rather than two independently-written copies.
+    task_name, task_wrapper = build_task(
+        dataset_name=dataset_name,
+        target_idx=target_idx,
         df=df,
-        label_col=label_col,
+        raw_targets=dataset.targets,
         problem_type=problem_type,
         n_repeats=n_repeats,
         n_splits=n_splits,
-        group_col=GROUP_COL if GROUP_COL in df.columns else None,
+        sample_idx=sample_idx,
+        min_samples_per_class=min_samples_per_class,
+        filter_unlabeled=filter_unlabeled,
     )
-    task_wrapper = RamanBenchTaskWrapper(task=task_obj)
+    if task_wrapper is None:
+        return None
 
     # 2026-09-25: deliberately no small-dataset bag-fold scaling here (and no
     # ValidationProtocol tiny-regime override either, see below) -- num_bag_folds
