@@ -36,10 +36,19 @@ except ImportError as _ag_err:
 # The tabular-foundation-model classes below are NOT reliably present across
 # every AutoGluon >=1.5 release/prerelease build -- confirmed in practice on a
 # real deployment: a given dated prerelease snapshot may be missing several of
-# these (observed missing: RealTabPFNv26Model), even though the "classic"
-# models imported above have been stable across releases for years. Import
-# defensively so a missing foundation-model class doesn't crash this whole
-# module (and thus every other model, including plain PLS).
+# these, even though the "classic" models imported above have been stable
+# across releases for years. Import defensively so a missing foundation-model
+# class doesn't crash this whole module (and thus every other model,
+# including plain PLS).
+#
+# TABPFN-V2.6 NOTE 2026-10-01: this list previously named "RealTabPFNv26Model"
+# here, which never existed under that name -- a bad assumption carried over
+# from V2/V2.5's "RealTabPFNvNModel" naming convention. Checked directly
+# against the installed autogluon.tabular wheel: the real class is
+# `autogluon.tabular.models.TabPFNv26Model` (no "Real" prefix -- confirmed by
+# both grep and autogluon.tabular.models.__init__'s own
+# `from .tabpfnv2.tabpfnv2_6_model import TabPFNv26Model`). Fixed below; see
+# Prep_REALTABPFN_V26's own comment for what else differs from V2/V2.5.
 import warnings as _warnings
 
 from autogluon.tabular import models as _ag_tabular_models
@@ -68,7 +77,7 @@ _OPTIONAL_AG_MODEL_NAMES = [
     "RealMLPModel",
     "RealTabPFNv2Model",
     "RealTabPFNv25Model",
-    "RealTabPFNv26Model",
+    "TabPFNv26Model",
     "TabDPTModel",
     "TabICLModel",
     "TabMModel",
@@ -752,7 +761,36 @@ Prep_REALTABPFN_V25 = _make_optional_prep_class(
     _fit=_many_class_tabpfn_fit,
     _get_memory_size=_many_class_get_memory_size,
 )
-Prep_REALTABPFN_V26 = _make_optional_prep_class("Prep_REALTABPFN_V26", RealTabPFNv26Model)
+# Unlike V2/V2.5 above, this does NOT pass _NO_FOUNDATION_MODEL_FEATURE_CAP: checked
+# directly against the installed class, TabPFNv26Model's own
+# _default_auxiliary_params_extra already sets max_features=None itself (built for
+# wide data -- its docstring cites up to 22k columns on BeyondArena's widest tasks),
+# so there is nothing to lift. Overriding with _NO_FOUNDATION_MODEL_FEATURE_CAP would
+# ALSO reset its deliberately-calibrated max_rows=100_000/max_classes=10 to None,
+# undoing real upstream calibration for no benefit. The many-class fit/memory
+# overrides ARE still needed, same reasoning as V2/V2.5: TabPFNv26Model subclasses the
+# same TabPFNModel base, its own max_classes=10 cap matches
+# _TABPFN_OFFICIAL_MAX_CLASSES exactly, and several RamanBench classification
+# datasets exceed 10 classes.
+#
+# ag_key/ag_name ARE explicitly overridden here, unlike V2/V2.5 (which inherit theirs
+# unchanged): checked directly against the installed class, RealTabPFNv2Model.ag_key
+# == "REALTABPFN-V2" and RealTabPFNv25Model.ag_key == "REALTABPFN-V2.5" already match
+# RamanBench's naming exactly, but TabPFNv26Model.ag_key == "TABPFN-2.6" (upstream
+# dropped the "Real" prefix AND changed "V2.6"->"2.6" for this one) -- without this
+# override, raman_bench.models.registry keys the registry entry under "TABPFN-2.6",
+# and infer_model_cls("REALTABPFN-V2.6") (what scope_default.json/gpu_models.json/
+# run_experiment.py's module-key derivation all expect) raises
+# "AssertionError: Unknown model_cls: REALTABPFN-V2.6" -- confirmed via a real
+# install, this is NOT hypothetical.
+Prep_REALTABPFN_V26 = _make_optional_prep_class(
+    "Prep_REALTABPFN_V26",
+    TabPFNv26Model,
+    ag_key="REALTABPFN-V2.6",
+    ag_name="RealTabPFN-v2.6",
+    _fit=_many_class_tabpfn_fit,
+    _get_memory_size=_many_class_get_memory_size,
+)
 # Wraps tabarena.models.tabpfn_3.model.TabPFN3Model (TabArena's own, actively-maintained
 # TabPFN-3 implementation -- see the _OPTIONAL_TABARENA_MODEL_IMPORTS block above for why
 # this is NOT autogluon.tabular.models.tabpfnv2.tabpfn3_model.TabPFN3Model, a same-named

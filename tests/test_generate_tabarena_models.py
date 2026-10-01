@@ -27,9 +27,10 @@ pytest.importorskip("tabarena")
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Keys with an empty upstream search space (see generate/dummy.py,
-# generate/mitra.py, generate/realtabpfn_v2.py) -- requesting more than the
-# manual/default config from an empty space raises ExhaustedSearchSpaceError.
-_NO_RANDOM_HPO = {"DUMMY", "MITRA", "REALTABPFN-V2"}
+# generate/mitra.py, generate/realtabpfn_v2.py, generate/realtabpfn_v26.py) --
+# requesting more than the manual/default config from an empty space raises
+# ExhaustedSearchSpaceError.
+_NO_RANDOM_HPO = {"DUMMY", "MITRA", "REALTABPFN-V2", "REALTABPFN-V2.6"}
 
 # The 16 "built-in" AutoGluon models this fix wires up (the 15 originally
 # reported + XT, caught by the exact same gap -- see generate/xt.py's
@@ -60,6 +61,10 @@ TABARENA_NATIVE_KEYS = [
     "TABICLV2",
     "REALTABPFN-V2",
     "REALTABPFN-V2.5",
+    # REALTABPFN-V2.6 (TabPFNv26Model, autogluon.tabular.models) -- see
+    # wrapped_models.py's REALTABPFN-V2.6 comment for why it was previously
+    # unreachable (a class-name mismatch, not a genuinely missing class).
+    "REALTABPFN-V2.6",
 ]
 
 
