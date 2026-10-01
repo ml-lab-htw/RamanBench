@@ -17,6 +17,28 @@
 # Install after `pip install raman-bench[benchmark]` (or `[models]`/`[full]`):
 #     pip install -r requirements-tabarena-git.txt
 #
+# GOTCHA (confirmed live, RamanICL/HTW, 2026-10-01): if the env already has ANY
+# tabarena install reporting the same version string (e.g. the old `0.1.0` PyPI
+# placeholder mentioned above), a plain `pip install -r requirements-tabarena-git.txt`
+# silently no-ops -- pip matches on version string, not on git URL/commit, so it
+# considers the requirement already satisfied and skips it. Exit 0, no warning, and
+# you're left on whatever tabarena was already installed (confirmed: a different
+# REPOSITORY entirely, `autogluon/tabarena` instead of this fork). `pip show tabarena`
+# reports `0.1.0` identically either way and will NOT catch this -- check
+# `site-packages/tabarena-*.dist-info/direct_url.json`'s `url`/`commit_id` instead, or
+# just use `pip install --force-reinstall -r requirements-tabarena-git.txt` whenever
+# provisioning into a non-fresh env.
+#
+# Related, observed in the same incident: `--force-reinstall` on tabarena alone (not
+# the whole raman-bench[models] stack) can pull its own transitive torch version,
+# independent of the torch~=2.14/torchvision>=0.29.0 pairing this package's own
+# pyproject.toml deliberately maintains (see pyproject.toml's torchvision comment --
+# torchvision's PyPI metadata pins its required torch version exactly, so any drift
+# between the two breaks torchvision's C-extension import). If you `--force-reinstall`
+# tabarena into an existing env, re-check `torch`/`torchvision` versions afterward
+# (or re-run `pip install raman-bench[models]` to let its own pins win) rather than
+# assuming they're untouched.
+#
 # `[models]` needs the extras-qualified form (tabicl, ebm, search_spaces,
 # realmlp, tabdpt, tabm, perpetualboosting, chimeraboost, nori) -- installing
 # this after `raman-bench[models]` satisfies both `[benchmark]` and
