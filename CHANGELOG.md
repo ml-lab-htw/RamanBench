@@ -286,6 +286,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the deployed image (the declared `ResolutionImpossible` is a static
   metadata conflict that pip's two-step install never actually enforces).
 
+- **`TABICL` no longer skipped on ~11k-feature datasets** (`wrapped_models.py`'s
+  `_TABICL_MEMORY_SAFETY`) — AutoGluon's pre-fit VRAM estimate for TabICL
+  assumes at least 100k prediction rows, i.e. ~259 GB on the acid-species/
+  microgel targets (57 training rows), so every one of them raised
+  `NotEnoughCudaMemoryError` on an idle 80 GB A100.
+  `max_gpu_memory_usage_ratio=None` skips only that estimate (the CPU-memory
+  guard stays); tabicl sizes its own batches from free VRAM. The affected
+  tasks were recomputed on HTW and complete.
+
 ### Changed
 
 - **`max_train_samples_overrides` extended to `wheat_lines` and `bacteria_identification`**

@@ -541,7 +541,20 @@ Prep_TABFM = _make_optional_prep_class("Prep_TABFM", TabFMModel, ag_key="TABFM")
 # `ag_args_fit` dict, see `AbstractModel._init_user_params`), so the existing
 # `_default_auxiliary_params_extra` declarative merge is the right, and only, place for
 # it -- no separate `ag_args_fit` wiring needed.
-_TABICL_MEMORY_SAFETY = {**_NO_FOUNDATION_MODEL_FEATURE_CAP, "max_memory_usage_ratio": 0.8}
+#
+# max_gpu_memory_usage_ratio=None (2026-10-03) skips ONLY AutoGluon's pre-fit VRAM
+# estimate check, not the CPU-memory guard above. TabICLModel's estimate assumes >=100k
+# prediction rows (prediction count is unknown at fit time), i.e.
+# 250 B * (n_train + 100_000) * n_features -- on RamanBench's ~11k-feature acid-species/
+# microgel targets (57 train rows) that is ~259 GB, so every one of them was skipped with
+# NotEnoughCudaMemoryError on an idle 80 GB A100 even though the real test folds have a
+# few dozen rows. tabicl sizes its own batches from free VRAM (per that estimate's own
+# docstring), so the check adds no real protection here.
+_TABICL_MEMORY_SAFETY = {
+    **_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    "max_memory_usage_ratio": 0.8,
+    "max_gpu_memory_usage_ratio": None,
+}
 Prep_TABICL = _make_optional_prep_class(
     "Prep_TABICL", TabICLModel, _default_auxiliary_params_extra=_TABICL_MEMORY_SAFETY
 )
