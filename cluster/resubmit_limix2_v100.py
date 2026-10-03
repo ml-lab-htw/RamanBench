@@ -12,8 +12,10 @@ hand-picked subset): every already-succeeded task is a cache-hit (instant
 disk read, no GPU needed), only genuinely new/incomplete tasks do real new
 compute. Same time_limit=3600 as the original submission. num_bag_folds now
 comes from scope_default.json (3): this script originally hardcoded 8, copied
-from that submission, which left 133 LimiX2 results off the benchmark's 3-fold
-protocol (all recomputed with 3 folds, 2026-10-03).
+from that submission, which left 133 LimiX2 results on 8 bag folds instead of
+the benchmark's 3. Those are kept as they are (2026-10-03 decision: the
+inconsistency is acceptable vs. the compute to regenerate them); only tasks
+without any result were computed afterwards, with 3 folds.
 
 resolve_k8s_image automatically picks the py312 image for LIMIX2 via the
 profile's own image_overrides -- no need to set that here.
