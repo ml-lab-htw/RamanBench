@@ -33,6 +33,54 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `cluster/profiles/k8s_example.yaml`, and every LIMIX2 reference updated to
   match. Image retagged `:py312` (previously `:limix2`).
 
+- **Tiny datasets (<50 rows) now use `num_bag_folds=3` instead of the
+  configured value** (`run_experiment.py`'s `run_one`) — reverses the
+  2026-09-25 "no small-dataset bag-fold scaling" decision for genuinely tiny
+  datasets, per explicit instruction. Confirmed concretely for
+  `diabetes_skin_vein`/`diabetes_skin_ear_lobe` (20 rows, 9/11 class split):
+  `num_bag_folds=8` on their ~13-14-row training partition gave each of
+  AutoGluon's 8 internal bag-folds only ~1.6-1.75 held-out rows on average,
+  so individual bag-folds routinely held out a single, trivially-one-class
+  sample, crashing AutoGluon's ROC AUC computation — a structural mismatch
+  between a fixed `num_bag_folds` and a tiny train partition, not a
+  class-imbalance problem (9/11 is nearly balanced). Verified end-to-end with
+  a real local fit (`PLS` on `diabetes_skin_vein`): previously raised
+  `ValueError: Only one class present in y_true`, now completes cleanly.
+  Inconsistency with already-cached 8-fold results for these same tiny
+  datasets is accepted, not reconciled (explicit instruction) — the existing
+  cache-key comment a few lines below already means a changed
+  `num_bag_folds` only applies to genuinely new, not-yet-cached work anyway.
+  AutoGluon-extreme (`run_autogluon_baseline.py`) bags through its own
+  `presets="extreme"` path rather than this `ValidationProtocol`, and hit the
+  same failure there ("No models were trained successfully" on both datasets,
+  5m and 1h budgets), so it gets the same rule: `num_bag_folds=3` is passed to
+  its fit below 50 rows. Both datasets' AutoGluon-extreme results were
+  recomputed with it and now complete.
+
+- **`TABPFN-WIDE` no longer fails fast on wide many-class datasets**
+  (`tabpfn_wide/model.py`) — it already wrapped with `ManyClassClassifier`
+  (ECOC) above `many_class_threshold` classes, but a separate guard
+  pre-emptively raised instead of attempting ECOC when the feature count also
+  exceeded 2000 (`_ECOC_MAX_FEATURES`, now removed), after a real OOM was once
+  observed combining ECOC with wide Raman spectra at a 256G container limit.
+  Brought in line with `CausiloModel`'s simpler, unconditional approach (no
+  width guard at all) per explicit instruction. Confirmed with a real fit at
+  2001 features / 12 classes (`tests/models/test_tabpfn_wide.py::
+  test_many_class_uses_ecoc_when_wide`) — no OOM. Revisit with a real width
+  cap if that OOM recurs in practice (e.g. on the cluster's shared 256G tier,
+  as opposed to this test's small synthetic array).
+
+- **Per-model budgets and row caps for the remaining missing results**
+  (`configs/v1/scope_default.json`) — each entry fixes an observed failure
+  (TimeLimitExceeded or CUDA OOM) and is documented in the config's
+  `_comment_*` fields:
+  - Time limits: `PERPETUAL_BOOSTER` (5400s, 7 datasets); `LIMIX` (no cap);
+    `TABFM`/`REALTABPFN-V2.6`/`REALTABPFN-V2` (7200s on their >10-class
+    datasets, for the many-class coding cost); `RAMANTRANSFORMER` (5400s,
+    4 datasets); `ORIONMSP` (5400s on mlrod/wheat_lines).
+  - Row caps: `LIMIX` (5000; 2000 on mlrod), `ORIONMSP` (2000 on
+    mlrod/wheat_lines).
+
 ### Added
 
 - **`REALTABPFN-V2.6` added to the routine sweep** (`Prep_REALTABPFN_V26`,
@@ -210,6 +258,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the `perpetual` library itself rather than anything row-count-driven; this
   is a cheap mitigation attempt, not a confirmed fix.
 
+- **`MITRA` and `TA-MITRA-V2` now handle >10-class datasets**
+  (`preprocessing/many_class_mitra.py`) — both checkpoints have a fixed
+  10-class head, so bacteria_identification, cancer_cell_cooh/nh2, mlrod and
+  rruff_mineral_raw either were skipped or hit an `AssertionError` in Mitra's
+  preprocessor. A new eager ECOC wrapper takes the codebook, row weighting and
+  decoding from `tabpfn_extensions`' `ManyClassClassifier`, but fine-tunes
+  each per-row sub-model once at fit time. The library class re-fits on
+  every `predict_proba`, which is free for in-context TabPFN but would mean
+  dozens of fine-tunes per bagged Mitra task. Sub-model labels are re-encoded
+  to `0..k-1`, since Mitra keeps no `classes_` and maps output column j to
+  label j. Smoke-tested on cancer_cell_cooh fold 0 (12 classes): log loss
+  0.033 (TA-MITRA-V2, 58 min) and 0.039 (MITRA, 1h50), against 0.043 for
+  RealTabPFN-v2.6 and 2.48 for Dummy. Their many-class datasets get 10800s
+  (MITRA) and 7200s (TA-MITRA-V2) in `scope_default.json`.
+
 ### Fixed
 
 - **`Dockerfile.v100` missing `tabarena`/`requirements-models-git.txt`/`build-essential`**
@@ -248,6 +311,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
   conflict is not real in practice: both packages coexist and import fine in
   the deployed image (the declared `ResolutionImpossible` is a static
   metadata conflict that pip's two-step install never actually enforces).
+
+- **`TABICL` no longer skipped on ~11k-feature datasets** (`wrapped_models.py`'s
+  `_TABICL_MEMORY_SAFETY`) — AutoGluon's pre-fit VRAM estimate for TabICL
+  assumes at least 100k prediction rows, i.e. ~259 GB on the acid-species/
+  microgel targets (57 training rows), so every one of them raised
+  `NotEnoughCudaMemoryError` on an idle 80 GB A100.
+  `max_gpu_memory_usage_ratio=None` skips only that estimate (the CPU-memory
+  guard stays); tabicl sizes its own batches from free VRAM. The affected
+  tasks were recomputed on HTW and complete.
+
+- **`REALTABPFN-V2.6` produced no results on >10-class datasets**
+  (`Prep_REALTABPFN_V26`) — it inherited `TabPFNv26Model`'s `max_classes=10`,
+  so AutoGluon skipped the model before its many-class (ECOC) `_fit` override
+  ever ran. Now lifts `max_classes` only (`max_rows`/`max_features` keep the
+  upstream values). bacteria_identification, cancer_cell_cooh/nh2, mlrod and
+  rruff_mineral_raw recomputed on HTW.
 
 ### Changed
 

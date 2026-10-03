@@ -25,10 +25,19 @@ from __future__ import annotations
 from tabarena.models.mitra_v2.model import MitraV2Model
 
 from raman_bench.preprocessing.bridge_bases import _NoAugBase
+from raman_bench.preprocessing.many_class_mitra import many_class_mitra_get_model_cls
 
 
 class Prep_MITRA_V2(_NoAugBase, MitraV2Model):  # noqa: N801
-    """Mitra-v2 with RamanBench's tunable (default-disabled) preprocessing recipe."""
+    """Mitra-v2 with RamanBench's tunable (default-disabled) preprocessing recipe.
+
+    >10-class targets go through the eager ECOC wrapper (preprocessing/many_class_mitra.py):
+    MitraV2Model keeps the checkpoint's ``max_classes=10``, which made AutoGluon skip -- or,
+    once lifted, Mitra's preprocessor assert on -- every RamanBench dataset with more classes.
+    """
+
+    _default_auxiliary_params_extra = {"max_classes": None}
+    get_model_cls = many_class_mitra_get_model_cls
 
 
 __all__ = ["MitraV2Model", "Prep_MITRA_V2"]

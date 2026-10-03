@@ -259,6 +259,7 @@ del _name, _module_path, _OPTIONAL_TABARENA_MODEL_IMPORTS
 
 from raman_bench.models.discover import discover_custom_models
 from raman_bench.preprocessing.bridge_bases import _make_optional_prep_class, _NoAugBase
+from raman_bench.preprocessing.many_class_mitra import many_class_mitra_get_model_cls
 from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
 
 # ---------------------------------------------------------------------------
@@ -491,8 +492,15 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
 _NO_FOUNDATION_MODEL_FEATURE_CAP = {"max_rows": None, "max_features": None, "max_classes": None}
 
 Prep_REALMLP = _make_optional_prep_class("Prep_REALMLP", RealMLPModel, _supports_augmentation=True)
+# get_model_cls: eager many-class (ECOC) wrapper around Mitra's fixed 10-class head --
+# see preprocessing/many_class_mitra.py. Without it, lifting max_classes (above) just
+# turned AutoGluon's clean skip into a hard AssertionError inside Mitra's preprocessor on
+# every >10-class dataset; the installed AutoGluon pin has no native Mitra fallback.
 Prep_MITRA = _make_optional_prep_class(
-    "Prep_MITRA", MitraModel, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
+    "Prep_MITRA",
+    MitraModel,
+    _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    get_model_cls=many_class_mitra_get_model_cls,
 )
 Prep_TABM = _make_optional_prep_class("Prep_TABM", TabMModel)
 Prep_TABDPT = _make_optional_prep_class(
@@ -541,7 +549,20 @@ Prep_TABFM = _make_optional_prep_class("Prep_TABFM", TabFMModel, ag_key="TABFM")
 # `ag_args_fit` dict, see `AbstractModel._init_user_params`), so the existing
 # `_default_auxiliary_params_extra` declarative merge is the right, and only, place for
 # it -- no separate `ag_args_fit` wiring needed.
-_TABICL_MEMORY_SAFETY = {**_NO_FOUNDATION_MODEL_FEATURE_CAP, "max_memory_usage_ratio": 0.8}
+#
+# max_gpu_memory_usage_ratio=None (2026-10-03) skips ONLY AutoGluon's pre-fit VRAM
+# estimate check, not the CPU-memory guard above. TabICLModel's estimate assumes >=100k
+# prediction rows (prediction count is unknown at fit time), i.e.
+# 250 B * (n_train + 100_000) * n_features -- on RamanBench's ~11k-feature acid-species/
+# microgel targets (57 train rows) that is ~259 GB, so every one of them was skipped with
+# NotEnoughCudaMemoryError on an idle 80 GB A100 even though the real test folds have a
+# few dozen rows. tabicl sizes its own batches from free VRAM (per that estimate's own
+# docstring), so the check adds no real protection here.
+_TABICL_MEMORY_SAFETY = {
+    **_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    "max_memory_usage_ratio": 0.8,
+    "max_gpu_memory_usage_ratio": None,
+}
 Prep_TABICL = _make_optional_prep_class(
     "Prep_TABICL", TabICLModel, _default_auxiliary_params_extra=_TABICL_MEMORY_SAFETY
 )
@@ -773,6 +794,15 @@ Prep_REALTABPFN_V25 = _make_optional_prep_class(
 # _TABPFN_OFFICIAL_MAX_CLASSES exactly, and several RamanBench classification
 # datasets exceed 10 classes.
 #
+# UPDATE 2026-10-03: max_classes alone IS lifted (max_rows/max_features keep
+# TabPFNv26Model's own calibrated values -- the extra dict merges per key). Keeping
+# the inherited max_classes=10 made the many-class overrides above dead code: confirmed
+# on HTW, AutoGluon's fit-constraint check skips the model before _fit ever runs
+# ("ag.max_classes=10, but the data has 12 classes" on cancer_cell_cooh), so all 5
+# >10-class datasets (bacteria_identification, cancer_cell_cooh/nh2, mlrod,
+# rruff_mineral_raw) produced no result at all -- V2/V2.5 have results there because
+# they lift the cap via _NO_FOUNDATION_MODEL_FEATURE_CAP.
+#
 # ag_key/ag_name ARE explicitly overridden here, unlike V2/V2.5 (which inherit theirs
 # unchanged): checked directly against the installed class, RealTabPFNv2Model.ag_key
 # == "REALTABPFN-V2" and RealTabPFNv25Model.ag_key == "REALTABPFN-V2.5" already match
@@ -788,6 +818,7 @@ Prep_REALTABPFN_V26 = _make_optional_prep_class(
     TabPFNv26Model,
     ag_key="REALTABPFN-V2.6",
     ag_name="RealTabPFN-v2.6",
+    _default_auxiliary_params_extra={"max_classes": None},
     _fit=_many_class_tabpfn_fit,
     _get_memory_size=_many_class_get_memory_size,
 )
@@ -1299,12 +1330,25 @@ else:
 # inference package at fit time (a clean ModuleNotFoundError/ImportError from
 # LimiX2Model's own deferred import inside `_fit`, not a hang or crash
 # elsewhere) -- always route LIMIX2 through the limix2 image.
+def _limix2_convert_proba_to_unified_form(self, y_pred_proba):
+    """Keep the row axis on single-row regression predictions.
+
+    LimiX2's regression decoder returns a bare 0-d scalar when the query has exactly
+    one row, and AutoGluon's ``_convert_proba_to_unified_form`` then fails with
+    ``IndexError: too many indices for array: array is 0-dimensional`` -- confirmed on
+    BHT for fuel_benchtop targets 1 and 2 (same failure mode as the SAP_RPT_OSS
+    single-row fix above).
+    """
+    return LimiX2Model._convert_proba_to_unified_form(self, np.atleast_1d(y_pred_proba))
+
+
 Prep_LIMIX2 = _make_optional_prep_class(
     "Prep_LIMIX2",
     LimiX2Model,
     ag_key="LIMIX2",
     ag_name="RamanBench-LimiX2",
     _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    _convert_proba_to_unified_form=_limix2_convert_proba_to_unified_form,
 )
 
 

@@ -95,12 +95,32 @@ def _pick_any_running_pod(namespace: str) -> str:
     returns ``None`` for it, see main()). Confirmed live: KUMO-TABULAR vanished from a
     real report because the picked pod's imageID predated its onboarding. The newest
     Running pod is the one most likely to have pulled the current image, since it was
-    the most recently submitted/scheduled."""
+    the most recently submitted/scheduled.
+
+    Prefers a pod running the main ``:v1`` image (image tag not ending in
+    ``:py312``) over any other image, regardless of recency -- the py312 image is
+    a deliberately minimal build carrying only LIMIX2 (see ``Dockerfile.py312``'s
+    own header comment), so every optional model that degrades to ``None`` when
+    its package isn't installed (``_make_optional_prep_class``, e.g.
+    ``Prep_SAP_RPT_OSS``) silently vanishes from the registry dump -- and hence
+    from the whole report -- if a py312 pod happens to be the newest (or only)
+    Running pod. Real bug hit in practice: SAP_RPT_OSS vanished from a real
+    report when the only Running pod in the namespace was a LIMIX2 V100 smoke
+    test running ``:py312``. Falls back to the newest Running pod of any image
+    if no ``:v1`` pod is currently Running (report may then be missing
+    py312-only-image optional models too, which is unavoidable without one)."""
     pods = json.loads(_kubectl("get", "pods", "-n", namespace, "-o", "json"))
     running = [p for p in pods["items"] if p["status"].get("phase") == "Running"]
     if not running:
         raise RuntimeError(f"No Running pod found in namespace {namespace!r} to exec into.")
     running.sort(key=lambda p: p["status"].get("startTime", ""), reverse=True)
+
+    def _image(p: dict) -> str:
+        return p["spec"]["containers"][0]["image"]
+
+    main_image_pods = [p for p in running if not _image(p).endswith(":py312")]
+    if main_image_pods:
+        return main_image_pods[0]["metadata"]["name"]
     return running[0]["metadata"]["name"]
 
 

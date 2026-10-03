@@ -322,7 +322,7 @@ def run_one(
     from tabarena.utils.cache import CacheFunctionPickle
 
     from raman_bench.benchmark import RamanBenchmark
-    from raman_bench.experiment_utils import build_task
+    from raman_bench.experiment_utils import build_task, write_hardware_info
     from raman_bench.model import build_prep_model_hyperparameters
     from raman_bench.models.registry import infer_model_cls
     from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
@@ -455,13 +455,31 @@ def run_one(
     if task_wrapper is None:
         return None
 
-    # 2026-09-25: deliberately no small-dataset bag-fold scaling here (and no
-    # ValidationProtocol tiny-regime override either, see below) -- num_bag_folds
-    # stays at the configured value regardless of dataset size. A model that
-    # crashes on a tiny dataset (e.g. an entirely-one-class validation fold
-    # crashing AutoGluon's ROC AUC computation, a real incident previously
-    # handled by scaling folds down) is now an accepted outcome, not something
-    # this pipeline works around.
+    # 2026-10-02: reversed the 2026-09-25 "no small-dataset bag-fold scaling"
+    # decision for genuinely tiny datasets -- confirmed concretely for
+    # diabetes_skin_vein/diabetes_skin_ear_lobe (20 rows, 9/11 class split):
+    # num_bag_folds=8 on a ~13-14 row training partition gives each internal
+    # bag-fold only ~1.6-1.75 held-out rows on average, so individual bag-folds
+    # routinely end up with a single, trivially-one-class holdout, crashing
+    # AutoGluon's ROC AUC computation -- not a class-imbalance problem (9/11 is
+    # nearly balanced), a structural mismatch between a fixed num_bag_folds and
+    # a tiny train partition. Below 50 rows, use 3 bag-folds instead of
+    # whatever was configured (still >=2, ValidationProtocol's own minimum).
+    # Explicit instruction: inconsistency with already-cached 8-fold results
+    # for these same tiny datasets is accepted, not reconciled -- a changed
+    # num_bag_folds only applies to genuinely new (not-yet-cached) work anyway,
+    # per the cache-key comment below.
+    _TINY_DATASET_ROW_THRESHOLD = 50
+    _TINY_DATASET_NUM_BAG_FOLDS = 3
+    effective_num_bag_folds = num_bag_folds
+    if len(df) < _TINY_DATASET_ROW_THRESHOLD:
+        effective_num_bag_folds = _TINY_DATASET_NUM_BAG_FOLDS
+        logger.info(
+            "%s on %s: %d row(s) < %d -- using num_bag_folds=%d instead of the "
+            "configured %d",
+            model_key, dataset_name, len(df), _TINY_DATASET_ROW_THRESHOLD,
+            effective_num_bag_folds, num_bag_folds,
+        )
 
     model_cls = infer_model_cls(model_key)
     gen = _import_generator(model_key)
@@ -512,15 +530,14 @@ def run_one(
     # (tabarena.benchmark.experiment.experiment_constructor's
     # _reject_legacy_bagging_kwargs). Only num_bag_folds is meaningful here;
     # num_bag_sets/tiny-regime fields keep their dataclass defaults (1 repeat, no
-    # tiny-data regime) -- 2026-09-25 decision: num_bag_folds stays at the configured
-    # value regardless of dataset size, no small-dataset scaling of any kind. A model
-    # that fails on a tiny dataset is an accepted outcome.
+    # TabArena-native tiny-data regime -- effective_num_bag_folds above is RamanBench's
+    # own, simpler small-dataset handling instead).
     from tabarena.benchmark.validation_protocol import ValidationProtocol
 
     generate_kwargs = dict(
         num_random_configs=num_random_configs,
         time_limit=time_limit,
-        validation_protocol=ValidationProtocol(num_bag_folds=num_bag_folds),
+        validation_protocol=ValidationProtocol(num_bag_folds=effective_num_bag_folds),
         fold_fitting_strategy="sequential_local",
         # require_warmup=True (TabArena's new default as of the 2026-09-18 pin
         # bump) runs a pre-flight "dummy fit" before the real timed fit and
@@ -637,6 +654,7 @@ def run_one(
         cacher=cacher,
         ignore_cache=force_recompute,
     )
+    write_hardware_info(cache_path)
     logger.info("Done: metric_error=%s", out.get("metric_error"))
     return out
 
