@@ -259,6 +259,7 @@ del _name, _module_path, _OPTIONAL_TABARENA_MODEL_IMPORTS
 
 from raman_bench.models.discover import discover_custom_models
 from raman_bench.preprocessing.bridge_bases import _make_optional_prep_class, _NoAugBase
+from raman_bench.preprocessing.many_class_mitra import many_class_mitra_get_model_cls
 from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
 
 # ---------------------------------------------------------------------------
@@ -491,8 +492,15 @@ class Prep_DUMMY(_NoAugBase, DummyModel):  # noqa: N801
 _NO_FOUNDATION_MODEL_FEATURE_CAP = {"max_rows": None, "max_features": None, "max_classes": None}
 
 Prep_REALMLP = _make_optional_prep_class("Prep_REALMLP", RealMLPModel, _supports_augmentation=True)
+# get_model_cls: eager many-class (ECOC) wrapper around Mitra's fixed 10-class head --
+# see preprocessing/many_class_mitra.py. Without it, lifting max_classes (above) just
+# turned AutoGluon's clean skip into a hard AssertionError inside Mitra's preprocessor on
+# every >10-class dataset; the installed AutoGluon pin has no native Mitra fallback.
 Prep_MITRA = _make_optional_prep_class(
-    "Prep_MITRA", MitraModel, _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP
+    "Prep_MITRA",
+    MitraModel,
+    _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    get_model_cls=many_class_mitra_get_model_cls,
 )
 Prep_TABM = _make_optional_prep_class("Prep_TABM", TabMModel)
 Prep_TABDPT = _make_optional_prep_class(

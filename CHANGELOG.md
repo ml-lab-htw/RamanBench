@@ -258,6 +258,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the `perpetual` library itself rather than anything row-count-driven; this
   is a cheap mitigation attempt, not a confirmed fix.
 
+- **`MITRA` and `TA-MITRA-V2` now handle >10-class datasets**
+  (`preprocessing/many_class_mitra.py`) — both checkpoints have a fixed
+  10-class head, so bacteria_identification, cancer_cell_cooh/nh2, mlrod and
+  rruff_mineral_raw either were skipped or hit an `AssertionError` in Mitra's
+  preprocessor. A new eager ECOC wrapper takes the codebook, row weighting and
+  decoding from `tabpfn_extensions`' `ManyClassClassifier`, but fine-tunes
+  each per-row sub-model once at fit time. The library class re-fits on
+  every `predict_proba`, which is free for in-context TabPFN but would mean
+  dozens of fine-tunes per bagged Mitra task. Sub-model labels are re-encoded
+  to `0..k-1`, since Mitra keeps no `classes_` and maps output column j to
+  label j. Smoke-tested on cancer_cell_cooh fold 0 (12 classes): log loss
+  0.033 (TA-MITRA-V2, 58 min) and 0.039 (MITRA, 1h50), against 0.043 for
+  RealTabPFN-v2.6 and 2.48 for Dummy. Their many-class datasets get 10800s
+  (MITRA) and 7200s (TA-MITRA-V2) in `scope_default.json`.
+
 ### Fixed
 
 - **`Dockerfile.v100` missing `tabarena`/`requirements-models-git.txt`/`build-essential`**
