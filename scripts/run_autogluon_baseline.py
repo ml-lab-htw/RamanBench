@@ -94,7 +94,7 @@ def run_one(
     from tabarena.utils.cache import CacheFunctionPickle
 
     from raman_bench.benchmark import RamanBenchmark
-    from raman_bench.experiment_utils import build_task
+    from raman_bench.experiment_utils import build_task, write_hardware_info
 
     bench = RamanBenchmark(
         dataset_names_classification=[],
@@ -205,6 +205,7 @@ def run_one(
         cacher=cacher,
         ignore_cache=force_recompute,
     )
+    write_hardware_info(cache_path)
     logger.info("Done: metric_error=%s", out.get("metric_error"))
     return out
 
