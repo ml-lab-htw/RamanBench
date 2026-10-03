@@ -57,6 +57,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
   its fit below 50 rows. Both datasets' AutoGluon-extreme results were
   recomputed with it and now complete.
 
+- **`TABPFN-WIDE` no longer fails fast on wide many-class datasets**
+  (`tabpfn_wide/model.py`) — it already wrapped with `ManyClassClassifier`
+  (ECOC) above `many_class_threshold` classes, but a separate guard
+  pre-emptively raised instead of attempting ECOC when the feature count also
+  exceeded 2000 (`_ECOC_MAX_FEATURES`, now removed), after a real OOM was once
+  observed combining ECOC with wide Raman spectra at a 256G container limit.
+  Brought in line with `CausiloModel`'s simpler, unconditional approach (no
+  width guard at all) per explicit instruction. Confirmed with a real fit at
+  2001 features / 12 classes (`tests/models/test_tabpfn_wide.py::
+  test_many_class_uses_ecoc_when_wide`) — no OOM. Revisit with a real width
+  cap if that OOM recurs in practice (e.g. on the cluster's shared 256G tier,
+  as opposed to this test's small synthetic array).
+
 ### Added
 
 - **`REALTABPFN-V2.6` added to the routine sweep** (`Prep_REALTABPFN_V26`,
