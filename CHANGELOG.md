@@ -295,6 +295,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
   guard stays); tabicl sizes its own batches from free VRAM. The affected
   tasks were recomputed on HTW and complete.
 
+- **`REALTABPFN-V2.6` produced no results on >10-class datasets**
+  (`Prep_REALTABPFN_V26`) — it inherited `TabPFNv26Model`'s `max_classes=10`,
+  so AutoGluon skipped the model before its many-class (ECOC) `_fit` override
+  ever ran. Now lifts `max_classes` only (`max_rows`/`max_features` keep the
+  upstream values). bacteria_identification, cancer_cell_cooh/nh2, mlrod and
+  rruff_mineral_raw recomputed on HTW.
+
 ### Changed
 
 - **`max_train_samples_overrides` extended to `wheat_lines` and `bacteria_identification`**

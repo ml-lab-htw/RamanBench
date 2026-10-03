@@ -786,6 +786,15 @@ Prep_REALTABPFN_V25 = _make_optional_prep_class(
 # _TABPFN_OFFICIAL_MAX_CLASSES exactly, and several RamanBench classification
 # datasets exceed 10 classes.
 #
+# UPDATE 2026-10-03: max_classes alone IS lifted (max_rows/max_features keep
+# TabPFNv26Model's own calibrated values -- the extra dict merges per key). Keeping
+# the inherited max_classes=10 made the many-class overrides above dead code: confirmed
+# on HTW, AutoGluon's fit-constraint check skips the model before _fit ever runs
+# ("ag.max_classes=10, but the data has 12 classes" on cancer_cell_cooh), so all 5
+# >10-class datasets (bacteria_identification, cancer_cell_cooh/nh2, mlrod,
+# rruff_mineral_raw) produced no result at all -- V2/V2.5 have results there because
+# they lift the cap via _NO_FOUNDATION_MODEL_FEATURE_CAP.
+#
 # ag_key/ag_name ARE explicitly overridden here, unlike V2/V2.5 (which inherit theirs
 # unchanged): checked directly against the installed class, RealTabPFNv2Model.ag_key
 # == "REALTABPFN-V2" and RealTabPFNv25Model.ag_key == "REALTABPFN-V2.5" already match
@@ -801,6 +810,7 @@ Prep_REALTABPFN_V26 = _make_optional_prep_class(
     TabPFNv26Model,
     ag_key="REALTABPFN-V2.6",
     ag_name="RealTabPFN-v2.6",
+    _default_auxiliary_params_extra={"max_classes": None},
     _fit=_many_class_tabpfn_fit,
     _get_memory_size=_many_class_get_memory_size,
 )
