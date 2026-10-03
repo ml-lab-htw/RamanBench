@@ -33,6 +33,30 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `cluster/profiles/k8s_example.yaml`, and every LIMIX2 reference updated to
   match. Image retagged `:py312` (previously `:limix2`).
 
+- **Tiny datasets (<50 rows) now use `num_bag_folds=3` instead of the
+  configured value** (`run_experiment.py`'s `run_one`) — reverses the
+  2026-09-25 "no small-dataset bag-fold scaling" decision for genuinely tiny
+  datasets, per explicit instruction. Confirmed concretely for
+  `diabetes_skin_vein`/`diabetes_skin_ear_lobe` (20 rows, 9/11 class split):
+  `num_bag_folds=8` on their ~13-14-row training partition gave each of
+  AutoGluon's 8 internal bag-folds only ~1.6-1.75 held-out rows on average,
+  so individual bag-folds routinely held out a single, trivially-one-class
+  sample, crashing AutoGluon's ROC AUC computation — a structural mismatch
+  between a fixed `num_bag_folds` and a tiny train partition, not a
+  class-imbalance problem (9/11 is nearly balanced). Verified end-to-end with
+  a real local fit (`PLS` on `diabetes_skin_vein`): previously raised
+  `ValueError: Only one class present in y_true`, now completes cleanly.
+  Inconsistency with already-cached 8-fold results for these same tiny
+  datasets is accepted, not reconciled (explicit instruction) — the existing
+  cache-key comment a few lines below already means a changed
+  `num_bag_folds` only applies to genuinely new, not-yet-cached work anyway.
+  AutoGluon-extreme (`run_autogluon_baseline.py`) bags through its own
+  `presets="extreme"` path rather than this `ValidationProtocol`, and hit the
+  same failure there ("No models were trained successfully" on both datasets,
+  5m and 1h budgets), so it gets the same rule: `num_bag_folds=3` is passed to
+  its fit below 50 rows. Both datasets' AutoGluon-extreme results were
+  recomputed with it and now complete.
+
 ### Added
 
 - **`REALTABPFN-V2.6` added to the routine sweep** (`Prep_REALTABPFN_V26`,

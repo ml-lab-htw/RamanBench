@@ -153,10 +153,25 @@ def run_one(
         Path(scratch_dir).mkdir(parents=True, exist_ok=True)
         init_kwargs = {"path": scratch_dir}
 
+    fit_kwargs = dict(presets="extreme", time_limit=time_limit)
+    # Same tiny-dataset rule as run_experiment.py (2026-10-02): presets="extreme"
+    # bags with 8 folds, which on diabetes_skin_vein/diabetes_skin_ear_lobe (20
+    # rows, ~13 train rows) leaves one-class bag-fold holdouts -> ROC AUC fails
+    # for every model -> "No models were trained successfully". Below 50 rows,
+    # override to 3 bag-folds.
+    _TINY_DATASET_ROW_THRESHOLD = 50
+    _TINY_DATASET_NUM_BAG_FOLDS = 3
+    if len(df) < _TINY_DATASET_ROW_THRESHOLD:
+        fit_kwargs["num_bag_folds"] = _TINY_DATASET_NUM_BAG_FOLDS
+        logger.info(
+            "%s: %d row(s) < %d -- using num_bag_folds=%d instead of the preset's default",
+            dataset_name, len(df), _TINY_DATASET_ROW_THRESHOLD, _TINY_DATASET_NUM_BAG_FOLDS,
+        )
+
     experiment = AGExperiment(
         name=experiment_name,
         init_kwargs=init_kwargs,
-        fit_kwargs=dict(presets="extreme", time_limit=time_limit),
+        fit_kwargs=fit_kwargs,
         experiment_kwargs={
             # Same reasoning as run_experiment.py's require_warmup=False: TabArena's
             # warm-up framework is audited against its own known model registry: not
