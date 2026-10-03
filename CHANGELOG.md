@@ -70,6 +70,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
   cap if that OOM recurs in practice (e.g. on the cluster's shared 256G tier,
   as opposed to this test's small synthetic array).
 
+- **Per-model budgets and row caps for the remaining missing results**
+  (`configs/v1/scope_default.json`) — each entry fixes an observed failure
+  (TimeLimitExceeded or CUDA OOM) and is documented in the config's
+  `_comment_*` fields:
+  - Time limits: `PERPETUAL_BOOSTER` (5400s, 7 datasets); `LIMIX` (no cap);
+    `TABFM`/`REALTABPFN-V2.6`/`REALTABPFN-V2` (7200s on their >10-class
+    datasets, for the many-class coding cost); `RAMANTRANSFORMER` (5400s,
+    4 datasets); `ORIONMSP` (5400s on mlrod/wheat_lines).
+  - Row caps: `LIMIX` (5000; 2000 on mlrod), `ORIONMSP` (2000 on
+    mlrod/wheat_lines).
+
 ### Added
 
 - **`REALTABPFN-V2.6` added to the routine sweep** (`Prep_REALTABPFN_V26`,
