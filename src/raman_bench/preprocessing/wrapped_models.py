@@ -1330,12 +1330,25 @@ else:
 # inference package at fit time (a clean ModuleNotFoundError/ImportError from
 # LimiX2Model's own deferred import inside `_fit`, not a hang or crash
 # elsewhere) -- always route LIMIX2 through the limix2 image.
+def _limix2_convert_proba_to_unified_form(self, y_pred_proba):
+    """Keep the row axis on single-row regression predictions.
+
+    LimiX2's regression decoder returns a bare 0-d scalar when the query has exactly
+    one row, and AutoGluon's ``_convert_proba_to_unified_form`` then fails with
+    ``IndexError: too many indices for array: array is 0-dimensional`` -- confirmed on
+    BHT for fuel_benchtop targets 1 and 2 (same failure mode as the SAP_RPT_OSS
+    single-row fix above).
+    """
+    return LimiX2Model._convert_proba_to_unified_form(self, np.atleast_1d(y_pred_proba))
+
+
 Prep_LIMIX2 = _make_optional_prep_class(
     "Prep_LIMIX2",
     LimiX2Model,
     ag_key="LIMIX2",
     ag_name="RamanBench-LimiX2",
     _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    _convert_proba_to_unified_form=_limix2_convert_proba_to_unified_form,
 )
 
 
