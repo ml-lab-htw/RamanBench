@@ -10,9 +10,10 @@ Both prior LIMIX2 jobs (rb-limix2-full/large) were cancelled to free up a100
 capacity for other work -- this resubmits the SAME full target list (not a
 hand-picked subset): every already-succeeded task is a cache-hit (instant
 disk read, no GPU needed), only genuinely new/incomplete tasks do real new
-compute. Same num_bag_folds=8/time_limit=3600 as the original submission
-(confirmed from its own logs: "Fitting 8 child models (S1F1 - S1F8)",
-"ag.max_time_limit=3600.0").
+compute. Same time_limit=3600 as the original submission. num_bag_folds now
+comes from scope_default.json (3): this script originally hardcoded 8, copied
+from that submission, which left 133 LimiX2 results off the benchmark's 3-fold
+protocol (all recomputed with 3 folds, 2026-10-03).
 
 resolve_k8s_image automatically picks the py312 image for LIMIX2 via the
 profile's own image_overrides -- no need to set that here.
@@ -33,7 +34,6 @@ from submit_job import resolve_profile, submit_jobs  # noqa: E402
 PROFILE_PATH = "/Users/koddenbrock/Repository/raman_bench_paper/cluster/profiles/k8s.yaml"
 MODEL = "LIMIX2"
 N_SPLITS = 3
-NUM_BAG_FOLDS = 8
 TIME_LIMIT = 3600
 RESULTS_DIR = "results/v1/data"
 CACHE_DIR = ".cache_v1"
@@ -91,7 +91,7 @@ def main() -> None:
     print(f"  full: {len(main_jobs)} task(s)")
     submit_jobs(
         model=MODEL, jobs=main_jobs, slug=f"full{slug_suffix}", n_splits=N_SPLITS,
-        num_random_configs=0, num_bag_folds=NUM_BAG_FOLDS, time_limit=TIME_LIMIT,
+        num_random_configs=0, num_bag_folds=scope["num_bag_folds"], time_limit=TIME_LIMIT,
         results_dir=RESULTS_DIR, cache_dir=CACHE_DIR, mirror_repo=MIRROR_REPO,
         profile=v100_profile, throttle=4, dry_run=dry_run,
         max_train_samples_overrides=max_train_samples_overrides,
@@ -103,7 +103,7 @@ def main() -> None:
         print(f"  large: {len(large_jobs)} task(s)")
         submit_jobs(
             model=MODEL, jobs=large_jobs, slug=f"large{slug_suffix}", n_splits=N_SPLITS,
-            num_random_configs=0, num_bag_folds=NUM_BAG_FOLDS, time_limit=TIME_LIMIT,
+            num_random_configs=0, num_bag_folds=scope["num_bag_folds"], time_limit=TIME_LIMIT,
             results_dir=RESULTS_DIR, cache_dir=CACHE_DIR, mirror_repo=MIRROR_REPO,
             profile=v100_profile, throttle=4, dry_run=dry_run,
             max_train_samples_overrides=max_train_samples_overrides,
