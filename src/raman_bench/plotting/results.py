@@ -303,3 +303,57 @@ def select_focus(leaderboard: pd.DataFrame, top_k: int | None, always: tuple[str
     ranked = leaderboard.sort_values("elo", ascending=False)
     focus = set(ranked.groupby("category", sort=False).head(top_k).index)
     return focus | (set(always) & set(leaderboard.index))
+
+
+#: A model this close to the Pareto front (in normalized score) also counts as a
+#: trade-off answer. Same tolerance the paper's figures used.
+NEAR_PARETO_TOLERANCE = 0.05
+TIME_COL = "median_time_total_s"
+
+
+def pareto_front(df: pd.DataFrame, x: str, y: str, higher_is_better: bool) -> pd.DataFrame:
+    """Rows on the Pareto front: lower *x* and better *y* than every row before them."""
+    best = -np.inf if higher_is_better else np.inf
+    keep = []
+    for idx, row in df.sort_values(x).iterrows():
+        val = row[y]
+        if (val > best) if higher_is_better else (val < best):
+            keep.append(idx)
+            best = val
+    return df.loc[keep]
+
+
+def near_pareto_models(
+    lb: pd.DataFrame,
+    metric: str = "normalized_score",
+    higher_is_better: bool = True,
+    tolerance: float = NEAR_PARETO_TOLERANCE,
+) -> set[str]:
+    """Pareto-optimal models of *metric* vs. median train+predict time, plus every model
+    within *tolerance* of the best score the front reaches at the same or lower cost.
+
+    Models cheaper than the front's cheapest point are compared against that point.
+    """
+    df = split_references(lb)[0].dropna(subset=[TIME_COL, metric])
+    front = pareto_front(df, TIME_COL, metric, higher_is_better)
+    if front.empty:
+        return set()
+    times = front[TIME_COL].to_numpy()
+    scores = front[metric].to_numpy()  # monotonic in time by construction
+    near = set(front.index)
+    for model, row in df.iterrows():
+        idx = int(np.searchsorted(times, row[TIME_COL], side="right")) - 1
+        ref = scores[max(idx, 0)]
+        gap = (ref - row[metric]) if higher_is_better else (row[metric] - ref)
+        if gap <= tolerance:
+            near.add(model)
+    return near
+
+
+def pareto_selection(scores: dict[str, GroupScores], tolerance: float = NEAR_PARETO_TOLERANCE) -> set[str]:
+    """Pareto- and near-Pareto-optimal models (normalized score vs. time) in any task type."""
+    groups = [g for g in ("classification", "regression") if g in scores] or ["all"]
+    selected = set()
+    for g in groups:
+        selected |= near_pareto_models(scores[g].leaderboard, tolerance=tolerance)
+    return selected

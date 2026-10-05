@@ -29,7 +29,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the top-k models per category (plus, in the "vs. time" plots, every
   Pareto-optimal model) in colour and greys out the rest (`--focus-top-k`,
   default 2); the HTML pages toggle between both views. The Elo ranking and the
-  efficiency overview always colour every model. AutoGluon (extreme, 5 min / 1 h) is scored in the same
+  efficiency overview always colour every model. The pairwise win-rate matrix
+  shows the Pareto-optimal and near-Pareto models (within 0.05 normalized score
+  of the front, normalized score vs. time, classification or regression), with
+  that rule in its caption; `pairwise_win_rates_all` has every model. AutoGluon (extreme, 5 min / 1 h) is scored in the same
   tournament but drawn as a labelled reference line in the Elo ranking and the
   "vs. time" plots. The `DUMMY` baseline is left out (`--exclude-models`).
 

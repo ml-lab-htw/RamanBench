@@ -22,7 +22,7 @@ import pandas as pd  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
 from raman_bench.plotting import models as model_info  # noqa: E402
-from raman_bench.plotting.results import GroupScores, split_references  # noqa: E402
+from raman_bench.plotting.results import GroupScores, pareto_front, split_references  # noqa: E402
 
 TASK_TITLES = {"all": "All tasks", "classification": "Classification", "regression": "Regression"}
 FRONT_COLOR = "#9A9A9A"
@@ -182,18 +182,6 @@ def _imputed_note(fig, lb: pd.DataFrame) -> None:
 # --------------------------------------------------------------------------- trade-off scatter
 
 
-def pareto_front(df: pd.DataFrame, x: str, y: str, higher_is_better: bool) -> pd.DataFrame:
-    """Rows on the Pareto front: lower *x* and better *y* than every row before them."""
-    best = -np.inf if higher_is_better else np.inf
-    keep = []
-    for idx, row in df.sort_values(x).iterrows():
-        val = row[y]
-        if (val > best) if higher_is_better else (val < best):
-            keep.append(idx)
-            best = val
-    return df.loc[keep]
-
-
 #: Label offsets (points) tried in order until a label overlaps nothing placed before it.
 _LABEL_OFFSETS = [(6, 3), (6, -11), (-6, 3), (-6, -11), (0, 9), (0, -15), (12, 12), (12, -20), (-12, 12), (-12, -20)]
 
@@ -335,8 +323,10 @@ def plot_elo_vs_release_date(scores: GroupScores, focus: set[str], out_dir: Path
 # --------------------------------------------------------------------------- win-rate matrix
 
 
-def plot_winrate_matrix(scores: GroupScores, models: list[str], out_dir: Path, formats, stem: str):
-    """Pairwise win rates of *models* (rows beat columns), ordered by Elo."""
+def plot_winrate_matrix(
+    scores: GroupScores, models: list[str], out_dir: Path, formats, stem: str, caption: str | None = None
+):
+    """Pairwise win rates of *models* (rows beat columns), ordered by Elo; *caption* goes under the matrix."""
     wr = scores.winrate_matrix.loc[models, models] * 100
     names = scores.leaderboard.loc[models, "display_name"]
     n = len(models)
@@ -362,6 +352,8 @@ def plot_winrate_matrix(scores: GroupScores, models: list[str], out_dir: Path, f
     cbar = fig.colorbar(im, ax=ax, fraction=0.035, pad=0.02)
     cbar.set_label("Win rate of row vs. column (%)")
     ax.set_title(f"Pairwise win rates ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)", pad=12)
+    if caption:
+        fig.text(0.5, 0.0, caption, ha="center", va="top", fontsize=9, color="#555555", wrap=True)
     return save(fig, out_dir, stem, formats)
 
 

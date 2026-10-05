@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 
 from raman_bench.plotting import models as model_info
-from raman_bench.plotting.results import GroupScores, split_references
-from raman_bench.plotting.static import TASK_TITLES, pareto_front
+from raman_bench.plotting.results import GroupScores, pareto_front, split_references
+from raman_bench.plotting.static import TASK_TITLES
 
 PLOTLY_CONFIG = {
     "displaylogo": False,
@@ -266,10 +266,12 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k):
 # --------------------------------------------------------------------------- win rates
 
 
-def winrate_matrix(scores: GroupScores):
-    """Full pairwise win-rate heatmap, models ordered by Elo."""
+def winrate_matrix(scores: GroupScores, models: list[str] | None = None, caption: str | None = None):
+    """Pairwise win-rate heatmap of *models* (default: all), ordered by Elo."""
     go = _go()
     lb = split_references(scores.leaderboard)[0]
+    if models is not None:
+        lb = lb.loc[[m for m in lb.index if m in set(models)]]
     names = list(lb["display_name"])
     wr = scores.winrate_matrix.loc[lb.index, lb.index].to_numpy(dtype=float) * 100
     np.fill_diagonal(wr, np.nan)
@@ -283,8 +285,10 @@ def winrate_matrix(scores: GroupScores):
     size = max(600, 18 * len(names) + 250)
     fig.update_yaxes(autorange="reversed")
     fig.update_xaxes(side="top", tickangle=-55)
-    _layout(fig, f"Pairwise win rates: row vs. column ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)",
-            size, [], None)
+    title = f"Pairwise win rates: row vs. column ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)"
+    if caption:
+        title += f"<br><sup>{caption}</sup>"
+    _layout(fig, title, size, [], None)
     fig.update_layout(width=size + 100, margin={"t": 220})
     return fig
 

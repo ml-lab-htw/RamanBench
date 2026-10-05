@@ -18,7 +18,9 @@ from raman_bench.plotting import interactive, static
 from raman_bench.plotting.results import (
     DEFAULT_SCOPE,
     DEFAULT_TARGET_LIST,
+    NEAR_PARETO_TOLERANCE,
     load_results,
+    pareto_selection,
     score_all,
     select_focus,
     split_references,
@@ -101,14 +103,14 @@ def generate_all(
         scores["all"], focus["all"], st, formats, "elo_vs_release_date"
     )
     all_models = list(split_references(scores["all"].leaderboard)[0].index)
-    focus_models = [m for m in all_models if m in focus["all"]]
+    pareto_models = [m for m in all_models if m in pareto_selection(scores)]
+    captions = {"pairwise_win_rates": _winrate_caption(len(pareto_models), len(all_models))}
     written["pairwise_win_rates"] = static.plot_winrate_matrix(
-        scores["all"], focus_models, st, formats, "pairwise_win_rates"
+        scores["all"], pareto_models, st, formats, "pairwise_win_rates", captions["pairwise_win_rates"]
     )
-    if len(focus_models) < len(all_models):
-        written["pairwise_win_rates"] += static.plot_winrate_matrix(
-            scores["all"], all_models, st, formats, "pairwise_win_rates_all"
-        )
+    written["pairwise_win_rates"] += static.plot_winrate_matrix(
+        scores["all"], all_models, st, formats, "pairwise_win_rates_all"
+    )
     written["efficiency_overview"] = static.plot_efficiency_overview(
         scores["all"], everyone["all"], st, formats, "efficiency_overview"
     )
@@ -123,32 +125,46 @@ def generate_all(
             "improvability_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "improvability"),
             "elo_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "elo"),
             "elo_vs_release_date": interactive.elo_vs_release_date(scores["all"], focus["all"], focus_top_k),
-            "pairwise_win_rates": interactive.winrate_matrix(scores["all"]),
+            "pairwise_win_rates": interactive.winrate_matrix(
+                scores["all"], pareto_models, captions["pairwise_win_rates"]
+            ),
+            "pairwise_win_rates_all": interactive.winrate_matrix(scores["all"]),
             "efficiency_overview": interactive.efficiency_overview(scores["all"], everyone["all"], None),
         }
         for stem, fig in figs.items():
             written.setdefault(stem, []).append(interactive.write(fig, it, stem, include_plotlyjs))
 
-    index = _write_index(out_dir, scores, variant)
+    index = _write_index(out_dir, scores, variant, captions)
     written["index"] = [index]
     logger.info("Wrote %d file(s) under %s", sum(len(v) for v in written.values()), out_dir)
     return written
 
 
-def _write_index(out_dir: Path, scores, variant: str) -> Path:
+def _winrate_caption(n_shown: int, n_total: int) -> str:
+    return (
+        f"Shown: the {n_shown} of {n_total} models that are Pareto-optimal, or within "
+        f"{NEAR_PARETO_TOLERANCE:g} normalized score of the Pareto front, in normalized score vs. "
+        "median train + predict time (classification or regression). "
+        "pairwise_win_rates_all has every model."
+    )
+
+
+def _write_index(out_dir: Path, scores, variant: str, captions: dict[str, str] | None = None) -> Path:
     """A plain gallery page linking every figure in all its formats."""
+    captions = captions or {}
     rows = []
     for stem, title in FIGURES.items():
         links = []
         for rel in (f"interactive/{stem}.html", f"static/{stem}.png", f"static/{stem}.pdf",
-                    f"static/{stem}_all.png", f"static/{stem}_all.pdf"):
+                    f"interactive/{stem}_all.html", f"static/{stem}_all.png", f"static/{stem}_all.pdf"):
             if (out_dir / rel).exists():
                 links.append(f'<a href="{rel}">{html.escape(Path(rel).name)}</a>')
         if not links:
             continue
         thumb = f"static/{stem}.png"
         img = f'<img src="{thumb}" alt="">' if (out_dir / thumb).exists() else ""
-        rows.append(f"<section><h2>{html.escape(title)}</h2><p>{' · '.join(links)}</p>{img}</section>")
+        caption = f'<p class="caption">{html.escape(captions[stem])}</p>' if stem in captions else ""
+        rows.append(f"<section><h2>{html.escape(title)}</h2><p>{' · '.join(links)}</p>{caption}{img}</section>")
     tasks = ", ".join(f"{g}: {s.n_tasks} tasks, {len(s.leaderboard)} models" for g, s in scores.items())
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -160,6 +176,7 @@ body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width
 @media (prefers-color-scheme: dark) {{ body {{ background: #161616; color: #ddd; }} a {{ color: #8ab4f8; }} }}
 img {{ max-width: 100%; border: 1px solid #ddd; background: #fff; }}
 section {{ margin: 2em 0; }}
+.caption {{ color: #666; font-size: 0.92em; }}
 </style></head><body>
 <h1>RamanBench figures</h1>
 <p>Variant: <b>{html.escape(variant)}</b> · {html.escape(tasks)} ·
