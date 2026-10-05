@@ -26,6 +26,7 @@ from matplotlib.patches import Patch  # noqa: E402
 from raman_bench.plotting import models as model_info  # noqa: E402
 from raman_bench.plotting.results import (  # noqa: E402
     TIME_COL,
+    CriticalDifference,
     GroupScores,
     pareto_front,
     split_references,
@@ -419,4 +420,86 @@ def plot_efficiency_overview(scores: GroupScores, focus: set[str], out_dir: Path
         tick.set_color("#222222" if model in focus else model_info.MUTED_LABEL_COLOR)
     fig.tight_layout()
     _category_legend(fig, lb.index, y=0.0, muted=len(focus) < len(lb))
+    return save(fig, out_dir, stem, formats)
+
+
+# --------------------------------------------------------------------------- critical difference
+
+
+CD_CAPTION = (
+    "Mean rank over targets (1 = best; each target's error averaged over its folds, imputed results as in "
+    "the leaderboard). Models joined by a bar are not significantly different (Friedman test, Nemenyi "
+    "post-hoc). CD: critical difference."
+)
+
+
+def cd_title(c: CriticalDifference) -> str:
+    p = "p < 1e-16" if c.pvalue < 1e-16 else f"p = {c.pvalue:.1g}"
+    return (f"{TASK_TITLES[c.name]}: {c.n_tasks} tasks, {len(c.mean_rank)} models · "
+            f"CD = {c.cd:.1f} (α = {c.alpha:g}) · Friedman {p}")
+
+
+def cd_geometry(c: CriticalDifference) -> dict:
+    """Positions of the classic Demšar layout in row units (axis at y = 0, rows downward).
+
+    The better half of the models is labelled on the left, the worse half on the right;
+    each half's row nearest the axis goes to the model closest to the middle of the scale.
+    Shared by the static and the interactive diagram, so both look the same.
+    """
+    k = len(c.mean_rank)
+    half = int(np.ceil(k / 2))
+    group_y = [-(0.6 + 0.4 * j) for j in range(len(c.groups))]
+    first = (group_y[-1] if group_y else 0.0) - 0.9
+    rows = [first - i for i in range(half)] + [first - (k - 1 - i) for i in range(half, k)]
+    return {
+        "k": k,
+        "x": c.mean_rank.to_numpy(),
+        "y": np.array(rows),
+        "left": np.arange(k) < half,
+        "groups": [(c.mean_rank.iloc[a], c.mean_rank.iloc[b], y) for (a, b), y in zip(c.groups, group_y)],
+        "bottom": first - (half - 1),
+        "edge": (0.5, k + 0.5),
+    }
+
+
+def _cd_ax(ax, c: CriticalDifference, lb: pd.DataFrame) -> None:
+    g = cd_geometry(c)
+    lo, hi = g["edge"]
+    ax.set_xlim(lo, hi)
+    ax.set_ylim(g["bottom"] - 0.8, 2.2)
+    ax.set_axis_off()
+    ax.plot([1, g["k"]], [0, 0], color="#222222", lw=1)
+    for t in range(1, g["k"] + 1):
+        major = t == 1 or t % 5 == 0
+        ax.plot([t, t], [0, 0.25 if major else 0.12], color="#222222", lw=0.8)
+        if major:
+            ax.text(t, 0.35, str(t), ha="center", va="bottom", fontsize=8.5)
+    # Critical difference, drawn from rank 1.
+    ax.plot([1, 1 + c.cd], [1.6, 1.6], color="#222222", lw=1.2)
+    for x in (1, 1 + c.cd):
+        ax.plot([x, x], [1.45, 1.75], color="#222222", lw=1.2)
+    ax.text(1 + c.cd + 0.4, 1.6, f"CD = {c.cd:.1f}", ha="left", va="center", fontsize=9)
+    for a, b, y in g["groups"]:
+        ax.plot([a - 0.15, b + 0.15], [y, y], color="#222222", lw=2.6, solid_capstyle="round")
+    for (model, rank), y, left in zip(c.mean_rank.items(), g["y"], g["left"]):
+        edge = lo if left else hi
+        ax.plot([rank, rank, edge], [0, y, y], color="#9A9A9A", lw=0.7, zorder=1)
+        ax.scatter([rank], [0], s=14, color=model_info.color(model), zorder=3, linewidths=0)
+        name = lb.loc[model, "display_name"]
+        ax.text(edge + (-0.3 if left else 0.3), y, f"{name} ({rank:.1f})" if left else f"({rank:.1f}) {name}",
+                ha="right" if left else "left", va="center", fontsize=8.5, color=model_info.label_color(model),
+                clip_on=False)
+    ax.set_title(cd_title(c), loc="left", fontsize=11, fontweight="bold", pad=10)
+
+
+def plot_critical_difference(cds: list[CriticalDifference], scores: dict[str, GroupScores], out_dir: Path,
+                             formats, stem: str = "critical_difference"):
+    """Critical difference diagrams, one panel per task type."""
+    depth = [-cd_geometry(c)["bottom"] + 3.2 for c in cds]
+    fig, axes = plt.subplots(len(cds), 1, figsize=(13, 0.17 * sum(depth) + 0.8),
+                             gridspec_kw={"height_ratios": depth})
+    for ax, c in zip(np.atleast_1d(axes), cds):
+        _cd_ax(ax, c, scores[c.name].leaderboard)
+    fig.subplots_adjust(left=0.2, right=0.8, top=0.97, bottom=0.04, hspace=0.12)
+    fig.text(0.5, 0.0, textwrap.fill(CD_CAPTION, 150), ha="center", va="top", fontsize=9, color="#555555")
     return save(fig, out_dir, stem, formats)

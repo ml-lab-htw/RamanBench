@@ -11,6 +11,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Critical difference diagrams** for classification and regression, as the last
+  leaderboard figure (static and interactive). Mean rank per target with Friedman
+  test and Nemenyi post-hoc via `autorank`, as in TabArena's
+  `plot_critical_diagrams`; bars join models that are not significantly different.
+  `autorank` joins the `plots` extra.
 - **Leaderboard figures for v1 results** (`raman_bench.plotting`,
   `scripts/plot_results.py`, new `plots` extra). Replaces the figure pipeline
   that lived in the private paper repo and only read v0.1 prediction CSVs.

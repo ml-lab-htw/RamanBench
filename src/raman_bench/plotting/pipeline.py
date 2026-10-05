@@ -20,7 +20,9 @@ from raman_bench.plotting import models as model_info
 from raman_bench.plotting.results import (
     DEFAULT_SCOPE,
     DEFAULT_TARGET_LIST,
+    MIN_CD_TASKS,
     NEAR_PARETO_TOLERANCE,
+    critical_difference,
     load_results,
     pareto_selection,
     score_all,
@@ -42,6 +44,7 @@ FIGURES = {
     "elo_vs_release_date": "Model progress over time",
     "pairwise_win_rates": "Pairwise win rates",
     "efficiency_overview": "Efficiency overview",
+    "critical_difference": "Critical difference diagrams",
 }
 
 LEADERBOARD_COLUMNS = [
@@ -134,6 +137,10 @@ def generate_all(
     written["efficiency_overview"] = static.plot_efficiency_overview(
         scores["all"], everyone["all"], st, formats, "efficiency_overview"
     )
+    cds = [critical_difference(scores[g]) for g in ("classification", "regression")
+           if g in scores and scores[g].n_tasks >= MIN_CD_TASKS]
+    if cds:
+        written["critical_difference"] = static.plot_critical_difference(cds, scores, st, formats)
 
     if make_interactive:
         it = out_dir / "interactive"
@@ -151,6 +158,8 @@ def generate_all(
             "pairwise_win_rates_all": interactive.winrate_matrix(scores["all"]),
             "efficiency_overview": interactive.efficiency_overview(scores["all"], everyone["all"], None),
         }
+        if cds:
+            figs["critical_difference"] = interactive.critical_difference(cds, scores)
         if datasets is not None:
             figs["overview"] = overview.overview_interactive(datasets, scores["all"])
             figs["composition"] = overview.composition_interactive(datasets)

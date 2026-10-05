@@ -14,14 +14,21 @@ from __future__ import annotations
 
 import html
 import json
+import textwrap
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from raman_bench.plotting import models as model_info
-from raman_bench.plotting.results import TIME_COL, GroupScores, pareto_front, split_references
-from raman_bench.plotting.static import TASK_TITLES
+from raman_bench.plotting.results import (
+    TIME_COL,
+    CriticalDifference,
+    GroupScores,
+    pareto_front,
+    split_references,
+)
+from raman_bench.plotting.static import CD_CAPTION, TASK_TITLES, cd_geometry, cd_title
 
 PLOTLY_CONFIG = {
     "displaylogo": False,
@@ -335,4 +342,103 @@ def efficiency_overview(scores: GroupScores, focus: set[str], top_k):
         fig.update_xaxes(type="log", row=1, col=col)
     fig.update_yaxes(categoryorder="array", categoryarray=list(lb["display_name"])[::-1], row=1, col=1)
     _layout(fig, "Efficiency (lower is faster)", max(500, 22 * len(lb) + 200), focus_traces, top_k)
+    return fig
+
+
+# --------------------------------------------------------------------------- critical difference
+
+
+def _lines(segments) -> tuple[list, list]:
+    """One trace's x/y for many polylines, separated by ``None``."""
+    xs, ys = [], []
+    for seg in segments:
+        xs += [p[0] for p in seg] + [None]
+        ys += [p[1] for p in seg] + [None]
+    return xs, ys
+
+
+def critical_difference(cds: list[CriticalDifference], scores: dict[str, GroupScores]):
+    """Critical difference diagrams, one panel per task type, in the static figure's layout.
+
+    Hover a model's dot or name for its mean rank, Elo and the models it is not
+    significantly different from; hover a bar for its members.
+    """
+    from plotly.subplots import make_subplots
+
+    go = _go()
+    geoms = [cd_geometry(c) for c in cds]
+    depth = [-g["bottom"] + 3.2 for g in geoms]
+    fig = make_subplots(rows=len(cds), cols=1, row_heights=depth, vertical_spacing=0.06,
+                        subplot_titles=[cd_title(c) for c in cds])
+    seen = set()
+    for row, (c, g) in enumerate(zip(cds, geoms), start=1):
+        lb = scores[c.name].leaderboard
+        lo, hi = g["edge"]
+        k = g["k"]
+        ranks = c.mean_rank
+        names = lb.loc[ranks.index, "display_name"]
+        # Pad the x range so the names fit beside the scale.
+        pad = 0.3 * k
+
+        def add(trace):
+            fig.add_trace(trace, row=row, col=1)
+
+        ticks = [((t, 0), (t, 0.25 if t == 1 or t % 5 == 0 else 0.12)) for t in range(1, k + 1)]
+        xs, ys = _lines([((1, 0), (k, 0)), *ticks, ((1, 1.6), (1 + c.cd, 1.6)),
+                         ((1, 1.45), (1, 1.75)), ((1 + c.cd, 1.45), (1 + c.cd, 1.75))])
+        add(go.Scatter(x=xs, y=ys, mode="lines", line={"color": "#222222", "width": 1},
+                       hoverinfo="skip", showlegend=False))
+        major = [t for t in range(1, k + 1) if t == 1 or t % 5 == 0]
+        add(go.Scatter(x=major + [1 + c.cd + 0.4], y=[0.55] * len(major) + [1.6], mode="text",
+                       text=[str(t) for t in major] + [f"CD = {c.cd:.1f}"],
+                       textposition=["top center"] * len(major) + ["middle right"],
+                       textfont={"size": 11}, hoverinfo="skip", showlegend=False))
+        elbows = [((r, 0), (r, y), (lo if left else hi, y)) for r, y, left in zip(ranks, g["y"], g["left"])]
+        xs, ys = _lines(elbows)
+        add(go.Scatter(x=xs, y=ys, mode="lines", line={"color": "#B5B5B5", "width": 1},
+                       hoverinfo="skip", showlegend=False))
+        for (a, b), (ra, rb, y) in zip(c.groups, g["groups"]):
+            members = ", ".join(names.iloc[a:b + 1])
+            add(go.Scatter(x=list(ranks.iloc[a:b + 1]), y=[y] * (b - a + 1), mode="lines+markers",
+                           line={"color": "#222222", "width": 5}, marker={"size": 4, "color": "#222222"},
+                           hovertext=f"<b>Not significantly different</b> ({b - a + 1} models):<br>"
+                                     + "<br>".join(textwrap.wrap(members, 90)),
+                           hoverinfo="text", showlegend=False))
+        tied = {m: set() for m in ranks.index}
+        for a, b in c.groups:
+            members = list(ranks.index[a:b + 1])
+            for m in members:
+                tied[m] |= set(members) - {m}
+        hover = {
+            m: (f"<b>{names[m]}</b> · {lb.loc[m, 'category']}<br>Mean rank {ranks[m]:.2f} · "
+                f"Elo {lb.loc[m, 'elo']:.0f}<br>Not significantly different from {len(tied[m])} model(s)")
+            for m in ranks.index
+        }
+        sub = pd.DataFrame({"rank": ranks, "y": g["y"], "left": g["left"], "name": names,
+                            "category": lb.loc[ranks.index, "category"]})
+        for cat in sorted(sub["category"].unique(), key=model_info.category_rank):
+            part = sub[sub["category"] == cat]
+            color = model_info.color(part.index[0])
+            add(go.Scatter(x=part["rank"], y=[0] * len(part), mode="markers", name=cat, legendgroup=cat,
+                           showlegend=cat not in seen, marker={"color": color, "size": 9},
+                           hovertext=[hover[m] for m in part.index], hoverinfo="text"))
+            seen.add(cat)
+            label_x = [lo - 0.3 if left else hi + 0.3 for left in part["left"]]
+            text = [f"{n} ({r:.1f})" if left else f"({r:.1f}) {n}"
+                    for n, r, left in zip(part["name"], part["rank"], part["left"])]
+            add(go.Scatter(x=label_x, y=part["y"], mode="text", text=text, legendgroup=cat, showlegend=False,
+                           textposition=["middle left" if left else "middle right" for left in part["left"]],
+                           textfont={"color": model_info.label_color(part.index[0]), "size": 11},
+                           hovertext=[hover[m] for m in part.index], hoverinfo="text"))
+        fig.update_xaxes(range=[lo - pad, hi + pad], visible=False, row=row, col=1)
+        fig.update_yaxes(range=[g["bottom"] - 0.8, 2.4], visible=False, row=row, col=1)
+    height = int(15 * sum(depth) + 260)
+    _layout(fig, "Critical difference diagrams (mean rank, 1 = best)", height, [], None)
+    fig.update_layout(width=1250, legend={"y": -0.03}, margin={"b": 110},
+                      annotations=list(fig.layout.annotations) + [
+                          {"text": "<br>".join(textwrap.wrap(CD_CAPTION, 150)), "xref": "paper", "yref": "paper",
+                           "x": 0, "y": -0.06, "xanchor": "left", "yanchor": "top", "showarrow": False,
+                           "font": {"size": 11, "color": "#555555"}, "align": "left"}])
+    for a in fig.layout.annotations[:len(cds)]:
+        a.update(x=0, xanchor="left", font={"size": 14})
     return fig

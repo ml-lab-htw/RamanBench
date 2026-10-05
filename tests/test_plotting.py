@@ -176,13 +176,13 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
     pytest.importorskip("plotly")
     from raman_bench.plotting import generate_all
 
-    path, scope, tl = _hpo_results(tmp_path)
+    path, scope, tl = _hpo_results(tmp_path, n_clf=5, n_reg=6)  # >= MIN_CD_TASKS per task type
     out = tmp_path / "figures"
     written = generate_all(
         path, out, scope=scope, target_list=tl, bootstrap_rounds=10, focus_top_k=1, dataset_figures=False
     )
     for stem in ("elo_ranking_combined", "metrics_vs_time", "improvability_vs_time",
-                 "elo_vs_release_date", "pairwise_win_rates", "efficiency_overview"):
+                 "elo_vs_release_date", "pairwise_win_rates", "efficiency_overview", "critical_difference"):
         assert (out / "static" / f"{stem}.png").exists()
         assert (out / "static" / f"{stem}.pdf").exists()
         assert (out / "interactive" / f"{stem}.html").exists()
@@ -239,3 +239,18 @@ def test_figure_notes_explain_marks():
     notes = model_info.figure_notes("RamanPFN† and OrionMSP (clf. only)")
     assert len(notes) == 2
     assert notes[1] == model_info.SUBSET_NOTE
+
+
+def test_critical_difference_ranks_and_groups(tmp_path):
+    pytest.importorskip("autorank")
+    path, scope, tl = _hpo_results(tmp_path, n_clf=6, n_reg=8)
+    scores = res.score_all(res.load_results(path, scope=scope, target_list=tl), bootstrap_rounds=10)
+    cd = res.critical_difference(scores["regression"])
+    assert cd.mean_rank.index[0] == "TABPFN-V3"
+    assert cd.mean_rank.is_monotonic_increasing
+    assert cd.n_tasks == scores["regression"].n_tasks
+    assert cd.cd > 0 and 0 <= cd.pvalue <= 1
+    # Every group spans models whose mean ranks lie within the critical difference.
+    for a, b in cd.groups:
+        assert cd.mean_rank.iloc[b] - cd.mean_rank.iloc[a] <= cd.cd
+    assert "ROCKET" not in cd.mean_rank.index  # classification only
