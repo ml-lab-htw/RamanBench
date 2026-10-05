@@ -76,7 +76,7 @@ def generate_all(
         bootstrap_rounds=bootstrap_rounds,
     )
     focus = {g: select_focus(s.leaderboard, focus_top_k) for g, s in scores.items()}
-    # The Elo ranking already orders every model, so it is never greyed out.
+    # The Elo ranking and the efficiency overview list every model by name, so nothing is greyed out.
     everyone = {g: set(s.leaderboard.index) for g, s in scores.items()}
     written: dict[str, list[Path]] = {}
 
@@ -110,7 +110,7 @@ def generate_all(
             scores["all"], all_models, st, formats, "pairwise_win_rates_all"
         )
     written["efficiency_overview"] = static.plot_efficiency_overview(
-        scores["all"], focus["all"], st, formats, "efficiency_overview"
+        scores["all"], everyone["all"], st, formats, "efficiency_overview"
     )
 
     if make_interactive:
@@ -124,7 +124,7 @@ def generate_all(
             "elo_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "elo"),
             "elo_vs_release_date": interactive.elo_vs_release_date(scores["all"], focus["all"], focus_top_k),
             "pairwise_win_rates": interactive.winrate_matrix(scores["all"]),
-            "efficiency_overview": interactive.efficiency_overview(scores["all"], focus["all"], focus_top_k),
+            "efficiency_overview": interactive.efficiency_overview(scores["all"], everyone["all"], None),
         }
         for stem, fig in figs.items():
             written.setdefault(stem, []).append(interactive.write(fig, it, stem, include_plotlyjs))
