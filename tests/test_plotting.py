@@ -81,6 +81,8 @@ def test_scores_rank_skill_and_skip_task_restricted_models(tmp_path):
 
     reg = scores["regression"].leaderboard
     assert "ROCKET" not in reg.index  # never ran regression: left out, not imputed
+    assert "ROCKET" in scores["classification"].leaderboard.index
+    assert "ROCKET" not in scores["all"].leaderboard.index  # one task type only
     assert reg.index[0] == "TABPFN-V3"
     assert reg.index[-1] == "DUMMY"
     assert reg.loc["RF", "elo"] == pytest.approx(1000, abs=1)  # calibration anchor

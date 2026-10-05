@@ -19,8 +19,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
   Random Forest = 1000, win rate, improvability, the pairwise win-rate matrix,
   plus the TabRepo normalized score. Missing runs are imputed with Random Forest
   and flagged, as in TabArena; models over 50% imputed are left out, and a model
-  that never ran a task type (e.g. ROCKET on regression) is left out of that
-  type instead of being imputed. Only non-excluded targets and the scope's
+  that never ran a task type (e.g. Nori on classification) is left out of that
+  type and of the all-tasks ranking instead of being imputed. Only non-excluded targets and the scope's
   `n_repeats` x `n_splits` folds are scored. Figures: Elo ranking (all tasks,
   and classification/regression panels), normalized score / improvability /
   Elo vs. time with the Pareto front, Elo vs. release date, pairwise win rates,

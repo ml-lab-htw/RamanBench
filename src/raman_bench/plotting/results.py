@@ -234,6 +234,14 @@ def score_group(
 
     if name != "all":
         results = results[results["task"] == name]
+    else:
+        # A model that never ran one task type belongs on that type's leaderboard
+        # only; imputing a whole task type would rank it on the reference's results.
+        task_types = results.groupby("model")["task"].nunique()
+        single = sorted(task_types.index[task_types < results["task"].nunique()])
+        if single:
+            logger.info("Left out of the all-tasks ranking (one task type only): %s", single)
+            results = results[~results["model"].isin(single)]
     filled = impute_missing(results, reference_model=reference_model, max_imputed_pct=max_imputed_pct)
     data = filled[["dataset", "fold", "model", "metric_error"]]
 
