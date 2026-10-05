@@ -23,7 +23,7 @@ from __future__ import annotations
 import numpy as np
 from sklearn.base import BaseEstimator
 
-from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _NoAugBase
+from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _GPURequiredBridge, _NoAugBase
 
 
 def _to_numpy(X) -> np.ndarray:
@@ -160,7 +160,7 @@ class CausiloModel(BaseEstimator):
         return proba[:, 1] if self.problem_type_ == "binary" else proba
 
 
-class _CausiloBridge(SklearnAutoGluonBridge):
+class _CausiloBridge(_GPURequiredBridge, SklearnAutoGluonBridge):
     _sklearn_cls = CausiloModel
     ag_key = "CAUSILO"
     ag_name = "Causilo"
