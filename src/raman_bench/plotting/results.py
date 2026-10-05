@@ -86,6 +86,20 @@ def load_results(
         df = df.sort_values("_pref").drop_duplicates(["dataset", "fold", "config_type"], keep="last")
         df = df.drop(columns="_pref")
 
+    # Two result directories can map to one model key: e.g. TabArena's own TA-LimiX-2
+    # smoke-test runs next to RamanBench-LimiX2 (both config_type LIMIX2). Keep the
+    # RamanBench run, which is what the sweep produces.
+    ta_name = df["ta_name"].astype(str) if "ta_name" in df.columns else pd.Series("", index=df.index)
+    df = df.assign(ta_name=ta_name, _ours=ta_name.str.startswith("RamanBench-").astype(int))
+    df = df.sort_values("_ours")
+    dup = df.duplicated(["dataset", "fold", "config_type"], keep="last")
+    if dup.any():
+        logger.warning(
+            "Dropping %d duplicate row(s) for the same (task, fold, model): %s",
+            int(dup.sum()), df.loc[dup].groupby(["config_type", "ta_name"]).size().to_dict(),
+        )
+    df = df[~dup].drop(columns="_ours")
+
     out = pd.DataFrame(
         {
             "dataset": df["dataset"].astype(str),
