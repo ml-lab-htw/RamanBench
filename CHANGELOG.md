@@ -9,6 +9,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Leaderboard figures for v1 results** (`raman_bench.plotting`,
+  `scripts/plot_results.py`, new `plots` extra). Replaces the figure pipeline
+  that lived in the private paper repo and only read v0.1 prediction CSVs.
+  Reads `hpo_results.csv` from `scripts/aggregate_results.py` and scores it with
+  TabArena's own evaluator (`bencheval`): Elo with bootstrap CIs calibrated to
+  Random Forest = 1000, win rate, improvability, the pairwise win-rate matrix,
+  plus the TabRepo normalized score. Missing runs are imputed with Random Forest
+  and flagged, as in TabArena; models over 50% imputed are left out, and a model
+  that never ran a task type (e.g. ROCKET on regression) is left out of that
+  type instead of being imputed. Only non-excluded targets and the scope's
+  `n_repeats` x `n_splits` folds are scored. Figures: Elo ranking (all tasks,
+  and classification/regression panels), normalized score / improvability /
+  Elo vs. time with the Pareto front, Elo vs. release date, pairwise win rates,
+  efficiency overview. Each is written as PNG and PDF plus an interactive
+  Plotly HTML twin. A focus mode draws the top-k models per category in colour
+  and greys out the rest (`--focus-top-k`, default 2); the HTML pages toggle
+  between both views.
+
 ### Removed
 
 - **`TABSTAR` excluded from the routine sweep** (`configs/v1/scope_default.json`,

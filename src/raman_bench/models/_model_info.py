@@ -5,7 +5,7 @@ Mirrors upstream TabArena's own per-model ``info.py`` pattern
 needs. TabArena's version requires a ``MethodMetadata`` (suite/cache_root/
 S3 bucket bookkeeping for their own hosted, versioned leaderboard artifacts)
 that RamanBench has no use for -- results live under ``results/<run>/`` and
-are aggregated by ``raman_bench_paper``, not cached to R2/S3 per dated suite.
+are aggregated by ``scripts/aggregate_results.py``, not cached to R2/S3 per dated suite.
 This is the lightweight subset: identity + the HPO search-space generator.
 """
 

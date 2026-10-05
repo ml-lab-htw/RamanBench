@@ -305,8 +305,17 @@ models = [
     # depends directly on it (all `Prep_*` wrapping a `tabarena.models.*`
     # class) is unavailable until you do.
 ]
+plots = [
+    # Leaderboard figures (raman_bench.plotting, scripts/plot_results.py). Scores come
+    # from TabArena's own evaluator, released separately as `bencheval` (0.1.0 is the
+    # first release with BenchmarkEvaluator; it only needs pandas/scipy, not tabarena
+    # or autogluon). plotly renders the interactive HTML twins of the static figures.
+    "bencheval>=0.1.0",
+    "plotly>=5.0",
+]
 full = [
     "raman-bench[autogluon]",
+    "raman-bench[plots]",
     "raman-bench[benchmark]",
     "raman-bench[models]",
     "adjustText>=1.2.0",

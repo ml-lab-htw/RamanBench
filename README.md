@@ -284,6 +284,25 @@ python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \
 
 See `cluster/submit_job.py --help` for submitting a real array/sweep.
 
+### Leaderboard figures
+
+Once results exist, aggregate them and draw the leaderboard figures (needs
+`pip install "raman-bench[plots]"`):
+
+```bash
+python scripts/aggregate_results.py --results-dir results/v1/data --output-dir results/v1/aggregated
+python scripts/plot_results.py --input results/v1/aggregated/hpo_results.csv --output-dir results/v1/figures
+```
+
+Scores come from TabArena's own evaluator (`bencheval`): Elo with bootstrap
+CIs (Random Forest = 1000), win rate, improvability and the pairwise win-rate
+matrix. Every figure (Elo ranking, score and improvability vs. time, model
+progress over release date, win rates, efficiency) is written as PNG and PDF
+under `static/` and as an interactive HTML page under `interactive/`, with an
+`index.html` linking them all. By default only the top 2 models per category
+are drawn in colour and the rest in grey (`--focus-top-k`, `0` colours all);
+the HTML pages can switch between both views.
+
 ### Notebooks
 
 | Notebook | Description |
@@ -415,7 +434,8 @@ RamanBench/
 ├── scripts/
 │   ├── run_experiment.py       # v1: per-(model,dataset,target,repeat,fold,config) job runner
 │   ├── build_target_list.py    # v1: builds the full-benchmark target list (mirror-first)
-│   └── aggregate_results.py    # v1: recycles cached results into default/tuned/tuned+ensemble
+│   ├── aggregate_results.py    # v1: recycles cached results into default/tuned/tuned+ensemble
+│   └── plot_results.py         # v1: leaderboard figures (static PNG/PDF + interactive HTML)
 ├── .claude/agents/              # model-agent, cluster-agent (see Contributor Agents)
 ├── configs/                    # Benchmark configuration files
 ├── data/precomputed/           # Bundled v0.1 results
