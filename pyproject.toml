@@ -310,6 +310,9 @@ plots = [
     # from TabArena's own evaluator, released separately as `bencheval` (0.1.0 is the
     # first release with BenchmarkEvaluator; it only needs pandas/scipy, not tabarena
     # or autogluon). plotly renders the interactive HTML twins of the static figures.
+    # autorank computes the critical difference diagrams (Friedman + Nemenyi), as in
+    # bencheval's own plot_critical_diagrams.
+    "autorank>=1.2",
     "bencheval>=0.1.0",
     "plotly>=5.0",
 ]

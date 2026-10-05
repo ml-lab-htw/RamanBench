@@ -298,7 +298,7 @@ Scores come from TabArena's own evaluator (`bencheval`): Elo with bootstrap
 CIs (Random Forest = 1000), win rate, improvability and the pairwise win-rate
 matrix. Every figure (benchmark overview, example spectra, composition, Elo
 ranking, score and improvability vs. time per 1K spectra, model progress over
-release date, win rates, efficiency) is written as PNG and PDF
+release date, win rates, efficiency, critical difference diagrams) is written as PNG and PDF
 under `static/` and as an interactive HTML page under `interactive/`, with an
 `index.html` linking them all. By default only the top 2 models per category
 are drawn in colour and the rest in grey (`--focus-top-k`, `0` colours all);

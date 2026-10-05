@@ -17,8 +17,11 @@ cannot run there. Times are only ever taken from real, non-imputed runs.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import logging
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -425,3 +428,51 @@ def pareto_selection(scores: dict[str, GroupScores], tolerance: float = NEAR_PAR
     for g in groups:
         selected |= near_pareto_models(scores[g].leaderboard, tolerance=tolerance)
     return selected
+
+
+@dataclass
+class CriticalDifference:
+    """Mean ranks of every ranked model on one task group, and which of them are tied.
+
+    Computed with ``autorank`` (Friedman test, Nemenyi post-hoc), as TabArena's
+    ``plot_critical_diagrams`` does.
+    """
+
+    name: str
+    mean_rank: pd.Series
+    """Mean rank per model over tasks (1 = best), ascending."""
+    cd: float
+    """Nemenyi critical difference: mean ranks closer than this are not significantly different."""
+    pvalue: float
+    """Friedman test p-value."""
+    groups: list[tuple[int, int]]
+    """Maximal runs ``(first, last)`` of positions in :attr:`mean_rank` within :attr:`cd` of each other."""
+    n_tasks: int
+    alpha: float
+
+
+#: autorank needs at least this many tasks for the Friedman test.
+MIN_CD_TASKS = 5
+
+
+def critical_difference(scores: GroupScores, alpha: float = 0.05) -> CriticalDifference:
+    """Friedman + Nemenyi over the ranked (non-reference) models of *scores*.
+
+    Each task's error is averaged over its folds first, so a task counts once; imputed
+    results are used as in the leaderboard.
+    """
+    from autorank import autorank
+    from autorank._util import get_sorted_rank_groups
+
+    models = list(split_references(scores.leaderboard)[0].index)
+    res = scores.results[scores.results["model"].isin(models)]
+    data = res.groupby(["dataset", "model"])["metric_error"].mean().unstack()[models].dropna()
+    # autorank announces the forced nonparametric mode on every call; that choice is deliberate here.
+    with contextlib.redirect_stdout(io.StringIO()), warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ranked = autorank(data, alpha=alpha, verbose=False, order="ascending", force_mode="nonparametric")
+    mean_rank, _, groups = get_sorted_rank_groups(ranked, reverse=False)
+    return CriticalDifference(
+        name=scores.name, mean_rank=mean_rank.astype(float), cd=float(ranked.cd), pvalue=float(ranked.pvalue),
+        groups=list(groups), n_tasks=len(data), alpha=alpha,
+    )
