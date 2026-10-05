@@ -46,13 +46,13 @@ pip install raman-bench
 
 This is enough to:
 
-- load all 74 datasets with fixed train/test splits (via `raman-data`)
-- read the precomputed results for the 28 baselines (bundled CSVs, works offline)
-- score your own model against them: `lb.evaluate_and_add(model)` takes any
-  sklearn-compatible estimator
+- load every dataset (via `raman-data`)
+- read the per-fold v1 results of all 55 leaderboard models (and the two AutoGluon reference systems), which ship with the
+  package (`raman_bench.compare.load_reference()`, works offline)
 
-Your model can come from any library you already have — scikit-learn, LightGBM,
-XGBoost, PyTorch, JAX. The core install adds no heavy dependencies of its own.
+With `pip install "raman-bench[plots]"` you can also score them and rank your own
+results against them (`raman_bench.compare`, see [Compare your model](#compare-your-model-against-the-v1-leaderboard)).
+Running a model on the benchmark protocol needs TabArena and AutoGluon (Option 3).
 
 ### Option 2 — With all built-in models
 
@@ -218,34 +218,83 @@ print(ds.raman_shifts[:5])   # wavenumber axis in cm⁻¹
 Every dataset loads this way, each with the same fixed train/test split the
 precomputed baselines used.
 
-### Evaluate your model against 28 baselines (Option 1)
+### Browse the v1 leaderboard
 
-Any scikit-learn–compatible estimator works:
+The per-fold results of all 55 leaderboard models (and the two AutoGluon reference systems) on all 135 tasks ship with the
+package (`src/raman_bench/data/precomputed/v1/`). `leaderboard()` scores them like the
+[live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) does
+(needs `pip install "raman-bench[plots]"`):
 
 ```python
-from raman_bench import Leaderboard
-from sklearn.cross_decomposition import PLSRegression
+from raman_bench.compare import leaderboard, load_reference
 
-lb = Leaderboard.from_precomputed()   # loads bundled v0.1 results
-
-# Evaluates on all 74 datasets (3 seeds) and inserts into the ranking
-results = lb.evaluate_and_add(
-    model_name="My-PLS-10",
-    model=PLSRegression(n_components=10),
-)
-print(lb.rank())
-lb.plot()
+scores = leaderboard()                       # {"all", "classification", "regression"}
+scores["all"].leaderboard.head(10)           # Elo, win rate, times, preprocessing, ...
+load_reference()                             # one row per (task, fold, model)
 ```
 
-### Explore the precomputed leaderboard (Option 1)
+### Compare your model against the v1 leaderboard
+
+You only run your own model: on the same 135 tasks, the same 3 outer folds, with
+3-fold bagging, the same 600 s budget and the same row caps
+(`raman_bench.compare.load_protocol()`). Then `compare` ranks it among the 55
+leaderboard models.
+
+**A scikit-learn estimator** (needs the Option 3 install):
+
+```python
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.linear_model import LogisticRegression
+from raman_bench.evaluate import evaluate_estimator
+from raman_bench.compare import compare
+
+evaluate_estimator(
+    "MY-PLS",
+    classifier=LogisticRegression(max_iter=2000),    # needs predict_proba
+    regressor=PLSRegression(n_components=10),
+    results_dir="results/my_model",
+    # hyperparameters={"prep_snv_enabled": True},   # optional RamanBench preprocessing
+)
+scores = compare("results/my_model", out_dir="results/my_model_figures")
+scores["all"].leaderboard.head(15)
+```
+
+`evaluate_estimator` runs your estimator through the same TabArena/AutoGluon bagged
+experiment as the leaderboard models, caching one result per fold, so an interrupted run
+picks up where it stopped. Pass `tasks=[...]` for a quick look at a few tasks, and
+`compare(..., tasks="own")` to score every model on just those. That subset is not
+comparable with the published leaderboard.
+
+**A model registered in RamanBench** (`models/custom/<key>/`, see
+[Adding a New Model](#adding-a-new-model)) runs through `scripts/run_experiment.py`;
+`raman-bench protocol` prints one call per task and fold with the protocol settings:
+
+```bash
+raman-bench protocol MY_MODEL --results-dir results/my_model > jobs.txt && bash jobs.txt
+raman-bench compare results/my_model --output-dir results/my_model_figures --top 10
+```
+
+A task your model has no result for gets Random Forest's result and counts as
+imputed (`imputed_pct`); a model more than 50% imputed is not ranked. The
+`preprocessing` column lists the RamanBench preprocessing steps each model ran with
+(`none` for most). Steps inside your own scikit-learn `Pipeline` don't appear there.
+`notebooks/02_benchmark_new_model.ipynb` walks through all of it.
+
+<details>
+<summary>The v0.1 leaderboard</summary>
+
+The v0.1 results (29 models, one holdout split per seed) are still bundled and scored by
+the `Leaderboard` class. They use a different protocol, so don't compare them with v1
+numbers:
 
 ```python
 from raman_bench import Leaderboard
 
 lb = Leaderboard.from_precomputed()
-print(lb.rank())          # ranked DataFrame
-lb.plot()                 # horizontal bar chart
+print(lb.rank())
 ```
+
+</details>
 
 ### Use a built-in Raman model directly
 
@@ -317,9 +366,9 @@ scores may be optimistic. It is ranked like every other model and marked with
 
 | Notebook | Description |
 |---|---|
-| [`01_quick_start.ipynb`](notebooks/01_quick_start.ipynb) | Load a dataset, explore the precomputed leaderboard, plot rankings |
-| [`02_benchmark_new_model.ipynb`](notebooks/02_benchmark_new_model.ipynb) | Evaluate your own model and add it to the leaderboard |
-| [`03_explore_results.ipynb`](notebooks/03_explore_results.ipynb) | Per-dataset and per-domain results |
+| [`01_quick_start.ipynb`](notebooks/01_quick_start.ipynb) | Load a dataset, look at the v1 leaderboard |
+| [`02_benchmark_new_model.ipynb`](notebooks/02_benchmark_new_model.ipynb) | Run your own model on the benchmark protocol and rank it against the 55 leaderboard models |
+| [`03_explore_results.ipynb`](notebooks/03_explore_results.ipynb) | Per-task results, task types, speed against accuracy, pairwise win rates |
 | [`04_contribute_dataset.ipynb`](notebooks/04_contribute_dataset.ipynb) | Adding a new dataset, step by step |
 
 ---
@@ -407,6 +456,13 @@ Models are ranked on four metrics:
 | **Avg Rank** | Average rank across all datasets and targets |
 | **Improvability** | % gap to the best model, averaged across datasets |
 
+Every v1 model runs the same protocol: 3-fold outer cross-validation per task
+(group-aware where a dataset has replicate groups), 3-fold bagging inside each training
+split, 600 s per fit (`mlrod`: 10,800 s), at most 10,000 training rows on the three
+largest datasets, and each model's default configuration. Scores come from TabArena's
+evaluator (`bencheval`). The protocol ships with the package
+(`raman_bench.compare.load_protocol()`).
+
 See the [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) for
 interactive filtering by model category, task type, and dataset domain.
 
@@ -417,7 +473,11 @@ interactive filtering by model category, task type, and dataset domain.
 ```
 RamanBench/
 ├── src/raman_bench/
-│   ├── leaderboard.py          # Leaderboard + model evaluation API (scores a model against precomputed baselines)
+│   ├── compare.py              # v1 reference results + protocol; rank your results against them
+│   ├── evaluate.py             # run a scikit-learn estimator (or print run_experiment calls) on the v1 protocol
+│   ├── aggregation.py          # cached results.pkl -> TabArena result tables (EndToEnd)
+│   ├── experiment_utils.py     # shared task building / experiment running for every v1 runner
+│   ├── leaderboard.py          # v0.1 Leaderboard (bundled v0.1 results)
 │   ├── benchmark.py            # Dataset loading (mirror-first) and cross-validation
 │   ├── model.py                # build_prep_model_hyperparameters (Prep_* hyperparameter builder)
 │   ├── config.py               # JSON config loader
@@ -445,10 +505,11 @@ RamanBench/
 │   ├── run_experiment.py       # v1: per-(model,dataset,target,repeat,fold,config) job runner
 │   ├── build_target_list.py    # v1: builds the full-benchmark target list (mirror-first)
 │   ├── aggregate_results.py    # v1: recycles cached results into default/tuned/tuned+ensemble
+│   ├── build_reference_results.py  # v1: bundles the leaderboard results + protocol with the package
 │   └── plot_results.py         # v1: leaderboard figures (static PNG/PDF + interactive HTML)
 ├── .claude/agents/              # model-agent, cluster-agent (see Contributor Agents)
 ├── configs/                    # Benchmark configuration files
-├── data/precomputed/           # Bundled v0.1 results
+├── src/raman_bench/data/precomputed/   # v1/: reference results + protocol; *.csv: v0.1 results
 ├── notebooks/                  # Example Jupyter notebooks
 └── tests/                      # pytest test suite
 ```
@@ -482,7 +543,12 @@ New models and datasets are welcome.
 
 ### Adding a New Model
 
-Open this repo in Claude Code and say:
+Only want to see where your model lands? You don't need to add it to the
+repository: run it with `evaluate_estimator` and `compare` (see
+[Compare your model](#compare-your-model-against-the-v1-leaderboard)). To put it on the
+leaderboard, open an issue or pull request with the model and its results directory.
+
+To add the model to RamanBench itself, open this repo in Claude Code and say:
 
 ```
 Add my model to RamanBench, test it, and run it across the benchmark.

@@ -53,6 +53,12 @@ doesn't, `pip install -e ../raman_data` to make it so. Once that's true, hand of
 repo's own `model-agent` immediately if the user wants it benchmarked — no need to wait for
 anything in Step 3.
 
+A new dataset is not part of the bundled v1 protocol (`src/raman_bench/data/precomputed/v1/`,
+read by `raman_bench.compare`) until every leaderboard model has run on it and the
+reference results are rebuilt with `scripts/build_reference_results.py`. Until then,
+`compare` ignores results on it (with a warning). Say so if the user expects it to count
+in a comparison right away.
+
 ## Step 3: commit, push, open a PR (for completeness — not a benchmarking blocker)
 
 1. Run the full `raman_data` test suite (`pytest tests/ -v`) — confirm it's green before

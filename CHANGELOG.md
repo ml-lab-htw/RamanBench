@@ -11,6 +11,37 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Compare a new model against the v1 leaderboard without rerunning it.** The
+  per-fold results of all 55 leaderboard models (plus `DUMMY` and the two AutoGluon
+  reference systems) on all 135 tasks now ship with the package as
+  `data/precomputed/v1/reference_results.parquet` (0.6 MB), with the protocol they
+  were produced with in `protocol.json`: folds, bagging, time budget, row caps,
+  tasks, and each model's enabled preprocessing.
+  `scripts/build_reference_results.py` rebuilds both after a sweep.
+  - `raman_bench.compare`: `load_reference()`, `load_protocol()`, `leaderboard()`, and
+    `compare(results)`. `compare` scores your results together with the leaderboard
+    models using the leaderboard's own scoring (Elo with Random Forest = 1000, win rate,
+    imputation for missing tasks), and optionally writes the leaderboard CSVs and every
+    figure with your model in it. `tasks="own"` scores every model on only the tasks you
+    ran.
+  - `raman_bench.evaluate.evaluate_estimator(name, classifier=..., regressor=...)` runs
+    any scikit-learn estimator through the same bagged TabArena experiment as the
+    leaderboard models, caching one `results.pkl` per fold. RamanBench preprocessing
+    steps can be switched on with `hyperparameters={"prep_snv_enabled": True, ...}`.
+    `protocol_commands(key)` gives the `scripts/run_experiment.py` calls for a
+    registered model.
+  - CLI: `raman-bench compare <results>` and `raman-bench protocol <MODEL>`.
+  - Leaderboards (from `compare`, `leaderboard()`, and `scripts/plot_results.py`) get a
+    `preprocessing` column: the RamanBench preprocessing steps each model was fit with
+    (`none` for most; PLS: baseline correction, denoising, SNV).
+  - Notebooks 01-03 rewritten for v1 (they used the v0.1 `Leaderboard`).
+- **`raman_bench.aggregation`**: `scan_cached_results`, `build_task_metadata`, and
+  `aggregate` moved from `scripts/aggregate_results.py` into the package (the script
+  imports them), plus `enabled_preprocessing`/`preprocessing_by_model`.
+- **Shared runner helpers in `raman_bench.experiment_utils`**: `load_dataframe`,
+  `bag_experiment_kwargs`, and `run_cached`. Both `scripts/run_experiment.py` and
+  `evaluate_estimator` use them, so the dataset loading, experiment settings, and
+  result caching are one implementation. No behaviour change for `run_experiment.py`.
 - **Phone layouts for the interactive figures.** Below 700 px each figure page
   switches layout: side-by-side panels stack, legends move below, margins shrink,
   and figures that list every model by name (Elo ranking, win rates, efficiency,
@@ -75,6 +106,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`raman_bench.plotting` no longer forces matplotlib's Agg backend** when
+  `MPLBACKEND` is set (Jupyter sets it), so `plt.show()` works in notebooks that
+  import it. Scripts still render headless.
+- `load_results` accepts an `hpo_results` DataFrame as well as a path;
+  `generate_from_results` draws the figures from tidy results directly.
+- `pyarrow` is now a declared dependency (it already came in through `raman-data`).
 - **`Dockerfile.limix2` renamed to `Dockerfile.py312`** — named after the
   Python version it provides, not the one model that currently needs it, so
   the next model requiring Python >=3.12 can potentially reuse this same
