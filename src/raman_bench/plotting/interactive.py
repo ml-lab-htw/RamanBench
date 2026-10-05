@@ -434,10 +434,10 @@ def critical_difference(cds: list[CriticalDifference], scores: dict[str, GroupSc
         fig.update_yaxes(range=[g["bottom"] - 0.8, 2.4], visible=False, row=row, col=1)
     height = int(15 * sum(depth) + 260)
     _layout(fig, "Critical difference diagrams (mean rank, 1 = best)", height, [], None)
-    fig.update_layout(width=1250, legend={"y": -0.03}, margin={"b": 110},
+    fig.update_layout(legend={"y": -0.02}, margin={"b": 170},
                       annotations=list(fig.layout.annotations) + [
                           {"text": "<br>".join(textwrap.wrap(CD_CAPTION, 150)), "xref": "paper", "yref": "paper",
-                           "x": 0, "y": -0.06, "xanchor": "left", "yanchor": "top", "showarrow": False,
+                           "x": 0, "y": -0.075, "xanchor": "left", "yanchor": "top", "showarrow": False,
                            "font": {"size": 11, "color": "#555555"}, "align": "left"}])
     for a in fig.layout.annotations[:len(cds)]:
         a.update(x=0, xanchor="left", font={"size": 14})
