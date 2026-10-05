@@ -85,8 +85,8 @@ def _kubectl(*args: str) -> str:
     return result.stdout
 
 
-def _pick_any_running_pod(namespace: str) -> str:
-    """Pick a Running pod to exec into -- the NEWEST one (by ``startTime``), not just
+def _pick_any_running_pod(namespace: str) -> list[str]:
+    """Running pods to exec into, best candidate first -- the NEWEST one (by ``startTime``), not just
     the first one kubectl happens to return. Real bug hit in practice: a long-running
     pod started before a ``:v1`` image rebuild keeps its OLD pulled image (k8s doesn't
     refresh a running pod's image just because the tag was repushed), so its installed
@@ -119,9 +119,36 @@ def _pick_any_running_pod(namespace: str) -> str:
         return p["spec"]["containers"][0]["image"]
 
     main_image_pods = [p for p in running if not _image(p).endswith(":py312")]
-    if main_image_pods:
-        return main_image_pods[0]["metadata"]["name"]
-    return running[0]["metadata"]["name"]
+    other_pods = [p for p in running if _image(p).endswith(":py312")]
+    return [p["metadata"]["name"] for p in main_image_pods + other_pods]
+
+
+def _pick_pod_with_full_registry(namespace: str, required_keys: set[str]) -> tuple[str, dict]:
+    """First candidate pod (see :func:`_pick_any_running_pod`) whose registry knows every
+    model in *required_keys*; returns ``(pod, ag_name_to_key)``.
+
+    Newest-first and image-tag preference are not enough on their own: the same ``:v1``
+    tag can resolve to different digests on different nodes, because a node keeps
+    whatever ``:v1`` it pulled first (``imagePullPolicy: IfNotPresent``). Real bug hit
+    in practice: a fresh pod scheduled on a node holding a days-old ``:v1`` was the
+    newest Running pod, and every model onboarded since (LIMIX2, KUMO-TABULAR,
+    TABPFN-V3.5, ...) silently vanished from the report. So each candidate's registry is
+    checked against the scope's model list, and the report refuses to run on a registry
+    that is missing models instead of quietly dropping their rows.
+    """
+    best = None
+    for pod in _pick_any_running_pod(namespace):
+        ag_name_to_key = json.loads(_exec_python(namespace, pod, _REGISTRY_DUMP_SCRIPT))
+        missing = required_keys - set(ag_name_to_key.values())
+        if not missing:
+            return pod, ag_name_to_key
+        if best is None or len(missing) < len(best[2]):
+            best = (pod, ag_name_to_key, missing)
+    raise RuntimeError(
+        f"No Running pod in {namespace!r} has a registry with every scope model; the closest, "
+        f"{best[0]!r}, is missing {sorted(best[2])} (stale image on its node?). Start a pod on "
+        "the current image (e.g. imagePullPolicy: Always) and rerun."
+    )
 
 
 def _exec_python(namespace: str, pod: str, script: str) -> str:
@@ -255,9 +282,8 @@ def main() -> None:
         args.scope, args.targets, args.classification_datasets, args.regression_datasets
     )
 
-    pod = _pick_any_running_pod(args.namespace)
-
-    ag_name_to_key = json.loads(_exec_python(args.namespace, pod, _REGISTRY_DUMP_SCRIPT))
+    required_keys = active_models - set(_BASELINE_EXPERIMENT_NAME_TO_KEY.values())
+    pod, ag_name_to_key = _pick_pod_with_full_registry(args.namespace, required_keys)
     only_models = json.loads(_exec_python(args.namespace, pod, _ONLY_MODELS_DUMP_SCRIPT))
     classification_only_models = set(only_models["classification_only"])
     regression_only_models = set(only_models["regression_only"])
