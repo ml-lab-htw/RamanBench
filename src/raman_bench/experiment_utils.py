@@ -21,7 +21,9 @@ threading those checks through this helper would couple it back to
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -36,6 +38,33 @@ from raman_bench.splitting import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def write_hardware_info(cache_path: str) -> None:
+    """Write ``gpu.json`` next to ``results.pkl`` recording which device actually ran
+    this task's fit -- called by both runner scripts immediately after a real
+    ``experiment.run(...)`` (never on a cache-hit early-return, since no compute
+    happened there, so there is nothing new to attribute to hardware).
+
+    Deliberately reads the device directly from torch rather than depending on
+    wandb's own system-metadata collection: no extra dependency, no ambiguity from
+    multiple same-named wandb runs (resubmissions/smoke tests), and no need for a
+    later retroactive reconstruction pass across tens of thousands of results.
+    """
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            info = {"gpu": torch.cuda.get_device_name(0), "gpu_count": torch.cuda.device_count()}
+        elif torch.backends.mps.is_available():
+            info = {"gpu": "Apple MPS", "gpu_count": 1}
+        else:
+            info = {"gpu": None, "gpu_count": 0}
+    except Exception:
+        logger.warning("Could not determine compute device for hardware info", exc_info=True)
+        info = {"gpu": None, "gpu_count": None, "note": "device detection failed"}
+
+    (Path(cache_path) / "gpu.json").write_text(json.dumps(info, indent=2))
 
 
 def build_task(

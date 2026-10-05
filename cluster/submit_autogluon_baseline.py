@@ -129,7 +129,12 @@ def main():
         f"budget(s) ({', '.join(args.budgets)})"
     )
 
-    slug = "extreme"
+    # Budget-specific, not a bare "extreme" -- otherwise submitting a different
+    # --budgets value (e.g. 1h after an earlier 5m run) collides on the same job
+    # name/jobspec file as the previous submission (confirmed live: a second
+    # submission with --budgets 1h would have overwritten the still-running "5m"
+    # job's jobspec and tried to recreate the exact same k8s Job name).
+    slug = "extreme-" + "-".join(args.budgets)
     jobspec_path = write_jobspec_autogluon(jobs, slug)
     job_name, configmap_name, n_pods, job_manifest = build_k8s_job_manifest_autogluon(
         slug=slug,

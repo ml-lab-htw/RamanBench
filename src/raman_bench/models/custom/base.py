@@ -40,7 +40,12 @@ class BaseRamanEstimator(BaseEstimator):
         return np.asarray(X, dtype=np.float32)
 
     def _setup_device(self) -> None:
-        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            self._device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self._device = torch.device("mps")
+        else:
+            self._device = torch.device("cpu")
 
     def _prepare_labels(self, X, y):
         """Convert X/y to numpy arrays and build the loss criterion.
@@ -218,8 +223,11 @@ class BaseRamanEstimator(BaseEstimator):
             )
         self.model.load_state_dict(best_state)
         self.model = self.model.cpu()
-        # Release CUDA memory immediately so HPO trials don't accumulate VRAM.
-        torch.cuda.empty_cache()
+        # Release accelerator memory immediately so HPO trials don't accumulate VRAM.
+        if self._device.type == "cuda":
+            torch.cuda.empty_cache()
+        elif self._device.type == "mps":
+            torch.mps.empty_cache()
 
         self.model.eval()
         with torch.no_grad():

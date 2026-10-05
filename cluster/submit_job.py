@@ -712,7 +712,18 @@ def _build_k8s_job_manifest(
             "completions": n_pods,
             "parallelism": min(throttle, n_pods) or 1,
             "completionMode": "Indexed",
-            "backoffLimit": 0,
+            # A job-wide `backoffLimit: 0` means a SINGLE failed pod (any index) fails the
+            # entire Job immediately, deleting every other pod -- including ones mid-fit on
+            # unrelated tasks (confirmed live: one AutoGluon-extreme task failure took down
+            # 12 otherwise-healthy pods out of 21). backoffLimitPerIndex scopes retries to
+            # each index instead, so one bad pod no longer kills the rest -- but confirmed
+            # live that the top-level `backoffLimit` is STILL independently enforced on this
+            # cluster even with backoffLimitPerIndex set (a second real job died with
+            # `reason: BackoffLimitExceeded` after exactly one failed index, despite
+            # maxFailedIndexes being far higher) -- so both must be raised together.
+            "backoffLimit": n_pods,
+            "backoffLimitPerIndex": 0,
+            "maxFailedIndexes": n_pods,
             "template": {"metadata": {"labels": {"app": "raman-bench"}}, "spec": pod_spec},
         },
     }
@@ -918,7 +929,14 @@ def build_k8s_job_manifest_multimodel(
             "completions": n_pods,
             "parallelism": min(throttle, n_pods) or 1,
             "completionMode": "Indexed",
-            "backoffLimit": 0,
+            # See _build_k8s_job_manifest's identical comment: backoffLimitPerIndex scopes
+            # pod failures to their own index instead of a single bad pod killing every
+            # other pod in the Job -- but the top-level backoffLimit must also be raised,
+            # confirmed still independently enforced on this cluster even with
+            # backoffLimitPerIndex set.
+            "backoffLimit": n_pods,
+            "backoffLimitPerIndex": 0,
+            "maxFailedIndexes": n_pods,
             "template": {"metadata": {"labels": {"app": "raman-bench"}}, "spec": pod_spec},
         },
     }
@@ -1202,7 +1220,14 @@ def build_k8s_job_manifest_autogluon(
             "completions": n_pods,
             "parallelism": min(throttle, n_pods) or 1,
             "completionMode": "Indexed",
-            "backoffLimit": 0,
+            # See _build_k8s_job_manifest's identical comment: backoffLimitPerIndex scopes
+            # pod failures to their own index instead of a single bad pod killing every
+            # other pod in the Job -- but the top-level backoffLimit must also be raised,
+            # confirmed still independently enforced on this cluster even with
+            # backoffLimitPerIndex set.
+            "backoffLimit": n_pods,
+            "backoffLimitPerIndex": 0,
+            "maxFailedIndexes": n_pods,
             "template": {"metadata": {"labels": {"app": "raman-bench"}}, "spec": pod_spec},
         },
     }
