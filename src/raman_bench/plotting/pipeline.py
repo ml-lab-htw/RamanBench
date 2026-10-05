@@ -16,6 +16,7 @@ import logging
 from pathlib import Path
 
 from raman_bench.plotting import interactive, overview, static
+from raman_bench.plotting import models as model_info
 from raman_bench.plotting.results import (
     DEFAULT_SCOPE,
     DEFAULT_TARGET_LIST,
@@ -47,7 +48,7 @@ LEADERBOARD_COLUMNS = [
     "display_name", "category", "elo", "elo-", "elo+", "rank", "winrate", "improvability",
     "normalized_score", "median_time_train_s", "median_time_infer_s", "median_infer_per_1k_s",
     "median_time_total_per_1k_s",
-    "imputed_pct", "n_tasks", "release_date", "is_reference",
+    "imputed_pct", "n_tasks", "release_date", "is_reference", "contamination",
 ]
 
 
@@ -171,6 +172,16 @@ def _winrate_caption(n_shown: int, n_total: int, top_k: int) -> str:
     )
 
 
+def _contamination_notes(scores) -> str:
+    """Footnotes for flagged models present in any leaderboard."""
+    flagged = sorted({m for s in scores.values() for m in s.leaderboard.index if model_info.contamination(m)})
+    return "".join(
+        f'<p class="caption">{model_info.CONTAMINATION_MARK} {html.escape(model_info.display_name(m, mark=False))}: '
+        f"{html.escape(model_info.contamination(m))}</p>"
+        for m in flagged
+    )
+
+
 def _write_index(out_dir: Path, scores, variant: str, captions: dict[str, str] | None = None) -> Path:
     """A plain gallery page linking every figure in all its formats."""
     captions = captions or {}
@@ -203,6 +214,7 @@ section {{ margin: 2em 0; }}
 <h1>RamanBench figures</h1>
 <p>Variant: <b>{html.escape(variant)}</b> · {html.escape(tasks)} ·
 <a href="leaderboards/">leaderboard CSVs</a></p>
+{_contamination_notes(scores)}
 {"".join(rows)}
 </body></html>
 """

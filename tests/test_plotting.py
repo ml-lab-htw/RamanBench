@@ -191,3 +191,29 @@ def test_composition_and_reference_benchmarks_offline():
     assert donuts["Datasets by task"] == {"Classification": 1, "Regression": 2}
     assert donuts["Data sources"] == {"Kaggle": 1, "Zenodo": 2}
     assert donuts["New vs. existing"] == {"First published with RamanBench": 1, "Previously published": 2}
+
+
+def test_known_contamination_is_marked_and_explained(tmp_path):
+    assert model_info.display_name("RAMANPFN") == "RamanPFN" + model_info.CONTAMINATION_MARK
+    assert model_info.display_name("RAMANPFN", mark=False) == "RamanPFN"
+    assert model_info.contamination("RF") is None
+
+    import matplotlib.pyplot as plt
+
+    from raman_bench.plotting import static
+
+    fig, ax = plt.subplots()
+    ax.set_title(model_info.display_name("RAMANPFN"))
+    static.save(fig, tmp_path, "flagged", formats=("png",))
+    assert (tmp_path / "flagged.png").exists()
+
+    pytest.importorskip("plotly")
+    import plotly.graph_objects as go
+
+    from raman_bench.plotting import interactive
+
+    page = interactive.write(go.Figure(go.Scatter(x=[1], y=[1], name=model_info.display_name("RAMANPFN"))),
+                             tmp_path, "flagged")
+    assert "arXiv:2608.02157" in page.read_text(encoding="utf-8")
+    clean = interactive.write(go.Figure(go.Scatter(x=[1], y=[1], name="Random Forest")), tmp_path, "clean")
+    assert "arXiv:2608.02157" not in clean.read_text(encoding="utf-8")

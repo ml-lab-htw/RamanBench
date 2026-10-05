@@ -143,12 +143,35 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
 }
 
 
-def display_name(model: str) -> str:
-    """Human-readable name for *model*; the key itself when unknown."""
+#: Models whose design was developed on RamanBench data, so their scores here may be
+#: optimistic. They are ranked like every other model but marked with
+#: :data:`CONTAMINATION_MARK` in figures and tables.
+KNOWN_CONTAMINATION = {
+    "RAMANPFN": (
+        "Developed and evaluated on the RamanBench v0.1 datasets and task splits (Pan et al., 2026, "
+        "arXiv:2608.02157, Sec. 4.1); no separate development data is reported. Its TabPFN weights were "
+        "not trained on RamanBench, but its fixed design choices (representations, integration "
+        "coefficients) may be tuned to these datasets."
+    ),
+}
+CONTAMINATION_MARK = "†"
+
+
+def contamination(model: str) -> str | None:
+    """Why *model*'s scores may be optimistic on RamanBench, or ``None``."""
+    return KNOWN_CONTAMINATION.get(model.upper())
+
+
+def display_name(model: str, mark: bool = True) -> str:
+    """Human-readable name for *model*; the key itself when unknown.
+
+    With *mark*, models in :data:`KNOWN_CONTAMINATION` get :data:`CONTAMINATION_MARK` appended.
+    """
     if model.upper() in REFERENCE_MODELS:
         return REFERENCE_MODELS[model.upper()][0]
     entry = _MODELS.get(model.upper())
-    return entry[0] if entry else model
+    name = entry[0] if entry else model
+    return name + CONTAMINATION_MARK if mark and contamination(model) else name
 
 
 def category(model: str) -> str:

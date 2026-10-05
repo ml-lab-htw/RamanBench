@@ -12,6 +12,7 @@ families, so RamanBench builds its own with Plotly, keeping its categories
 
 from __future__ import annotations
 
+import html
 from pathlib import Path
 
 import numpy as np
@@ -124,6 +125,19 @@ def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{stem}.html"
     fig.write_html(path, include_plotlyjs=include_plotlyjs, full_html=True, config=PLOTLY_CONFIG)
+    # Explain the contamination mark under the figure (see models.KNOWN_CONTAMINATION).
+    spec = fig.to_json()
+    notes = [
+        f"{model_info.CONTAMINATION_MARK} {html.escape(model_info.display_name(m, mark=False))}: {html.escape(note)}"
+        for m, note in model_info.KNOWN_CONTAMINATION.items()
+        if model_info.display_name(m) in spec
+    ]
+    if notes:
+        footer = "".join(
+            f'<p style="font:12px Inter,Arial,sans-serif;color:#555;margin:4px 12px">{n}</p>' for n in notes
+        )
+        page = path.read_text(encoding="utf-8")
+        path.write_text(page.replace("</body>", footer + "</body>", 1), encoding="utf-8")
     return path
 
 

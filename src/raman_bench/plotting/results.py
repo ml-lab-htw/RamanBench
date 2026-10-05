@@ -228,7 +228,8 @@ def score_group(
     ``rank``, ``winrate``, ``improvability`` (+ CI widths), ``normalized_score``,
     ``median_time_train_s``, ``median_time_infer_s``, ``median_time_total_s``,
     ``median_infer_per_1k_s``, ``median_time_total_per_1k_s``, ``imputed_pct``, ``n_tasks`` and the model's
-    ``display_name``, ``category``, ``release_date``.
+    ``display_name``, ``category``, ``release_date``, ``contamination`` (why its scores may be
+    optimistic, empty for most models).
     """
     from bencheval.evaluator import BenchmarkEvaluator
 
@@ -278,6 +279,7 @@ def score_group(
     lb["n_tasks"] = filled.groupby("model")["dataset"].nunique()
     lb["is_reference"] = lb.index.isin(model_info.REFERENCE_MODELS)
     lb["display_name"] = [model_info.display_name(m) for m in lb.index]
+    lb["contamination"] = [model_info.contamination(m) or "" for m in lb.index]
     lb["category"] = [model_info.category(m) for m in lb.index]
     lb["release_date"] = [model_info.release_date(m) for m in lb.index]
     lb = lb.sort_values("elo", ascending=False)

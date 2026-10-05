@@ -10,12 +10,14 @@ needed once the field grows past a few dozen models. An empty focus means
 
 from __future__ import annotations
 
+import textwrap
 from pathlib import Path
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.text  # noqa: E402
 import matplotlib.ticker  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -53,8 +55,13 @@ def apply_style() -> None:
 
 
 def save(fig, out_dir: Path, stem: str, formats=("png", "pdf"), dpi: int = 200) -> list[Path]:
-    """Write *fig* as ``<out_dir>/<stem>.<fmt>`` for every format and close it."""
+    """Write *fig* as ``<out_dir>/<stem>.<fmt>`` for every format and close it.
+
+    A figure that shows a flagged model (see :data:`models.KNOWN_CONTAMINATION`) gets
+    the explanation as a footnote, so the mark still makes sense once the file is reused.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
+    _contamination_footnote(fig)
     paths = []
     for fmt in formats:
         path = out_dir / f"{stem}.{fmt}"
@@ -62,6 +69,23 @@ def save(fig, out_dir: Path, stem: str, formats=("png", "pdf"), dpi: int = 200) 
         paths.append(path)
     plt.close(fig)
     return paths
+
+
+def _contamination_footnote(fig) -> None:
+    fig.canvas.draw()  # tick labels exist only after a draw
+    texts = " ".join(t.get_text() for t in fig.findobj(matplotlib.text.Text))
+    notes = [
+        f"{model_info.CONTAMINATION_MARK} {model_info.display_name(m, mark=False)}: {note}"
+        for m, note in model_info.KNOWN_CONTAMINATION.items()
+        if model_info.display_name(m) in texts
+    ]
+    if notes:
+        # Below everything already drawn (legends sit under the axes in most figures).
+        box = fig.get_tightbbox(fig.canvas.get_renderer())
+        y = box.y0 / fig.get_figheight() - 0.02
+        x = max(box.x0 / fig.get_figwidth(), 0.0)
+        fig.text(x, y, "\n".join(textwrap.fill(n, 170) for n in notes), ha="left", va="top",
+                 fontsize=7.5, color="#555555", transform=fig.transFigure)
 
 
 def _fill(model: str, focus: set[str]) -> str:

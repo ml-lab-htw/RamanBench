@@ -27,7 +27,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
   pairwise win rates, efficiency overview, plus three dataset figures
   (`raman_bench.plotting.overview`): samples vs. features against TabArena,
   TALENT, UCR and UEA next to model progress over time, example spectra per
-  domain, and the benchmark composition donuts. Each is written as PNG and PDF plus an interactive
+  domain, and the benchmark composition donuts. RamanPFN is marked † as known
+  contamination: it was developed and evaluated on the RamanBench v0.1
+  datasets (arXiv:2608.02157); figures with a marked model carry the
+  explanation as a footnote, and the leaderboard CSVs a `contamination` column. Each is written as PNG and PDF plus an interactive
   Plotly HTML twin. In the scatter figures a focus mode draws
   the top-k models per category (plus, in the "vs. time" plots, every
   Pareto-optimal model) in colour and greys out the rest (`--focus-top-k`,

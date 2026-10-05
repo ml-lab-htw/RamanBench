@@ -306,6 +306,13 @@ the HTML pages can switch between both views. The dataset figures read
 metadata from raman_data and the RamanBench mirror on the Hugging Face Hub;
 `--no-dataset-figures` skips them offline.
 
+**Known contamination.** RamanPFN (Pan et al., 2026, arXiv:2608.02157) was
+developed and evaluated on the RamanBench v0.1 datasets and task splits, with
+no separate development data reported. Its TabPFN weights were not trained on
+RamanBench, but its fixed design choices may be tuned to these datasets, so its
+scores may be optimistic. It is ranked like every other model and marked with
+† in figures and tables (`raman_bench.plotting.models.KNOWN_CONTAMINATION`).
+
 ### Notebooks
 
 | Notebook | Description |
