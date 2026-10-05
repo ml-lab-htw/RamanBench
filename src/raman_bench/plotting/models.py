@@ -102,9 +102,8 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     # Tabular foundation models
     "REALTABPFN-V2": ("TabPFN v2", "Tabular Foundation", 2024.0),  # 2024-01
     "TABDPT": ("TabDPT", "Tabular Foundation", 2024 + 9 / 12),  # 2024-10
-    # TABICL is AutoGluon's own TabICLModel, which defaults to the TabICLv2 checkpoints
-    # (tabicl-{classifier,regressor}-v2-20260212) since AutoGluon 1.6 -- not TabICL v1.
-    # TABICLV2 is TabArena's TabICLv2Model wrapper around the same checkpoints.
+    # TABICL (AutoGluon's TabICLModel) defaults to the same TabICLv2 checkpoints as TABICLV2
+    # since AutoGluon 1.6; it left the scope as a duplicate and is named for older result sets.
     "TABICL": ("TabICLv2 (AutoGluon)", "Tabular Foundation", 2026 + 1 / 12),  # 2026-02-12
     "SAP_RPT_OSS": ("SAP-RPT-OSS", "Tabular Foundation", 2025 + 5 / 12),  # 2025-06
     "TABSTAR": ("TabSTAR", "Tabular Foundation", 2025 + 4 / 12),  # 2025-05
@@ -114,7 +113,7 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "REALTABPFN-V2.5": ("TabPFN v2.5", "Tabular Foundation", 2025 + 10 / 12),  # 2025-11
     "ORIONMSP": ("OrionMSP", "Tabular Foundation", 2025 + 10 / 12),  # 2025-11
     "ILTM": ("iLTM", "Tabular Foundation", 2025 + 10 / 12),  # 2025-11
-    "TABICLV2": ("TabICLv2 (TabArena)", "Tabular Foundation", 2026 + 1 / 12),  # 2026-02-12
+    "TABICLV2": ("TabICLv2", "Tabular Foundation", 2026 + 1 / 12),  # 2026-02-12
     "REALTABPFN-V2.6": ("TabPFN v2.6", "Tabular Foundation", 2026 + 2 / 12),  # 2026-03
     "TABPFN-V3": ("TabPFN v3", "Tabular Foundation", 2026 + 4 / 12),  # 2026-05
     "TABSWIFT": ("TabSwift", "Tabular Foundation", 2026 + 5 / 12),  # 2026-06-05

@@ -35,6 +35,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
+- **`TABICL` removed from the scope** (`configs/v1/scope_default.json`,
+  `scope_core.json`) as a duplicate of `TABICLV2`. AutoGluon's own
+  `TabICLModel` (the `TABICL` key) defaults to the same TabICLv2 checkpoints
+  since AutoGluon 1.6, so the leaderboard showed one model twice (Elo 1329 vs.
+  1328 over all 135 tasks). `TABICLV2` (TabArena's wrapper) is kept: it runs
+  without `TABICL`'s 5000-row cap, and older `TABICL` results may come from
+  TabICL v1, AutoGluon's earlier default. Existing `TABICL` results stay on disk.
 - **`TABSTAR` excluded from the routine sweep** (`configs/v1/scope_default.json`,
   down to 42 models) — confirmed too slow for the 600s/3-bag-fold budget: it
   trains up to 10,000 epochs at ~58s/epoch, so every fit runs until the time
