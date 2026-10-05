@@ -10,12 +10,16 @@ needed once the field grows past a few dozen models. An empty focus means
 
 from __future__ import annotations
 
+import os
 import textwrap
 from pathlib import Path
 
 import matplotlib
 
-matplotlib.use("Agg")
+# Headless rendering for scripts, unless a backend was chosen (Jupyter sets MPLBACKEND to
+# its inline backend; forcing Agg there would stop plt.show() from drawing).
+if not os.environ.get("MPLBACKEND"):
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.text  # noqa: E402
 import matplotlib.ticker  # noqa: E402

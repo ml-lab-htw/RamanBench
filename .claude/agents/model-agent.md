@@ -15,6 +15,28 @@ Ask what kind of model this is (a wrapper around an existing library, e.g. a new
 estimator or an AutoGluon-backed one, vs. a genuinely new architecture) and whether it's
 CPU-only or needs a GPU.
 
+**Fast path: just comparing, not contributing.** If the user only wants to see where their
+model lands on the leaderboard and it is (or can be wrapped as) a scikit-learn estimator,
+nothing needs to be implemented in this repo:
+
+```python
+from raman_bench.evaluate import evaluate_estimator
+from raman_bench.compare import compare
+
+evaluate_estimator("THEIR-MODEL", classifier=..., regressor=..., results_dir="results/their_model")
+compare("results/their_model", out_dir="results/their_model_figures")
+```
+
+`evaluate_estimator` runs the bundled v1 protocol (`raman_bench.compare.load_protocol()`)
+through the same bagged TabArena experiment as every leaderboard model; `compare` ranks the
+results against the bundled per-fold reference results. Suggest a quick run first
+(`tasks=[...]` with a few small tasks, `compare(..., tasks="own")`), then the full 135
+tasks. RamanBench preprocessing goes in via `hyperparameters={"prep_*_enabled": True}`
+and shows up in the leaderboard's `preprocessing` column. Steps inside the user's own
+`Pipeline` don't show up there, so tell them to report those themselves.
+`notebooks/02_benchmark_new_model.ipynb` is the walkthrough. Only continue with steps 2-7
+when the model should become part of RamanBench.
+
 ### 2. Check if it already exists in TabArena
 Before implementing anything, check `raman_bench.models.registry.raman_bench_model_registry`
 — many models (tree-based, tabular foundation models, deep tabular nets) are already
@@ -117,9 +139,20 @@ Determine where to run:
   (`--config-indices 0 1 2 ... N`) if the user explicitly asks for HPO/tuned results for
   this model — that fans out ~50x more jobs and is opt-in, not automatic.
 
+- **External contributor, no cluster profile**: `raman-bench protocol <KEY> --results-dir
+  results/<key>` prints one `scripts/run_experiment.py` call per task and fold with the
+  bundled protocol's settings (3 folds, 3 bag folds, 600 s, `mlrod` 10,800 s, row caps).
+  Use that rather than the script's own defaults, which differ (8 bag folds, 18,000 s,
+  10 repeats) and would not be comparable.
+
 ### 7. After the run completes
-Save/report results, and mention that the `leaderboard-agent` (in the `raman_bench_paper`
-repo) can regenerate the public leaderboard once results are in, if the user wants that.
+Rank the results against the leaderboard: `raman-bench compare results/<key> --top 10`
+(or `raman_bench.compare.compare`). Report the model's position, Elo, `imputed_pct` (folds
+that failed or didn't run are imputed with Random Forest) and its `preprocessing`. Then
+mention that the `leaderboard-agent` (in the `raman_bench_paper` repo) can regenerate the
+public leaderboard once results are in, if the user wants that, and that the bundled
+reference results are rebuilt with `scripts/build_reference_results.py` (see
+`src/raman_bench/data/precomputed/v1/README.md`) when the model joins a release.
 
 ## Rules
 
@@ -127,5 +160,10 @@ repo) can regenerate the public leaderboard once results are in, if the user wan
 - Never silently skip the "upstream TabArena PR vs. RamanBench-only" question.
 - Never submit a full HPO sweep across the whole model roster without being asked —
   routine runs are default-config-only.
+- A model compared against the bundled reference results must run the bundled protocol
+  (`load_protocol()`). Don't change folds, bagging, time budget or row caps for one model
+  on your own to make it fit or score better: a fold that fails is imputed. Per-model
+  overrides in the scope file (e.g. EBM's longer budget on wide datasets) are the
+  maintainers' call, recorded there with the reason; propose one, don't apply it silently.
 - Never add a `Co-Authored-By: Claude` or any Anthropic attribution line to any git commit
   you create.

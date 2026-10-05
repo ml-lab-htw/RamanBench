@@ -55,6 +55,10 @@ This is a real architectural dependency, not a style reference. If you need to:
 | `src/raman_bench/preprocessing/mixin.py` | `RamanPreprocessingMixin`: joint AutoGluon preprocessing + model HPO (8 core steps + ensemble + GCU/LVSE) |
 | `src/raman_bench/models/custom/` | Raman-specific architectures (DeepCNN, RamanNet, RamanPFN, etc.); custom models go here |
 | `src/raman_bench/splitting.py` | Repeated k-fold logic with group-aware fallbacks for replicate structure |
+| `src/raman_bench/compare.py` | Bundled v1 reference results + protocol (`data/precomputed/v1/`); `compare()` ranks a new model's results against the leaderboard, `leaderboard()` scores the reference alone |
+| `src/raman_bench/evaluate.py` | `evaluate_estimator()` runs any scikit-learn estimator on the v1 protocol; `protocol_commands()` gives `run_experiment.py` calls for a registered model |
+| `src/raman_bench/experiment_utils.py` | Shared by every v1 runner: `build_task`, `load_dataframe`, `bag_experiment_kwargs`, `run_cached` |
+| `scripts/build_reference_results.py` | Rebuilds the bundled reference results after a sweep (see `data/precomputed/v1/README.md`) |
 | `pyproject.toml` | Version (currently 1.0.0), dependencies (including `tabarena`), package metadata |
 | `CHANGELOG.md` | Release notes; update this for every release (move "Unreleased" → version section) |
 

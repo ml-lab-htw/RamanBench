@@ -49,6 +49,8 @@ dependencies = [
     "raman-data>=1.6.5",
     "torch>=2.0,<3.0",
     "python-dotenv>=1.0",
+    # Reads the bundled v1 reference results (data/precomputed/v1/reference_results.parquet).
+    "pyarrow>=12",
 ]
 
 [project.optional-dependencies]
@@ -362,7 +364,13 @@ where = ["src"]
 "" = "src"
 
 [tool.setuptools.package-data]
-raman_bench = ["data/precomputed/*.csv", "data/precomputed/*.json", "plotting/data/*.csv"]
+raman_bench = [
+    "data/precomputed/*.csv",
+    "data/precomputed/*.json",
+    "data/precomputed/v1/*.parquet",
+    "data/precomputed/v1/*.json",
+    "plotting/data/*.csv",
+]
 
 [tool.black]
 line-length = 100
