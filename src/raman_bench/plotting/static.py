@@ -22,7 +22,12 @@ import pandas as pd  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
 from raman_bench.plotting import models as model_info  # noqa: E402
-from raman_bench.plotting.results import GroupScores, pareto_front, split_references  # noqa: E402
+from raman_bench.plotting.results import (  # noqa: E402
+    TIME_COL,
+    GroupScores,
+    pareto_front,
+    split_references,
+)
 
 TASK_TITLES = {"all": "All tasks", "classification": "Classification", "regression": "Regression"}
 FRONT_COLOR = "#9A9A9A"
@@ -230,7 +235,7 @@ def _label_points(ax, df: pd.DataFrame, x: str, y: str, focus: set[str], avoid: 
 
 
 def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title):
-    x = "median_time_total_s"
+    x = TIME_COL
     lb, refs = split_references(lb)
     df = lb.dropna(subset=[x, metric])
     front = pareto_front(df, x, metric, higher_is_better)
@@ -246,7 +251,7 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title):
     )
     ax.step(front[x], front[metric], where="post", color=FRONT_COLOR, ls="--", lw=1, zorder=1)
     ax.set_xscale("log")
-    ax.set_xlabel("Median time per task: train + predict (s)")
+    ax.set_xlabel("Median train + predict time per 1K spectra (s)")
     ax.set_ylabel(label)
     ax.set_title(f"{title}  ({'upper' if higher_is_better else 'lower'} left is better)")
     # Labels are placed in display space, so the caller adds them once the layout is final.
@@ -288,33 +293,43 @@ def _release_x(year: float) -> float:
     return year if year >= _BREAK_YEAR else _BREAK_YEAR - (_BREAK_YEAR - year) * _SQUEEZE
 
 
-def plot_elo_vs_release_date(scores: GroupScores, focus: set[str], out_dir: Path, formats, stem: str):
-    """Elo over model release date with the running best ("state of the art") as a staircase."""
+def release_ax(ax, scores: GroupScores, focus: set[str], label: bool = True) -> pd.DataFrame:
+    """Draw Elo over release date with the running best as a staircase; returns the plotted rows.
+
+    Models in *focus* and every record holder are coloured; the rest are grey.
+    """
     lb = split_references(scores.leaderboard)[0].dropna(subset=["release_date"]).sort_values("release_date")
     lb = lb.assign(x=[_release_x(d) for d in lb["release_date"]])
     record = lb[lb["elo"] > lb["elo"].cummax().shift(fill_value=-np.inf)]
+    shown = focus | set(record.index)
 
-    fig, ax = plt.subplots(figsize=(9, 5))
     stairs_x = list(record["x"]) + [_release_x(lb["release_date"].max() + 0.3)]
     stairs_y = list(record["elo"]) + [record["elo"].iloc[-1]]
     ax.step(stairs_x, stairs_y, where="post", color=FRONT_COLOR, lw=1.5, zorder=1)
     for model, row in lb.iterrows():
-        highlighted = model in focus or model in record.index
+        highlighted = model in shown
         ax.scatter(
             row["x"], row["elo"], s=70 if highlighted else 30, zorder=3 if highlighted else 2,
             color=model_info.color(model) if highlighted else model_info.MUTED_COLOR,
             edgecolors="white", linewidths=0.6,
         )
-    _label_points(ax, lb[lb.index.isin(focus | set(record.index))], "x", "elo", focus | set(record.index), avoid=lb)
+    if label:
+        _label_points(ax, lb[lb.index.isin(shown)], "x", "elo", shown, avoid=lb)
     ax.axhline(1000, color=FRONT_COLOR, lw=0.8, ls=":")
 
     major = [1960, 1980, 2000] + list(range(2016, int(lb["release_date"].max()) + 2, 2))
     ax.set_xticks([_release_x(y) for y in major])
     ax.set_xticklabels([str(y) for y in major])
-    bx = _release_x(_BREAK_YEAR)
-    ax.axvline(bx, color="#DDDDDD", lw=6, zorder=0)
+    ax.axvline(_release_x(_BREAK_YEAR), color="#DDDDDD", lw=6, zorder=0)
     ax.set_xlabel("Model release")
     ax.set_ylabel("Elo")
+    return lb
+
+
+def plot_elo_vs_release_date(scores: GroupScores, focus: set[str], out_dir: Path, formats, stem: str):
+    """Elo over model release date with the running best ("state of the art") as a staircase."""
+    fig, ax = plt.subplots(figsize=(9, 5))
+    lb = release_ax(ax, scores, focus)
     ax.set_title(f"Model progress over time ({TASK_TITLES[scores.name].lower()})")
     _category_legend(fig, lb.index, y=-0.02, muted=True)
     return save(fig, out_dir, stem, formats)

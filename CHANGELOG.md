@@ -23,8 +23,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
   type and of the all-tasks ranking instead of being imputed. Only non-excluded targets and the scope's
   `n_repeats` x `n_splits` folds are scored. Figures: Elo ranking (all tasks,
   and classification/regression panels), normalized score / improvability /
-  Elo vs. time with the Pareto front, Elo vs. release date, pairwise win rates,
-  efficiency overview. Each is written as PNG and PDF plus an interactive
+  Elo vs. time per 1K spectra with the Pareto front, Elo vs. release date,
+  pairwise win rates, efficiency overview, plus three dataset figures
+  (`raman_bench.plotting.overview`): samples vs. features against TabArena,
+  TALENT, UCR and UEA next to model progress over time, example spectra per
+  domain, and the benchmark composition donuts. Each is written as PNG and PDF plus an interactive
   Plotly HTML twin. In the scatter figures a focus mode draws
   the top-k models per category (plus, in the "vs. time" plots, every
   Pareto-optimal model) in colour and greys out the rest (`--focus-top-k`,

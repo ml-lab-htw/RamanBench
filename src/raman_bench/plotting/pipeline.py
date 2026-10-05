@@ -3,6 +3,7 @@
 Output layout under *out_dir*::
 
     leaderboards/leaderboard_{all,classification,regression}.csv
+    leaderboards/datasets.csv  # one row per benchmarked dataset (Figures 1 and 3)
     static/<figure>.{png,pdf}
     interactive/<figure>.html
     index.html               # links every figure, static and interactive
@@ -14,7 +15,7 @@ import html
 import logging
 from pathlib import Path
 
-from raman_bench.plotting import interactive, static
+from raman_bench.plotting import interactive, overview, static
 from raman_bench.plotting.results import (
     DEFAULT_SCOPE,
     DEFAULT_TARGET_LIST,
@@ -29,6 +30,9 @@ from raman_bench.plotting.results import (
 logger = logging.getLogger(__name__)
 
 FIGURES = {
+    "overview": "Figure 1: RamanBench overview",
+    "raman_examples": "Figure 2: Raman spectra examples",
+    "composition": "Figure 3: Benchmark composition",
     "elo_ranking_combined": "Elo ranking, classification and regression",
     "elo_ranking": "Elo ranking, all tasks",
     "metrics_vs_time": "Normalized score vs. time",
@@ -42,6 +46,7 @@ FIGURES = {
 LEADERBOARD_COLUMNS = [
     "display_name", "category", "elo", "elo-", "elo+", "rank", "winrate", "improvability",
     "normalized_score", "median_time_train_s", "median_time_infer_s", "median_infer_per_1k_s",
+    "median_time_total_per_1k_s",
     "imputed_pct", "n_tasks", "release_date", "is_reference",
 ]
 
@@ -61,11 +66,14 @@ def generate_all(
     max_imputed_pct: float = 50.0,
     bootstrap_rounds: int = 200,
     exclude_models: tuple[str, ...] = ("DUMMY",),
+    dataset_figures: bool = True,
 ) -> dict[str, list[Path]]:
     """Score *hpo_results* and write leaderboards, static and interactive figures.
 
     ``focus_top_k`` models per category (by Elo) are drawn in colour, the rest
-    in grey; ``None``/``0`` colours every model. Returns ``{figure: [paths]}``.
+    in grey; ``None``/``0`` colours every model. ``dataset_figures`` adds Figures 1-3
+    (:mod:`raman_bench.plotting.overview`), which read dataset metadata from raman_data
+    and the RamanBench mirror. Returns ``{figure: [paths]}``.
     """
     out_dir = Path(out_dir)
     results = load_results(
@@ -92,6 +100,14 @@ def generate_all(
 
     static.apply_style()
     st = out_dir / "static"
+    datasets = None
+    if dataset_figures and target_list is not None:
+        datasets = overview.dataset_overview(scores["all"].results["dataset"].unique(), target_list)
+        datasets.to_csv(lb_dir / "datasets.csv", index=False)
+        written["leaderboards"].append(lb_dir / "datasets.csv")
+        written["overview"] = overview.plot_overview(datasets, scores["all"], st, formats)
+        written["raman_examples"] = overview.plot_raman_examples(st, formats)
+        written["composition"] = overview.plot_composition(datasets, st, formats)
     written["elo_ranking"] = static.plot_elo_ranking(scores, everyone, st, formats)
     for metric, stem in (
         ("normalized_score", "metrics_vs_time"),
@@ -134,6 +150,9 @@ def generate_all(
             "pairwise_win_rates_all": interactive.winrate_matrix(scores["all"]),
             "efficiency_overview": interactive.efficiency_overview(scores["all"], everyone["all"], None),
         }
+        if datasets is not None:
+            figs["overview"] = overview.overview_interactive(datasets, scores["all"])
+            figs["composition"] = overview.composition_interactive(datasets)
         for stem, fig in figs.items():
             written.setdefault(stem, []).append(interactive.write(fig, it, stem, include_plotlyjs))
 
@@ -147,7 +166,7 @@ def _winrate_caption(n_shown: int, n_total: int, top_k: int) -> str:
     return (
         f"Shown: {n_shown} of {n_total} models. These are the top {top_k} per model category by Elo "
         f"over all tasks, plus every model that is Pareto-optimal or within {NEAR_PARETO_TOLERANCE:g} "
-        "normalized score of the Pareto front in normalized score vs. median train + predict time "
+        "normalized score of the Pareto front in normalized score vs. median train + predict time per 1K spectra "
         "(classification or regression). pairwise_win_rates_all has every model."
     )
 

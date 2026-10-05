@@ -359,7 +359,7 @@ where = ["src"]
 "" = "src"
 
 [tool.setuptools.package-data]
-raman_bench = ["data/precomputed/*.csv", "data/precomputed/*.json"]
+raman_bench = ["data/precomputed/*.csv", "data/precomputed/*.json", "plotting/data/*.csv"]
 
 [tool.black]
 line-length = 100

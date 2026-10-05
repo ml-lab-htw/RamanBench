@@ -163,7 +163,9 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
 
     path, scope, tl = _hpo_results(tmp_path)
     out = tmp_path / "figures"
-    written = generate_all(path, out, scope=scope, target_list=tl, bootstrap_rounds=10, focus_top_k=1)
+    written = generate_all(
+        path, out, scope=scope, target_list=tl, bootstrap_rounds=10, focus_top_k=1, dataset_figures=False
+    )
     for stem in ("elo_ranking_combined", "metrics_vs_time", "improvability_vs_time",
                  "elo_vs_release_date", "pairwise_win_rates", "efficiency_overview"):
         assert (out / "static" / f"{stem}.png").exists()
@@ -171,3 +173,21 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
         assert (out / "interactive" / f"{stem}.html").exists()
     assert (out / "leaderboards" / "leaderboard_regression.csv").exists()
     assert written["index"][0].read_text().count("<section>") >= 6
+
+
+def test_composition_and_reference_benchmarks_offline():
+    from raman_bench.plotting import overview
+
+    ref = overview.reference_benchmarks()
+    assert ref.groupby("benchmark").size().to_dict() == {"TALENT": 300, "TabArena": 51, "UCR": 138, "UEA": 36}
+    ov = pd.DataFrame({
+        "dataset": ["a", "b", "c"], "name": ["A", "B", "C"],
+        "domain": ["Medical", "Chemical", "Chemical"], "task_type": ["Classification", "Regression", "Regression"],
+        "n_spectra": [100, 50, 25], "n_features": [1000, 500, 800], "n_targets": [1, 2, 1],
+        "source": ["Zenodo", "Kaggle", "Zenodo"], "new": [True, False, False],
+    })
+    donuts = {title: dict(zip(labels, values)) for title, labels, values, _ in overview._composition(ov)}
+    assert donuts["Spectra by domain"] == {"Medical & Clinical": 100, "Chemical & Industrial": 75}
+    assert donuts["Datasets by task"] == {"Classification": 1, "Regression": 2}
+    assert donuts["Data sources"] == {"Kaggle": 1, "Zenodo": 2}
+    assert donuts["New vs. existing"] == {"First published with RamanBench": 1, "Previously published": 2}

@@ -38,6 +38,10 @@ def main() -> None:
     parser.add_argument("--formats", nargs="+", default=["png", "pdf"], help="Static figure formats")
     parser.add_argument("--no-interactive", action="store_true", help="Skip the HTML figures")
     parser.add_argument(
+        "--no-dataset-figures", action="store_true",
+        help="Skip Figures 1-3 (overview, example spectra, composition), which need the RamanBench mirror",
+    )
+    parser.add_argument(
         "--inline-plotlyjs", action="store_true",
         help="Embed plotly.js in every HTML file (works offline, ~4.5 MB each) instead of loading it from a CDN",
     )
@@ -71,6 +75,7 @@ def main() -> None:
         max_imputed_pct=args.max_imputed_pct,
         bootstrap_rounds=args.bootstrap_rounds,
         exclude_models=tuple(args.exclude_models),
+        dataset_figures=not args.no_dataset_figures,
     )
     print(f"Open {written['index'][0]}")
 

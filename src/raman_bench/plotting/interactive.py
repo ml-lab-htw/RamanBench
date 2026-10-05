@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from raman_bench.plotting import models as model_info
-from raman_bench.plotting.results import GroupScores, pareto_front, split_references
+from raman_bench.plotting.results import TIME_COL, GroupScores, pareto_front, split_references
 from raman_bench.plotting.static import TASK_TITLES
 
 PLOTLY_CONFIG = {
@@ -190,7 +190,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
     fig = make_subplots(rows=1, cols=len(groups), subplot_titles=[TASK_TITLES[g] for g in groups],
                         horizontal_spacing=0.08)
     focus_traces, seen = [], set()
-    x = "median_time_total_s"
+    x = TIME_COL
     for col, g in enumerate(groups, start=1):
         lb, refs = split_references(scores[g].leaderboard)
         lb = lb.dropna(subset=[x, metric]).copy()
@@ -219,7 +219,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
             seen.add(cat)
             focus_traces.append((len(fig.data) - 1, focused, full))
         _reference_lines(fig, refs, metric, scale, row=1, col=col)  # after the traces (see elo_ranking)
-        fig.update_xaxes(type="log", title_text="Median time per task: train + predict (s)", row=1, col=col)
+        fig.update_xaxes(type="log", title_text="Median train + predict time per 1K spectra (s)", row=1, col=col)
         fig.update_yaxes(title_text=label, row=1, col=col)
     arrow = "↖ better" if higher else "↙ better"
     _layout(fig, f"{label} vs. time  ({arrow})", 620, focus_traces, top_k)

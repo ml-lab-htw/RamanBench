@@ -227,7 +227,7 @@ def score_group(
     Leaderboard columns: ``elo``, ``elo+``/``elo-`` (95% bootstrap CI widths),
     ``rank``, ``winrate``, ``improvability`` (+ CI widths), ``normalized_score``,
     ``median_time_train_s``, ``median_time_infer_s``, ``median_time_total_s``,
-    ``median_infer_per_1k_s``, ``imputed_pct``, ``n_tasks`` and the model's
+    ``median_infer_per_1k_s``, ``median_time_total_per_1k_s``, ``imputed_pct``, ``n_tasks`` and the model's
     ``display_name``, ``category``, ``release_date``.
     """
     from bencheval.evaluator import BenchmarkEvaluator
@@ -265,8 +265,12 @@ def score_group(
     if "num_instances" in real.columns:
         # Test rows per outer fold: num_instances / n_splits (the scope's outer CV folds).
         real["infer_per_1k_s"] = real["time_infer_s"] / (real["num_instances"] / n_splits) * 1000.0
+        # Train + predict on one fold covers every spectrum of the task once, so
+        # this is the time per 1K spectra and comparable across dataset sizes.
+        real["time_total_per_1k_s"] = real["time_total_s"] / real["num_instances"] * 1000.0
     times = real.groupby("model")[
-        [c for c in ("time_train_s", "time_infer_s", "time_total_s", "infer_per_1k_s") if c in real]
+        [c for c in ("time_train_s", "time_infer_s", "time_total_s", "infer_per_1k_s", "time_total_per_1k_s")
+         if c in real]
     ].median()
     lb = lb.join(times.add_prefix("median_"))
     lb["normalized_score"] = normalized_score(filled)
@@ -317,7 +321,7 @@ def select_focus(leaderboard: pd.DataFrame, top_k: int | None, always: tuple[str
 #: trade-off answer. The paper used 0.05; 0.1 keeps strong but slower models such
 #: as RamanPFN (0.053 behind the regression front) in the win-rate matrix.
 NEAR_PARETO_TOLERANCE = 0.1
-TIME_COL = "median_time_total_s"
+TIME_COL = "median_time_total_per_1k_s"
 
 
 def pareto_front(df: pd.DataFrame, x: str, y: str, higher_is_better: bool) -> pd.DataFrame:
@@ -338,7 +342,7 @@ def near_pareto_models(
     higher_is_better: bool = True,
     tolerance: float = NEAR_PARETO_TOLERANCE,
 ) -> set[str]:
-    """Pareto-optimal models of *metric* vs. median train+predict time, plus every model
+    """Pareto-optimal models of *metric* vs. median train+predict time per 1K spectra, plus every model
     within *tolerance* of the best score the front reaches at the same or lower cost.
 
     Models cheaper than the front's cheapest point are compared against that point.
