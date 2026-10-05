@@ -81,8 +81,23 @@ def test_scores_rank_skill_and_skip_task_restricted_models(tmp_path):
 
     reg = scores["regression"].leaderboard
     assert "ROCKET" not in reg.index  # never ran regression: left out, not imputed
-    assert "ROCKET" in scores["classification"].leaderboard.index
-    assert "ROCKET" not in scores["all"].leaderboard.index  # one task type only
+    clf = scores["classification"].leaderboard
+    assert "ROCKET" in clf.index
+
+    # In the all-tasks ranking ROCKET is ranked on its classification tasks only, marked as such,
+    # never imputed on regression; its Elo comes from comparisons on the tasks it ran.
+    lb_all = scores["all"].leaderboard
+    assert lb_all.loc["ROCKET", "evaluated_on"] == "classification"
+    assert lb_all.loc["ROCKET", "display_name"].endswith("(clf. only)")
+    assert lb_all.loc["ROCKET", "n_tasks"] == clf.loc["ROCKET", "n_tasks"]
+    assert lb_all.loc["ROCKET", "winrate"] == pytest.approx(clf.loc["ROCKET", "winrate"])
+    assert (lb_all.drop(index="ROCKET")["evaluated_on"] == "all").all()
+    assert lb_all.loc["RF", "elo"] == pytest.approx(1000, abs=1)
+    assert "ROCKET" in scores["all"].winrate_matrix.index
+    all_results = scores["all"].results
+    assert set(all_results.loc[all_results["model"] == "ROCKET", "dataset"]) <= set(
+        scores["classification"].results["dataset"]
+    )
     assert reg.index[0] == "TABPFN-V3"
     assert reg.index[-1] == "DUMMY"
     assert reg.loc["RF", "elo"] == pytest.approx(1000, abs=1)  # calibration anchor
@@ -217,3 +232,10 @@ def test_known_contamination_is_marked_and_explained(tmp_path):
     assert "arXiv:2608.02157" in page.read_text(encoding="utf-8")
     clean = interactive.write(go.Figure(go.Scatter(x=[1], y=[1], name="Random Forest")), tmp_path, "clean")
     assert "arXiv:2608.02157" not in clean.read_text(encoding="utf-8")
+
+
+def test_figure_notes_explain_marks():
+    assert model_info.figure_notes("Random Forest, XGBoost") == []
+    notes = model_info.figure_notes("RamanPFN† and OrionMSP (clf. only)")
+    assert len(notes) == 2
+    assert notes[1] == model_info.SUBSET_NOTE

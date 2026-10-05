@@ -158,6 +158,26 @@ KNOWN_CONTAMINATION = {
 CONTAMINATION_MARK = "†"
 
 
+#: Name suffix for a model ranked across all tasks that was evaluated on one task type only.
+SUBSET_TAGS = {"classification": "clf. only", "regression": "reg. only"}
+SUBSET_NOTE = (
+    "(clf. only) / (reg. only): model runs one task type only and is evaluated on that subset; its Elo "
+    "comes from comparisons on those tasks, on the same Random Forest = 1000 scale, with no imputation."
+)
+
+
+def figure_notes(text: str) -> list[str]:
+    """Footnotes a figure needs, given all the text it shows (model names, labels, ...)."""
+    notes = [
+        f"{CONTAMINATION_MARK} {display_name(m, mark=False)}: {note}"
+        for m, note in KNOWN_CONTAMINATION.items()
+        if display_name(m) in text
+    ]
+    if any(f"({tag})" in text for tag in SUBSET_TAGS.values()):
+        notes.append(SUBSET_NOTE)
+    return notes
+
+
 def contamination(model: str) -> str | None:
     """Why *model*'s scores may be optimistic on RamanBench, or ``None``."""
     return KNOWN_CONTAMINATION.get(model.upper())

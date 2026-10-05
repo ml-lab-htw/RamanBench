@@ -48,7 +48,7 @@ LEADERBOARD_COLUMNS = [
     "display_name", "category", "elo", "elo-", "elo+", "rank", "winrate", "improvability",
     "normalized_score", "median_time_train_s", "median_time_infer_s", "median_infer_per_1k_s",
     "median_time_total_per_1k_s",
-    "imputed_pct", "n_tasks", "release_date", "is_reference", "contamination",
+    "imputed_pct", "n_tasks", "evaluated_on", "release_date", "is_reference", "contamination",
 ]
 
 

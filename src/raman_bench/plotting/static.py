@@ -57,11 +57,12 @@ def apply_style() -> None:
 def save(fig, out_dir: Path, stem: str, formats=("png", "pdf"), dpi: int = 200) -> list[Path]:
     """Write *fig* as ``<out_dir>/<stem>.<fmt>`` for every format and close it.
 
-    A figure that shows a flagged model (see :data:`models.KNOWN_CONTAMINATION`) gets
-    the explanation as a footnote, so the mark still makes sense once the file is reused.
+    A figure that shows a marked model (contamination, or evaluated on one task type only;
+    see :func:`models.figure_notes`) gets the explanation as a footnote, so the mark still
+    makes sense once the file is reused.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    _contamination_footnote(fig)
+    _figure_footnotes(fig)
     paths = []
     for fmt in formats:
         path = out_dir / f"{stem}.{fmt}"
@@ -71,14 +72,9 @@ def save(fig, out_dir: Path, stem: str, formats=("png", "pdf"), dpi: int = 200) 
     return paths
 
 
-def _contamination_footnote(fig) -> None:
+def _figure_footnotes(fig) -> None:
     fig.canvas.draw()  # tick labels exist only after a draw
-    texts = " ".join(t.get_text() for t in fig.findobj(matplotlib.text.Text))
-    notes = [
-        f"{model_info.CONTAMINATION_MARK} {model_info.display_name(m, mark=False)}: {note}"
-        for m, note in model_info.KNOWN_CONTAMINATION.items()
-        if model_info.display_name(m) in texts
-    ]
+    notes = model_info.figure_notes(" ".join(t.get_text() for t in fig.findobj(matplotlib.text.Text)))
     if notes:
         # Below everything already drawn (legends sit under the axes in most figures).
         box = fig.get_tightbbox(fig.canvas.get_renderer())

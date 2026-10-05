@@ -221,28 +221,31 @@ def score_group(
     max_imputed_pct: float = 50.0,
     bootstrap_rounds: int = 200,
     n_splits: int = 3,
+    subsets: dict[str, GroupScores] | None = None,
 ) -> GroupScores:
     """Score the models on one task group.
 
     Leaderboard columns: ``elo``, ``elo+``/``elo-`` (95% bootstrap CI widths),
     ``rank``, ``winrate``, ``improvability`` (+ CI widths), ``normalized_score``,
     ``median_time_train_s``, ``median_time_infer_s``, ``median_time_total_s``,
-    ``median_infer_per_1k_s``, ``median_time_total_per_1k_s``, ``imputed_pct``, ``n_tasks`` and the model's
+    ``median_infer_per_1k_s``, ``median_time_total_per_1k_s``, ``imputed_pct``, ``n_tasks``,
+    ``evaluated_on`` (``"all"``, or the one task type a model ran) and the model's
     ``display_name``, ``category``, ``release_date``, ``contamination`` (why its scores may be
     optimistic, empty for most models).
+
+    For ``name="all"``, a model that only ran one task type is never imputed on the other.
+    With *subsets* (the per-task-type groups) it is added via :func:`_add_subset_models`,
+    otherwise it is left out.
     """
     from bencheval.evaluator import BenchmarkEvaluator
 
+    single: list[str] = []
     if name != "all":
         results = results[results["task"] == name]
     else:
-        # A model that never ran one task type belongs on that type's leaderboard
-        # only; imputing a whole task type would rank it on the reference's results.
         task_types = results.groupby("model")["task"].nunique()
         single = sorted(task_types.index[task_types < results["task"].nunique()])
-        if single:
-            logger.info("Left out of the all-tasks ranking (one task type only): %s", single)
-            results = results[~results["model"].isin(single)]
+        results = results[~results["model"].isin(single)]
     filled = impute_missing(results, reference_model=reference_model, max_imputed_pct=max_imputed_pct)
     data = filled[["dataset", "fold", "model", "metric_error"]]
 
@@ -282,6 +285,11 @@ def score_group(
     lb["contamination"] = [model_info.contamination(m) or "" for m in lb.index]
     lb["category"] = [model_info.category(m) for m in lb.index]
     lb["release_date"] = [model_info.release_date(m) for m in lb.index]
+    lb["evaluated_on"] = "all" if name == "all" else name
+    if single:
+        lb, winrate_matrix, filled = _add_subset_models(
+            lb, filled, winrate_matrix, single, subsets or {}, evaluator, reference_model, bootstrap_rounds
+        )
     lb = lb.sort_values("elo", ascending=False)
 
     return GroupScores(
@@ -293,10 +301,55 @@ def score_group(
     )
 
 
+def _add_subset_models(lb, filled, winrate_matrix, single, subsets, evaluator, reference_model, bootstrap_rounds):
+    """Add models that ran one task type only to the all-tasks leaderboard, marked as such.
+
+    Elo and the win-rate matrix are refit jointly, where such a model only meets the others
+    on the tasks it ran (bencheval builds both from pairwise comparisons on shared tasks), so
+    every model stays on the same Random Forest = 1000 scale. Its other columns (win rate,
+    improvability, score, times, ...) come from its own task type's leaderboard. The name
+    gets a :data:`models.SUBSET_TAGS` suffix and ``evaluated_on`` names the task type.
+    """
+    rows, extra = [], []
+    for model in single:
+        group = next((g for g, s in subsets.items() if model in s.leaderboard.index), None)
+        if group is None:
+            continue  # not ranked on its own task type either (e.g. mostly imputed)
+        row = subsets[group].leaderboard.loc[model].copy()
+        row["evaluated_on"] = group
+        row["display_name"] = f"{model_info.display_name(model)} ({model_info.SUBSET_TAGS[group]})"
+        rows.append(row.rename(model))
+        extra.append(subsets[group].results[subsets[group].results["model"] == model])
+    left_out = sorted(set(single) - {r.name for r in rows})
+    if left_out:
+        logger.info("Left out of the all-tasks ranking (one task type only, not ranked there): %s", left_out)
+    if not rows:
+        return lb, winrate_matrix, filled
+    logger.info("All-tasks ranking: %s evaluated on one task type only", [r.name for r in rows])
+
+    filled = pd.concat([filled, *extra], ignore_index=True)
+    data = filled[["dataset", "fold", "model", "metric_error"]]
+    # Folds as separate comparisons, exactly as evaluator.leaderboard() fits Elo; the
+    # win-rate matrix uses fold-averaged results, as in score_group.
+    elo = evaluator.compute_elo(
+        evaluator.compute_results_per_task(data, include_seed_col=True),
+        calibration_framework=reference_model, calibration_elo=1000, BOOTSTRAP_ROUNDS=bootstrap_rounds,
+    )
+    lb = pd.concat([lb, pd.DataFrame(rows)])
+    lb[["elo", "elo+", "elo-"]] = elo.loc[lb.index, ["elo", "elo+", "elo-"]].to_numpy()
+    return lb, evaluator.compute_winrate_matrix(evaluator.compute_results_per_task(data)), filled
+
+
 def score_all(results: pd.DataFrame, **kwargs) -> dict[str, GroupScores]:
-    """:func:`score_group` for every task group present in *results*."""
-    groups = ["all"] + [g for g in ("classification", "regression") if (results["task"] == g).any()]
-    return {g: score_group(results, g, **kwargs) for g in groups}
+    """:func:`score_group` for every task group present in *results*.
+
+    The task-type groups are scored first, so the all-tasks group can rank models that ran
+    one task type only on that subset (see :func:`_add_subset_models`).
+    """
+    subsets = {
+        g: score_group(results, g, **kwargs) for g in ("classification", "regression") if (results["task"] == g).any()
+    }
+    return {"all": score_group(results, "all", subsets=subsets, **kwargs), **subsets}
 
 
 def split_references(leaderboard: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:

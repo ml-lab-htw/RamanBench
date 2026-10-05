@@ -18,9 +18,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
   TabArena's own evaluator (`bencheval`): Elo with bootstrap CIs calibrated to
   Random Forest = 1000, win rate, improvability, the pairwise win-rate matrix,
   plus the TabRepo normalized score. Missing runs are imputed with Random Forest
-  and flagged, as in TabArena; models over 50% imputed are left out, and a model
-  that never ran a task type (e.g. Nori on classification) is left out of that
-  type and of the all-tasks ranking instead of being imputed. Only non-excluded targets and the scope's
+  and flagged, as in TabArena; models over 50% imputed are left out. A model
+  that never ran a task type (e.g. Nori on classification) is never imputed on
+  it: the all-tasks ranking lists it as "(reg. only)"/"(clf. only)", with its
+  Elo fit jointly from comparisons on the tasks it ran (same Random Forest =
+  1000 scale) and its other columns from its own task type's leaderboard. Only non-excluded targets and the scope's
   `n_repeats` x `n_splits` folds are scored. Figures: Elo ranking (all tasks,
   and classification/regression panels), normalized score / improvability /
   Elo vs. time per 1K spectra with the Pareto front, Elo vs. release date,
