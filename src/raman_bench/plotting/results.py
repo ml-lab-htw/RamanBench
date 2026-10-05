@@ -306,8 +306,9 @@ def select_focus(leaderboard: pd.DataFrame, top_k: int | None, always: tuple[str
 
 
 #: A model this close to the Pareto front (in normalized score) also counts as a
-#: trade-off answer. Same tolerance the paper's figures used.
-NEAR_PARETO_TOLERANCE = 0.05
+#: trade-off answer. The paper used 0.05; 0.1 keeps strong but slower models such
+#: as RamanPFN (0.053 behind the regression front) in the win-rate matrix.
+NEAR_PARETO_TOLERANCE = 0.1
 TIME_COL = "median_time_total_s"
 
 
