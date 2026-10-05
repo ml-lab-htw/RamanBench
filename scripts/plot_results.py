@@ -48,6 +48,10 @@ def main() -> None:
         "--max-imputed-pct", type=float, default=50.0,
         help="Drop models whose results are more than this percent imputed",
     )
+    parser.add_argument(
+        "--exclude-models", nargs="*", default=["DUMMY"],
+        help="Model keys left out of every figure (default: DUMMY)",
+    )
     parser.add_argument("--bootstrap-rounds", type=int, default=200, help="Elo bootstrap rounds for the CIs")
     args = parser.parse_args()
 
@@ -66,6 +70,7 @@ def main() -> None:
         reference_model=args.reference_model,
         max_imputed_pct=args.max_imputed_pct,
         bootstrap_rounds=args.bootstrap_rounds,
+        exclude_models=tuple(args.exclude_models),
     )
     print(f"Open {written['index'][0]}")
 

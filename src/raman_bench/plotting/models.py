@@ -57,6 +57,15 @@ CATEGORY_COLORS = {
 #: Text colour for a category whose fill colour is too light to read as text.
 LABEL_COLOR_OVERRIDES = {"TS Classification": "#A08C00"}
 
+#: Reference systems: drawn as horizontal lines, not ranked as bars or points.
+#: Key -> (display name, results directory name written by scripts/run_autogluon_baseline.py).
+REFERENCE_MODELS = {
+    "AUTOGLUON-EXTREME-5M": ("AutoGluon (extreme, 5 min)", "AutoGluon_extreme_5m"),
+    "AUTOGLUON-EXTREME-1H": ("AutoGluon (extreme, 1 h)", "AutoGluon_extreme_1h"),
+    "AUTOGLUON-EXTREME-4H": ("AutoGluon (extreme, 4 h)", "AutoGluon_extreme_4h"),
+}
+REFERENCE_COLOR = "#555555"
+
 #: Colour of the greyed-out field in focus mode.
 MUTED_COLOR = "#C8C8C8"
 MUTED_LABEL_COLOR = "#9A9A9A"
@@ -134,12 +143,16 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
 
 def display_name(model: str) -> str:
     """Human-readable name for *model*; the key itself when unknown."""
+    if model.upper() in REFERENCE_MODELS:
+        return REFERENCE_MODELS[model.upper()][0]
     entry = _MODELS.get(model.upper())
     return entry[0] if entry else model
 
 
 def category(model: str) -> str:
-    """Category of *model* (``"Other"`` when unknown)."""
+    """Category of *model* (``"Other"`` when unknown, ``"Reference"`` for reference systems)."""
+    if model.upper() in REFERENCE_MODELS:
+        return "Reference"
     entry = _MODELS.get(model.upper())
     return entry[1] if entry else "Other"
 
@@ -152,13 +165,13 @@ def release_date(model: str) -> float | None:
 
 def color(model: str) -> str:
     """Fill colour of *model*: its category's colour."""
-    return CATEGORY_COLORS[category(model)]
+    return CATEGORY_COLORS.get(category(model), REFERENCE_COLOR)
 
 
 def label_color(model: str) -> str:
     """Text colour for *model*'s label (its colour, darkened where unreadable)."""
     cat = category(model)
-    return LABEL_COLOR_OVERRIDES.get(cat, CATEGORY_COLORS[cat])
+    return LABEL_COLOR_OVERRIDES.get(cat, CATEGORY_COLORS.get(cat, REFERENCE_COLOR))
 
 
 def category_rank(cat: str) -> int:

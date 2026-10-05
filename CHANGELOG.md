@@ -25,9 +25,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
   and classification/regression panels), normalized score / improvability /
   Elo vs. time with the Pareto front, Elo vs. release date, pairwise win rates,
   efficiency overview. Each is written as PNG and PDF plus an interactive
-  Plotly HTML twin. A focus mode draws the top-k models per category in colour
-  and greys out the rest (`--focus-top-k`, default 2); the HTML pages toggle
-  between both views.
+  Plotly HTML twin. In the scatter and efficiency figures a focus mode draws
+  the top-k models per category (plus, in the "vs. time" plots, every
+  Pareto-optimal model) in colour and greys out the rest (`--focus-top-k`,
+  default 2); the HTML pages toggle between both views. The Elo ranking always
+  colours every model. AutoGluon (extreme, 5 min / 1 h) is scored in the same
+  tournament but drawn as a labelled reference line in the Elo ranking and the
+  "vs. time" plots. The `DUMMY` baseline is left out (`--exclude-models`).
 
 ### Removed
 

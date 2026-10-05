@@ -22,7 +22,7 @@ import pandas as pd  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
 from raman_bench.plotting import models as model_info  # noqa: E402
-from raman_bench.plotting.results import GroupScores  # noqa: E402
+from raman_bench.plotting.results import GroupScores, split_references  # noqa: E402
 
 TASK_TITLES = {"all": "All tasks", "classification": "Classification", "regression": "Regression"}
 FRONT_COLOR = "#9A9A9A"
@@ -83,10 +83,24 @@ def _category_legend(fig, models, y: float = -0.02, muted: bool = False) -> None
     )
 
 
+def _reference_lines(ax, refs: pd.DataFrame, col: str, scale: float = 1.0) -> None:
+    """A dashed horizontal line per reference system, labelled at the right edge."""
+    # Highest line labelled above, the others below, so close lines keep readable labels.
+    for i, (_, row) in enumerate(refs.sort_values(col, ascending=False).iterrows()):
+        y = row[col] * scale
+        ax.axhline(y, color=model_info.REFERENCE_COLOR, ls="--", lw=1.2, zorder=1.5)
+        ax.annotate(
+            row["display_name"], (1.0, y), xycoords=("axes fraction", "data"), xytext=(-4, 3 if i == 0 else -3),
+            textcoords="offset points", ha="right", va="bottom" if i == 0 else "top", fontsize=9,
+            color=model_info.REFERENCE_COLOR, style="italic",
+        )
+
+
 # --------------------------------------------------------------------------- Elo ranking
 
 
 def _elo_bars(ax, lb: pd.DataFrame, focus: set[str], title: str, show_labels: bool = True) -> None:
+    lb, refs = split_references(lb)
     x = np.arange(len(lb))
     for i, (model, row) in enumerate(lb.iterrows()):
         imputed = row["imputed_pct"] > 0
@@ -111,8 +125,10 @@ def _elo_bars(ax, lb: pd.DataFrame, focus: set[str], title: str, show_labels: bo
         zorder=3,
     )
     ax.axhline(1000, color=FRONT_COLOR, lw=0.8, ls="--", zorder=1)
+    _reference_lines(ax, refs, "elo")
     low = (lb["elo"] - lb["elo-"]).min()
-    ax.set_ylim(bottom=max(0, np.floor((low - 50) / 100) * 100))
+    high = max((lb["elo"] + lb["elo+"]).max(), refs["elo"].max() if len(refs) else -np.inf)
+    ax.set_ylim(max(0, np.floor((low - 50) / 100) * 100), high + 60)
     ax.set_xlim(-0.6, len(lb) - 0.4)
     ax.set_ylabel("Elo")
     ax.set_title(f"{title}  ({int(lb['n_tasks'].max())} tasks)", loc="left", fontweight="bold")
@@ -129,22 +145,23 @@ def _elo_bars(ax, lb: pd.DataFrame, focus: set[str], title: str, show_labels: bo
 def plot_elo_ranking(scores: dict[str, GroupScores], focus: dict[str, set[str]], out_dir: Path, formats):
     """``elo_ranking`` (all tasks) and ``elo_ranking_combined`` (classification / regression panels)."""
     paths = []
-    lb = scores["all"].leaderboard
+    lb_all = scores["all"].leaderboard
+    lb, _ = split_references(lb_all)
     fig, ax = plt.subplots(figsize=(max(8, 0.24 * len(lb) + 2), 4.2))
-    _elo_bars(ax, lb, focus["all"], TASK_TITLES["all"])
+    _elo_bars(ax, lb_all, focus["all"], TASK_TITLES["all"])
     _category_legend(fig, lb.index, y=-0.18, muted=len(focus["all"]) < len(lb))
     _imputed_note(fig, lb)
     paths += save(fig, out_dir, "elo_ranking", formats)
 
     groups = [g for g in ("classification", "regression") if g in scores]
     if groups:
-        n_max = max(len(scores[g].leaderboard) for g in groups)
+        n_max = max(len(split_references(scores[g].leaderboard)[0]) for g in groups)
         fig, axes = plt.subplots(len(groups), 1, figsize=(max(8, 0.24 * n_max + 2), 4.0 * len(groups)))
         axes = np.atleast_1d(axes)
         models = set()
         for ax, g in zip(axes, groups):
-            lb_g = scores[g].leaderboard
-            _elo_bars(ax, lb_g, focus[g], TASK_TITLES[g])
+            _elo_bars(ax, scores[g].leaderboard, focus[g], TASK_TITLES[g])
+            lb_g, _ = split_references(scores[g].leaderboard)
             ax.set_xlim(-0.6, n_max - 0.4)
             models |= set(lb_g.index)
         fig.tight_layout(h_pad=1.5)
@@ -196,23 +213,27 @@ def _label_points(ax, df: pd.DataFrame, x: str, y: str, focus: set[str], avoid: 
     # Highest points first: their labels claim space above, the rest settle around them.
     for model, row in df.sort_values(y, ascending=False).iterrows():
         own = ax.transData.transform([[row[x], row[y]]])[0]
-        for dx, dy in _LABEL_OFFSETS:
-            ha = "left" if dx >= 0 else "right"
-            if dx == 0:
-                ha = "center"
-            text = ax.annotate(
-                row["display_name"], (row[x], row[y]), xytext=(dx, dy), textcoords="offset points",
-                ha=ha, fontsize=8.5, color=_text(model, focus), zorder=4,
-            )
-            box = text.get_window_extent(renderer).expanded(1.02, 1.1)
-            hits_marker = any(
-                box.contains(px, py) and not np.allclose((px, py), own) for px, py in marker_px
-            )
-            if not hits_marker and not any(box.overlaps(o) for o in placed):
-                placed.append(box)
-                break
-            text.remove()
-        else:  # nothing free: keep the first position
+        # Pass 1: free of labels and markers. Pass 2: free of labels only. Else: first offset.
+        for allow_markers in (False, True):
+            for dx, dy in _LABEL_OFFSETS:
+                ha = "center" if dx == 0 else ("left" if dx > 0 else "right")
+                text = ax.annotate(
+                    row["display_name"], (row[x], row[y]), xytext=(dx, dy), textcoords="offset points",
+                    ha=ha, fontsize=8.5, color=_text(model, focus), zorder=4,
+                )
+                text.update_positions(renderer)  # apply the offset before measuring
+                box = text.get_window_extent(renderer).expanded(1.02, 1.1)
+                hits_marker = not allow_markers and any(
+                    box.contains(px, py) and not np.allclose((px, py), own) for px, py in marker_px
+                )
+                if not hits_marker and not any(box.overlaps(o) for o in placed):
+                    placed.append(box)
+                    break
+                text.remove()
+            else:
+                continue
+            break
+        else:
             text = ax.annotate(
                 row["display_name"], (row[x], row[y]), xytext=_LABEL_OFFSETS[0], textcoords="offset points",
                 fontsize=8.5, color=_text(model, focus), zorder=4,
@@ -222,21 +243,26 @@ def _label_points(ax, df: pd.DataFrame, x: str, y: str, focus: set[str], avoid: 
 
 def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title):
     x = "median_time_total_s"
+    lb, refs = split_references(lb)
     df = lb.dropna(subset=[x, metric])
-    muted = df[~df.index.isin(focus)]
-    shown = df[df.index.isin(focus)]
+    front = pareto_front(df, x, metric, higher_is_better)
+    _reference_lines(ax, refs, metric)
+    # Pareto-optimal models always keep their colour: they are the trade-off's answer.
+    highlight = focus | set(front.index)
+    muted = df[~df.index.isin(highlight)]
+    shown = df[df.index.isin(highlight)]
     ax.scatter(muted[x], muted[metric], s=28, color=model_info.MUTED_COLOR, zorder=2, linewidths=0)
     ax.scatter(
         shown[x], shown[metric], s=60, zorder=3, linewidths=0.6, edgecolors="white",
         color=[model_info.color(m) for m in shown.index],
     )
-    front = pareto_front(df, x, metric, higher_is_better)
     ax.step(front[x], front[metric], where="post", color=FRONT_COLOR, ls="--", lw=1, zorder=1)
-    _label_points(ax, df[df.index.isin(focus | set(front.index))], x, metric, focus, avoid=df)
     ax.set_xscale("log")
     ax.set_xlabel("Median time per task: train + predict (s)")
     ax.set_ylabel(label)
     ax.set_title(f"{title}  ({'upper' if higher_is_better else 'lower'} left is better)")
+    # Labels are placed in display space, so the caller adds them once the layout is final.
+    return lambda: _label_points(ax, shown, x, metric, highlight, avoid=df)
 
 
 def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str):
@@ -249,14 +275,16 @@ def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str)
     groups = [g for g in ("classification", "regression") if g in scores] or ["all"]
     fig, axes = plt.subplots(1, len(groups), figsize=(7.5 * len(groups), 5.2))
     axes = np.atleast_1d(axes)
-    models = set()
+    models, labelers = set(), []
     for ax, g in zip(axes, groups):
         lb = scores[g].leaderboard
-        _tradeoff_ax(ax, lb, metric, label, higher, focus[g], TASK_TITLES[g])
+        models |= set(split_references(lb)[0].index)
+        labelers.append(_tradeoff_ax(ax, lb, metric, label, higher, focus[g], TASK_TITLES[g]))
         if metric == "improvability":
             ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
-        models |= set(lb.index)
     fig.tight_layout()
+    for add_labels in labelers:
+        add_labels()
     _category_legend(fig, models, y=0.0, muted=True)
     return save(fig, out_dir, stem, formats)
 
@@ -274,7 +302,7 @@ def _release_x(year: float) -> float:
 
 def plot_elo_vs_release_date(scores: GroupScores, focus: set[str], out_dir: Path, formats, stem: str):
     """Elo over model release date with the running best ("state of the art") as a staircase."""
-    lb = scores.leaderboard.dropna(subset=["release_date"]).sort_values("release_date")
+    lb = split_references(scores.leaderboard)[0].dropna(subset=["release_date"]).sort_values("release_date")
     lb = lb.assign(x=[_release_x(d) for d in lb["release_date"]])
     record = lb[lb["elo"] > lb["elo"].cummax().shift(fill_value=-np.inf)]
 
@@ -342,7 +370,8 @@ def plot_winrate_matrix(scores: GroupScores, models: list[str], out_dir: Path, f
 
 def plot_efficiency_overview(scores: GroupScores, focus: set[str], out_dir: Path, formats, stem: str):
     """Median train time and median inference time per 1K samples, one bar per model."""
-    lb = scores.leaderboard.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
+    lb = split_references(scores.leaderboard)[0]
+    lb = lb.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
     panels = [("median_time_train_s", "Median train time (s)")]
     if "median_infer_per_1k_s" in lb:
         panels.append(("median_infer_per_1k_s", "Median inference (s / 1K samples)"))

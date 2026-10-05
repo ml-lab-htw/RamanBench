@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from raman_bench.plotting import models as model_info
-from raman_bench.plotting.results import GroupScores
+from raman_bench.plotting.results import GroupScores, split_references
 from raman_bench.plotting.static import TASK_TITLES, pareto_front
 
 PLOTLY_CONFIG = {
@@ -103,6 +103,17 @@ def _layout(fig, title: str, height: int, focus_traces: list, top_k: int | None)
     )
 
 
+def _reference_lines(fig, refs: pd.DataFrame, metric: str, scale: float = 1.0, **pos) -> None:
+    """Dashed, labelled horizontal line per reference system (e.g. AutoGluon)."""
+    for i, (_, row) in enumerate(refs.sort_values(metric, ascending=False).iterrows()):
+        fig.add_hline(
+            y=row[metric] * scale, line={"dash": "dash", "color": model_info.REFERENCE_COLOR, "width": 1.5},
+            annotation_text=f"<i>{row['display_name']}</i>",
+            annotation_position="top right" if i == 0 else "bottom right",
+            annotation_font={"color": model_info.REFERENCE_COLOR, "size": 11}, **pos,
+        )
+
+
 def _by_category(lb: pd.DataFrame):
     for cat in sorted(lb["category"].unique(), key=model_info.category_rank):
         yield cat, lb[lb["category"] == cat]
@@ -130,7 +141,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
     )
     focus_traces, seen = [], set()
     for row, g in enumerate(groups, start=1):
-        lb = scores[g].leaderboard
+        lb, refs = split_references(scores[g].leaderboard)
         for cat, sub in _by_category(lb):
             focused, full = _colors(sub.index, focus[g])
             fig.add_trace(
@@ -150,7 +161,12 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
         fig.update_xaxes(
             categoryorder="array", categoryarray=list(lb["display_name"]), tickangle=-55, row=row, col=1
         )
-        fig.update_yaxes(title_text="Elo", row=row, col=1)
+        # add_hline skips subplots without traces, so the lines go in after the bars.
+        _reference_lines(fig, refs, "elo", row=row, col=1)
+        low = (lb["elo"] - lb["elo-"]).min()
+        high = max((lb["elo"] + lb["elo+"]).max(), refs["elo"].max() if len(refs) else -np.inf)
+        fig.update_yaxes(title_text="Elo", range=[max(0, np.floor((low - 50) / 100) * 100), high + 60],
+                         row=row, col=1)
         fig.add_hline(y=1000, line={"dash": "dash", "color": "#9A9A9A", "width": 1}, row=row, col=1)
     fig.update_layout(bargap=0.2)
     _layout(fig, "RamanBench Elo ranking (Random Forest = 1000)", 520 * len(groups), focus_traces, top_k)
@@ -176,7 +192,8 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
     focus_traces, seen = [], set()
     x = "median_time_total_s"
     for col, g in enumerate(groups, start=1):
-        lb = scores[g].leaderboard.dropna(subset=[x, metric]).copy()
+        lb, refs = split_references(scores[g].leaderboard)
+        lb = lb.dropna(subset=[x, metric]).copy()
         scale = 100.0 if metric == "improvability" else 1.0
         front = pareto_front(lb, x, metric, higher)
         fig.add_trace(
@@ -187,7 +204,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
         )
         labelled = focus[g] | set(front.index)
         for cat, sub in _by_category(lb):
-            focused, full = _colors(sub.index, focus[g])
+            focused, full = _colors(sub.index, labelled)  # Pareto-optimal models stay coloured
             fig.add_trace(
                 go.Scatter(
                     x=sub[x], y=sub[metric] * scale, mode="markers+text", name=cat, legendgroup=cat,
@@ -201,6 +218,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
             )
             seen.add(cat)
             focus_traces.append((len(fig.data) - 1, focused, full))
+        _reference_lines(fig, refs, metric, scale, row=1, col=col)  # after the traces (see elo_ranking)
         fig.update_xaxes(type="log", title_text="Median time per task: train + predict (s)", row=1, col=col)
         fig.update_yaxes(title_text=label, row=1, col=col)
     arrow = "↖ better" if higher else "↙ better"
@@ -214,7 +232,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
 def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k):
     """Elo over release date; the staircase is the best Elo released so far."""
     go = _go()
-    lb = scores.leaderboard.dropna(subset=["release_date"]).sort_values("release_date")
+    lb = split_references(scores.leaderboard)[0].dropna(subset=["release_date"]).sort_values("release_date")
     record = lb[lb["elo"] > lb["elo"].cummax().shift(fill_value=-np.inf)]
     fig = go.Figure()
     end = lb["release_date"].max() + 0.3
@@ -251,7 +269,7 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k):
 def winrate_matrix(scores: GroupScores):
     """Full pairwise win-rate heatmap, models ordered by Elo."""
     go = _go()
-    lb = scores.leaderboard
+    lb = split_references(scores.leaderboard)[0]
     names = list(lb["display_name"])
     wr = scores.winrate_matrix.loc[lb.index, lb.index].to_numpy(dtype=float) * 100
     np.fill_diagonal(wr, np.nan)
@@ -279,7 +297,8 @@ def efficiency_overview(scores: GroupScores, focus: set[str], top_k):
     from plotly.subplots import make_subplots
 
     go = _go()
-    lb = scores.leaderboard.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
+    lb = split_references(scores.leaderboard)[0]
+    lb = lb.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
     infer = "median_infer_per_1k_s" if "median_infer_per_1k_s" in lb else "median_time_infer_s"
     panels = [("median_time_train_s", "Median train time (s)"),
               (infer, "Median inference (s / 1K samples)" if infer.endswith("1k_s") else "Median inference (s)")]

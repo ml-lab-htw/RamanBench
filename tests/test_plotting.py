@@ -75,7 +75,8 @@ def test_load_results_applies_scope_targets_and_folds(tmp_path):
 
 def test_scores_rank_skill_and_skip_task_restricted_models(tmp_path):
     path, scope, tl = _hpo_results(tmp_path)
-    scores = res.score_all(res.load_results(path, scope=scope, target_list=tl), bootstrap_rounds=10)
+    df = res.load_results(path, scope=scope, target_list=tl, exclude_models=())
+    scores = res.score_all(df, bootstrap_rounds=10)
     assert set(scores) == {"all", "classification", "regression"}
 
     reg = scores["regression"].leaderboard
@@ -87,6 +88,24 @@ def test_scores_rank_skill_and_skip_task_restricted_models(tmp_path):
     wr = scores["regression"].winrate_matrix
     assert list(wr.index) == list(reg.index)
     assert wr.loc["TABPFN-V3", "DUMMY"] == pytest.approx(1.0)
+
+
+def test_dummy_excluded_and_autogluon_scored_as_reference(tmp_path):
+    path, scope, tl = _hpo_results(tmp_path)
+    df = pd.read_csv(path)
+    ag = df[df["config_type"] == "TABPFN-V3"].assign(
+        method="AutoGluon_extreme_1h", config_type=np.nan, method_subtype=np.nan, method_type="baseline"
+    )
+    pd.concat([df, ag]).to_csv(path, index=False)
+    scope.write_text(json.dumps({"models": [*MODELS, "AUTOGLUON-EXTREME-1H"], "n_splits": 3}))
+
+    loaded = res.load_results(path, scope=scope, target_list=tl)
+    assert "DUMMY" not in set(loaded["model"])
+    lb = res.score_all(loaded, bootstrap_rounds=10)["regression"].leaderboard
+    assert bool(lb.loc["AUTOGLUON-EXTREME-1H", "is_reference"])
+    models, refs = res.split_references(lb)
+    assert list(refs.index) == ["AUTOGLUON-EXTREME-1H"]
+    assert "AUTOGLUON-EXTREME-1H" not in res.select_focus(lb, 1)
 
 
 def test_missing_runs_are_imputed_with_reference_model(tmp_path):

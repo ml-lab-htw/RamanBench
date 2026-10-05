@@ -57,6 +57,7 @@ def load_results(
     variant: str = "default",
     scope: str | Path | None = DEFAULT_SCOPE,
     target_list: str | Path | None = DEFAULT_TARGET_LIST,
+    exclude_models: tuple[str, ...] = ("DUMMY",),
 ) -> pd.DataFrame:
     """Read ``hpo_results.csv`` into one tidy row per (dataset, fold, model).
 
@@ -73,11 +74,23 @@ def load_results(
         ``configs/v1/target_list.json``; keys marked ``excluded`` there are
         dropped, and so are folds beyond the key's ``n_repeats`` x the scope's
         ``n_splits`` (``None`` keeps every key and fold).
+    exclude_models
+        Model keys left out entirely (default: the ``DUMMY`` baseline).
+
+    AutoGluon-extreme runs (``scripts/run_autogluon_baseline.py``; baseline rows
+    without a ``config_type``) are mapped to their ``AUTOGLUON-EXTREME-*`` keys and
+    flagged ``reference``: they are scored like every model but plotted as lines.
     """
     if variant not in VARIANTS:
         raise ValueError(f"variant must be one of {VARIANTS}, got {variant!r}")
 
     df = pd.read_csv(hpo_results, low_memory=False)
+    dir_to_key = {d: k for k, (_, d) in model_info.REFERENCE_MODELS.items()}
+    is_ref = df["config_type"].isna() & df["method"].isin(dir_to_key)
+    df.loc[is_ref, "config_type"] = df.loc[is_ref, "method"].map(dir_to_key)
+    df.loc[is_ref, "method_subtype"] = "default"
+    df = df.dropna(subset=["config_type"])
+    df = df[~df["config_type"].isin(set(exclude_models))]
     df = df[df["method_subtype"].isin({"default", variant})]
     if variant != "default":
         # Prefer the requested variant; fall back to the default row where a model
@@ -112,6 +125,7 @@ def load_results(
             "time_infer_s": df["time_infer_s"].astype(float),
         }
     )
+    out["reference"] = out["model"].isin(model_info.REFERENCE_MODELS)
     out = out.dropna(subset=["metric_error"])
 
     n_splits = 3
@@ -250,6 +264,7 @@ def score_group(
     lb["normalized_score"] = normalized_score(filled)
     lb["imputed_pct"] = filled.groupby("model")["imputed"].mean() * 100.0
     lb["n_tasks"] = filled.groupby("model")["dataset"].nunique()
+    lb["is_reference"] = lb.index.isin(model_info.REFERENCE_MODELS)
     lb["display_name"] = [model_info.display_name(m) for m in lb.index]
     lb["category"] = [model_info.category(m) for m in lb.index]
     lb["release_date"] = [model_info.release_date(m) for m in lb.index]
@@ -270,12 +285,19 @@ def score_all(results: pd.DataFrame, **kwargs) -> dict[str, GroupScores]:
     return {g: score_group(results, g, **kwargs) for g in groups}
 
 
+def split_references(leaderboard: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """``(ranked models, reference systems)`` of a leaderboard."""
+    ref = leaderboard["is_reference"] if "is_reference" in leaderboard else pd.Series(False, leaderboard.index)
+    return leaderboard[~ref], leaderboard[ref]
+
+
 def select_focus(leaderboard: pd.DataFrame, top_k: int | None, always: tuple[str, ...] = ()) -> set[str]:
     """Models drawn in colour: the *top_k* best by Elo in each category.
 
     ``top_k=None`` (or ``0``) highlights every model. Models in *always* are
     highlighted whenever they are present.
     """
+    leaderboard, _ = split_references(leaderboard)
     if not top_k:
         return set(leaderboard.index)
     ranked = leaderboard.sort_values("elo", ascending=False)

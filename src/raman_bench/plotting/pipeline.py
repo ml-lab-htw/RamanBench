@@ -21,6 +21,7 @@ from raman_bench.plotting.results import (
     load_results,
     score_all,
     select_focus,
+    split_references,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ FIGURES = {
 LEADERBOARD_COLUMNS = [
     "display_name", "category", "elo", "elo-", "elo+", "rank", "winrate", "improvability",
     "normalized_score", "median_time_train_s", "median_time_infer_s", "median_infer_per_1k_s",
-    "imputed_pct", "n_tasks", "release_date",
+    "imputed_pct", "n_tasks", "release_date", "is_reference",
 ]
 
 
@@ -57,6 +58,7 @@ def generate_all(
     reference_model: str = "RF",
     max_imputed_pct: float = 50.0,
     bootstrap_rounds: int = 200,
+    exclude_models: tuple[str, ...] = ("DUMMY",),
 ) -> dict[str, list[Path]]:
     """Score *hpo_results* and write leaderboards, static and interactive figures.
 
@@ -64,7 +66,9 @@ def generate_all(
     in grey; ``None``/``0`` colours every model. Returns ``{figure: [paths]}``.
     """
     out_dir = Path(out_dir)
-    results = load_results(hpo_results, variant=variant, scope=scope, target_list=target_list)
+    results = load_results(
+        hpo_results, variant=variant, scope=scope, target_list=target_list, exclude_models=exclude_models
+    )
     scores = score_all(
         results,
         reference_model=reference_model,
@@ -72,6 +76,8 @@ def generate_all(
         bootstrap_rounds=bootstrap_rounds,
     )
     focus = {g: select_focus(s.leaderboard, focus_top_k) for g, s in scores.items()}
+    # The Elo ranking already orders every model, so it is never greyed out.
+    everyone = {g: set(s.leaderboard.index) for g, s in scores.items()}
     written: dict[str, list[Path]] = {}
 
     lb_dir = out_dir / "leaderboards"
@@ -84,7 +90,7 @@ def generate_all(
 
     static.apply_style()
     st = out_dir / "static"
-    written["elo_ranking"] = static.plot_elo_ranking(scores, focus, st, formats)
+    written["elo_ranking"] = static.plot_elo_ranking(scores, everyone, st, formats)
     for metric, stem in (
         ("normalized_score", "metrics_vs_time"),
         ("improvability", "improvability_vs_time"),
@@ -94,7 +100,7 @@ def generate_all(
     written["elo_vs_release_date"] = static.plot_elo_vs_release_date(
         scores["all"], focus["all"], st, formats, "elo_vs_release_date"
     )
-    all_models = list(scores["all"].leaderboard.index)
+    all_models = list(split_references(scores["all"].leaderboard)[0].index)
     focus_models = [m for m in all_models if m in focus["all"]]
     written["pairwise_win_rates"] = static.plot_winrate_matrix(
         scores["all"], focus_models, st, formats, "pairwise_win_rates"
@@ -111,8 +117,8 @@ def generate_all(
         it = out_dir / "interactive"
         groups = [g for g in ("classification", "regression") if g in scores]
         figs = {
-            "elo_ranking_combined": interactive.elo_ranking(scores, focus, focus_top_k, groups or ["all"]),
-            "elo_ranking": interactive.elo_ranking(scores, focus, focus_top_k, ["all"]),
+            "elo_ranking_combined": interactive.elo_ranking(scores, everyone, None, groups or ["all"]),
+            "elo_ranking": interactive.elo_ranking(scores, everyone, None, ["all"]),
             "metrics_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "normalized_score"),
             "improvability_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "improvability"),
             "elo_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "elo"),
