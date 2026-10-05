@@ -122,6 +122,7 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "TA-EXAONE-TABULAR": ("EXAONE-Tabular", "Tabular Foundation", 2026 + 6 / 12),  # 2026-07-31
     "TABLDM": ("Xiaomi-TabLDM", "Tabular Foundation", 2026 + 7 / 12),
     "TA-MITRA-V2": ("Mitra-v2", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-03
+    "CAUSILO": ("Causilo", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-13 (PyPI 1.0.0)
     "TABDPT-V1.3": ("TabDPT-1.3", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-08
     "LIMIX2": ("LimiX-2", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-15
     "TABPFN-V3.5": ("TabPFN v3.5", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-15
