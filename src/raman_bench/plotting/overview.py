@@ -460,4 +460,26 @@ def composition_interactive(ov: pd.DataFrame):
         font={"family": "Inter, Arial, sans-serif"}, uniformtext={"minsize": 9, "mode": "hide"},
         **legends,
     )
+    interactive.set_mobile(fig, **_composition_mobile(n))
     return fig
+
+
+def _composition_mobile(n: int, row_px: int = 370, top_px: int = 40) -> dict:
+    """Phone layout for Figure 3: donuts in pairs, three rows, each legend under its row."""
+    rows = (n + 1) // 2
+    plot_px = rows * row_px
+    domains, layout = [], {"margin.t": top_px, "margin.b": 10, "margin.l": 6, "margin.r": 6}
+    for i in range(n):
+        r, c = divmod(i, 2)
+        top = 1 - (r * row_px + 30) / plot_px
+        bottom = top - 165 / plot_px
+        domains.append({"x": [0.03, 0.47] if c == 0 else [0.53, 0.97], "y": [bottom, top]})
+        layout[f"annotations[{i}].x"] = 0.25 if c == 0 else 0.75
+        layout[f"annotations[{i}].y"] = top
+    # legend: domain pair (row 0), legend2: task pair (row 1), legend3/legend4: sources, provenance (row 2)
+    for key, r, x, orient in (("legend", 0, 0.5, "h"), ("legend2", 1, 0.5, "h"),
+                              ("legend3", 2, 0.25, "v"), ("legend4", 2, 0.75, "v")):
+        layout.update({f"{key}.x": x, f"{key}.xanchor": "center", f"{key}.orientation": orient,
+                       f"{key}.y": 1 - (r * row_px + 205) / plot_px, f"{key}.yanchor": "top",
+                       f"{key}.font.size": 10})
+    return {"layout": layout, "restyle": {"domain": domains}, "mobile_height": plot_px + top_px + 10}

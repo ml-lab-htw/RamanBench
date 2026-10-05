@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import textwrap
 from pathlib import Path
 
@@ -128,21 +129,114 @@ def _by_category(lb: pd.DataFrame):
         yield cat, lb[lb["category"] == cat]
 
 
+#: Frames narrower than this (CSS px, i.e. phones) get a figure's phone layout.
+MOBILE_BREAKPOINT = 700
+
+#: Applies ``M`` (see :func:`mobile_spec`) once Plotly has drawn, if the frame is narrow,
+#: then fits the embedding iframe (same-origin ``srcdoc``) to the new page height.
+_MOBILE_JS = """<script>
+(function () {
+  var M = %s, BP = %d;
+  function go() {
+    var gd = document.querySelector(".plotly-graph-div");
+    if (!gd || !window.Plotly || !gd._fullLayout) { setTimeout(go, 100); return; }
+    if (document.documentElement.clientWidth >= BP) return;
+    var lay = Object.assign({}, M.layout || {});
+    if (M.min_width) {
+      lay.width = M.min_width; lay.autosize = false; document.body.style.overflowX = "auto";
+      var hint = document.createElement("p");
+      hint.textContent = "Swipe sideways to see the whole figure.";
+      hint.style.cssText = "font:12px Inter,Arial,sans-serif;color:#777;margin:6px 12px;position:sticky;left:0";
+      document.body.insertBefore(hint, document.body.firstChild);
+    }
+    if (M.mobile_height) { lay.height = M.mobile_height; }
+    var p = Plotly.relayout(gd, lay);
+    if (M.restyle) { p = p.then(function () { return Plotly.restyle(gd, M.restyle); }); }
+    p.then(function () {
+      var f = window.frameElement;
+      if (f) { f.style.height = (document.documentElement.scrollHeight + 8) + "px"; }
+    });
+  }
+  if (document.readyState === "complete") { go(); } else { window.addEventListener("load", go); }
+})();
+</script>"""
+
+
+def set_mobile(fig, **spec) -> None:
+    """Give *fig* an explicit phone layout instead of the automatic one (see :func:`mobile_spec`).
+
+    ``min_width`` keeps the desktop layout at that width and lets the page scroll sideways
+    (figures listing every model by name); ``layout``/``restyle``/``mobile_height`` are
+    applied with ``Plotly.relayout``/``Plotly.restyle``.
+    """
+    fig.layout.meta = {**(fig.layout.meta or {}), "mobile": spec}
+
+
+def _stack_columns(lay: dict, plot_px: float) -> tuple[dict, int]:
+    """Relayout stacking a one-row grid of xy subplots into one column (``{}`` if not one)."""
+    xs = [k for k in lay if re.fullmatch(r"xaxis\d*", k)]
+    doms = {k: tuple(lay[k].get("domain", (0, 1))) for k in xs}
+    cols = sorted(set(doms.values()))
+    ys = {k: "yaxis" + k[5:] for k in xs}
+    ydoms = {tuple(lay.get(ys[k], {}).get("domain", (0, 1))) for k in xs}
+    if len(cols) < 2 or len(ydoms) != 1:
+        return {}, 1
+    n, ytop = len(cols), next(iter(ydoms))[1]
+    row = plot_px / n
+    top = [1 - (j * row + 34) / plot_px for j in range(n)]  # room for the panel title
+    bottom = [1 - ((j + 1) * row - 72) / plot_px for j in range(n)]  # room for x ticks and title
+    upd = {}
+    for k in xs:
+        j = cols.index(doms[k])
+        upd[f"{k}.domain"] = [0, 1]
+        upd[f"{ys[k]}.domain"] = [bottom[j], top[j]]
+    for i, a in enumerate(lay.get("annotations", [])):  # subplot titles sit on top of their column
+        if a.get("xref") == "paper" and a.get("yref") == "paper" and abs(a.get("y", -9) - ytop) < 0.03:
+            j = next((c for c, (lo, hi) in enumerate(cols) if lo - 0.01 <= a.get("x", -9) <= hi + 0.01), None)
+            if j is not None:
+                upd[f"annotations[{i}].x"] = 0.5
+                upd[f"annotations[{i}].y"] = top[j]
+    return upd, n
+
+
+def mobile_spec(fig, panel_px: int = 400, legend_px: int = 190) -> dict:
+    """The phone layout :func:`write` embeds: *fig*'s own (:func:`set_mobile`) or an automatic one.
+
+    Automatic: tighter margins, smaller fonts, a horizontal legend, and a one-row grid of
+    subplots stacked into one column, *panel_px* per panel.
+    """
+    spec = dict((fig.layout.meta or {}).get("mobile", {}))
+    if "min_width" in spec or "layout" in spec:
+        return spec
+    lay = fig.layout.to_plotly_json()
+    layout = {"margin.l": 48, "margin.r": 12, "font.size": 11, "title.font.size": 14,
+              "legend.orientation": "h", "legend.x": 0, "legend.xanchor": "left"}
+    n = _stack_columns(lay, 1.0)[1]
+    if n > 1:
+        height = n * panel_px + legend_px + 90
+        plot_px = height - 90 - legend_px
+        layout.update(_stack_columns(lay, plot_px)[0])
+        layout.update({"margin.t": 90, "margin.b": legend_px, "legend.y": -50 / plot_px, "legend.yanchor": "top"})
+        spec["mobile_height"] = height
+    spec["layout"] = layout
+    return spec
+
+
 def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -> Path:
-    """Write *fig* as a self-contained ``<stem>.html``."""
+    """Write *fig* as a self-contained ``<stem>.html`` that switches to its phone layout on narrow screens."""
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{stem}.html"
     fig.write_html(path, include_plotlyjs=include_plotlyjs, full_html=True, config=PLOTLY_CONFIG)
+    extra = _MOBILE_JS % (json.dumps(mobile_spec(fig)), MOBILE_BREAKPOINT)
     # Explain model marks under the figure (see models.figure_notes). Decoded, so the
     # check holds whether or not plotly escapes non-ASCII ("\u2020").
     notes = model_info.figure_notes(json.dumps(json.loads(fig.to_json()), ensure_ascii=False))
-    if notes:
-        footer = "".join(
-            f'<p style="font:12px Inter,Arial,sans-serif;color:#555;margin:4px 12px">{html.escape(n)}</p>'
-            for n in notes
-        )
-        page = path.read_text(encoding="utf-8")
-        path.write_text(page.replace("</body>", footer + "</body>", 1), encoding="utf-8")
+    extra = "".join(
+        f'<p style="font:12px Inter,Arial,sans-serif;color:#555;margin:4px 12px">{html.escape(n)}</p>'
+        for n in notes
+    ) + extra
+    page = path.read_text(encoding="utf-8")
+    path.write_text(page.replace("</body>", extra + "</body>", 1), encoding="utf-8")
     return path
 
 
@@ -189,6 +283,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
         fig.add_hline(y=1000, line={"dash": "dash", "color": "#9A9A9A", "width": 1}, row=row, col=1)
     fig.update_layout(bargap=0.2)
     _layout(fig, "RamanBench Elo ranking (Random Forest = 1000)", 520 * len(groups), focus_traces, top_k)
+    set_mobile(fig, min_width=max(760, 14 * max(len(split_references(scores[g].leaderboard)[0]) for g in groups)))
     return fig
 
 
@@ -309,6 +404,7 @@ def winrate_matrix(scores: GroupScores, models: list[str] | None = None, caption
         title += f"<br><sup>{caption}</sup>"
     _layout(fig, title, size, [], None)
     fig.update_layout(width=size + 100, margin={"t": 220})
+    set_mobile(fig, min_width=size + 100)
     return fig
 
 
@@ -342,6 +438,7 @@ def efficiency_overview(scores: GroupScores, focus: set[str], top_k):
         fig.update_xaxes(type="log", row=1, col=col)
     fig.update_yaxes(categoryorder="array", categoryarray=list(lb["display_name"])[::-1], row=1, col=1)
     _layout(fig, "Efficiency (lower is faster)", max(500, 22 * len(lb) + 200), focus_traces, top_k)
+    set_mobile(fig, min_width=760)
     return fig
 
 
@@ -441,4 +538,5 @@ def critical_difference(cds: list[CriticalDifference], scores: dict[str, GroupSc
                            "font": {"size": 11, "color": "#555555"}, "align": "left"}])
     for a in fig.layout.annotations[:len(cds)]:
         a.update(x=0, xanchor="left", font={"size": 14})
+    set_mobile(fig, min_width=900)  # names on both sides of the scale need the width
     return fig

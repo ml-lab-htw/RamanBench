@@ -254,3 +254,33 @@ def test_critical_difference_ranks_and_groups(tmp_path):
     for a, b in cd.groups:
         assert cd.mean_rank.iloc[b] - cd.mean_rank.iloc[a] <= cd.cd
     assert "ROCKET" not in cd.mean_rank.index  # classification only
+
+
+def test_mobile_layout_stacks_panels_and_keeps_desktop_height(tmp_path):
+    pytest.importorskip("plotly")
+    import re
+
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    from raman_bench.plotting import interactive
+
+    fig = make_subplots(rows=1, cols=2, subplot_titles=["Classification", "Regression"])
+    fig.add_trace(go.Scatter(x=[1], y=[1]), row=1, col=1)
+    fig.add_trace(go.Scatter(x=[1], y=[1]), row=1, col=2)
+    fig.update_layout(height=620)
+    spec = interactive.mobile_spec(fig)
+    lay = spec["layout"]
+    assert lay["xaxis.domain"] == lay["xaxis2.domain"] == [0, 1]
+    assert lay["yaxis.domain"][0] > lay["yaxis2.domain"][1]  # first panel on top
+    assert lay["annotations[0].x"] == lay["annotations[1].x"] == 0.5
+    assert spec["mobile_height"] > 620
+
+    wide = go.Figure(go.Bar(x=["a"], y=[1]))
+    interactive.set_mobile(wide, min_width=900)
+    assert interactive.mobile_spec(wide) == {"min_width": 900}
+
+    # The Space sizes its iframe from the last '"height":N' in the page; the phone spec must not add one.
+    page = interactive.write(fig, tmp_path, "stacked").read_text(encoding="utf-8")
+    assert "frameElement" in page
+    assert re.findall(r'"height":(\d+)', page)[-1] == "620"

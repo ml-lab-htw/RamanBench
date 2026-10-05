@@ -11,6 +11,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Phone layouts for the interactive figures.** Below 700 px each figure page
+  switches layout: side-by-side panels stack, legends move below, margins shrink,
+  and figures that list every model by name (Elo ranking, win rates, efficiency,
+  CD diagrams) keep a readable width and scroll sideways. The page then resizes
+  its embedding iframe. Desktop rendering is unchanged.
 - **Critical difference diagrams** for classification and regression, as the last
   leaderboard figure (static and interactive). Mean rank per target with Friedman
   test and Nemenyi post-hoc via `autorank`, as in TabArena's
