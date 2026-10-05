@@ -10,13 +10,18 @@ independently-written copy of this sequence would risk silently drifting (differ
 NaN-handling order, different group-id inference) and producing results that aren't
 actually comparable.
 
-Takes an already-loaded dataframe/dataset rather than loading one itself: loading
-(and any ``max_train_samples`` subsampling) stays with each caller, since
+``build_task`` takes an already-loaded dataframe/dataset rather than loading one itself:
 ``run_one`` needs the raw dataframe's shape *before* splitting to run its own
 model-specific compatibility checks (``MAX_FEATURES_MODELS``/``VRAM_CAPPED_MODELS``,
 which don't apply to the model-agnostic AutoGluon baseline runner at all) --
 threading those checks through this helper would couple it back to
-``model_key``-specific concerns it's deliberately free of.
+``model_key``-specific concerns it's deliberately free of. Loading itself is the
+separate :func:`load_dataframe`.
+
+:func:`load_dataframe`, :func:`bag_experiment_kwargs` and :func:`run_cached` are the rest
+of a v1 run (load, configure the bagged TabArena experiment, run and cache one fold),
+shared by ``run_one`` and :func:`raman_bench.evaluate.evaluate_estimator` so a
+scikit-learn estimator evaluated for comparison runs exactly like a leaderboard model.
 """
 
 from __future__ import annotations
@@ -172,3 +177,160 @@ def build_task(
     )
     task_wrapper = RamanBenchTaskWrapper(task=task_obj)
     return task_name, task_wrapper
+
+
+def load_dataframe(
+    dataset_name: str,
+    target_idx: int,
+    *,
+    max_train_samples: int | None = None,
+    cache_dir: str = ".cache_v1",
+    use_mirror: bool = True,
+    mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+):
+    """Load one (dataset, target) as a dataframe, the way every v1 runner does.
+
+    Returns ``(dataset, df, sample_idx, problem_type)``: the ``raman_data`` dataset,
+    ``dataset.to_dataframe(target_idx)`` (randomly subsampled to *max_train_samples*
+    rows with ``random_state=0`` when it has more), the kept row index (``None`` when
+    not subsampled) and ``"classification"``/``"regression"``. Pass all of it on to
+    :func:`build_task`.
+
+    Uses ``RamanBenchmark``'s mirror-first loading (with fallback to the original
+    source); ``use_mirror=False`` forces the original source.
+    """
+    from raman_data import TASK_TYPE
+
+    from raman_bench.benchmark import RamanBenchmark
+
+    bench = RamanBenchmark(
+        dataset_names_classification=[],
+        dataset_names_regression=[],
+        cache_dir=cache_dir,
+        use_mirror=use_mirror,
+        mirror_repo=mirror_repo,
+    )
+    dataset = bench._load_raman_dataset(dataset_name)
+    if dataset is None:
+        raise RuntimeError(f"Failed to load dataset {dataset_name!r}")
+
+    df = dataset.to_dataframe(target_idx)
+    sample_idx = None
+    if max_train_samples is not None and len(df) > max_train_samples:
+        n_before = len(df)
+        df = df.sample(n=max_train_samples, random_state=0)
+        sample_idx = df.index.to_numpy()
+        logger.info(
+            "Subsampled %s: %d -> %d rows (max_train_samples=%d); this is a real change to "
+            "what is measured for this dataset, not a performance-neutral optimisation.",
+            dataset_name, n_before, len(df), max_train_samples,
+        )
+    problem_type = "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
+    return dataset, df, sample_idx, problem_type
+
+
+def bag_experiment_kwargs(
+    *,
+    num_random_configs: int,
+    time_limit: float,
+    num_bag_folds: int,
+    scratch_dir: str | None = None,
+    verbosity: int | None = None,
+) -> dict:
+    """Keyword arguments for ``ConfigGenerator.generate_all_bag_experiments``.
+
+    The settings every v1 result was produced with, apart from the numbers passed in:
+
+    - TabArena's ``AGModelBagExperiment`` takes the bagging count from a
+      ``ValidationProtocol``; ``num_bag_folds`` stays at the configured value
+      regardless of dataset size (2026-09-25 decision, no small-dataset scaling).
+    - ``require_warmup=False``: TabArena's pre-flight "dummy fit" fails for every
+      RamanBench custom model (they are not in the model registry TabArena's warm-up
+      was built against), so it is disabled.
+    - ``add_seed="fold-config-wise"``: TabArena's production default, so each internal
+      bag fold and each HPO config gets its own random seed.
+
+    ``scratch_dir`` pins AutoGluon's predictor path (default: a timestamped directory
+    under the working directory), so a cluster wrapper can clean it up. ``verbosity`` is
+    AutoGluon's (0-4, default 2).
+    """
+    from pathlib import Path
+
+    from tabarena.benchmark.validation_protocol import ValidationProtocol
+
+    kwargs = dict(
+        num_random_configs=num_random_configs,
+        time_limit=time_limit,
+        validation_protocol=ValidationProtocol(num_bag_folds=num_bag_folds),
+        fold_fitting_strategy="sequential_local",
+        experiment_kwargs={"require_warmup": False},
+        add_seed="fold-config-wise",
+    )
+    init_kwargs = {}
+    if scratch_dir is not None:
+        Path(scratch_dir).mkdir(parents=True, exist_ok=True)
+        init_kwargs["path"] = scratch_dir
+    if verbosity is not None:
+        init_kwargs["verbosity"] = verbosity
+    if init_kwargs:
+        kwargs["method_kwargs"] = {"init_kwargs": init_kwargs}
+    return kwargs
+
+
+def run_cached(
+    experiment,
+    *,
+    task_name: str,
+    task_wrapper: RamanBenchTaskWrapper,
+    repeat: int,
+    fold: int,
+    results_dir: str,
+    experiment_dir_name: str | None = None,
+    force_recompute: bool = False,
+) -> dict:
+    """Run one TabArena experiment on one fold, caching the result.
+
+    The result lands in ``results_dir/<experiment_dir_name>/<task_name>/<repeat>_<fold>/results.pkl``
+    (``experiment_dir_name`` defaults to ``experiment.name``, e.g. ``PLS_c1_BAG_L1``), which is
+    the layout :func:`raman_bench.aggregation.aggregate` reads, with a ``gpu.json`` next to
+    it (:func:`write_hardware_info`) after a real run.
+
+    A result already cached there is returned as-is, even if it was fit under a different
+    ``num_bag_folds``/``time_limit`` (the path does not encode those): an existing result
+    stands as final, and TabArena would otherwise refuse the cached run's mismatching
+    validation protocol. ``force_recompute`` overwrites it instead, which is meant for a
+    dataset-definition fix that makes the cached result meaningless.
+    """
+    import os
+    from pathlib import Path
+
+    from tabarena.utils.cache import CacheFunctionPickle
+
+    cache_path = os.path.join(results_dir, experiment_dir_name or experiment.name, task_name, f"{repeat}_{fold}")
+    Path(cache_path).mkdir(parents=True, exist_ok=True)
+    cacher = CacheFunctionPickle(cache_name="results", cache_path=cache_path, include_self_in_call=True)
+    if cacher.exists and not force_recompute:
+        out = cacher.load_cache()
+        logger.info(
+            "%s on %s repeat=%d fold=%d: using existing cached result at %s "
+            "(possibly fit under a different num_bag_folds/time_limit -- not refit)",
+            experiment.name, task_name, repeat, fold, cache_path,
+        )
+        logger.info("Done: metric_error=%s", out.get("metric_error"))
+        return out
+
+    logger.info("Running %s on %s repeat=%d fold=%d -> %s", experiment.name, task_name, repeat, fold, cache_path)
+    out = experiment.run(
+        task=task_wrapper,
+        fold=fold,
+        repeat=repeat,
+        task_name=task_name,
+        # The task's canonical cache identifier; TabArena uses it to scope its
+        # text-embedding cache. Where results land is decided by cache_path above.
+        cache_task_key=task_name,
+        cacher=cacher,
+        ignore_cache=force_recompute,
+    )
+    write_hardware_info(cache_path)
+    logger.info("Done: metric_error=%s", out.get("metric_error"))
+    return out

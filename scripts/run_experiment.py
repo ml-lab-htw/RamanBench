@@ -52,7 +52,6 @@ import argparse
 import importlib
 import logging
 import os
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -318,11 +317,12 @@ def run_one(
     ``create_preprocessed_hyperparameters`` silently passes such models through with no
     preprocessing hyperparameters at all.
     """
-    from raman_data import TASK_TYPE
-    from tabarena.utils.cache import CacheFunctionPickle
-
-    from raman_bench.benchmark import RamanBenchmark
-    from raman_bench.experiment_utils import build_task, write_hardware_info
+    from raman_bench.experiment_utils import (
+        bag_experiment_kwargs,
+        build_task,
+        load_dataframe,
+        run_cached,
+    )
     from raman_bench.model import build_prep_model_hyperparameters
     from raman_bench.models.registry import infer_model_cls
     from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
@@ -337,35 +337,15 @@ def run_one(
     num_gpus = _resolve_num_gpus(use_gpu)
     logger.info("Resources: num_cpus=%d num_gpus=%d", num_cpus, num_gpus)
 
-    # Reuses RamanBenchmark's existing, tested mirror-first (with fallback)
-    # dataset loading -- no need for the full init_datasets() index/cache
-    # bookkeeping, just the one dataset this job needs. Mirror-first is the
-    # default (much faster and more reliable than every original source);
-    # use_mirror=False forces direct raman-data (original source) access.
-    bench = RamanBenchmark(
-        dataset_names_classification=[],
-        dataset_names_regression=[],
+    # Mirror-first loading with fallback to the original source; use_mirror=False
+    # forces the original source. Shared with raman_bench.evaluate.
+    dataset, df, sample_idx, problem_type = load_dataframe(
+        dataset_name,
+        target_idx,
+        max_train_samples=max_train_samples,
         cache_dir=cache_dir,
         use_mirror=use_mirror,
         mirror_repo=mirror_repo,
-    )
-    dataset = bench._load_raman_dataset(dataset_name)
-    if dataset is None:
-        raise RuntimeError(f"Failed to load dataset {dataset_name!r}")
-
-    df = dataset.to_dataframe(target_idx)
-    sample_idx = None
-    if max_train_samples is not None and len(df) > max_train_samples:
-        n_before = len(df)
-        df = df.sample(n=max_train_samples, random_state=0)
-        sample_idx = df.index.to_numpy()
-        logger.info(
-            "Subsampled %s: %d -> %d rows (max_train_samples=%d); this is a real change to "
-            "what is measured for this dataset, not a performance-neutral optimisation.",
-            dataset_name, n_before, len(df), max_train_samples,
-        )
-    problem_type = (
-        "classification" if dataset.task_type == TASK_TYPE.Classification else "regression"
     )
 
     # Model/dataset compatibility checks that AutoGluon itself would also
@@ -524,50 +504,16 @@ def run_one(
                 model_cls,
             )
 
-    # TabArena's AGModelBagExperiment (as of the pinned commit, see pyproject.toml's
-    # `tabarena` entry) takes bagging counts from a ValidationProtocol object rather
-    # than a bare num_bag_folds= kwarg -- passing the old kwarg now raises a TypeError
-    # (tabarena.benchmark.experiment.experiment_constructor's
-    # _reject_legacy_bagging_kwargs). Only num_bag_folds is meaningful here;
-    # num_bag_sets/tiny-regime fields keep their dataclass defaults (1 repeat, no
-    # TabArena-native tiny-data regime -- effective_num_bag_folds above is RamanBench's
-    # own, simpler small-dataset handling instead).
-    from tabarena.benchmark.validation_protocol import ValidationProtocol
-
-    generate_kwargs = dict(
+    # Shared with raman_bench.evaluate, see bag_experiment_kwargs for why each setting
+    # is what it is (ValidationProtocol, require_warmup=False, fold-config-wise seeds).
+    generate_kwargs = bag_experiment_kwargs(
         num_random_configs=num_random_configs,
         time_limit=time_limit,
-        validation_protocol=ValidationProtocol(num_bag_folds=effective_num_bag_folds),
-        fold_fitting_strategy="sequential_local",
-        # require_warmup=True (TabArena's new default as of the 2026-09-18 pin
-        # bump) runs a pre-flight "dummy fit" before the real timed fit and
-        # aborts with RuntimeError if it fails. Confirmed real: every
-        # RamanBench custom model (Prep_PLS, etc.) fails this -- they aren't
-        # in TabArena's own model registry the warm-up framework was built
-        # against (tabarena.tools.audit_warmup doesn't even recognize them),
-        # so making them warm-up-compatible is real, separate work, not a
-        # side effect of a dependency bump. Disabled here to restore the
-        # previously-working behavior (no pre-flight dummy fit) -- revisit once
-        # RamanBench's custom models are made warm-up-compatible, or TabArena's
-        # audit_warmup gains a way to recognize third-party model classes.
-        experiment_kwargs={"require_warmup": False},
-        # Matches TabArena's own real production default (tabflow_slurm/
-        # setup_slurm_base_v2.py's default_seed_config), not
-        # generate_all_bag_experiments' bare "static" default -- gives each
-        # of AutoGluon's internal bag-folds, and each HPO config once
-        # HPO is opted in, a genuinely different internal random seed
-        # instead of all sharing seed 0.
-        add_seed="fold-config-wise",
+        num_bag_folds=effective_num_bag_folds,
+        scratch_dir=scratch_dir,
     )
     if extra_model_hyperparameters:
         generate_kwargs["extra_model_hyperparameters"] = extra_model_hyperparameters
-    if scratch_dir is not None:
-        # Deterministic AutoGluon predictor path for this job (default is a
-        # relative AutogluonModels/ag-<timestamp> under cwd) -- lets the
-        # sbatch wrapper's cleanup trap find and remove it reliably, even if
-        # the job is killed rather than finishing normally.
-        Path(scratch_dir).mkdir(parents=True, exist_ok=True)
-        generate_kwargs["method_kwargs"] = {"init_kwargs": {"path": scratch_dir}}
     experiments = gen.generate_all_bag_experiments(**generate_kwargs)
     if config_index >= len(experiments):
         raise IndexError(
@@ -592,71 +538,18 @@ def run_one(
     if recipe_config is not None:
         recipe_slug = os.path.splitext(os.path.basename(recipe_config))[0]
         experiment_dir_name = f"{experiment.name}__recipe_{recipe_slug}"
-    cache_path = os.path.join(results_dir, experiment_dir_name, task_name, f"{repeat}_{fold}")
-    Path(cache_path).mkdir(parents=True, exist_ok=True)
-    cacher = CacheFunctionPickle(
-        cache_name="results", cache_path=cache_path, include_self_in_call=True
-    )
-
-    # A result already cached at this exact path (any prior run of this
-    # (model, dataset, repeat, fold), possibly under a different
-    # num_bag_folds/validation-protocol -- the cache path doesn't encode that)
-    # is used as-is, skipping experiment.run() entirely. Without this,
-    # tabarena's own ExperimentBatchRunner._check_cached_validation_protocol
-    # raises ValidationProtocolError the moment a cached result's protocol
-    # (e.g. "8x1" from an earlier num_bag_folds=8 run) doesn't match the
-    # current one ("3x1") -- confirmed real: every already-cached key failed
-    # instantly this way after num_bag_folds was scaled down 8->3 (2026-09-25).
-    # Deliberate policy: an already-cached result stands as final for that
-    # key; a changed num_bag_folds/time_limit only applies to genuinely new
-    # (not-yet-cached) work going forward, never triggers a silent refit or
-    # overwrite of what's already on disk -- UNLESS force_recompute is set
-    # (--force-recompute), the explicit, auditable opt-in for the one real
-    # case this should be bypassed: a dataset-DEFINITION fix (bad task_type,
-    # mislabeled targets, ...) makes the cached result itself meaningless,
-    # not just out of date relative to a compute-budget change. Added instead
-    # of a bulk `rm -rf` of the affected cache paths (see
-    # docs/internal/invalidating-results.md) -- this overwrites in place, one
-    # real recompute per task, no separate deletion step at all.
-    if cacher.exists and not force_recompute:
-        out = cacher.load_cache()
-        logger.info(
-            "%s on %s repeat=%d fold=%d: using existing cached result at %s "
-            "(possibly fit under a different num_bag_folds/time_limit -- not refit)",
-            experiment.name,
-            task_name,
-            repeat,
-            fold,
-            cache_path,
-        )
-        logger.info("Done: metric_error=%s", out.get("metric_error"))
-        return out
-
-    logger.info(
-        "Running %s on %s repeat=%d fold=%d -> %s",
-        experiment.name,
-        task_name,
-        repeat,
-        fold,
-        cache_path,
-    )
-    out = experiment.run(
-        task=task_wrapper,
-        fold=fold,
-        repeat=repeat,
+    # An already-cached result stands as final unless force_recompute is set (see
+    # run_cached and docs/internal/invalidating-results.md).
+    return run_cached(
+        experiment,
         task_name=task_name,
-        # The task's own canonical cache identifier (UserTask.cache_key == its slug,
-        # here identical to task_name) -- a required kwarg as of a later tabarena
-        # version than when this was first written; used to key its text-embedding
-        # cache scope. We build our own results cache path independently (below),
-        # so this only matters for that internal scoping, not for where results land.
-        cache_task_key=task_name,
-        cacher=cacher,
-        ignore_cache=force_recompute,
+        task_wrapper=task_wrapper,
+        repeat=repeat,
+        fold=fold,
+        results_dir=results_dir,
+        experiment_dir_name=experiment_dir_name,
+        force_recompute=force_recompute,
     )
-    write_hardware_info(cache_path)
-    logger.info("Done: metric_error=%s", out.get("metric_error"))
-    return out
 
 
 def main():
