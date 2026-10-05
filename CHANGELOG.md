@@ -9,8 +9,51 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Leaderboard figures for v1 results** (`raman_bench.plotting`,
+  `scripts/plot_results.py`, new `plots` extra). Replaces the figure pipeline
+  that lived in the private paper repo and only read v0.1 prediction CSVs.
+  Reads `hpo_results.csv` from `scripts/aggregate_results.py` and scores it with
+  TabArena's own evaluator (`bencheval`): Elo with bootstrap CIs calibrated to
+  Random Forest = 1000, win rate, improvability, the pairwise win-rate matrix,
+  plus the TabRepo normalized score. Missing runs are imputed with Random Forest
+  and flagged, as in TabArena; models over 50% imputed are left out. A model
+  that never ran a task type (e.g. Nori on classification) is never imputed on
+  it: the all-tasks ranking lists it as "(reg. only)"/"(clf. only)", with its
+  Elo fit jointly from comparisons on the tasks it ran (same Random Forest =
+  1000 scale) and its other columns from its own task type's leaderboard. Only non-excluded targets and the scope's
+  `n_repeats` x `n_splits` folds are scored. Figures: Elo ranking (all tasks,
+  and classification/regression panels), normalized score / improvability /
+  Elo vs. time per 1K spectra with the Pareto front, Elo vs. release date,
+  pairwise win rates, efficiency overview, plus three dataset figures
+  (`raman_bench.plotting.overview`): samples vs. features against TabArena,
+  TALENT, UCR and UEA next to model progress over time, example spectra per
+  domain, and the benchmark composition donuts. RamanPFN is marked † as known
+  contamination: it was developed and evaluated on the RamanBench v0.1
+  datasets (arXiv:2608.02157); figures with a marked model carry the
+  explanation as a footnote, and the leaderboard CSVs a `contamination` column. Each is written as PNG and PDF plus an interactive
+  Plotly HTML twin. In the scatter figures a focus mode draws
+  the top-k models per category (plus, in the "vs. time" plots, every
+  Pareto-optimal model) in colour and greys out the rest (`--focus-top-k`,
+  default 2); the HTML pages toggle between both views. The Elo ranking and the
+  efficiency overview always colour every model. The pairwise win-rate matrix
+  shows the top-k models per category plus the Pareto-optimal and near-Pareto
+  models (within 0.1 normalized score
+  of the front, normalized score vs. time, classification or regression), with
+  that rule in its caption; `pairwise_win_rates_all` has every model. AutoGluon (extreme, 5 min / 1 h) is scored in the same
+  tournament but drawn as a labelled reference line in the Elo ranking and the
+  "vs. time" plots. The `DUMMY` baseline is left out (`--exclude-models`).
+
 ### Removed
 
+- **`TABICL` removed from the scope** (`configs/v1/scope_default.json`,
+  `scope_core.json`) as a duplicate of `TABICLV2`. AutoGluon's own
+  `TabICLModel` (the `TABICL` key) defaults to the same TabICLv2 checkpoints
+  since AutoGluon 1.6, so the leaderboard showed one model twice (Elo 1329 vs.
+  1328 over all 135 tasks). `TABICLV2` (TabArena's wrapper) is kept: it runs
+  without `TABICL`'s 5000-row cap, and older `TABICL` results may come from
+  TabICL v1, AutoGluon's earlier default. Existing `TABICL` results stay on disk.
 - **`TABSTAR` excluded from the routine sweep** (`configs/v1/scope_default.json`,
   down to 42 models) — confirmed too slow for the 600s/3-bag-fold budget: it
   trains up to 10,000 epochs at ~58s/epoch, so every fit runs until the time
