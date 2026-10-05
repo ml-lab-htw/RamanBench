@@ -103,8 +103,11 @@ def generate_all(
         scores["all"], focus["all"], st, formats, "elo_vs_release_date"
     )
     all_models = list(split_references(scores["all"].leaderboard)[0].index)
-    pareto_models = [m for m in all_models if m in pareto_selection(scores)]
-    captions = {"pairwise_win_rates": _winrate_caption(len(pareto_models), len(all_models))}
+    # Pareto/near-Pareto models plus the top-k per category by Elo over all tasks.
+    top_k = focus_top_k or 2
+    winrate_set = pareto_selection(scores) | select_focus(scores["all"].leaderboard, top_k)
+    pareto_models = [m for m in all_models if m in winrate_set]
+    captions = {"pairwise_win_rates": _winrate_caption(len(pareto_models), len(all_models), top_k)}
     written["pairwise_win_rates"] = static.plot_winrate_matrix(
         scores["all"], pareto_models, st, formats, "pairwise_win_rates", captions["pairwise_win_rates"]
     )
@@ -140,12 +143,12 @@ def generate_all(
     return written
 
 
-def _winrate_caption(n_shown: int, n_total: int) -> str:
+def _winrate_caption(n_shown: int, n_total: int, top_k: int) -> str:
     return (
-        f"Shown: the {n_shown} of {n_total} models that are Pareto-optimal, or within "
-        f"{NEAR_PARETO_TOLERANCE:g} normalized score of the Pareto front, in normalized score vs. "
-        "median train + predict time (classification or regression). "
-        "pairwise_win_rates_all has every model."
+        f"Shown: {n_shown} of {n_total} models. These are the top {top_k} per model category by Elo "
+        f"over all tasks, plus every model that is Pareto-optimal or within {NEAR_PARETO_TOLERANCE:g} "
+        "normalized score of the Pareto front in normalized score vs. median train + predict time "
+        "(classification or regression). pairwise_win_rates_all has every model."
     )
 
 
