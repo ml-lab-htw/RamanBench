@@ -70,13 +70,19 @@ _BASELINE_EXPERIMENT_NAME_TO_KEY = {
     "AutoGluon_extreme_4h": "AUTOGLUON-EXTREME-4H",
 }
 
+# Printed after the find output with its line count, so a listing cut short in transit
+# (~87k paths through `kubectl exec`; seen live when the connection dropped mid-stream)
+# fails loudly instead of silently undercounting the models listed last.
+_FIND_END_MARKER = "__END_OF_RESULTS_LISTING__"
+
 _FIND_RESULTS_SCRIPT = f"""
 import subprocess
 out = subprocess.run(
     ["find", "{RESULTS_ROOT}", "-mindepth", "4", "-maxdepth", "4", "-name", "results.pkl"],
-    capture_output=True, text=True,
+    capture_output=True, text=True, check=True,
 )
 print(out.stdout)
+print("{_FIND_END_MARKER}", len(out.stdout.splitlines()))
 """
 
 
@@ -243,6 +249,14 @@ def main() -> None:
     regression_only_models = set(only_models["regression_only"])
 
     find_output = _exec_python(args.namespace, pod, _FIND_RESULTS_SCRIPT)
+    find_output, _, end = find_output.rstrip().rpartition(_FIND_END_MARKER)
+    expected = int(end) if end.strip().isdigit() else None
+    received = sum(1 for line in find_output.splitlines() if line.strip())
+    if expected is None or received != expected:
+        raise RuntimeError(
+            f"Results listing from pod {pod!r} is incomplete ({received} of "
+            f"{expected if expected is not None else 'unknown'} paths received) -- not writing a report."
+        )
 
     # Path shape: <RESULTS_ROOT>/<ag_name>_c1_BAG_L1/<dataset>__<target_idx>/<repeat>_<fold>/results.pkl
     # -- or, for the AutoGluon-extreme whole-predictor baseline (no ag_name/config_index at
