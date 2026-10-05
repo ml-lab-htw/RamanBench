@@ -48,7 +48,7 @@ FIGURES = {
 }
 
 LEADERBOARD_COLUMNS = [
-    "display_name", "category", "elo", "elo-", "elo+", "rank", "winrate", "improvability",
+    "display_name", "category", "preprocessing", "elo", "elo-", "elo+", "rank", "winrate", "improvability",
     "normalized_score", "median_time_train_s", "median_time_infer_s", "median_infer_per_1k_s",
     "median_time_total_per_1k_s",
     "imputed_pct", "n_tasks", "evaluated_on", "release_date", "is_reference", "contamination",
@@ -79,33 +79,64 @@ def generate_all(
     (:mod:`raman_bench.plotting.overview`), which read dataset metadata from raman_data
     and the RamanBench mirror. Returns ``{figure: [paths]}``.
     """
-    out_dir = Path(out_dir)
     results = load_results(
         hpo_results, variant=variant, scope=scope, target_list=target_list, exclude_models=exclude_models
     )
-    scores = score_all(
+    return generate_from_results(
         results,
+        out_dir,
+        variant=variant,
+        focus_top_k=focus_top_k,
+        formats=formats,
+        make_interactive=make_interactive,
+        include_plotlyjs=include_plotlyjs,
+        target_list=target_list if dataset_figures else None,
         reference_model=reference_model,
         max_imputed_pct=max_imputed_pct,
         bootstrap_rounds=bootstrap_rounds,
     )
+
+
+def generate_from_results(
+    results,
+    out_dir: str | Path,
+    *,
+    variant: str = "default",
+    focus_top_k: int | None = 2,
+    formats: tuple[str, ...] = ("png", "pdf"),
+    make_interactive: bool = True,
+    include_plotlyjs: str | bool = "cdn",
+    target_list: str | Path | None = None,
+    reference_model: str = "RF",
+    max_imputed_pct: float = 50.0,
+    bootstrap_rounds: int = 200,
+    scores=None,
+) -> dict[str, list[Path]]:
+    """:func:`generate_all` for results already in tidy form (:func:`load_results`).
+
+    Figures 1-3 need dataset metadata and are only drawn when *target_list* is given.
+    Pass *scores* (:func:`score_all` of *results*) to skip scoring again.
+    """
+    out_dir = Path(out_dir)
+    if scores is None:
+        scores = score_all(
+            results,
+            reference_model=reference_model,
+            max_imputed_pct=max_imputed_pct,
+            bootstrap_rounds=bootstrap_rounds,
+        )
     focus = {g: select_focus(s.leaderboard, focus_top_k) for g, s in scores.items()}
     # The Elo ranking and the efficiency overview list every model by name, so nothing is greyed out.
     everyone = {g: set(s.leaderboard.index) for g, s in scores.items()}
     written: dict[str, list[Path]] = {}
 
     lb_dir = out_dir / "leaderboards"
-    lb_dir.mkdir(parents=True, exist_ok=True)
-    for g, s in scores.items():
-        path = lb_dir / f"leaderboard_{g}.csv"
-        cols = [c for c in LEADERBOARD_COLUMNS if c in s.leaderboard.columns]
-        s.leaderboard[cols].rename_axis("model").to_csv(path, float_format="%.6g")
-        written.setdefault("leaderboards", []).append(path)
+    written["leaderboards"] = write_leaderboards(scores, lb_dir)
 
     static.apply_style()
     st = out_dir / "static"
     datasets = None
-    if dataset_figures and target_list is not None:
+    if target_list is not None:
         datasets = overview.dataset_overview(scores["all"].results["dataset"].unique(), target_list)
         datasets.to_csv(lb_dir / "datasets.csv", index=False)
         written["leaderboards"].append(lb_dir / "datasets.csv")
@@ -170,6 +201,19 @@ def generate_all(
     written["index"] = [index]
     logger.info("Wrote %d file(s) under %s", sum(len(v) for v in written.values()), out_dir)
     return written
+
+
+def write_leaderboards(scores, lb_dir: str | Path) -> list[Path]:
+    """Write ``leaderboard_{all,classification,regression}.csv`` (one row per model) to *lb_dir*."""
+    lb_dir = Path(lb_dir)
+    lb_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for g, s in scores.items():
+        path = lb_dir / f"leaderboard_{g}.csv"
+        cols = [c for c in LEADERBOARD_COLUMNS if c in s.leaderboard.columns]
+        s.leaderboard[cols].rename_axis("model").to_csv(path, float_format="%.6g")
+        paths.append(path)
+    return paths
 
 
 def _winrate_caption(n_shown: int, n_total: int, top_k: int) -> str:

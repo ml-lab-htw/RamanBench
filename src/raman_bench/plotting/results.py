@@ -55,7 +55,7 @@ class GroupScores:
 
 
 def load_results(
-    hpo_results: str | Path,
+    hpo_results: str | Path | pd.DataFrame,
     *,
     variant: str = "default",
     scope: str | Path | None = DEFAULT_SCOPE,
@@ -66,6 +66,9 @@ def load_results(
 
     Parameters
     ----------
+    hpo_results
+        Path to ``hpo_results.csv``, or the table itself (e.g. from
+        :func:`raman_bench.aggregation.aggregate`).
     variant
         ``"default"`` (each model's default configuration), ``"tuned"`` or
         ``"tuned_ensemble"``. Models that were only run with their default
@@ -87,7 +90,10 @@ def load_results(
     if variant not in VARIANTS:
         raise ValueError(f"variant must be one of {VARIANTS}, got {variant!r}")
 
-    df = pd.read_csv(hpo_results, low_memory=False)
+    if isinstance(hpo_results, pd.DataFrame):
+        df = hpo_results.copy()
+    else:
+        df = pd.read_csv(hpo_results, low_memory=False)
     dir_to_key = {d: k for k, (_, d) in model_info.REFERENCE_MODELS.items()}
     is_ref = df["config_type"].isna() & df["method"].isin(dir_to_key)
     df.loc[is_ref, "config_type"] = df.loc[is_ref, "method"].map(dir_to_key)

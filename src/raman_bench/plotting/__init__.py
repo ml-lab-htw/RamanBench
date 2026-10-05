@@ -7,7 +7,7 @@ Scores come from TabArena's own evaluator (``bencheval``); see
 Needs the ``plots`` extra: ``pip install "raman-bench[plots]"``.
 """
 
-from raman_bench.plotting.pipeline import generate_all
+from raman_bench.plotting.pipeline import generate_all, generate_from_results
 from raman_bench.plotting.results import load_results, score_all, score_group, select_focus
 
-__all__ = ["generate_all", "load_results", "score_all", "score_group", "select_focus"]
+__all__ = ["generate_all", "generate_from_results", "load_results", "score_all", "score_group", "select_focus"]
