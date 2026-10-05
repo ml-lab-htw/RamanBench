@@ -11,6 +11,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`TABSTAR` back in the sweep with a 3600 s budget** (`configs/v1/scope_*.json`,
+  `model_time_limit_overrides`). At 600 s it was always cut off after ~9-10 epochs,
+  before its own early stopping, and was excluded on 2026-09-25. 3600 s is
+  TabArena's per-config budget. Its three 600 s results are archived and rerun.
+
 - **HIVE-COTE 2 and its components (aeon).** Five classification-only models in
   `models/custom/aeon/`, wrapping [aeon](https://www.aeon-toolkit.org)'s classifiers
   (new dependency `aeon>=1.6,<1.7` in the `models` extra):
