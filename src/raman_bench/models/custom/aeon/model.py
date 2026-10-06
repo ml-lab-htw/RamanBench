@@ -51,6 +51,9 @@ HC2_COMPONENT_PARAMS = {
     },
 }
 
+# Below this many rows, predicting single-threaded is faster (see _set_predict_jobs).
+_PARALLEL_PREDICT_MIN_ROWS = 200
+
 _COMPONENT_CLASSES = {
     "STC": ("aeon.classification.shapelet_based", "ShapeletTransformClassifier"),
     "DRCIF": ("aeon.classification.interval_based", "DrCIFClassifier"),
@@ -113,11 +116,24 @@ class AeonClassifierModel(BaseEstimator):
         self.classes_ = self.model_.classes_
         return self
 
+    def _set_predict_jobs(self, n_rows: int) -> None:
+        # aeon parallelises prediction over processes, at a fixed cost of about a minute
+        # for DrCIF (pickling the fitted forest to every worker): 25 spectra took ~65 s
+        # with 11 workers against ~15 s with one, 400 took ~120 s against ~230 s.
+        n_jobs = self.n_jobs if n_rows >= _PARALLEL_PREDICT_MIN_ROWS else 1
+        for est in [self.model_, *getattr(self.model_, "fitted_estimators_", [])]:
+            if hasattr(est, "_n_jobs"):
+                est._n_jobs = n_jobs
+
     def predict(self, X):
-        return self.model_.predict(_to_3d(X))
+        X3 = _to_3d(X)
+        self._set_predict_jobs(len(X3))
+        return self.model_.predict(X3)
 
     def predict_proba(self, X):
-        return self.model_.predict_proba(_to_3d(X))
+        X3 = _to_3d(X)
+        self._set_predict_jobs(len(X3))
+        return self.model_.predict_proba(X3)
 
 
 class _AeonBridge(SklearnAutoGluonBridge):
