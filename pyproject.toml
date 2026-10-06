@@ -201,7 +201,7 @@ models = [
     "setuptools<80",
     "sktime>=0.40.0",
     "numba>=0.63.0",
-    # HIVE-COTE 2 (models/custom/aeon/). aeon caps numba<0.64,
+    # HIVE-COTE 2 and its components (models/custom/aeon/). aeon caps numba<0.64,
     # which the floor above still meets.
     "aeon>=1.6.0,<1.7",
     # ModernNCA (Prep_MODERNNCA) -- tabarena.models.modernnca._internal.data imports this

@@ -11,13 +11,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **HIVE-COTE 2 (aeon).** `HIVECOTEV2` in `models/custom/aeon/` wraps
-  [aeon](https://www.aeon-toolkit.org)'s `HIVECOTEV2` as one classification-only
-  model, under a time contract taken from the fit's time limit (new dependency
-  `aeon>=1.6,<1.7` in the `models` extra). The scope files give it 21,600 s instead
-  of the protocol's 600 s, a deliberate departure: at 600 s HC2 would run heavily
-  truncated. `scripts/run_experiment.py` now also finds a model's generator through
-  its `ModelInfo` when the package name differs from the model key.
+- **HIVE-COTE 2 and its components (aeon).** Five classification-only models in
+  `models/custom/aeon/`, wrapping [aeon](https://www.aeon-toolkit.org)'s classifiers
+  (new dependency `aeon>=1.6,<1.7` in the `models` extra):
+  - `HIVECOTEV2`: aeon's `HIVECOTEV2` as one model, under a time contract taken from
+    the fit's time limit. The scope files give it 21,600 s instead of the protocol's
+    600 s, a deliberate departure: at 600 s HC2 would run heavily truncated.
+  - `STC`, `DRCIF`, `ARSENAL`, `TDE`: HC2's four components with HC2's default
+    settings, on the normal protocol. A time contract can only shrink them, never
+    grow them past those defaults.
+  - `scripts/assemble_hivecote.py` builds `HIVECOTEV2-ASSEMBLED` from the four
+    components' cached results without fitting anything: each component is weighted
+    by its out-of-fold accuracy to the power 4 (HC2's CAWPE weighting).
+  - `scripts/run_experiment.py` now also finds a model's generator through its
+    `ModelInfo` when one package holds several models.
 
 - **Compare a new model against the v1 leaderboard without rerunning it.** The
   per-fold results of all 55 leaderboard models (plus `DUMMY` and the two AutoGluon
