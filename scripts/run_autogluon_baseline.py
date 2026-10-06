@@ -225,59 +225,6 @@ def run_one(
     return out
 
 
-def _wandb_enabled() -> bool:
-    return bool(os.environ.get("WANDB_API_KEY"))
-
-
-def _log_to_wandb(*, out: dict | None, task_config: dict) -> None:
-    """Same wandb logging contract as run_experiment.py's own _log_to_wandb -- reuses
-    its build_wandb_metrics/wandb_project_for_model helpers directly so the two
-    scripts' wandb runs are structurally identical (same metric keys, same per-model
-    project-sharding convention, just a different "model" slug)."""
-    try:
-        import wandb
-    except ImportError:
-        logger.warning(
-            "WANDB_API_KEY is set but the `wandb` package isn't installed "
-            "(pip install raman-bench[tracking]) -- skipping tracking for this task."
-        )
-        return
-
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "_run_experiment_wandb", Path(__file__).resolve().parent / "run_experiment.py"
-    )
-    run_experiment = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(run_experiment)
-
-    try:
-        run = wandb.init(
-            project=run_experiment.wandb_project_for_model(task_config["model"]),
-            entity=os.environ.get("WANDB_ENTITY"),
-            group=f"{task_config['model']}_{task_config['dataset']}",
-            job_type=task_config.get("problem_type"),
-            name=(
-                f"{task_config['model']}_{task_config['dataset']}"
-                f"_t{task_config['target_idx']}_r{task_config['repeat']}"
-                f"_f{task_config['fold']}"
-            ),
-            tags=[task_config["model"], task_config["dataset"]],
-            config=task_config,
-            reinit=True,
-        )
-        if out is None:
-            run.summary["skipped"] = True
-        else:
-            run.log(run_experiment.build_wandb_metrics(out))
-        run.finish()
-    except Exception:
-        logger.warning(
-            "wandb logging failed for this task -- continuing (results.pkl is unaffected).",
-            exc_info=True,
-        )
-
-
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -341,22 +288,6 @@ def main():
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")
 
-    if _wandb_enabled():
-        _log_to_wandb(
-            out=out,
-            task_config={
-                "model": f"AUTOGLUON-EXTREME-{budget_label.upper()}",
-                "dataset": args.dataset,
-                "target_idx": args.target_idx,
-                "repeat": args.repeat,
-                "fold": args.fold,
-                "n_repeats": args.n_repeats,
-                "n_splits": args.n_splits,
-                "time_limit": args.time_limit,
-                "use_gpu": args.use_gpu,
-                "problem_type": (out or {}).get("problem_type"),
-            },
-        )
 
 
 if __name__ == "__main__":

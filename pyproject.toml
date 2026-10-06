@@ -122,17 +122,6 @@ benchmark = [
     # Install after `pip install raman-bench[benchmark]`:
     #     pip install -r requirements-tabarena-git.txt
 ]
-tracking = [
-    # Optional per-task experiment tracking (scripts/run_experiment.py) --
-    # only activates when WANDB_API_KEY is set in the environment (see
-    # run_experiment.py's _wandb_enabled), so installing this extra without
-    # setting the key is a no-op, not a behavior change. Kept as its own
-    # extra (not folded into `benchmark`/`models`) so a cluster profile that
-    # doesn't want the dependency at all can skip it.
-    "wandb>=0.19",
-    # Provisions per-model Workspaces + a cross-model Report (scripts/setup_wandb_views.py).
-    "wandb-workspaces>=0.1.5",
-]
 models = [
     "raman-bench[autogluon]",
     "raman-bench[benchmark]",

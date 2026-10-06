@@ -648,17 +648,6 @@ def _build_k8s_job_manifest(
             "name": "TABPFN_TOKEN",
             "valueFrom": {"secretKeyRef": {"name": profile["tabpfn_secret"], "key": "TABPFN_TOKEN"}},
         })
-    if profile.get("wandb_secret"):
-        # Presence of WANDB_API_KEY is what turns on per-task tracking (see
-        # scripts/run_experiment.py's _wandb_enabled) -- no separate flag needed.
-        env.append({
-            "name": "WANDB_API_KEY",
-            "valueFrom": {"secretKeyRef": {"name": profile["wandb_secret"], "key": "WANDB_API_KEY"}},
-        })
-        if profile.get("wandb_project"):
-            env.append({"name": "WANDB_PROJECT", "value": profile["wandb_project"]})
-        if profile.get("wandb_entity"):
-            env.append({"name": "WANDB_ENTITY", "value": profile["wandb_entity"]})
 
     volume_mounts = [{"name": "workspace", "mountPath": profile.get("pvc_mount_path", "/data")},
                       {"name": "jobspec", "mountPath": "/jobspec"}]
@@ -868,15 +857,6 @@ def build_k8s_job_manifest_multimodel(
             "name": "TABPFN_TOKEN",
             "valueFrom": {"secretKeyRef": {"name": profile["tabpfn_secret"], "key": "TABPFN_TOKEN"}},
         })
-    if profile.get("wandb_secret"):
-        env.append({
-            "name": "WANDB_API_KEY",
-            "valueFrom": {"secretKeyRef": {"name": profile["wandb_secret"], "key": "WANDB_API_KEY"}},
-        })
-        if profile.get("wandb_project"):
-            env.append({"name": "WANDB_PROJECT", "value": profile["wandb_project"]})
-        if profile.get("wandb_entity"):
-            env.append({"name": "WANDB_ENTITY", "value": profile["wandb_entity"]})
 
     volume_mounts = [{"name": "workspace", "mountPath": profile.get("pvc_mount_path", "/data")},
                       {"name": "jobspec", "mountPath": "/jobspec"}]
@@ -1162,15 +1142,6 @@ def build_k8s_job_manifest_autogluon(
             {"name": "HUGGING_FACE_HUB_TOKEN",
              "valueFrom": {"secretKeyRef": {"name": profile["hf_secret"], "key": "HUGGING_FACE_HUB_TOKEN"}}},
         ]
-    if profile.get("wandb_secret"):
-        env.append({
-            "name": "WANDB_API_KEY",
-            "valueFrom": {"secretKeyRef": {"name": profile["wandb_secret"], "key": "WANDB_API_KEY"}},
-        })
-        if profile.get("wandb_project"):
-            env.append({"name": "WANDB_PROJECT", "value": profile["wandb_project"]})
-        if profile.get("wandb_entity"):
-            env.append({"name": "WANDB_ENTITY", "value": profile["wandb_entity"]})
 
     volume_mounts = [{"name": "workspace", "mountPath": profile.get("pvc_mount_path", "/data")},
                       {"name": "jobspec", "mountPath": "/jobspec"}]

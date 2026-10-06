@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """One-off CPU-only k8s Job that runs scripts/compare_model_speed.py against the
 real results tree on the PVC, writing the report CSV back onto the PVC (so it
-survives after the pod exits) -- same ConfigMap-mounted-script pattern as
-cluster/submit_gpu_hardware_recovery.py (that script doesn't exist in the
-already-built image either).
+survives after the pod exits). The script is mounted from a ConfigMap, since it
+isn't in the already-built image.
 
 Usage::
 

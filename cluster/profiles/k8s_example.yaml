@@ -78,14 +78,6 @@ tasks_per_pod: 5
 kaggle_secret: null          # e.g. "kaggle-credentials" (mounted at ~/.kaggle/kaggle.json)
 hf_secret: null              # e.g. "hf-token" (HF_TOKEN / HUGGING_FACE_HUB_TOKEN env vars)
 
-# Optional per-task experiment tracking (scripts/run_experiment.py logs one
-# wandb run per task iff WANDB_API_KEY ends up in the pod's environment --
-# nothing else needs to change to turn it on/off). null = tracking disabled
-# for k8s runs even if the image has `wandb` installed.
-wandb_secret: null           # e.g. "wandb-api-key" (Secret key must be named WANDB_API_KEY)
-wandb_project: null          # optional -- defaults to "raman-bench" if unset
-wandb_entity: null           # optional -- defaults to your wandb account's default entity
-
 # Kubernetes Indexed Jobs cap `completions`/`parallelism` far higher than
 # SLURM's MaxArraySize (no hard k8s-side limit; practical ceiling is cluster
 # capacity), but keep chunking anyway for parity with the SLURM path and so

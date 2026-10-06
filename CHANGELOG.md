@@ -88,6 +88,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
+- **Weights & Biases tracking removed.** RamanBench no longer logs to W&B, and the
+  RamanBench projects on wandb.ai (`raman-bench*`, 88 projects) were deleted.
+  Results always lived in the `results.pkl` caches, and the leaderboard is built from
+  those, so nothing depends on W&B. Removed:
+  - the per-task logging in `scripts/run_experiment.py` and
+    `scripts/run_autogluon_baseline.py`;
+  - the `WANDB_*` pod environment in `cluster/submit_job.py`, and `wandb_secret` /
+    `wandb_project` / `wandb_entity` in the k8s profile. Older profiles may still carry
+    these keys; they are ignored;
+  - the `tracking` extra, and the Dockerfiles' installs of it;
+  - `scripts/backfill_wandb.py` and `scripts/setup_wandb_views.py`;
+  - `scripts/write_gpu_hardware_files.py`, `cluster/submit_gpu_hardware_recovery.py`,
+    `scripts/backfill_cpu_legacy_gpu_json.py` and `cluster/submit_backfill_cpu_legacy.py`.
+    These were one-off scripts that rebuilt older results' `gpu.json` files from W&B runs.
+    New results get their `gpu.json` from `write_hardware_info`, and the files already on
+    disk stay as they are.
 - **`TABICL` removed from the scope** (`configs/v1/scope_default.json`,
   `scope_core.json`) as a duplicate of `TABICLV2`. AutoGluon's own
   `TabICLModel` (the `TABICL` key) defaults to the same TabICLv2 checkpoints
