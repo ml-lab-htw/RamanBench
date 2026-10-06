@@ -51,10 +51,8 @@ def write_hardware_info(cache_path: str) -> None:
     ``experiment.run(...)`` (never on a cache-hit early-return, since no compute
     happened there, so there is nothing new to attribute to hardware).
 
-    Deliberately reads the device directly from torch rather than depending on
-    wandb's own system-metadata collection: no extra dependency, no ambiguity from
-    multiple same-named wandb runs (resubmissions/smoke tests), and no need for a
-    later retroactive reconstruction pass across tens of thousands of results.
+    Reads the device directly from torch, so the hardware is recorded next to the
+    result itself and never has to be reconstructed from an external tracker later.
     """
     try:
         import torch

@@ -124,21 +124,12 @@ class TestBuildK8sJobManifest:
         env = {e["name"] for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]}
         assert {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"} <= env
 
-    def test_wandb_secret_and_optional_project_entity(self):
-        profile = _minimal_profile(wandb_secret="wandb-secret", wandb_project="raman-bench",
-                                    wandb_entity="ml-lab-htw")
+    def test_no_wandb_env_even_with_legacy_profile_keys(self):
+        # wandb tracking was removed; older private profiles may still carry the keys.
+        profile = _minimal_profile(wandb_secret="wandb-secret", wandb_project="raman-bench")
         _, _, _, manifest = _build(profile)
-        env = {e["name"]: e for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]}
-        assert env["WANDB_API_KEY"]["valueFrom"]["secretKeyRef"] == {
-            "name": "wandb-secret", "key": "WANDB_API_KEY",
-        }
-        assert env["WANDB_PROJECT"]["value"] == "raman-bench"
-        assert env["WANDB_ENTITY"]["value"] == "ml-lab-htw"
-
-    def test_wandb_env_absent_when_not_configured(self):
-        _, _, _, manifest = _build(_minimal_profile())
         env = {e["name"] for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]}
-        assert "WANDB_API_KEY" not in env
+        assert not {n for n in env if n.startswith("WANDB_")}
 
     def test_priority_class_name_set_only_when_configured(self):
         profile = _minimal_profile(priority_class_name="unimportant")
@@ -294,15 +285,11 @@ class TestBuildK8sJobManifestAutogluon:
         assert job_name.startswith("rb-autogluon-")
         assert configmap_name.startswith("rb-jobspec-autogluon-")
 
-    def test_wandb_secret_wired_same_as_per_model_path(self):
+    def test_no_wandb_env_even_with_legacy_profile_keys(self):
         profile = _minimal_profile(wandb_secret="wandb-secret", wandb_project="raman-bench")
         _, _, _, manifest = self._build(profile)
-        env = {e["name"]: e for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]}
-        assert env["WANDB_API_KEY"]["valueFrom"]["secretKeyRef"] == {
-            "name": "wandb-secret", "key": "WANDB_API_KEY",
-        }
-        assert env["WANDB_PROJECT"]["value"] == "raman-bench"
-
+        env = {e["name"] for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]}
+        assert not {n for n in env if n.startswith("WANDB_")}
 
 class TestSbatchWithRetry:
     def test_succeeds_immediately_when_sbatch_exits_zero(self):

@@ -70,113 +70,6 @@ DEFAULT_TIME_LIMIT = 18000
 DEFAULT_N_REPEATS = 10
 DEFAULT_N_SPLITS = 3
 
-# Scalar fields worth pulling out of `run_one`'s result dict as wandb metrics
-# -- confirmed present on a real cached results.pkl (RandomForest/alzheimer,
-# already-completed htw run): metric_error, metric_error_val, time_train_s,
-# time_infer_s all sit at the top level (NOT nested under experiment_metadata,
-# which only holds total_duration/time_warmup_s -- pulled separately below).
-# Everything else in `out` (predictions/probabilities are already stripped by
-# tabarena's own convert_to_output; method_metadata/simulation_artifacts can
-# still be large/non-scalar) is left out rather than logged wholesale.
-_WANDB_METRIC_KEYS = ("metric_error", "metric_error_val", "time_train_s", "time_infer_s")
-# memory_usage's own scalar sub-fields (peak/min CPU+GPU bytes) -- genuinely
-# useful on k8s for judging whether a given tasks_per_pod batch size is safe
-# for the pod's memory request/limit (see profiles/k8s.yaml's tasks_per_pod
-# comment).
-_WANDB_MEMORY_KEYS = ("peak_mem_cpu", "min_mem_cpu", "peak_mem_gpu", "min_mem_gpu")
-
-
-def _wandb_enabled() -> bool:
-    """Per-task experiment tracking is opt-in by PRESENCE, not a separate flag --
-    set WANDB_API_KEY (e.g. in .env locally, or ~/.hf_credentials on a SLURM
-    cluster / a k8s Secret via the profile's `wandb_secret`, see
-    cluster/submit_job.py) and it activates automatically; leave it unset and
-    nothing about a run changes, including whether `wandb` needs to be
-    installed at all (imported lazily, only once this returns True)."""
-    return bool(os.environ.get("WANDB_API_KEY"))
-
-
-def build_wandb_metrics(out: dict) -> dict:
-    """Extract the scalar fields worth logging from a task result dict (the same
-    shape `run_one` returns, and what `results.pkl` holds on disk) -- shared by
-    the live per-task logging below AND `scripts/backfill_wandb.py` (the
-    one-time import of already-completed results), so the two can never drift
-    apart on which fields get pulled out."""
-    # float(...) covers np.float64/np.int64 (confirmed real: metric_error comes
-    # back as np.float64 from a real cached results.pkl) -- wandb generally
-    # handles numpy scalars fine, but casting explicitly avoids relying on that
-    # rather than risking a silent logging skip.
-    metrics = {k: float(out[k]) for k in _WANDB_METRIC_KEYS if k in out and out[k] is not None}
-    experiment_metadata = out.get("experiment_metadata") or {}
-    for k in ("total_duration", "time_warmup_s"):
-        if experiment_metadata.get(k) is not None:
-            metrics[k] = float(experiment_metadata[k])
-    memory_usage = out.get("memory_usage") or {}
-    for k in _WANDB_MEMORY_KEYS:
-        if memory_usage.get(k) is not None:
-            metrics[k] = float(memory_usage[k])
-    return metrics
-
-
-def _wandb_run_name(task_config: dict) -> str:
-    return (
-        f"{task_config['model']}_{task_config['dataset']}"
-        f"_t{task_config['target_idx']}_r{task_config['repeat']}"
-        f"_f{task_config['fold']}_c{task_config['config_index']}"
-    )
-
-
-def wandb_project_for_model(model_key: str, base_project: str | None = None) -> str:
-    """One wandb PROJECT per model, not one project for the whole benchmark.
-
-    W&B's own documented recommended ceiling is 10,000 runs/project before
-    project-workspace operations (grouping, the runs table) start degrading
-    (https://docs.wandb.ai/models/track/limits) -- confirmed live: a first
-    attempt logging everything into one project visibly slowed down after
-    ~1,000 runs, and the full sweep is ~34,584+ runs and growing with every
-    future live task, ~3.4x over that ceiling. Sharding by model keeps each
-    project around ~4,218 runs (one full model's worth across every dataset/
-    repeat/fold/config in the current scope) -- comfortably under the limit.
-    Cross-model comparison is still possible via a wandb Report pulling runs
-    from multiple projects; it just isn't one live workspace view anymore.
-    """
-    base = base_project or os.environ.get("WANDB_PROJECT", "raman-bench")
-    slug = model_key.lower().replace("_", "-").replace(".", "-").replace("(", "").replace(")", "")
-    return f"{base}-{slug}"
-
-
-def _log_to_wandb(*, out: dict | None, task_config: dict) -> None:
-    """Log one task's result as one wandb run. Never raises -- tracking is a
-    nice-to-have; a wandb outage or misconfiguration must not fail an
-    otherwise-successful benchmark task (which has already written its
-    results.pkl by the time this runs)."""
-    try:
-        import wandb
-    except ImportError:
-        logger.warning("WANDB_API_KEY is set but the `wandb` package isn't installed "
-                        "(pip install raman-bench[tracking]) -- skipping tracking for this task.")
-        return
-
-    try:
-        run = wandb.init(
-            project=wandb_project_for_model(task_config["model"]),
-            entity=os.environ.get("WANDB_ENTITY"),
-            group=f"{task_config['model']}_{task_config['dataset']}",
-            job_type=task_config.get("problem_type"),
-            name=_wandb_run_name(task_config),
-            tags=[task_config["model"], task_config["dataset"]],
-            config=task_config,
-            reinit=True,
-        )
-        if out is None:
-            run.summary["skipped"] = True
-        else:
-            run.log(build_wandb_metrics(out))
-        run.finish()
-    except Exception:
-        logger.warning("wandb logging failed for this task -- continuing (results.pkl is unaffected).", exc_info=True)
-
-
 def _resolve_num_cpus() -> int:
     for var in ("SLURM_CPUS_PER_TASK", "SLURM_CPUS_ON_NODE"):
         val = os.environ.get(var)
@@ -687,24 +580,6 @@ def main():
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")
 
-    if _wandb_enabled():
-        _log_to_wandb(
-            out=out,
-            task_config={
-                "model": args.model,
-                "dataset": args.dataset,
-                "target_idx": args.target_idx,
-                "repeat": args.repeat,
-                "fold": args.fold,
-                "config_index": args.config_index,
-                "n_repeats": args.n_repeats,
-                "n_splits": args.n_splits,
-                "num_bag_folds": args.num_bag_folds,
-                "time_limit": args.time_limit,
-                "use_gpu": args.use_gpu,
-                "problem_type": (out or {}).get("problem_type"),
-            },
-        )
 
 
 if __name__ == "__main__":

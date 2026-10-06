@@ -8,9 +8,9 @@ make the faster hardware look like a faster model.
 Scheme
 ------
 1. Walk the results tree for every ``results.pkl`` + sibling ``gpu.json``
-   (written either by ``raman_bench.experiment_utils.write_hardware_info`` for
-   new runs, or retroactively by ``scripts/write_gpu_hardware_files.py`` for
-   historical ones).
+   (written by ``raman_bench.experiment_utils.write_hardware_info`` after each
+   run; older results carry ones reconstructed retroactively, some with
+   ``gpu: null``).
 2. Normalize each raw GPU string into a coarse hardware class (``_hardware_class``)
    -- A100 variants (SXM4-40GB/80GB-PCIe/PCIE-40GB) collapse into one ``a100``
    bucket; documented simplifying assumption, see its docstring.
@@ -72,11 +72,9 @@ def _hardware_class(gpu_info: dict) -> str:
     comparison, though VRAM differences can matter for very wide datasets) --
     revisit if that turns out to matter for a specific model.
 
-    ``gpu: null`` does NOT mean "ran on CPU" -- confirmed live: several
-    genuinely-matched wandb runs (real wandb_run_id, correct timestamps) simply
-    have no ``gpu`` field in wandb's own collected system metadata (a wandb-side
-    gap, not a matching failure), and the retroactive recovery script's "no
-    matching wandb run found" sentinel also sets ``gpu: null``. Only
+    ``gpu: null`` does NOT mean "ran on CPU": the retroactively reconstructed
+    ``gpu.json`` files of older results set it whenever the hardware could not be
+    recovered. Only
     ``write_hardware_info``'s own live-written ``gpu_count: 0`` (no CUDA/MPS
     detected at the moment of a real fit) is treated as a confirmed CPU-only run.
     Everything else with a null/missing gpu is ``unknown`` -- excluded from the

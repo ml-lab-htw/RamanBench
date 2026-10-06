@@ -45,7 +45,7 @@ COPY src ./src
 # across 5 separate push attempts. Smaller per-step layers push independently, so a
 # transfer that stalls on one no longer blocks/invalidates the others, and a retry only
 # needs to redo the one still-missing layer instead of the whole multi-GB blob.
-RUN pip install --no-cache-dir --pre -e ".[models,benchmark,tracking]"
+RUN pip install --no-cache-dir --pre -e ".[models,benchmark]"
 RUN pip install --no-cache-dir --pre -r requirements-tabarena-git.txt
 RUN pip install --no-cache-dir --pre -r requirements-models-git.txt
 RUN pip uninstall -y torchaudio

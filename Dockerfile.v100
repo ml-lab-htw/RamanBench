@@ -43,7 +43,7 @@ WORKDIR /app
 # requirements-models-git.txt install steps the main Dockerfile has.
 COPY pyproject.toml README.md requirements-tabarena-git.txt requirements-models-git.txt ./
 COPY src ./src
-RUN pip install --no-cache-dir --pre -e ".[models,benchmark,tracking]" \
+RUN pip install --no-cache-dir --pre -e ".[models,benchmark]" \
     && pip install --no-cache-dir --pre -r requirements-tabarena-git.txt \
     && pip install --no-cache-dir --pre -r requirements-models-git.txt \
     && pip uninstall -y torchaudio

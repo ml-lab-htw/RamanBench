@@ -74,7 +74,7 @@ WORKDIR /app
 # Install the released package WITHOUT the `[models]` extra (that extra pulls
 # in causilo>=1.0.0, whose own unpinned `torch>=2.13` floor is exactly the
 # conflict this dedicated image exists to avoid -- see the module-level note
-# above). `[autogluon,benchmark,tracking]` covers everything LIMIX2Model
+# above). `[autogluon,benchmark]` covers everything LIMIX2Model
 # itself needs (AbstractTorchModel lives in autogluon.tabular) plus
 # run_experiment.py's own tabarena/tracking requirements, without dragging in
 # every other model's third-party package (and torch constraint) along the
@@ -97,7 +97,7 @@ COPY src ./src
 # 2026-10-01): a single layer bundling torch+autogluon+tabarena+LimiX grew to several
 # GB in one blob, which a registry push repeatedly stalled on indefinitely through this
 # network's path. Smaller per-step layers push independently.
-RUN pip install --no-cache-dir --break-system-packages --pre -e ".[autogluon,benchmark,tracking]"
+RUN pip install --no-cache-dir --break-system-packages --pre -e ".[autogluon,benchmark]"
 # Bumped 2026-10-01: was still pinned to 3db69f9 (the commit current when this Dockerfile was
 # written, 2026-09-15), two bumps behind requirements-tabarena-git.txt's actual current pin
 # (9d771c3) despite this comment's own "kept in sync by hand" claim -- confirmed stale, not assumed;
