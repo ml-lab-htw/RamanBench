@@ -133,7 +133,12 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     # Time-series classifiers (classification only)
     "ROCKET": ("ROCKET", "TS Classification", 2019 + 9 / 12),  # Dempster et al., 2019-10
     "ARSENAL": ("Arsenal", "TS Classification", 2021 + 3 / 12),  # Middlehurst et al., 2021-04
+    "STC": ("STC", "TS Classification", 2017.5),  # Bostrom & Bagnall, 2017
+    "TDE": ("TDE", "TS Classification", 2020 + 9 / 12),  # Middlehurst et al., ECML PKDD 2020
+    "DRCIF": ("DrCIF", "TS Classification", 2021 + 3 / 12),  # Middlehurst et al., 2021-04
     "HIVECOTEV2": ("HIVE-COTE 2", "TS Classification", 2021 + 3 / 12),  # Middlehurst et al., 2021-04
+    # HC2 assembled offline from the four components' predictions (scripts/assemble_hivecote.py)
+    "HIVECOTEV2-ASSEMBLED": ("HIVE-COTE 2 (assembled)", "TS Classification", 2021 + 3 / 12),
     "HYDRA": ("Hydra", "TS Classification", 2022.5),  # Dempster et al., 2022
     # Raman-specific architectures
     "DEEPCNN": ("Deep CNN", "Raman-Specific", 2017.5),  # Liu et al., 2017

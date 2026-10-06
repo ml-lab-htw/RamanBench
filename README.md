@@ -410,7 +410,7 @@ algorithms, and are a convenient starting point for building a new model.
 | `CoAtNetModel` | Conv + attention | `torch` |
 | `RocketModel` | ROCKET regression/classification | `sktime` |
 | `HydraModel` | Hydra + closed-form GPU ridge, regression/classification | `torch` |
-| `AeonClassifierModel` | HIVE-COTE 2, classification only | `aeon` |
+| `AeonClassifierModel` | HIVE-COTE 2 or one of its components (STC, DrCIF, Arsenal, TDE), classification only | `aeon` |
 | `TabPFNModel` | TabPFN v2 | `tabpfn` |
 | `RealMLPModel` | RealMLP-TD | `pytabkit` |
 | `TabMModel` | TabM-D | `pytabkit` |

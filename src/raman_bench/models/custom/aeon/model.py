@@ -1,4 +1,4 @@
-"""aeon's HIVE-COTE 2 time-series classifier.
+"""aeon time-series classifiers: HIVE-COTE 2 and its four components.
 
 HIVE-COTE 2 (Middlehurst et al., 2021) is a weighted ensemble of four classifiers,
 each built on a different representation of the series:
@@ -9,11 +9,17 @@ each built on a different representation of the series:
 - TDE (Temporal Dictionary Ensemble): bag-of-words patterns.
 
 HC2 weights each component's probabilities by its train-set accuracy estimate to the
-power 4 (CAWPE). ``HIVECOTEV2`` runs aeon's ``HIVECOTEV2`` as one model, under a time
-contract derived from the fit's time limit (the scope file gives it a longer budget
-than the protocol).
+power 4 (CAWPE). Fitting it in one go is slow, so it is run two ways here:
 
-**Classification only**: the key is in ``CLASSIFICATION_ONLY_MODELS``
+- ``HIVECOTEV2``: aeon's ``HIVECOTEV2`` as one model, under a time contract derived
+  from the fit's time limit (the scope file gives it a longer budget than the protocol).
+- ``STC``/``DRCIF``/``ARSENAL``/``TDE``: each component as its own model on the
+  normal protocol, with HC2's default component settings. Their stored out-of-fold
+  and test predictions are combined afterwards into HC2 with
+  ``scripts/assemble_hivecote.py``, using the out-of-fold accuracy as the train
+  estimate.
+
+**Classification only**: these keys are in ``CLASSIFICATION_ONLY_MODELS``
 (``preprocessing/wrapped_models.py``); ``fit`` also raises on a continuous target.
 
 aeon is imported inside ``fit`` so the registry imports without it.
@@ -21,10 +27,39 @@ aeon is imported inside ``fit`` so the registry imports without it.
 
 from __future__ import annotations
 
+import importlib
+
 import numpy as np
 from sklearn.base import BaseEstimator
 
 from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _NoAugBase
+
+# HIVECOTEV2's own component defaults (aeon 1.6, HIVECOTEV2._DEFAULT_*), so a component
+# run standalone is the same classifier HC2 builds internally. Under a time contract
+# aeon keeps adding ensemble members until the time is up (Arsenal up to 100, STC and
+# TDE without limit), which makes prediction slow; the contract_max_* caps hold each
+# component at its default size, so the contract can only make it smaller.
+HC2_COMPONENT_PARAMS = {
+    "STC": {"n_shapelet_samples": 10000, "contract_max_n_shapelet_samples": 10000},
+    "DRCIF": {"n_estimators": 500, "contract_max_n_estimators": 500},
+    "ARSENAL": {"n_kernels": 2000, "n_estimators": 25, "contract_max_n_estimators": 25},
+    "TDE": {
+        "n_parameter_samples": 250,
+        "max_ensemble_size": 50,
+        "randomly_selected_params": 50,
+        "contract_max_n_parameter_samples": 250,
+    },
+}
+
+# Below this many rows, predicting single-threaded is faster (see _set_predict_jobs).
+_PARALLEL_PREDICT_MIN_ROWS = 200
+
+_COMPONENT_CLASSES = {
+    "STC": ("aeon.classification.shapelet_based", "ShapeletTransformClassifier"),
+    "DRCIF": ("aeon.classification.interval_based", "DrCIFClassifier"),
+    "ARSENAL": ("aeon.classification.convolution_based", "Arsenal"),
+    "TDE": ("aeon.classification.dictionary_based", "TemporalDictionaryEnsemble"),
+}
 
 # Share of the fit's time limit given to aeon's own time contract. The rest covers
 # AutoGluon's out-of-fold prediction of the bag child, which the contract does not
@@ -34,11 +69,22 @@ _CONTRACT_FRACTION = 0.5
 
 
 def _make_estimator(estimator: str, time_limit_in_minutes: float, n_jobs: int, random_state: int):
-    if estimator != "HIVECOTEV2":
-        raise ValueError(f"Unknown aeon estimator {estimator!r}")
-    from aeon.classification.hybrid import HIVECOTEV2
+    if estimator == "HIVECOTEV2":
+        from aeon.classification.hybrid import HIVECOTEV2
 
-    return HIVECOTEV2(time_limit_in_minutes=time_limit_in_minutes, n_jobs=n_jobs, random_state=random_state)
+        return HIVECOTEV2(
+            time_limit_in_minutes=time_limit_in_minutes, n_jobs=n_jobs, random_state=random_state
+        )
+    if estimator not in _COMPONENT_CLASSES:
+        raise ValueError(f"Unknown aeon estimator {estimator!r}")
+    module, name = _COMPONENT_CLASSES[estimator]
+    cls = getattr(importlib.import_module(module), name)
+    return cls(
+        **HC2_COMPONENT_PARAMS[estimator],
+        time_limit_in_minutes=time_limit_in_minutes,
+        n_jobs=n_jobs,
+        random_state=random_state,
+    )
 
 
 def _to_3d(X) -> np.ndarray:
@@ -48,10 +94,11 @@ def _to_3d(X) -> np.ndarray:
 
 
 class AeonClassifierModel(BaseEstimator):
-    """An aeon classifier (HIVE-COTE 2), sklearn-compatible.
+    """An aeon classifier (HIVE-COTE 2 or one of its components), sklearn-compatible.
 
-    ``estimator`` is ``"HIVECOTEV2"``. Without a ``time_limit`` the classifier runs
-    uncontracted (aeon's ``time_limit_in_minutes=0``).
+    ``estimator`` is ``"HIVECOTEV2"``, ``"STC"``, ``"DRCIF"``, ``"ARSENAL"`` or
+    ``"TDE"``. Without a ``time_limit`` the classifier runs uncontracted (aeon's
+    ``time_limit_in_minutes=0``).
     """
 
     def __init__(self, estimator="HIVECOTEV2", n_jobs=1, random_state=0):
@@ -69,11 +116,24 @@ class AeonClassifierModel(BaseEstimator):
         self.classes_ = self.model_.classes_
         return self
 
+    def _set_predict_jobs(self, n_rows: int) -> None:
+        # aeon parallelises prediction over processes, at a fixed cost of about a minute
+        # for DrCIF (pickling the fitted forest to every worker): 25 spectra took ~65 s
+        # with 11 workers against ~15 s with one, 400 took ~120 s against ~230 s.
+        n_jobs = self.n_jobs if n_rows >= _PARALLEL_PREDICT_MIN_ROWS else 1
+        for est in [self.model_, *getattr(self.model_, "fitted_estimators_", [])]:
+            if hasattr(est, "_n_jobs"):
+                est._n_jobs = n_jobs
+
     def predict(self, X):
-        return self.model_.predict(_to_3d(X))
+        X3 = _to_3d(X)
+        self._set_predict_jobs(len(X3))
+        return self.model_.predict(X3)
 
     def predict_proba(self, X):
-        return self.model_.predict_proba(_to_3d(X))
+        X3 = _to_3d(X)
+        self._set_predict_jobs(len(X3))
+        return self.model_.predict_proba(X3)
 
 
 class _AeonBridge(SklearnAutoGluonBridge):
@@ -112,4 +172,44 @@ class _HIVECOTEV2Bridge(_AeonBridge):
 
 
 class Prep_HIVECOTEV2(_NoAugBase, _HIVECOTEV2Bridge):  # noqa: N801
+    pass
+
+
+class _STCBridge(_AeonBridge):
+    ag_key = "STC"
+    ag_name = "STC"
+    _estimator_key = "STC"
+
+
+class Prep_STC(_NoAugBase, _STCBridge):  # noqa: N801
+    pass
+
+
+class _DRCIFBridge(_AeonBridge):
+    ag_key = "DRCIF"
+    ag_name = "DRCIF"
+    _estimator_key = "DRCIF"
+
+
+class Prep_DRCIF(_NoAugBase, _DRCIFBridge):  # noqa: N801
+    pass
+
+
+class _ARSENALBridge(_AeonBridge):
+    ag_key = "ARSENAL"
+    ag_name = "ARSENAL"
+    _estimator_key = "ARSENAL"
+
+
+class Prep_ARSENAL(_NoAugBase, _ARSENALBridge):  # noqa: N801
+    pass
+
+
+class _TDEBridge(_AeonBridge):
+    ag_key = "TDE"
+    ag_name = "TDE"
+    _estimator_key = "TDE"
+
+
+class Prep_TDE(_NoAugBase, _TDEBridge):  # noqa: N801
     pass
