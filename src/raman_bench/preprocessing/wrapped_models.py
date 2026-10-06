@@ -1634,7 +1634,9 @@ del _key, _info
 # PCALDA (added on this branch, 2026-08-28) is a genuine classification-only
 # addition: LDA has no regression analogue, and PCALDAModel.fit() raises on a
 # continuous target as a backstop -- see its docstring.
-CLASSIFICATION_ONLY_MODELS = {"TABPFN-WIDE", "ORIONMSP", "PCALDA"}
+# HIVECOTEV2 (aeon, models/custom/aeon/) is a time-series classifier with no
+# regression counterpart.
+CLASSIFICATION_ONLY_MODELS = {"TABPFN-WIDE", "ORIONMSP", "PCALDA", "HIVECOTEV2"}
 
 # Mirror of CLASSIFICATION_ONLY_MODELS: NORI (OrionMSPModel's opposite number in
 # batch 3) wraps NoriModel, whose own supported_problem_types() returns only

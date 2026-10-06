@@ -127,14 +127,24 @@ def _import_generator(model_key: str):
     (``raman_bench.models.custom.<key>.hpo``, see ``raman_bench.models.discover``),
     falling back to the older flat-file convention
     (``raman_bench.models.generate.<key>``) for models not yet migrated -- both
-    conventions coexist (see ``RamanBench/.claude/agents/model-agent.md``).
+    conventions coexist (see ``RamanBench/.claude/agents/model-agent.md``). A package
+    holding several models (``models/custom/aeon/``) is found through its
+    ``ModelInfo.search_space`` instead.
     """
     module_key = model_key.lower().replace("-", "_").replace(".", "")
     gen_name = f"gen_{module_key}"
     try:
         module = importlib.import_module(f"raman_bench.models.custom.{module_key}.hpo")
     except ImportError:
-        module = importlib.import_module(f"raman_bench.models.generate.{module_key}")
+        try:
+            module = importlib.import_module(f"raman_bench.models.generate.{module_key}")
+        except ImportError:
+            from raman_bench.models.discover import discover_custom_models
+
+            info = discover_custom_models().get(model_key.upper())
+            if info is None:
+                raise
+            return info.search_space
     if not hasattr(module, gen_name):
         raise AttributeError(
             f"{module.__name__} has no attribute {gen_name!r}. "

@@ -11,6 +11,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **HIVE-COTE 2 (aeon).** `HIVECOTEV2` in `models/custom/aeon/` wraps
+  [aeon](https://www.aeon-toolkit.org)'s `HIVECOTEV2` as one classification-only
+  model, under a time contract taken from the fit's time limit (new dependency
+  `aeon>=1.6,<1.7` in the `models` extra). The scope files give it 21,600 s instead
+  of the protocol's 600 s, a deliberate departure: at 600 s HC2 would run heavily
+  truncated. `scripts/run_experiment.py` now also finds a model's generator through
+  its `ModelInfo` when the package name differs from the model key.
+
 - **Compare a new model against the v1 leaderboard without rerunning it.** The
   per-fold results of all 55 leaderboard models (plus `DUMMY` and the two AutoGluon
   reference systems) on all 135 tasks now ship with the package as
