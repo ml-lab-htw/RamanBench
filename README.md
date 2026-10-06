@@ -63,7 +63,7 @@ all with a standard `fit(X, y)` / `predict(X)` interface:
 pip install "raman-bench[models]"
 ```
 
-This adds `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, and `ramanspy` to
+This adds `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, `aeon`, and `ramanspy` to
 the core package. AutoGluon is not needed for this path.
 
 `tabarena` itself, and three wrapped models built on it — `Prep_TABFM`,
@@ -410,13 +410,14 @@ algorithms, and are a convenient starting point for building a new model.
 | `CoAtNetModel` | Conv + attention | `torch` |
 | `RocketModel` | ROCKET regression/classification | `sktime` |
 | `HydraModel` | Hydra + closed-form GPU ridge, regression/classification | `torch` |
+| `AeonClassifierModel` | HIVE-COTE 2, classification only | `aeon` |
 | `TabPFNModel` | TabPFN v2 | `tabpfn` |
 | `RealMLPModel` | RealMLP-TD | `pytabkit` |
 | `TabMModel` | TabM-D | `pytabkit` |
 | `TabDPTModel` | TabDPT | `tabdpt` |
 
-All classes support classification and regression and auto-detect the task from
-`y`.  All package dependencies are included in `raman-bench[models]`.
+All classes except `AeonClassifierModel` support classification and regression and
+auto-detect the task from `y`.  All package dependencies are included in `raman-bench[models]`.
 
 ---
 
