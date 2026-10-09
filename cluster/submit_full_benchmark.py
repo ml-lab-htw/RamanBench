@@ -61,8 +61,16 @@ def main():
              "no pod crash. Only raise this above 0 when actually opting into an HPO sweep "
              "(passing config-indices beyond just [0]).",
     )
-    parser.add_argument("--num-bag-folds", type=int, default=8)
-    parser.add_argument("--time-limit", type=float, default=3600)
+    parser.add_argument(
+        "--num-bag-folds", type=int, default=None,
+        help="Default: the scope's num_bag_folds (3 for v1), else 8.",
+    )
+    parser.add_argument(
+        "--time-limit", type=float, default=None,
+        help="Base seconds per fit. Default: the scope's time_limit (600 for v1), else 3600. "
+             "The scope's time_limit_overrides (per dataset) and model_time_limit_overrides "
+             "(this model) raise it per task, as in submit_job.resolve_time_limit.",
+    )
     parser.add_argument("--results-dir", default="results/v1/data")
     parser.add_argument("--cache-dir", default=".cache_v1")
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
@@ -109,11 +117,18 @@ def main():
     large_datasets: set[str] = set()
     max_train_samples_overrides: dict[str, int] = {}
     model_max_train_samples_override: dict[str, int] | int | None = None
+    dataset_time_limit_overrides: dict[str, float] = {}
+    model_time_limit_override: dict[str, float] | float | None = None
+    scope_data: dict = {}
     scope_path = Path(args.scope) if args.scope else CLUSTER_DIR.parent / "configs" / "v1" / "scope_default.json"
     if scope_path.exists():
         with open(scope_path) as f:
             scope_data = json.load(f)
         large_datasets = set(scope_data.get("large_datasets", []))
+        # Per-dataset and per-model time budgets (e.g. mlrod: 10800 s, LR: 800000 s).
+        # Both used to be ignored here: every task ran at the flat --time-limit.
+        dataset_time_limit_overrides = scope_data.get("time_limit_overrides", {})
+        model_time_limit_override = scope_data.get("model_time_limit_overrides", {}).get(args.model)
         max_train_samples_overrides = scope_data.get("max_train_samples_overrides", {})
         # Per-model row-subsampling cap (e.g. {"PERPETUAL_BOOSTER": 3000}), applied
         # across EVERY dataset for that model -- not just the ones already in
@@ -121,6 +136,21 @@ def main():
         # docstring for why (a real OOMKilled crash, not row-count-driven, but cheap
         # to try shrinking further regardless).
         model_max_train_samples_override = scope_data.get("model_max_train_samples_overrides", {}).get(args.model)
+
+    if args.time_limit is None:
+        args.time_limit = float(scope_data.get("time_limit", 3600))
+    if args.num_bag_folds is None:
+        args.num_bag_folds = int(scope_data.get("num_bag_folds", 8))
+
+    from submit_job import resolve_time_limit
+
+    def task_time_limit(dataset: str) -> float:
+        return resolve_time_limit(
+            args.time_limit, dataset, dataset_time_limit_overrides, model_time_limit_override
+        )
+
+    print(f"time_limit {args.time_limit:g} s (per-task overrides from the scope), "
+          f"num_bag_folds {args.num_bag_folds}")
 
     if profile.get("backend") == "k8s":
         # One pod for THIS MODEL'S ENTIRE sweep across every target -- unlike
@@ -152,7 +182,11 @@ def main():
             all_job_ids += submit_jobs(
                 model=args.model, jobs=main_jobs, slug="full",
                 n_splits=args.n_splits, num_random_configs=args.num_random_configs,
-                num_bag_folds=args.num_bag_folds, time_limit=args.time_limit,
+                num_bag_folds=args.num_bag_folds,
+                time_limit=max(task_time_limit(j[0]) for j in main_jobs),
+                default_time_limit=args.time_limit,
+                dataset_time_limit_overrides=dataset_time_limit_overrides,
+                model_time_limit_overrides=model_time_limit_override,
                 results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                 profile=profile, throttle=args.throttle, dry_run=args.dry_run,
                 max_train_samples_overrides=max_train_samples_overrides,
@@ -177,7 +211,11 @@ def main():
             all_job_ids += submit_jobs(
                 model=args.model, jobs=large_jobs, slug="large",
                 n_splits=args.n_splits, num_random_configs=args.num_random_configs,
-                num_bag_folds=args.num_bag_folds, time_limit=args.time_limit,
+                num_bag_folds=args.num_bag_folds,
+                time_limit=max(task_time_limit(j[0]) for j in large_jobs),
+                default_time_limit=args.time_limit,
+                dataset_time_limit_overrides=dataset_time_limit_overrides,
+                model_time_limit_overrides=model_time_limit_override,
                 results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                 profile=big_gpu_profile, throttle=args.throttle, dry_run=args.dry_run,
                 max_train_samples_overrides=max_train_samples_overrides,
@@ -197,7 +235,7 @@ def main():
             "--config-indices", *[str(c) for c in args.config_indices],
             "--num-random-configs", str(args.num_random_configs),
             "--num-bag-folds", str(args.num_bag_folds),
-            "--time-limit", str(args.time_limit),
+            "--time-limit", str(task_time_limit(t["dataset"])),
             "--results-dir", args.results_dir, "--cache-dir", args.cache_dir,
             "--throttle", str(args.throttle),
         ]
