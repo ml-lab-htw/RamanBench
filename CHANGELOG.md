@@ -11,6 +11,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Systems: self-contained methods on the v1 protocol** (`raman_bench.systems`,
+  `scripts/run_system.py`, `cluster/run_system_k8s.yaml`). A system does its own validation
+  and ensembling, so it is fit once per outer fold through TabArena's
+  `ExternalSystemExperiment` instead of AutoGluon's bagging, on the same tasks, folds, row
+  sample and time budgets as every v1 result. Its results store their test predictions like
+  the other models', so the fold check and the per-fold metrics cover them. First entry:
+  **Chakra-Tab** (`CHAKRA-TAB`, `CHAKRA-TAB-FULL`), YHat Labs' hosted, closed-source tabular
+  API; the client is copied from TabArena's
+  [#654](https://github.com/autogluon/tabarena/pull/654) until our TabArena pin includes it.
+  Running it sends each fold's training and test data to the provider's API and needs its key
+  (`CHAKRA_TAB_KEY`).
+
 - **Rank by other metrics** (`raman_bench.fold_metrics`). Every result's stored test
   predictions give 20 metrics per fold: accuracy, balanced accuracy, F1 (macro/weighted),
   precision, recall, MCC, Cohen's kappa, ROC AUC, log loss and Brier score for
