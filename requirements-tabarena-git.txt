@@ -113,8 +113,22 @@
 # situation as #625 above, just one level deeper. `9d771c3` IS `bd22348a` plus
 # only this one commit (verified: same branch, `git log` shows a strict
 # linear history). Revisit alongside the #625 TODO above once #630 merges.
+#
+# FURTHER BUMPED 2026-10-09: onto `mario-koddenbrock/tabarena@742133b4`
+# (branch `ramanbench/lightpfn-prismboost`) -- `9d771c3` plus exactly two
+# cherry-picks from upstream `main`: PrismBoost (#629, 39682ae7) and LightPFN
+# (#655, 3db71334), each a new `models/<name>/` folder plus its registry,
+# pyproject-extra and website lines. Conflicts were only in upstream bookkeeping
+# (results checksums, BENCHMARK_LOG.md, CLAUDE.md) and in the `methods.py` list,
+# where the Kumo lines upstream carries were left out as before. Deliberately NOT
+# a bump to upstream `main`: upstream has since rewritten KumoTabularModel (#625
+# merged in a different form), and moving onto it would change the code behind
+# every KUMO-TABULAR rerun. Everything else on the pin is byte-identical to
+# `9d771c3`. Their own packages (`lightpfn==1.0.0`, `prismboost>=0.5.0`) need
+# nothing beyond what is already installed (torch, scikit-learn, huggingface-hub;
+# checked with `pip install --dry-run --report`).
 # ############################################################################
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular] @ git+https://github.com/mario-koddenbrock/tabarena.git@9d771c3043d259f2111942870141a42582a7642d#subdirectory=packages/tabarena
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost] @ git+https://github.com/mario-koddenbrock/tabarena.git@742133b465e30ad956a3b53f2aad9707200b4c61#subdirectory=packages/tabarena
 
 # tabicl -- pinned to an EXACT version, not left floating on tabarena's own
 # `tabicl` extra (`tabicl>=2.0.0`, unbounded upward). Flagged by a downstream

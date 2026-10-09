@@ -103,9 +103,9 @@ RUN pip install --no-cache-dir --break-system-packages --pre -e ".[autogluon,ben
 # (9d771c3) despite this comment's own "kept in sync by hand" claim -- confirmed stale, not assumed;
 # fixed when actually activating LIMIX2 for the first real cluster run. Keep this in sync with
 # requirements-tabarena-git.txt's pin going forward -- there is no automated check for drift between
-# the two files.
+# the two files. Bumped with it 2026-10-09 to 742133b4 (9d771c3 + LightPFN/PrismBoost cherry-picks).
 RUN pip install --no-cache-dir --break-system-packages --pre \
-    "tabarena @ git+https://github.com/mario-koddenbrock/tabarena.git@9d771c3043d259f2111942870141a42582a7642d#subdirectory=packages/tabarena"
+    "tabarena @ git+https://github.com/mario-koddenbrock/tabarena.git@742133b465e30ad956a3b53f2aad9707200b4c61#subdirectory=packages/tabarena"
 # requirements-limix2-git.txt installed WITHOUT --no-deps here, unlike the
 # main image's documented install path (see that file's own comment): the
 # --no-deps workaround exists only because the main image's shared

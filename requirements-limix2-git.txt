@@ -12,7 +12,8 @@
 # newer LimiX-2 release.
 #
 # Also requires RamanBench's own tabarena pin (requirements-tabarena-git.txt) to include
-# `models/limix_2/` -- confirmed present as of the currently-pinned commit (9d771c3, bumped
+# `models/limix_2/` -- still present in the 2026-10-09 pin 742133b4 (9d771c3 plus two new-model
+# cherry-picks that don't touch it). Earlier: confirmed present as of 9d771c3 (bumped
 # 2026-09-30 for the Kumo Tabular onboarding, well after this one landed 2026-09-15), verified
 # directly against a real install (site-packages/tabarena/models/limix_2/ exists). Older comment
 # here referenced the since-superseded d06f406a pin, which did predate LimiX-2 -- stale, corrected

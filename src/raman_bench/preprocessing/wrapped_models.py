@@ -233,6 +233,11 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # against tabdpt 1.3.1 -- no genuine coexistence conflict, and the existing
     # `TABDPT` entry is left untouched.
     "TabDPTv13Model": "tabarena.models.tabdpt.model",
+    # LightPFN and PrismBoost (2026-10-09): upstream autogluon/tabarena#655 and #629,
+    # cherry-picked onto the pin (requirements-tabarena-git.txt). Own pip packages
+    # (``lightpfn==1.0.0``, ``prismboost>=0.5.0``) via TabArena's extras of the same name.
+    "LightPFNModel": "tabarena.models.lightpfn.model",
+    "PrismBoostModel": "tabarena.models.prismboost.model",
 }
 _missing_optional_tabarena_models = []
 for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
@@ -947,6 +952,20 @@ Prep_KUMO_TABULAR_SMALL = _make_optional_prep_class(
     "Prep_KUMO_TABULAR_SMALL", KumoTabularSmallModel, ag_key="KUMO-TABULAR-SMALL"
 )
 
+# LightPFN (2026-10-09, autogluon/tabarena#655): a 4.6M-parameter in-context classifier,
+# pretrained on synthetic data only. Classification only (``_supported_problem_types``
+# binary/multiclass, so in CLASSIFICATION_ONLY_MODELS below) and at most 10 classes: its
+# own ``max_classes=10`` is kept, so a task with more classes fails as the model's own
+# limit (imputed), as for any model's genuine limits. GPU by default
+# (``default_num_gpus = 1``) but runs on CPU too (``minimum_num_gpus = 0``). No
+# max_features/max_rows cap. ag_key "TA-LIGHTPFN" -> "LIGHTPFN" (staging prefix stripped).
+Prep_LIGHTPFN = _make_optional_prep_class("Prep_LIGHTPFN", LightPFNModel, ag_key="LIGHTPFN")
+# PrismBoost (2026-10-09, autogluon/tabarena#629): gradient boosting with SEFR oblique
+# splits. CPU, single-threaded C++ core (``num_cpus`` is unused upstream), all problem
+# types, no max_features/max_rows/max_classes cap. Its wrapper hands 95% of the remaining
+# time budget to the library, which stops between boosting stages.
+Prep_PRISMBOOST = _make_optional_prep_class("Prep_PRISMBOOST", PrismBoostModel, ag_key="PRISMBOOST")
+
 # Batch 3 (NORI, SAP_RPT_OSS, ORIONMSP, ILTM, LIMIX, TABSTAR) -- the final batch of
 # the 14-model TabArena-native onboarding effort. All six are tabular *foundation*
 # models. Checked the same way as every batch above: instantiated each class and
@@ -1603,6 +1622,8 @@ PREPROCESSED_MODELS = {
     "KUMO-TABULAR": Prep_KUMO_TABULAR,
     "KUMO-TABULAR-MEDIUM": Prep_KUMO_TABULAR_MEDIUM,
     "KUMO-TABULAR-SMALL": Prep_KUMO_TABULAR_SMALL,
+    "LIGHTPFN": Prep_LIGHTPFN,
+    "PRISMBOOST": Prep_PRISMBOOST,
 }
 
 # Drop any entry whose AutoGluon base class wasn't available on this build (see
@@ -1635,8 +1656,11 @@ del _key, _info
 # addition: LDA has no regression analogue, and PCALDAModel.fit() raises on a
 # continuous target as a backstop -- see its docstring.
 # HIVECOTEV2/STC/DRCIF/ARSENAL/TDE (aeon, models/custom/aeon/) are time-series
-# classifiers with no regression counterpart in HC2.
-CLASSIFICATION_ONLY_MODELS = {"TABPFN-WIDE", "ORIONMSP", "PCALDA", "HIVECOTEV2", "STC", "DRCIF", "ARSENAL", "TDE"}
+# classifiers with no regression counterpart in HC2. LIGHTPFN is an in-context
+# classifier (TabArena's LightPFNModel supports binary/multiclass only).
+CLASSIFICATION_ONLY_MODELS = {
+    "TABPFN-WIDE", "ORIONMSP", "PCALDA", "HIVECOTEV2", "STC", "DRCIF", "ARSENAL", "TDE", "LIGHTPFN",
+}
 
 # Mirror of CLASSIFICATION_ONLY_MODELS: NORI (OrionMSPModel's opposite number in
 # batch 3) wraps NoriModel, whose own supported_problem_types() returns only
