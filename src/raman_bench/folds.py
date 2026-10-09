@@ -22,6 +22,10 @@ in ``max_train_samples_overrides``) not drawn into the row cap.
 How the folds are made: :func:`raman_bench.splitting.build_user_task` (stratified for
 classification, grouped where a dataset has replicate groups, fixed seeds).
 :func:`task_folds` builds them with the same code as ``scripts/run_experiment.py``.
+
+Models with a per-model row cap (``protocol.json``'s ``model_max_train_samples_overrides``)
+were run on a random sample of the capped datasets, so their results there don't use
+these folds.
 """
 
 from __future__ import annotations

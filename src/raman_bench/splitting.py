@@ -43,7 +43,6 @@ from sklearn.model_selection import (
     GroupKFold,
     RepeatedKFold,
     RepeatedStratifiedKFold,
-    StratifiedGroupKFold,
 )
 from tabarena.benchmark.task.metadata import GroupLabelTypes
 from tabarena.benchmark.task.openml.task_wrapper import OpenMLTaskWrapper
@@ -202,6 +201,66 @@ class RamanBenchTaskWrapper(OpenMLTaskWrapper):
         return X_train, y_train, X_test, y_test
 
 
+def stratified_group_kfold(
+    y: np.ndarray, groups: np.ndarray, *, n_splits: int, random_state: int
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """``(train_idx, test_idx)`` folds of ``StratifiedGroupKFold(n_splits, shuffle=True, random_state)``.
+
+    A copy of scikit-learn 1.9's algorithm, so the folds don't depend on the installed
+    scikit-learn: 1.9 assigns groups to folds differently from 1.6/1.7 for the same input
+    and seed, which made the grouped classification tasks' folds differ between
+    environments. The 1.9 assignment is the canonical one (most v1 results used it).
+
+    Greedy: groups are visited in a seeded random order, most class-skewed first, and each
+    goes to the fold whose class proportions it leaves most even (ties: the fold with
+    fewest samples). Adapted from scikit-learn (BSD-3-Clause), whose implementation is
+    based on https://www.kaggle.com/jakubwasikowski/stratified-group-k-fold-cross-validation
+    (Apache-2.0).
+    """
+    y = np.asarray(y)
+    _, y_inv, y_cnt = np.unique(y, return_inverse=True, return_counts=True)
+    _, groups_inv, groups_cnt = np.unique(groups, return_inverse=True, return_counts=True)
+    if n_splits > len(groups_cnt):
+        raise ValueError(
+            f"n_splits={n_splits} is greater than the number of groups ({len(groups_cnt)})"
+        )
+
+    y_counts_per_group = np.zeros((len(groups_cnt), len(y_cnt)))
+    for class_idx, group_idx in zip(y_inv, groups_inv):
+        y_counts_per_group[group_idx, class_idx] += 1
+
+    perm = np.arange(len(groups_cnt))
+    np.random.RandomState(random_state).shuffle(perm)
+    y_counts_per_group = y_counts_per_group[perm]
+    inv_perm = np.empty_like(perm)
+    inv_perm[perm] = np.arange(perm.size)
+    groups_inv = inv_perm[groups_inv]
+
+    y_counts_per_fold = np.zeros((n_splits, len(y_cnt)))
+    fold_of_group = np.empty(len(groups_cnt), dtype=int)
+    # Stable sort keeps the shuffled order among groups with the same class spread.
+    for group_idx in np.argsort(-np.std(y_counts_per_group, axis=1), kind="stable"):
+        group_y_counts = y_counts_per_group[group_idx]
+        best_fold, min_eval, min_samples = None, np.inf, np.inf
+        for i in range(n_splits):
+            y_counts_per_fold[i] += group_y_counts
+            fold_eval = np.mean(np.std(y_counts_per_fold / y_cnt.reshape(1, -1), axis=0))
+            y_counts_per_fold[i] -= group_y_counts
+            samples_in_fold = np.sum(y_counts_per_fold[i])
+            if fold_eval < min_eval or (
+                np.isclose(fold_eval, min_eval) and samples_in_fold < min_samples
+            ):
+                best_fold, min_eval, min_samples = i, fold_eval, samples_in_fold
+        y_counts_per_fold[best_fold] += group_y_counts
+        fold_of_group[group_idx] = best_fold
+
+    fold_of_row = fold_of_group[groups_inv]
+    return [
+        (np.flatnonzero(fold_of_row != i), np.flatnonzero(fold_of_row == i))
+        for i in range(n_splits)
+    ]
+
+
 def _repeated_kfold_splits_labeled(
     df: pd.DataFrame,
     *,
@@ -223,7 +282,8 @@ def _repeated_kfold_splits_labeled(
     Grouped: sklearn has no repeated wrapper for ``GroupKFold``/
     ``StratifiedGroupKFold``, so this loops ``n_repeats`` times, reseeding a
     freshly-shuffled splitter (``random_state=repeat_idx``) each time --
-    ``StratifiedGroupKFold`` for classification balances classes *and*
+    ``StratifiedGroupKFold`` (:func:`stratified_group_kfold`, a version-independent
+    copy of scikit-learn 1.9's) for classification balances classes *and*
     respects groups in the same split, unlike the old single-split scheme's
     ``GroupShuffleSplit``-only approach.
     """
@@ -234,10 +294,9 @@ def _repeated_kfold_splits_labeled(
         splits = []
         for repeat_idx in range(n_repeats):
             if problem_type == "classification":
-                splitter = StratifiedGroupKFold(
-                    n_splits=n_splits, shuffle=True, random_state=repeat_idx
+                repeat_splits = stratified_group_kfold(
+                    df[label_col].to_numpy(), groups, n_splits=n_splits, random_state=repeat_idx
                 )
-                repeat_splits = splitter.split(df, df[label_col], groups=groups)
             else:
                 splitter = GroupKFold(n_splits=n_splits, shuffle=True, random_state=repeat_idx)
                 repeat_splits = splitter.split(df, groups=groups)

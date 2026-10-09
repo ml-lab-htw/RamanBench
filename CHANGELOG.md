@@ -409,6 +409,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Grouped classification folds no longer depend on the scikit-learn version.**
+  scikit-learn 1.9 changed how `StratifiedGroupKFold` assigns groups to folds, so the
+  two grouped classification tasks (`cspp_serum_metabolites`, `locust_phase_hemolymph`)
+  got different folds on different machines. `splitting.stratified_group_kfold` is a
+  copy of 1.9's algorithm and is used instead; 1.9's folds are the canonical ones, since
+  most v1 results used them. Results computed with the older folds are being rerun.
+- `protocol.json` now records the per-model row caps (`model_max_train_samples_overrides`).
+
 - **`Dockerfile.v100` missing `tabarena`/`requirements-models-git.txt`/`build-essential`**
   — confirmed as a real production failure via a real single-target ILTM smoke test
   on an actual V100 pod: every task failed with `ModuleNotFoundError: No module

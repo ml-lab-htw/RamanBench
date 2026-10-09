@@ -323,3 +323,47 @@ def test_unlabeled_rows_never_in_test_grouped_regression_no_group_leak():
             train_groups = set(df.loc[X_tr.index, GROUP_COL])
             test_groups = set(df.loc[X_te.index, GROUP_COL])
             assert not (train_groups & test_groups), f"group leak at repeat={repeat} fold={fold}"
+
+
+# scikit-learn 1.9.1's StratifiedGroupKFold(3, shuffle=True, random_state=rs) on this input.
+# 1.6/1.7 assign these groups differently; stratified_group_kfold must give 1.9's folds
+# whatever scikit-learn is installed.
+_SGKF_Y = np.array(list("aabbbcaacbbbaaccbaabcbac" * 2))
+_SGKF_GROUPS = np.repeat(np.arange(16), 3)
+_SGKF_FOLDS_SKLEARN_1_9 = {
+    0: [2, 2, 2, 2, 2, 2, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 0, 0, 0,
+        2, 2, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 1, 1, 1],
+    3: [2, 2, 2, 2, 2, 2, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 1, 1, 1, 0, 0, 0],
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("random_state", sorted(_SGKF_FOLDS_SKLEARN_1_9))
+def test_stratified_group_kfold_gives_sklearn_1_9_folds(random_state):
+    from raman_bench.splitting import stratified_group_kfold
+
+    splits = stratified_group_kfold(_SGKF_Y, _SGKF_GROUPS, n_splits=3, random_state=random_state)
+    fold = np.empty(len(_SGKF_Y), dtype=int)
+    for i, (train, test) in enumerate(splits):
+        assert not set(train) & set(test)
+        assert len(train) + len(test) == len(_SGKF_Y)
+        fold[test] = i
+    assert fold.tolist() == _SGKF_FOLDS_SKLEARN_1_9[random_state]
+
+
+def test_stratified_group_kfold_matches_installed_sklearn_from_1_9():
+    import sklearn
+    from sklearn.model_selection import StratifiedGroupKFold
+
+    from raman_bench.splitting import stratified_group_kfold
+
+    if tuple(int(p) for p in sklearn.__version__.split(".")[:2]) < (1, 9):
+        pytest.skip("older scikit-learn assigns groups differently")
+    rng = np.random.default_rng(0)
+    for _ in range(20):
+        y = rng.integers(0, 3, 150).astype(str)
+        groups = rng.integers(0, 40, 150)
+        ours = stratified_group_kfold(y, groups, n_splits=3, random_state=1)
+        theirs = StratifiedGroupKFold(3, shuffle=True, random_state=1).split(np.zeros(150), y, groups)
+        for (_, a), (_, b) in zip(ours, theirs):
+            np.testing.assert_array_equal(a, np.asarray(b))
