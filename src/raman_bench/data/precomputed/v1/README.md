@@ -22,6 +22,8 @@ the leaderboard without rerunning it (`raman_bench.compare`).
 | `time_train_s`, `time_infer_s` | Wall-clock training (incl. bagging) and inference time of the fold |
 | `reference` | `True` for the AutoGluon reference systems, which the figures draw as lines and do not rank |
 | `num_instances` | Spectra in the task |
+| `ta_name` | The model's result directory name (without `_c1_BAG_L1`) |
+| `accuracy`, `balanced_accuracy`, `f1_macro`, ..., `rmse`, `mae`, `r2`, ... | The 20 metrics of `raman_bench.fold_metrics.METRICS`, computed from the fold's stored test predictions (`scripts/compute_fold_metrics.py`); NaN where a metric doesn't apply to the task type, and for the AutoGluon reference systems, which store no predictions |
 
 ## `protocol.json`
 
@@ -29,7 +31,8 @@ the leaderboard without rerunning it (`raman_bench.compare`).
 - `num_bag_folds`: AutoGluon bagging folds inside each training split (3).
 - `time_limit`: seconds per fit (600). `time_limit_overrides` raises it per dataset
   (`mlrod`: 10,800).
-- `max_train_samples_overrides`: row caps per dataset (10,000 on the three largest).
+- `max_train_samples_overrides`: per dataset, a random sample of this many spectra is drawn before splitting (10,000 on the three largest).
+- `model_max_train_samples_overrides`: smaller samples for a few models on some datasets, because of memory limits.
 - `num_random_configs`: 0, i.e. each model's default configuration.
 - `min_samples_per_class`: classes with fewer spectra are dropped (9).
 - `reference_model`: the Elo anchor (`RF` = 1000), also used to impute missing results.

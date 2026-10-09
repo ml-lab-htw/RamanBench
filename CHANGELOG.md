@@ -52,7 +52,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **Compare a new model against the v1 leaderboard without rerunning it.** The
   per-fold results of all 55 leaderboard models (plus `DUMMY` and the two AutoGluon
   reference systems) on all 135 tasks now ship with the package as
-  `data/precomputed/v1/reference_results.parquet` (0.6 MB), with the protocol they
+  `data/precomputed/v1/reference_results.parquet` (2.3 MB), with the protocol they
   were produced with in `protocol.json`: folds, bagging, time budget, row caps,
   tasks, and each model's enabled preprocessing.
   `scripts/build_reference_results.py` rebuilds both after a sweep.
@@ -426,6 +426,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
   copy of 1.9's algorithm and is used instead; 1.9's folds are the canonical ones, since
   most v1 results used them. Results computed with the older folds are being rerun.
 - `protocol.json` now records the per-model row caps (`model_max_train_samples_overrides`).
+- **Every reference result now uses the same folds.** An audit of the stored test
+  indices against the canonical folds found 1,005 of ~22,800 folds computed on other
+  rows: runs from before the NaN-row drop or the 10,000-spectrum sample, the old
+  grouping of `bioprocess_substrates`/`ecoli_fermentation`, and the scikit-learn change
+  above. The 242 affected (model, task) pairs were rerun and the bundled
+  `reference_results.parquet` rebuilt from them, now with the per-fold metric columns.
+  The folds of a few models with their own row cap (`model_max_train_samples_overrides`)
+  differ by design. The README and `02_benchmark_new_model` now describe the 10,000-spectrum
+  sample correctly (drawn before splitting, not a cap on training rows), and
+  `03_explore_results` shows how the ranking moves under accuracy, balanced accuracy, MAE
+  and R².
 
 - **`Dockerfile.v100` missing `tabarena`/`requirements-models-git.txt`/`build-essential`**
   — confirmed as a real production failure via a real single-target ILTM smoke test

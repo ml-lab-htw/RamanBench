@@ -236,8 +236,8 @@ load_reference()                             # one row per (task, fold, model)
 ### Compare your model against the v1 leaderboard
 
 You only run your own model: on the same 135 tasks, the same 3 outer folds, with
-3-fold bagging, the same 600 s budget and the same row caps
-(`raman_bench.compare.load_protocol()`). Then `compare` ranks it among the 55
+3-fold bagging, the same 600 s budget and the same 10,000-spectrum sample of the largest
+datasets (`raman_bench.compare.load_protocol()`). Then `compare` ranks it among the 55
 leaderboard models.
 
 **A scikit-learn estimator** (needs the Option 3 install):
@@ -525,10 +525,17 @@ Models are ranked on four metrics:
 
 Every v1 model runs the same protocol: 3-fold outer cross-validation per task
 (group-aware where a dataset has replicate groups), 3-fold bagging inside each training
-split, 600 s per fit (`mlrod`: 10,800 s), at most 10,000 training rows on the three
-largest datasets, and each model's default configuration. Scores come from TabArena's
-evaluator (`bencheval`). The protocol ships with the package
+split, 600 s per fit (`mlrod`: 10,800 s) and each model's default configuration. The three
+largest datasets (mlrod, wheat_lines, bacteria_identification) are cut to a random sample
+of 10,000 spectra before splitting. A few models run on a smaller sample of some datasets
+because of memory limits (`model_max_train_samples_overrides`, e.g. PerpetualBooster and
+Mitra at 3,000 rows). The protocol ships with the package
 (`raman_bench.compare.load_protocol()`).
+
+Each fold is scored with the task's metric: ROC AUC for binary classification, log loss
+for multiclass classification, RMSE for regression (TabArena's evaluator, `bencheval`).
+Elo, score, rank and improvability are computed from those per-fold errors. To rank by
+accuracy, F1, R² or another metric instead, see [Rank by another metric](#rank-by-another-metric).
 
 See the [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) for
 interactive filtering by model category, task type, and dataset domain.
