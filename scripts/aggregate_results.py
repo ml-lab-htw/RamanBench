@@ -37,6 +37,15 @@ then against a curated top-model results set, not on every routine sweep, to
 see whether a key previously excluded as not-learnable has since been beaten
 by a newer/better model.
 
+Before aggregating, every result's stored test indices are checked against its task's
+canonical outer fold (``raman_bench.folds.check_result_folds``; the datasets are
+loaded from the mirror for that). A result tested on other rows (from before a change
+to the row cleaning, the grouping or the splitter) is left out, since the scoring
+compares fold k across models and assumes it is the same spectra; a fold on a per-model
+row sample (``model_max_train_samples_overrides``) counts as matching. Every result's
+status goes to ``fold_check.csv``. ``--keep-mismatched-folds`` keeps the mismatches in
+(still listed), ``--no-fold-check`` skips the check.
+
 Usage:
     python scripts/aggregate_results.py --results-dir results/v1/data --output-dir results/v1/aggregated
 
@@ -55,7 +64,7 @@ import os
 
 import pandas as pd
 
-from raman_bench.aggregation import aggregate
+from raman_bench.aggregation import aggregate_results, scan_cached_results
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -163,6 +172,29 @@ def apply_learnability_filter(
     logger.info("Wrote %d row(s) to %s", len(hpo_learnable), hpo_learnable_path)
 
 
+def check_folds(results_lst: list[dict], args: argparse.Namespace) -> list[dict]:
+    """Write ``fold_check.csv`` and return *results_lst* without mismatched folds (see module docstring)."""
+    from raman_bench.folds import check_result_folds
+
+    check = check_result_folds(results_lst, cache_dir=args.cache_dir)
+    path = os.path.join(args.output_dir, "fold_check.csv")
+    check.to_csv(path, index=False)
+    logger.info("Fold check (%s): %s", path, check["status"].value_counts().to_dict())
+    bad = (check["status"] == "mismatch").to_numpy()
+    if not bad.any():
+        return results_lst
+    per_model = check[bad].groupby("framework").size().sort_values(ascending=False)
+    logger.warning(
+        "%d result(s) were tested on other rows than their canonical fold%s: %s",
+        int(bad.sum()),
+        "" if args.keep_mismatched_folds else " and are left out",
+        per_model.to_dict(),
+    )
+    if args.keep_mismatched_folds:
+        return results_lst
+    return [r for r, b in zip(results_lst, bad) if not b]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", default="results/v1/data")
@@ -227,11 +259,29 @@ def main():
         default="DUMMY",
         help="Model (ta_name) treated as the baseline (default 'DUMMY').",
     )
+    parser.add_argument(
+        "--no-fold-check",
+        action="store_true",
+        help="Don't check the results' test rows against the canonical folds.",
+    )
+    parser.add_argument(
+        "--keep-mismatched-folds",
+        action="store_true",
+        help="Aggregate results tested on other rows than their canonical fold too (still listed).",
+    )
+    parser.add_argument(
+        "--cache-dir", default=".cache_v1", help="Dataset cache for the fold check (default .cache_v1)."
+    )
     args = parser.parse_args()
 
-    model_results, hpo_results = aggregate(args.results_dir)
-
     os.makedirs(args.output_dir, exist_ok=True)
+    results_lst = scan_cached_results(args.results_dir)
+    if not results_lst:
+        logger.warning("No cached results found under %s", args.results_dir)
+    elif not args.no_fold_check:
+        results_lst = check_folds(results_lst, args)
+    model_results, hpo_results = aggregate_results(results_lst) if results_lst else (pd.DataFrame(), pd.DataFrame())
+
     model_results_path = os.path.join(args.output_dir, "model_results.csv")
     hpo_results_path = os.path.join(args.output_dir, "hpo_results.csv")
     model_results.to_csv(model_results_path, index=False)
