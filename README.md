@@ -311,9 +311,13 @@ drawn into the 10,000-row sample on mlrod, wheat_lines and bacteria_identificati
 aren't listed. Drop the `_group_id` column, if present, before fitting: it marks
 replicate groups and isn't a feature.
 
-These are the folds `scripts/run_experiment.py` builds. Score each fold with the task's
-metric from `load_protocol()["tasks"]` (ROC AUC for binary, log loss for multiclass,
-RMSE for regression) to compare with the leaderboard models' per-fold results.
+These are the folds `scripts/run_experiment.py` builds, the same whatever scikit-learn
+version is installed. Score each fold with the task's metric from
+`load_protocol()["tasks"]` (ROC AUC for binary, log loss for multiclass, RMSE for
+regression) to compare with the leaderboard models' per-fold results. A few leaderboard
+models run on a smaller random sample of some datasets because of memory limits
+(`load_protocol()["model_max_train_samples_overrides"]`, e.g. PerpetualBooster and Mitra
+at 3,000 rows); their results on those datasets come from that sample, not these folds.
 
 <details>
 <summary>The v0.1 leaderboard</summary>

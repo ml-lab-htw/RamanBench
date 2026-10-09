@@ -13,6 +13,28 @@
   "wheat_lines": 10000,
   "bacteria_identification": 10000
  },
+ "model_max_train_samples_overrides": {
+  "ORIONMSP": {
+   "mlrod": 2000,
+   "wheat_lines": 2000
+  },
+  "LIMIX": {
+   "bacteria_identification": 5000,
+   "bioprocess_substrates": 5000,
+   "rruff_mineral_raw": 5000,
+   "serum_prostate_cancer": 5000,
+   "sugar_mixtures_low_snr": 5000,
+   "wheat_lines": 5000,
+   "mlrod": 2000
+  },
+  "PERPETUAL_BOOSTER": 3000,
+  "MITRA": 3000,
+  "TA-MITRA-V2": 3000,
+  "TABFM": 5000,
+  "REALTABPFN-V2": 5000,
+  "REALTABPFN-V2.5": 5000,
+  "CAUSILO": 5000
+ },
  "min_samples_per_class": 9,
  "reference_model": "RF",
  "models": [
