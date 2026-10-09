@@ -45,20 +45,33 @@ logger = logging.getLogger(__name__)
 FOLD_COLUMNS = ["task", "dataset", "target_idx", "problem_type", "repeat", "spectrum_id", "fold"]
 
 
-def _task_frame(task: str, *, cache_dir: str, use_mirror: bool, mirror_repo: str):
+_PROTOCOL_CAP = object()  # sentinel: the protocol's own row sample of the dataset
+
+
+def _task_frame(
+    task: str,
+    *,
+    cache_dir: str,
+    use_mirror: bool,
+    mirror_repo: str,
+    max_train_samples=_PROTOCOL_CAP,
+):
     """``(spec, df, problem_type)``: the protocol entry of *task* and its rows as the runner splits them.
 
     ``df``'s row order is the order the folds' positional indices refer to (the
-    results' ``y_test_idx``); its index is the ``spectrum_id``.
+    results' ``y_test_idx``); its index is the ``spectrum_id``. *max_train_samples*
+    replaces the protocol's row sample of the dataset (``None``: all rows).
     """
     protocol = load_protocol()
     (spec,) = [t for t in protocol_tasks(tasks=[task]) if t["task"] == task]
     dataset_name, target_idx = spec["dataset"], spec["target_idx"]
+    if max_train_samples is _PROTOCOL_CAP:
+        max_train_samples = protocol["max_train_samples_overrides"].get(dataset_name)
 
     dataset, df, sample_idx, problem_type = load_dataframe(
         dataset_name,
         target_idx,
-        max_train_samples=protocol["max_train_samples_overrides"].get(dataset_name),
+        max_train_samples=max_train_samples,
         cache_dir=cache_dir,
         use_mirror=use_mirror,
         mirror_repo=mirror_repo,
@@ -169,3 +182,137 @@ def train_test_ids(
         raise KeyError(f"No folds for task {task!r} (repeat {repeat})")
     in_test = rows["fold"] == fold
     return rows.loc[~in_test, "spectrum_id"].to_numpy(), rows.loc[in_test, "spectrum_id"].to_numpy()
+
+
+def fold_assignment(
+    task: str,
+    *,
+    max_train_samples=_PROTOCOL_CAP,
+    cache_dir: str = ".cache_v1",
+    use_mirror: bool = True,
+    mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+) -> np.ndarray:
+    """The outer fold of each row of *task*, by position: shape ``(n_repeats, n_rows)``.
+
+    Positions are those of a result's ``y_test_idx``: the runner's rows after cleaning
+    (and after the row sample, *max_train_samples*; default: the protocol's).
+    """
+    spec, df, problem_type = _task_frame(
+        task,
+        cache_dir=cache_dir,
+        use_mirror=use_mirror,
+        mirror_repo=mirror_repo,
+        max_train_samples=max_train_samples,
+    )
+    n_splits = spec["n_folds"]
+    splits = _repeated_kfold_splits(
+        df,
+        label_col=df.columns[-1],
+        problem_type=problem_type,
+        n_repeats=spec["n_repeats"],
+        n_splits=n_splits,
+        group_col=GROUP_COL if GROUP_COL in df.columns else None,
+    )
+    out = np.full((spec["n_repeats"], len(df)), -1, dtype=np.int16)
+    for i, (_, test_pos) in enumerate(splits):
+        out[i // n_splits, test_pos] = i % n_splits
+    return out
+
+
+def row_caps(dataset: str, protocol: dict | None = None) -> list[int | None]:
+    """The row samples a result on *dataset* may legitimately use, the protocol's own first.
+
+    That is the dataset's ``max_train_samples_overrides`` entry (``None``: all rows) and
+    every per-model cap of ``model_max_train_samples_overrides`` that applies to it
+    (the smaller of the two wins, as in ``cluster/submit_job.py``).
+    """
+    protocol = protocol or load_protocol()
+    base = protocol.get("max_train_samples_overrides", {}).get(dataset)
+    caps = [base]
+    for cap in protocol.get("model_max_train_samples_overrides", {}).values():
+        cap = cap if isinstance(cap, int) else cap.get(dataset)
+        if cap is None:
+            continue
+        cap = min(cap, base) if base is not None else cap
+        if cap not in caps:
+            caps.append(cap)
+    return caps
+
+
+FOLD_CHECK_COLUMNS = ["framework", "task", "repeat", "fold", "n_test", "status", "max_train_samples"]
+
+
+def check_result_folds(
+    results: list[dict],
+    *,
+    protocol: dict | None = None,
+    cache_dir: str = ".cache_v1",
+    use_mirror: bool = True,
+    mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+) -> pd.DataFrame:
+    """Whether each cached result was tested on its task's canonical fold.
+
+    Compares every result's stored test positions (``simulation_artifacts["y_test_idx"]``)
+    with :func:`fold_assignment`. One row per result, columns :data:`FOLD_CHECK_COLUMNS`;
+    ``status`` is
+
+    - ``match``: the protocol's fold;
+    - ``match_capped``: the fold of a per-model row sample (``max_train_samples``), see
+      :func:`row_caps`;
+    - ``mismatch``: other rows, e.g. a result from before a change to the cleaning, the
+      grouping or the splitter; such a result is not comparable with the others;
+    - ``no_test_indices``: nothing to check (the AutoGluon reference runs);
+    - ``not_in_protocol``: a task the protocol doesn't list;
+    - ``extra_repeat``: a repeat beyond the protocol's ``n_repeats`` (left from runs with
+      more repeats; the leaderboard doesn't use them).
+
+    Downloads each checked dataset from the mirror on first use (cached in *cache_dir*).
+    """
+    protocol = protocol or load_protocol()
+    spec_by_task = {t["task"]: t for t in protocol["tasks"]}
+    kw = {"cache_dir": cache_dir, "use_mirror": use_mirror, "mirror_repo": mirror_repo}
+    assignments: dict[tuple[str, object], np.ndarray] = {}
+
+    def assignment(task, cap):
+        if (task, cap) not in assignments:
+            assignments[task, cap] = fold_assignment(task, max_train_samples=cap, **kw)
+        return assignments[task, cap]
+
+    def matches(fold_of, repeat, fold, pos):
+        if repeat >= len(fold_of) or len(pos) == 0 or pos.max() >= fold_of.shape[1]:
+            return False
+        row = fold_of[repeat]
+        return len(pos) == int((row == fold).sum()) and bool((row[pos] == fold).all())
+
+    rows = []
+    for result in results:
+        tm = result["task_metadata"]
+        task, repeat, fold = tm["name"], int(tm["repeat"]), int(tm["fold"])
+        sa = result.get("simulation_artifacts") or {}
+        pos = sa.get("y_test_idx")
+        row = {
+            "framework": result.get("framework"),
+            "task": task,
+            "repeat": repeat,
+            "fold": fold,
+            "n_test": None if pos is None else len(pos),
+            "max_train_samples": None,
+        }
+        if pos is None:
+            rows.append({**row, "status": "no_test_indices"})
+            continue
+        if task not in spec_by_task:
+            rows.append({**row, "status": "not_in_protocol"})
+            continue
+        if repeat >= spec_by_task[task]["n_repeats"]:
+            rows.append({**row, "status": "extra_repeat"})
+            continue
+        pos = np.asarray(pos)
+        status = "mismatch"
+        for i, cap in enumerate(row_caps(spec_by_task[task]["dataset"], protocol)):
+            if matches(assignment(task, cap), repeat, fold, pos):
+                status = "match" if i == 0 else "match_capped"
+                row["max_train_samples"] = cap
+                break
+        rows.append({**row, "status": status})
+    return pd.DataFrame(rows, columns=FOLD_CHECK_COLUMNS)

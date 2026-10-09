@@ -103,3 +103,64 @@ def test_export_writes_csv_and_parquet(fake_task, monkeypatch, tmp_path):
         )
         assert list(back.columns) == folds_mod.FOLD_COLUMNS
         assert len(back) == len(out)
+
+
+@pytest.fixture
+def capped_task(monkeypatch):
+    """A synthetic task whose _task_frame honours max_train_samples like load_dataframe."""
+    raw = _frame("classification", n=150)
+    spec = {"task": "toy__0", "dataset": "toy", "target_idx": 0, "n_repeats": 1, "n_folds": 3}
+
+    def task_frame(task, *, max_train_samples=None, **_):
+        sub = raw if max_train_samples is None else raw.sample(n=max_train_samples, random_state=0)
+        df = prepare_task_dataframe(
+            dataset_name="toy",
+            target_idx=0,
+            df=sub.copy(),
+            raw_targets=raw["target"].to_numpy(),
+            problem_type="classification",
+            sample_idx=None if max_train_samples is None else sub.index.to_numpy(),
+        )
+        return spec, df, "classification"
+
+    monkeypatch.setattr(folds_mod, "_task_frame", task_frame)
+    return {"tasks": [spec], "max_train_samples_overrides": {}, "model_max_train_samples_overrides": {"M": 90}}
+
+
+def _result(task, fold, pos, framework="M_c1_BAG_L1"):
+    out = {"framework": framework, "task_metadata": {"name": task, "repeat": 0, "fold": fold}}
+    if pos is not None:
+        out["simulation_artifacts"] = {"y_test_idx": np.asarray(pos)}
+    return out
+
+
+def test_row_caps_put_the_protocol_sample_first_and_take_the_smaller_cap():
+    protocol = {
+        "max_train_samples_overrides": {"big": 10000},
+        "model_max_train_samples_overrides": {"A": 3000, "B": {"big": 20000, "other": 500}, "C": {"other": 500}},
+    }
+    assert folds_mod.row_caps("big", protocol) == [10000, 3000]
+    assert folds_mod.row_caps("other", protocol) == [None, 3000, 500]
+
+
+def test_check_result_folds_flags_results_on_other_rows(capped_task):
+    full = folds_mod.fold_assignment("toy__0", max_train_samples=None)[0]
+    capped = folds_mod.fold_assignment("toy__0", max_train_samples=90)[0]
+    rng = np.random.default_rng(0)
+    results = [
+        _result("toy__0", 0, np.flatnonzero(full == 0)),
+        _result("toy__0", 1, rng.permutation(np.flatnonzero(full == 1))),  # order doesn't matter
+        _result("toy__0", 2, np.flatnonzero(capped == 2)),  # on the per-model sample
+        _result("toy__0", 2, np.flatnonzero(np.roll(full, 1) == 2)),  # other rows, same size
+        _result("toy__0", 0, np.flatnonzero(full == 0)[:-1]),  # a row short
+        _result("toy__0", 0, None, framework="AutoGluon_extreme_5m"),
+        _result("gone__0", 0, [0, 1, 2]),
+        {**_result("toy__0", 0, np.flatnonzero(full == 0)), "task_metadata": {"name": "toy__0", "repeat": 1, "fold": 0}},
+    ]
+    check = folds_mod.check_result_folds(results, protocol=capped_task)
+    assert list(check.columns) == folds_mod.FOLD_CHECK_COLUMNS
+    assert check["status"].tolist() == [
+        "match", "match", "match_capped", "mismatch", "mismatch", "no_test_indices", "not_in_protocol",
+        "extra_repeat",
+    ]
+    assert check["max_train_samples"].iloc[2] == 90

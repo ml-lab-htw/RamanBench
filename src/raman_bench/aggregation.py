@@ -89,13 +89,18 @@ def build_task_metadata(results_lst: list[dict]) -> pd.DataFrame:
 
 
 def aggregate(results_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    from tabarena.benchmark.task.metadata.collection import TaskMetadataCollection
-    from tabarena.end_to_end.end_to_end import EndToEnd
-
+    """``(model_results, hpo_results)`` of every cached result under *results_dir*."""
     results_lst = scan_cached_results(results_dir)
     if not results_lst:
         logger.warning("No cached results found under %s", results_dir)
         return pd.DataFrame(), pd.DataFrame()
+    return aggregate_results(results_lst)
+
+
+def aggregate_results(results_lst: list[dict]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """``(model_results, hpo_results)`` of already loaded results (:func:`scan_cached_results`)."""
+    from tabarena.benchmark.task.metadata.collection import TaskMetadataCollection
+    from tabarena.end_to_end.end_to_end import EndToEnd
 
     task_metadata = build_task_metadata(results_lst)
     logger.info(
