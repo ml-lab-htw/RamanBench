@@ -130,6 +130,8 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "KUMO-TABULAR": ("Kumo-Tabular", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-25
     "KUMO-TABULAR-MEDIUM": ("Kumo-Tabular (M)", "Tabular Foundation", 2026 + 8 / 12),
     "KUMO-TABULAR-SMALL": ("Kumo-Tabular (S)", "Tabular Foundation", 2026 + 8 / 12),
+    "LIGHTPFN": ("LightPFN", "Tabular Foundation", 2026 + 9 / 12),  # 2026-10-05
+    "PRISMBOOST": ("PrismBoost", "Gradient Boosting", 2026 + 8 / 12),  # 2026-09
     # Time-series classifiers (classification only)
     "ROCKET": ("ROCKET", "TS Classification", 2019 + 9 / 12),  # Dempster et al., 2019-10
     "ARSENAL": ("Arsenal", "TS Classification", 2021 + 3 / 12),  # Middlehurst et al., 2021-04

@@ -11,6 +11,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **LightPFN and PrismBoost** (`LIGHTPFN`, `PRISMBOOST`), TabArena's two newest models
+  ([#655](https://github.com/autogluon/tabarena/pull/655),
+  [#629](https://github.com/autogluon/tabarena/pull/629)). LightPFN is a 4.6M-parameter
+  in-context classifier (GPU, also runs on CPU; classification only, at most 10 classes).
+  PrismBoost is gradient boosting with SEFR oblique splits (CPU). The TabArena pin moves to
+  `9d771c3` plus exactly these two models (`742133b4`), so the code behind every existing
+  model, Kumo-Tabular included, is unchanged.
+
 - **Rank by other metrics** (`raman_bench.fold_metrics`). Every result's stored test
   predictions give 20 metrics per fold: accuracy, balanced accuracy, F1 (macro/weighted),
   precision, recall, MCC, Cohen's kappa, ROC AUC, log loss and Brier score for
