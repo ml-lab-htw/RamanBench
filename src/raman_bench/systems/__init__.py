@@ -56,11 +56,13 @@ def with_test_artifacts(system_cls: type, key: str, name: str, hyperparameters: 
             }
 
         def get_metadata(self) -> dict:
+            # Not every system reports metadata (TabFM+ doesn't; the runner checks hasattr).
+            own = getattr(super(), "get_metadata", None)
             return {
                 "model_type": key,
                 "name_prefix": name,
                 "model_hyperparameters": dict(hyperparameters or {}),
-                **super().get_metadata(),
+                **(own() if own else {}),
             }
 
     WithTestArtifacts.__name__ = WithTestArtifacts.__qualname__ = system_cls.__name__

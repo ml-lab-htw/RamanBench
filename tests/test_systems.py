@@ -104,6 +104,20 @@ def test_chakra_tab_result_matches_the_v1_result_format(fake_api, tmp_path, prob
     assert row["config_type"] == "CHAKRA-TAB" and row["metric_error"] == pytest.approx(out["metric_error"])
 
 
+def test_metadata_of_a_system_that_reports_none():
+    from tabarena.benchmark.exec_models.external import ExternalSystemModel
+
+    from raman_bench.systems import with_test_artifacts
+
+    class Bare(ExternalSystemModel):
+        pass
+
+    assert not hasattr(Bare, "get_metadata")
+    cls = with_test_artifacts(Bare, "BARE", "Bare", {"a": 1})
+    meta = cls.get_metadata(object.__new__(cls))
+    assert meta == {"model_type": "BARE", "name_prefix": "Bare", "model_hyperparameters": {"a": 1}}
+
+
 def test_every_system_names_its_result_dir_and_key():
     assert {s.result_dir for s in SYSTEMS.values()} == {"Chakra-Tab-medium", "Chakra-Tab-full", "TabFM-Plus"}
     assert all(k == s.key for k, s in SYSTEMS.items())
