@@ -431,6 +431,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
   10,800 s) and `model_time_limit_overrides` (e.g. LR 800,000 s); each task now gets its
   own budget (`submit_job.resolve_time_limit`). `--time-limit` and `--num-bag-folds`
   default to the scope's values (600 s, 3) instead of 3600 s and 8.
+- **`aggregate_results.py` checks every result's folds.** Before aggregating, each
+  result's stored test rows are compared with its task's canonical outer fold
+  (`raman_bench.folds.check_result_folds`; a fold on a per-model row sample counts as
+  matching). Mismatches are left out and every result's status is written to
+  `fold_check.csv` (`--keep-mismatched-folds`, `--no-fold-check`). Nothing checked this
+  before, which is how the stale folds below went unnoticed.
 - **Every reference result now uses the same folds.** An audit of the stored test
   indices against the canonical folds found 1,005 of ~22,800 folds computed on other
   rows: runs from before the NaN-row drop or the 10,000-spectrum sample, the old
@@ -533,8 +539,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed (documentation)
 
-- **Two wrong paper references on the public leaderboard** (`HF_spaces/RamanBench`
-  and `HF_spaces/RamanBench-Nightly`'s `app.py`): `RamanTransformer` was linked to
+- **Two wrong paper references on the public leaderboard** (`HF_spaces/RamanBench`'s
+  `app.py`): `RamanTransformer` was linked to
   `10.1038/s41598-023-44358-2` (a copy-paste of `RamanNet`'s entry, and wrong for
   both — `RamanNet`'s own real reference is `arXiv:2307.07312`, not that DOI
   either). `DeepCNN` was linked to `10.1039/C7AN01371J`, off by one Analyst article
