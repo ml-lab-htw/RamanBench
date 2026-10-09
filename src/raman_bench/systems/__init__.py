@@ -91,6 +91,9 @@ class System:
     env: tuple[str, ...] = ()  # environment variables the system needs
     notes: str = ""
     num_gpus: int = 0  # GPUs the system fits with (scripts/run_system.py --num-gpus overrides)
+    # Row sample per dataset, as a model's ``model_max_train_samples_overrides`` (the smaller
+    # of this and the protocol's own sample wins; the fold check accepts it as match_capped).
+    max_train_samples: int | None = None
 
     def load_cls(self) -> type:
         """The system class, storing its test predictions like the v1 models (:func:`with_test_artifacts`)."""
@@ -128,6 +131,8 @@ SYSTEMS: dict[str, System] = {
         "TabFM-Plus",
         {"interface": "ensemble"},
         num_gpus=1,
+        # TABFM's own cap (it ran out of memory above it); TabFM+ runs the same network.
+        max_train_samples=5000,
     ),
 }
 

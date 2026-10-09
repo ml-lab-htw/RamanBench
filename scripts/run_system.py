@@ -65,10 +65,11 @@ def run_one(
     (spec,) = [t for t in protocol["tasks"] if t["task"] == task]
     dataset_name, target_idx = spec["dataset"], spec["target_idx"]
 
+    caps = [c for c in (protocol["max_train_samples_overrides"].get(dataset_name), system.max_train_samples) if c]
     dataset, df, sample_idx, problem_type = load_dataframe(
         dataset_name,
         target_idx,
-        max_train_samples=protocol["max_train_samples_overrides"].get(dataset_name),
+        max_train_samples=min(caps) if caps else None,
         cache_dir=cache_dir,
         mirror_repo=mirror_repo,
     )
