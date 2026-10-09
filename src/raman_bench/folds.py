@@ -262,7 +262,9 @@ def check_result_folds(
     - ``mismatch``: other rows, e.g. a result from before a change to the cleaning, the
       grouping or the splitter; such a result is not comparable with the others;
     - ``no_test_indices``: nothing to check (the AutoGluon reference runs);
-    - ``not_in_protocol``: a task the protocol doesn't list.
+    - ``not_in_protocol``: a task the protocol doesn't list;
+    - ``extra_repeat``: a repeat beyond the protocol's ``n_repeats`` (left from runs with
+      more repeats; the leaderboard doesn't use them).
 
     Downloads each checked dataset from the mirror on first use (cached in *cache_dir*).
     """
@@ -301,6 +303,9 @@ def check_result_folds(
             continue
         if task not in spec_by_task:
             rows.append({**row, "status": "not_in_protocol"})
+            continue
+        if repeat >= spec_by_task[task]["n_repeats"]:
+            rows.append({**row, "status": "extra_repeat"})
             continue
         pos = np.asarray(pos)
         status = "mismatch"

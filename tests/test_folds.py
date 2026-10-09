@@ -155,10 +155,12 @@ def test_check_result_folds_flags_results_on_other_rows(capped_task):
         _result("toy__0", 0, np.flatnonzero(full == 0)[:-1]),  # a row short
         _result("toy__0", 0, None, framework="AutoGluon_extreme_5m"),
         _result("gone__0", 0, [0, 1, 2]),
+        {**_result("toy__0", 0, np.flatnonzero(full == 0)), "task_metadata": {"name": "toy__0", "repeat": 1, "fold": 0}},
     ]
     check = folds_mod.check_result_folds(results, protocol=capped_task)
     assert list(check.columns) == folds_mod.FOLD_CHECK_COLUMNS
     assert check["status"].tolist() == [
         "match", "match", "match_capped", "mismatch", "mismatch", "no_test_indices", "not_in_protocol",
+        "extra_repeat",
     ]
     assert check["max_train_samples"].iloc[2] == 90
