@@ -13,6 +13,9 @@ Usage
     # scripts/run_experiment.py calls that run a registered model on the v1 protocol
     raman-bench protocol MY_MODEL --task-type regression
 
+    # The v1 outer CV folds as plain spectrum ids, for running the protocol elsewhere
+    raman-bench folds raman_bench_v1_folds.parquet --task-type classification
+
     # Package and ecosystem info
     raman-bench info
 
@@ -86,6 +89,16 @@ def cmd_protocol(args):
         print(line)
 
 
+def cmd_folds(args):
+    """Write the v1 outer cross-validation folds (raman_bench.folds) to a file."""
+    from raman_bench.folds import export_folds
+
+    folds = export_folds(
+        args.output, task_type=args.task_type, tasks=args.tasks, cache_dir=args.cache_dir
+    )
+    print(f"Wrote {len(folds)} rows ({folds['task'].nunique()} tasks) to {args.output}")
+
+
 def cmd_info(_args):
     """Print package and ecosystem info."""
     import raman_bench
@@ -148,6 +161,14 @@ def main():
     pr_p.add_argument("--tasks", nargs="*", help="Task keys or dataset names (default: all)")
     pr_p.add_argument("--results-dir", default="results/v1/user")
     pr_p.set_defaults(func=cmd_protocol)
+
+    # ---- folds ----
+    fo_p = sub.add_parser("folds", help="Write the v1 outer CV folds (spectrum ids per task and fold)")
+    fo_p.add_argument("output", help="Output file: .parquet, or .csv")
+    fo_p.add_argument("--task-type", choices=["classification", "regression"])
+    fo_p.add_argument("--tasks", nargs="*", help="Task keys or dataset names (default: all)")
+    fo_p.add_argument("--cache-dir", default=".cache_v1", help="Dataset download cache")
+    fo_p.set_defaults(func=cmd_folds)
 
     # ---- info ----
     info_p = sub.add_parser("info", help="Show package and ecosystem info")

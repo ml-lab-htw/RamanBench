@@ -280,6 +280,41 @@ imputed (`imputed_pct`); a model more than 50% imputed is not ranked. The
 (`none` for most). Steps inside your own scikit-learn `Pipeline` don't appear there.
 `notebooks/02_benchmark_new_model.ipynb` walks through all of it.
 
+### Use the v1 folds in another framework
+
+To run the protocol outside RamanBench (in aeon, scikit-learn, or your own harness),
+take the outer cross-validation folds as plain spectrum ids:
+
+```bash
+raman-bench folds raman_bench_v1_folds.parquet                      # all 135 tasks
+raman-bench folds clf_folds.csv --task-type classification          # the 21 classification tasks
+```
+
+```python
+from raman_bench.experiment_utils import load_dataframe
+from raman_bench.folds import export_folds, train_test_ids
+
+folds = export_folds(task_type="classification")
+_, df, _, _ = load_dataframe("alzheimer", 0)   # the mirror's data; index = spectrum_id
+train, test = train_test_ids(folds, "alzheimer__0", fold=0)
+X = df.drop(columns=["target", "_group_id"], errors="ignore")
+X_train, y_train = X.loc[train], df.loc[train, "target"]
+X_test, y_test = X.loc[test], df.loc[test, "target"]
+```
+
+One row per task and spectrum: `task`, `dataset`, `target_idx`, `problem_type`,
+`repeat`, `spectrum_id` (the spectrum's row in the dataset as `raman_data` and the
+Hugging Face mirror store it) and `fold` (the outer fold whose test set holds it). The
+training set of fold `f` is every other listed spectrum of that task. Spectra a task
+doesn't use (a NaN in the spectrum, no label, a class with fewer than 9 spectra, or not
+drawn into the 10,000-row sample on mlrod, wheat_lines and bacteria_identification)
+aren't listed. Drop the `_group_id` column, if present, before fitting: it marks
+replicate groups and isn't a feature.
+
+These are the folds `scripts/run_experiment.py` builds. Score each fold with the task's
+metric from `load_protocol()["tasks"]` (ROC AUC for binary, log loss for multiclass,
+RMSE for regression) to compare with the leaderboard models' per-fold results.
+
 <details>
 <summary>The v0.1 leaderboard</summary>
 
