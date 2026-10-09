@@ -96,7 +96,8 @@ def prepare_task_dataframe(
         targets_for_grouping = raw_targets[sample_idx] if sample_idx is not None else raw_targets
         inferred = infer_group_ids_from_targets(targets_for_grouping)
         if inferred is not None:
-            df[GROUP_COL] = inferred
+            # Before the label: callers take the last column as the label.
+            df.insert(len(df.columns) - 1, GROUP_COL, inferred)
             logger.info(
                 "%s: no explicit group_ids -- inferred %d group(s) from matching target values",
                 dataset_name,
