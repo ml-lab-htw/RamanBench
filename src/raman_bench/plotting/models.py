@@ -130,6 +130,11 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "KUMO-TABULAR": ("Kumo-Tabular", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-25
     "KUMO-TABULAR-MEDIUM": ("Kumo-Tabular (M)", "Tabular Foundation", 2026 + 8 / 12),
     "KUMO-TABULAR-SMALL": ("Kumo-Tabular (S)", "Tabular Foundation", 2026 + 8 / 12),
+    # Hosted API (raman_bench.systems, scripts/run_system.py): pretrained tabular foundation
+    # models fitted and ensembled behind YHat Labs' endpoint, closed source.
+    "CHAKRA-TAB": ("Chakra-Tab (API)", "Tabular Foundation", 2026 + 9 / 12),  # 2026-10
+    "CHAKRA-TAB-FULL": ("Chakra-Tab full (API)", "Tabular Foundation", 2026 + 9 / 12),
+    "TABFM-PLUS": ("TabFM+", "Tabular Foundation", 2026 + 5 / 12),  # 2026-06-30, TabFM's ensemble interface
     # Time-series classifiers (classification only)
     "ROCKET": ("ROCKET", "TS Classification", 2019 + 9 / 12),  # Dempster et al., 2019-10
     "ARSENAL": ("Arsenal", "TS Classification", 2021 + 3 / 12),  # Middlehurst et al., 2021-04
