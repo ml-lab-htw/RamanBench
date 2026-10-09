@@ -280,6 +280,33 @@ imputed (`imputed_pct`); a model more than 50% imputed is not ranked. The
 (`none` for most). Steps inside your own scikit-learn `Pipeline` don't appear there.
 `notebooks/02_benchmark_new_model.ipynb` walks through all of it.
 
+### Rank by another metric
+
+The leaderboard ranks classification by ROC AUC (binary) or log loss (multiclass) and
+regression by RMSE. Every result also stores its test predictions, so the bundled reference
+results carry more metrics per fold, and `compare` and `leaderboard` can rank by any of them:
+
+```python
+from raman_bench.compare import compare, leaderboard
+
+leaderboard(classification_metric="accuracy", regression_metric="r2")["classification"].leaderboard
+compare("results/my_model", classification_metric="balanced_accuracy", regression_metric="mae")
+```
+
+```bash
+raman-bench metrics                                   # what there is
+raman-bench compare results/my_model --classification-metric f1_macro --regression-metric rpd
+```
+
+| Classification | Regression |
+|---|---|
+| `accuracy`, `balanced_accuracy`, `f1_macro`, `f1_weighted`, `precision_macro`, `recall_macro`, `mcc`, `cohen_kappa`, `roc_auc`, `log_loss`, `brier` | `rmse`, `mae`, `median_ae`, `max_error`, `r2`, `explained_variance`, `pearson_r`, `spearman_r`, `rpd` |
+
+The predicted class is the most probable one. `rpd` is the standard deviation of the test
+targets over the RMSE. Your own results get these metrics when you pass a results directory
+(or a tidy DataFrame with the metric columns). Elo, win rate and rank are then computed on
+that metric exactly as for the default one.
+
 ### Use the v1 folds in another framework
 
 To run the protocol outside RamanBench (in aeon, scikit-learn, or your own harness),

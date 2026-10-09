@@ -132,6 +132,9 @@ def load_results(
             "task": np.where(df["problem_type"] == "regression", "regression", "classification"),
             "time_train_s": df["time_train_s"].astype(float),
             "time_infer_s": df["time_infer_s"].astype(float),
+            # The result directory the row came from, to join per-fold metrics on
+            # (raman_bench.fold_metrics).
+            "ta_name": df["ta_name"].astype(str),
         }
     )
     out["reference"] = out["model"].isin(model_info.REFERENCE_MODELS)

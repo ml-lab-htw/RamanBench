@@ -11,6 +11,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Rank by other metrics** (`raman_bench.fold_metrics`). Every result's stored test
+  predictions give 20 metrics per fold: accuracy, balanced accuracy, F1 (macro/weighted),
+  precision, recall, MCC, Cohen's kappa, ROC AUC, log loss and Brier score for
+  classification; RMSE, MAE, median and max absolute error, R², explained variance,
+  Pearson/Spearman correlation and RPD for regression. `compare()` and `leaderboard()`
+  take `classification_metric=`/`regression_metric=` (CLI: `raman-bench compare
+  --classification-metric ...`, `raman-bench metrics` lists them). The bundled reference
+  results get one column per metric (`scripts/compute_fold_metrics.py`, then
+  `scripts/build_reference_results.py --fold-metrics`).
+
 - **The v1 outer folds as plain spectrum ids** (`raman_bench.folds`, `raman-bench
   folds`). `export_folds()` writes, for every protocol task, which outer fold's test
   set each used spectrum lies in, keyed by its row in the dataset, so the protocol can

@@ -10,6 +10,9 @@ Usage
     # Rank your v1 results against the leaderboard models (raman_bench.compare)
     raman-bench compare results/my_model --output-dir results/my_model_figures
 
+    # ... ranked by another metric (raman-bench metrics lists them)
+    raman-bench compare results/my_model --classification-metric accuracy --regression-metric mae
+
     # scripts/run_experiment.py calls that run a registered model on the v1 protocol
     raman-bench protocol MY_MODEL --task-type regression
 
@@ -61,6 +64,8 @@ def cmd_compare(args):
         out_dir=args.output_dir,
         figures=not args.no_figures,
         bootstrap_rounds=args.bootstrap_rounds,
+        classification_metric=args.classification_metric,
+        regression_metric=args.regression_metric,
     )
     reference = set(load_protocol()["models"])
     cols = ["preprocessing", "elo", "rank", "winrate", "imputed_pct", "median_time_total_per_1k_s"]
@@ -87,6 +92,17 @@ def cmd_protocol(args):
         args.model, task_type=args.task_type, tasks=args.tasks, results_dir=args.results_dir
     ):
         print(line)
+
+
+def cmd_metrics(_args):
+    """List the metrics compare can rank by."""
+    from raman_bench.fold_metrics import METRICS
+
+    for task in ("classification", "regression"):
+        print(f"{task}:")
+        for name, m in METRICS.items():
+            if m.task == task:
+                print(f"  {name:<20} {'higher' if m.higher_is_better else 'lower'} is better  {m.description}")
 
 
 def cmd_folds(args):
@@ -152,6 +168,16 @@ def main():
     cmp_p.add_argument("--no-figures", action="store_true", help="With --output-dir: leaderboard CSVs only")
     cmp_p.add_argument("--top", type=int, default=0, help="Print only the top N models per group")
     cmp_p.add_argument("--bootstrap-rounds", type=int, default=200, help="Elo bootstrap rounds for the CIs")
+    from raman_bench.fold_metrics import metric_names
+
+    cmp_p.add_argument(
+        "--classification-metric", choices=metric_names("classification"),
+        help="Rank classification by this metric (default: ROC AUC for binary, log loss for multiclass)",
+    )
+    cmp_p.add_argument(
+        "--regression-metric", choices=metric_names("regression"),
+        help="Rank regression by this metric (default: RMSE)",
+    )
     cmp_p.set_defaults(func=cmd_compare)
 
     # ---- protocol ----
@@ -161,6 +187,10 @@ def main():
     pr_p.add_argument("--tasks", nargs="*", help="Task keys or dataset names (default: all)")
     pr_p.add_argument("--results-dir", default="results/v1/user")
     pr_p.set_defaults(func=cmd_protocol)
+
+    # ---- metrics ----
+    me_p = sub.add_parser("metrics", help="List the metrics compare can rank by")
+    me_p.set_defaults(func=cmd_metrics)
 
     # ---- folds ----
     fo_p = sub.add_parser("folds", help="Write the v1 outer CV folds (spectrum ids per task and fold)")
