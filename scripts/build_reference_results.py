@@ -7,9 +7,11 @@ does (:func:`raman_bench.plotting.results.load_results`), and writes into
 ``--output-dir``:
 
 - ``reference_results.parquet``: one row per (task, fold, model) with ``metric_error``,
-  ``metric``, ``task``, ``time_train_s``, ``time_infer_s``, ``reference`` and
-  ``num_instances``. ``DUMMY`` is kept; :func:`raman_bench.compare.load_reference`
-  leaves it out by default.
+  ``metric``, ``task``, ``time_train_s``, ``time_infer_s``, ``reference``,
+  ``num_instances``, ``ta_name`` and, with ``--fold-metrics``
+  (``scripts/compute_fold_metrics.py``), one column per metric of
+  :data:`raman_bench.fold_metrics.METRICS`. ``DUMMY`` is kept;
+  :func:`raman_bench.compare.load_reference` leaves it out by default.
 - ``protocol.json``: the evaluation protocol those results were produced with (folds,
   bagging, time budget, row caps), the list of tasks and each model's enabled RamanBench
   preprocessing (``preprocessing``). The preprocessing is read from the raw cached results
@@ -21,6 +23,7 @@ Usage:
     python scripts/build_reference_results.py \\
         --input results/v1/aggregated/hpo_results.csv \\
         --results-dir results/v1/data \\
+        --fold-metrics results/v1/aggregated/fold_metrics.parquet \\
         --output-dir src/raman_bench/data/precomputed/v1
 """
 
@@ -95,6 +98,9 @@ def main() -> None:
     parser.add_argument(
         "--exclude-models", nargs="*", default=[], help="Model keys left out (default: none, DUMMY is kept)"
     )
+    parser.add_argument(
+        "--fold-metrics", help="Per-fold metrics (scripts/compute_fold_metrics.py) to add as columns"
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -118,6 +124,26 @@ def main() -> None:
         else:
             logger.warning("No preprocessing found for %s", model)
     protocol = build_protocol(scope, targets, results, preprocessing)
+
+    if args.fold_metrics:
+        import pandas as pd
+
+        from raman_bench.compare import attach_fold_metrics
+        from raman_bench.fold_metrics import METRIC_COLUMNS, to_error
+
+        per_fold = pd.read_parquet(args.fold_metrics)
+        results = attach_fold_metrics(results, per_fold)
+        no_metrics = results[results[METRIC_COLUMNS].isna().all(axis=1)]
+        if len(no_metrics):
+            logger.warning(
+                "%d row(s) got no per-fold metrics: %s", len(no_metrics), no_metrics["model"].value_counts().to_dict()
+            )
+        # The protocol metric computed from the predictions must equal the stored error.
+        for column in ("roc_auc", "log_loss", "rmse"):
+            rows = (results["metric"] == column) & results[column].notna()
+            gap = (to_error(results.loc[rows, column], column) - results.loc[rows, "metric_error"]).abs()
+            if (gap > 1e-6).any():
+                logger.warning("%d %s value(s) differ from metric_error", int((gap > 1e-6).sum()), column)
 
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)

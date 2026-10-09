@@ -18,6 +18,11 @@ as imputed; a model more than ``max_imputed_pct`` percent imputed is left out. T
 the tasks you ran only, pass ``tasks="own"`` (the scores are then not comparable with the
 published leaderboard).
 
+Ranking by another metric: ``classification_metric="accuracy"``, ``regression_metric="mae"``
+and so on (:func:`raman_bench.fold_metrics.metric_names`). They are computed per fold from
+the stored test predictions; the default is the protocol's own metric (ROC AUC for binary,
+log loss for multiclass, RMSE for regression).
+
 Needs the ``plots`` extra (``pip install "raman-bench[plots]"``) for scoring and figures.
 """
 
@@ -81,7 +86,9 @@ def load_reference(
     ``metric_error`` (lower is better: 1 - ROC AUC for binary, log loss for multiclass,
     RMSE for regression), ``metric``, ``task`` (``classification``/``regression``),
     ``time_train_s``, ``time_infer_s``, ``reference`` (AutoGluon reference systems, drawn
-    as lines and not ranked) and ``num_instances``.
+    as lines and not ranked), ``num_instances``, ``ta_name`` (the result directory) and one
+    column per metric of :data:`raman_bench.fold_metrics.METRICS` (NaN where it doesn't
+    apply, e.g. ``accuracy`` on a regression task).
     """
     with resources.as_file(_reference_dir().joinpath(REFERENCE_FILE)) as path:
         df = pd.read_parquet(path)
@@ -108,11 +115,14 @@ def load_own_results(source, *, variant: str = "default") -> pd.DataFrame:
 
     A ``preprocessing`` column carries the RamanBench preprocessing steps each model was
     fit with (read from the cached results; missing for CSV input unless your tidy
-    DataFrame has the column).
+    DataFrame has the column). From a results directory, every metric of
+    :data:`raman_bench.fold_metrics.METRICS` is added per fold; a tidy DataFrame may carry
+    those columns itself.
     """
     from raman_bench.plotting.results import load_results
 
     preprocessing: dict[str, str] = {}
+    per_fold = None
     if isinstance(source, pd.DataFrame) and "model" in source.columns:
         missing = set(TIDY_COLUMNS) - set(source.columns)
         if missing:
@@ -125,16 +135,20 @@ def load_own_results(source, *, variant: str = "default") -> pd.DataFrame:
             path = Path(source)
             if path.is_dir():
                 from raman_bench.aggregation import aggregate, preprocessing_by_model
+                from raman_bench.fold_metrics import fold_metrics
 
                 with contextlib.redirect_stdout(io.StringIO()):  # TabArena prints progress
                     _, source = aggregate(str(path))
                 if source.empty:
                     raise ValueError(f"No cached results.pkl files under {path}")
                 preprocessing = preprocessing_by_model(str(path))
+                per_fold = fold_metrics(path)
             else:
                 source = path
         df = load_results(source, variant=variant, scope=None, target_list=None, exclude_models=())
         df["preprocessing"] = df["model"].map(preprocessing) if preprocessing else None
+        if per_fold is not None:
+            df = attach_fold_metrics(df, per_fold)
 
     tasks = {t["task"]: t for t in load_protocol()["tasks"]}
     outside = sorted(set(df["dataset"]) - set(tasks))
@@ -145,6 +159,49 @@ def load_own_results(source, *, variant: str = "default") -> pd.DataFrame:
     df = df[df["fold"] < n_folds]
     df["num_instances"] = df["dataset"].map(lambda k: tasks[k]["num_instances"])
     return df.reset_index(drop=True)
+
+
+def attach_fold_metrics(results: pd.DataFrame, per_fold: pd.DataFrame) -> pd.DataFrame:
+    """*results* with the metric columns of *per_fold* (:func:`raman_bench.fold_metrics.fold_metrics`)
+    joined on result directory, task and fold."""
+    keys = ["ta_name", "dataset", "fold"]
+    per_fold = per_fold.drop_duplicates(keys, keep="last")
+    results = results.drop(columns=[c for c in per_fold.columns if c not in keys and c in results.columns])
+    return results.merge(per_fold, on=keys, how="left")
+
+
+def select_metric(
+    results: pd.DataFrame,
+    *,
+    classification_metric: str | None = None,
+    regression_metric: str | None = None,
+) -> pd.DataFrame:
+    """*results* with ``metric_error``/``metric`` taken from another metric column.
+
+    ``None`` keeps the protocol's metric for that task type. Folds where the chosen metric
+    is undefined (NaN, e.g. ROC AUC with a class missing from the test fold) are dropped.
+    """
+    from raman_bench.fold_metrics import METRICS, metric_names, to_error
+
+    results = results.copy()
+    for task, metric in (("classification", classification_metric), ("regression", regression_metric)):
+        if metric is None:
+            continue
+        if metric not in METRICS or METRICS[metric].task != task:
+            raise ValueError(f"{task}_metric must be one of {metric_names(task)}, got {metric!r}")
+        if metric not in results.columns:
+            raise ValueError(
+                f"No {metric!r} column in these results: per-fold metrics come from results.pkl "
+                "files (raman_bench.fold_metrics), not from an hpo_results.csv"
+            )
+        rows = results["task"] == task
+        values = results.loc[rows, metric]
+        missing = results.loc[rows & results[metric].isna(), "model"].value_counts()
+        if not missing.empty:
+            logger.info("%s: %d fold(s) without a value are left out: %s", metric, int(missing.sum()), missing.to_dict())
+        results.loc[rows, "metric_error"] = to_error(values, metric)
+        results.loc[rows, "metric"] = metric
+    return results.dropna(subset=["metric_error"]).reset_index(drop=True)
 
 
 def coverage(own: pd.DataFrame) -> pd.DataFrame:
@@ -183,13 +240,23 @@ def _score(results, own_preprocessing, reference_model, max_imputed_pct, bootstr
     return scores
 
 
-def leaderboard(*, reference_model: str = "RF", bootstrap_rounds: int = 200):
+def leaderboard(
+    *,
+    classification_metric: str | None = None,
+    regression_metric: str | None = None,
+    reference_model: str = "RF",
+    bootstrap_rounds: int = 200,
+):
     """The v1 leaderboard, scored from the bundled reference results.
 
     Same scores as the published leaderboard (up to bootstrap noise in the Elo
-    confidence intervals). Returns ``{"all" | "classification" | "regression": GroupScores}``.
+    confidence intervals), or ranked by another metric (see :func:`select_metric`).
+    Returns ``{"all" | "classification" | "regression": GroupScores}``.
     """
-    return _score(load_reference(), {}, reference_model, 50.0, bootstrap_rounds)
+    results = select_metric(
+        load_reference(), classification_metric=classification_metric, regression_metric=regression_metric
+    )
+    return _score(results, {}, reference_model, 50.0, bootstrap_rounds)
 
 
 def compare(
@@ -201,6 +268,8 @@ def compare(
     replace_reference: bool = False,
     out_dir: str | Path | None = None,
     figures: bool = True,
+    classification_metric: str | None = None,
+    regression_metric: str | None = None,
     reference_model: str = "RF",
     max_imputed_pct: float = 50.0,
     bootstrap_rounds: int = 200,
@@ -225,6 +294,10 @@ def compare(
         Writes ``leaderboards/leaderboard_{all,classification,regression}.csv`` there and,
         with *figures*, the leaderboard figures (:mod:`raman_bench.plotting`);
         *figure_kwargs* go to :func:`raman_bench.plotting.generate_from_results`.
+    classification_metric, regression_metric
+        Rank by another metric (:func:`raman_bench.fold_metrics.metric_names`), e.g.
+        ``"accuracy"`` or ``"mae"``; ``None`` is the protocol's metric. Needs your results
+        as a results directory, or as a tidy DataFrame with that metric's column.
 
     Returns ``{"all" | "classification" | "regression": GroupScores}``; each
     ``.leaderboard`` has one row per model, sorted by Elo, with a ``preprocessing`` column:
@@ -255,7 +328,10 @@ def compare(
     if tasks == "own":
         reference = reference[reference["dataset"].isin(set(own_df["dataset"]))]
 
-    results = pd.concat([reference, own_df[reference.columns]], ignore_index=True)
+    results = pd.concat([reference, own_df.reindex(columns=reference.columns)], ignore_index=True)
+    results = select_metric(
+        results, classification_metric=classification_metric, regression_metric=regression_metric
+    )
     own_prep = {}
     if "preprocessing" in own_df.columns:
         own_prep = own_df.dropna(subset=["preprocessing"]).groupby("model")["preprocessing"].first().to_dict()
