@@ -49,6 +49,7 @@ def run_one(
     cache_dir: str = ".cache_v1",
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
     num_cpus: int | None = None,
+    num_gpus: int | None = None,
     time_limit: float | None = None,
     force_recompute: bool = False,
 ) -> dict | None:
@@ -91,7 +92,13 @@ def run_one(
         name=system.result_dir,
         system_cls=system.load_cls(),
         system_hyperparameters=dict(system.hyperparameters),
-        method_kwargs={"fit_kwargs": {"time_limit": time_limit, "num_cpus": num_cpus or os.cpu_count()}},
+        method_kwargs={
+            "fit_kwargs": {
+                "time_limit": time_limit,
+                "num_cpus": num_cpus or os.cpu_count(),
+                "num_gpus": system.num_gpus if num_gpus is None else num_gpus,
+            }
+        },
         experiment_kwargs={"require_warmup": False},
     )
     return run_cached(
@@ -129,6 +136,7 @@ def main() -> None:
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
     parser.add_argument("--workers", type=int, default=1, help="Folds run at once (separate processes)")
     parser.add_argument("--num-cpus", type=int, default=None, help="CPUs reported to the system per fold")
+    parser.add_argument("--num-gpus", type=int, default=None, help="GPUs per fold (default: the system's)")
     parser.add_argument("--force-recompute", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="List the folds that would run, call nothing")
     args = parser.parse_args()
@@ -157,6 +165,7 @@ def main() -> None:
                     "cache_dir": args.cache_dir,
                     "mirror_repo": args.mirror_repo,
                     "num_cpus": args.num_cpus,
+                    "num_gpus": args.num_gpus,
                     "force_recompute": args.force_recompute,
                 }
             )

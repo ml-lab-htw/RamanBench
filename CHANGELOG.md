@@ -22,6 +22,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
   [#654](https://github.com/autogluon/tabarena/pull/654) until our TabArena pin includes it.
   Running it sends each fold's training and test data to the provider's API and needs its key
   (`CHAKRA_TAB_KEY`).
+  Second entry: **TabFM+** (`TABFM-PLUS`), TabArena's own system running TabFM through its
+  heavier `ensemble` interface (GPU; `run_system.py --num-gpus`).
 
 - **Rank by other metrics** (`raman_bench.fold_metrics`). Every result's stored test
   predictions give 20 metrics per fold: accuracy, balanced accuracy, F1 (macro/weighted),

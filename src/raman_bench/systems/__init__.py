@@ -76,6 +76,12 @@ def _chakra_tab_cls():
     return ChakraTabSystemModel
 
 
+def _tabfm_plus_cls():
+    from tabarena.systems.tabfm_plus.system import TabFMPlusSystemModel
+
+    return TabFMPlusSystemModel
+
+
 @dataclass(frozen=True)
 class System:
     key: str
@@ -84,6 +90,7 @@ class System:
     hyperparameters: dict = field(default_factory=dict)
     env: tuple[str, ...] = ()  # environment variables the system needs
     notes: str = ""
+    num_gpus: int = 0  # GPUs the system fits with (scripts/run_system.py --num-gpus overrides)
 
     def load_cls(self) -> type:
         """The system class, storing its test predictions like the v1 models (:func:`with_test_artifacts`)."""
@@ -110,6 +117,17 @@ SYSTEMS: dict[str, System] = {
         {"preset": "full"},
         env=("CHAKRA_TAB_KEY",),
         notes="hosted API; the data of every fold is sent to api.yhatlabs.com",
+    ),
+    # TabFM run through its heavier ``ensemble`` interface (TabArena's own TabFM+ system,
+    # tabarena.systems.tabfm_plus; Google, non-commercial licence). Shares TABFM's
+    # checkpoint and package. TabArena ran it with a 4 h limit per task; here it gets the
+    # v1 budget like every other model.
+    "TABFM-PLUS": System(
+        "TABFM-PLUS",
+        _tabfm_plus_cls,
+        "TabFM-Plus",
+        {"interface": "ensemble"},
+        num_gpus=1,
     ),
 }
 

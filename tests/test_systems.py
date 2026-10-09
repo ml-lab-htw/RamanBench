@@ -105,7 +105,8 @@ def test_chakra_tab_result_matches_the_v1_result_format(fake_api, tmp_path, prob
 
 
 def test_every_system_names_its_result_dir_and_key():
-    assert {s.result_dir for s in SYSTEMS.values()} == {"Chakra-Tab-medium", "Chakra-Tab-full"}
+    assert {s.result_dir for s in SYSTEMS.values()} == {"Chakra-Tab-medium", "Chakra-Tab-full", "TabFM-Plus"}
+    assert all(k == s.key for k, s in SYSTEMS.items())
     with pytest.raises(KeyError, match="Unknown system"):
         get_system("nope")
 
