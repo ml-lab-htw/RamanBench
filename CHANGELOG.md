@@ -426,6 +426,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
   copy of 1.9's algorithm and is used instead; 1.9's folds are the canonical ones, since
   most v1 results used them. Results computed with the older folds are being rerun.
 - `protocol.json` now records the per-model row caps (`model_max_train_samples_overrides`).
+- **`cluster/submit_full_benchmark.py` applies the scope's time budgets.** Both backends
+  ran every task at the flat `--time-limit`, ignoring `time_limit_overrides` (e.g. mlrod
+  10,800 s) and `model_time_limit_overrides` (e.g. LR 800,000 s); each task now gets its
+  own budget (`submit_job.resolve_time_limit`). `--time-limit` and `--num-bag-folds`
+  default to the scope's values (600 s, 3) instead of 3600 s and 8.
 - **Every reference result now uses the same folds.** An audit of the stored test
   indices against the canonical folds found 1,005 of ~22,800 folds computed on other
   rows: runs from before the NaN-row drop or the 10,000-spectrum sample, the old
