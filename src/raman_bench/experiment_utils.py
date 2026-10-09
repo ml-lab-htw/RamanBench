@@ -70,34 +70,25 @@ def write_hardware_info(cache_path: str) -> None:
     (Path(cache_path) / "gpu.json").write_text(json.dumps(info, indent=2))
 
 
-def build_task(
+def prepare_task_dataframe(
     *,
     dataset_name: str,
     target_idx: int,
     df: pd.DataFrame,
     raw_targets: np.ndarray,
     problem_type: str,
-    n_repeats: int,
-    n_splits: int,
     sample_idx: np.ndarray | None = None,
     min_samples_per_class: int = 9,
     filter_unlabeled: bool = True,
-) -> tuple[str, RamanBenchTaskWrapper] | tuple[None, None]:
-    """Clean and split an already-loaded (dataset, target) dataframe into a TabArena task.
+) -> pd.DataFrame | None:
+    """The rows of one (dataset, target) that enter the cross-validation, as :func:`build_task` uses them.
 
-    ``df`` is the caller's own ``dataset.to_dataframe(target_idx)`` result (after any
-    ``max_train_samples`` subsampling the caller chose to apply). ``raw_targets`` is
-    the dataset's full, un-subsampled target matrix (``dataset.targets``), used for
-    regression group-id inference; ``sample_idx`` is the row-index array a caller's
-    subsampling produced (``df.sample(...).index.to_numpy()``), or ``None`` if ``df``
-    wasn't subsampled -- mirrors ``run_one``'s own alignment between the (possibly
-    subsampled) dataframe and the full target matrix.
-
-    Returns ``(task_name, task_wrapper)``, or ``(None, None)`` if this target should
-    be cleanly skipped -- every row has a missing label, or (classification only)
-    rare-class filtering drops below 2 classes. Matches ``run_one``'s own skip
-    semantics: log a message and return a sentinel, not raise -- the caller should
-    treat this the same way (log, exit 0, no ``results.pkl`` written).
+    Adds inferred regression group ids, then drops rows with a NaN feature, (by default)
+    rows without a label and, for classification, classes with fewer than
+    *min_samples_per_class* rows. The index is kept, so it still names the
+    ``dataset.to_dataframe(target_idx)`` row. Returns ``None`` when the target is
+    skipped (no labelled rows, or fewer than 2 classes left). Arguments as for
+    :func:`build_task`.
     """
     label_col = df.columns[-1]
 
@@ -152,7 +143,7 @@ def build_task(
         logger.info(
             "Skipping %s target %d: every row has a missing label", dataset_name, target_idx
         )
-        return None, None
+        return None
 
     if problem_type == "classification":
         try:
@@ -161,7 +152,53 @@ def build_task(
             )
         except TooFewClassesError as e:
             logger.info("Skipping %s target %d: %s", dataset_name, target_idx, e)
-            return None, None
+            return None
+
+    return df
+
+
+def build_task(
+    *,
+    dataset_name: str,
+    target_idx: int,
+    df: pd.DataFrame,
+    raw_targets: np.ndarray,
+    problem_type: str,
+    n_repeats: int,
+    n_splits: int,
+    sample_idx: np.ndarray | None = None,
+    min_samples_per_class: int = 9,
+    filter_unlabeled: bool = True,
+) -> tuple[str, RamanBenchTaskWrapper] | tuple[None, None]:
+    """Clean and split an already-loaded (dataset, target) dataframe into a TabArena task.
+
+    ``df`` is the caller's own ``dataset.to_dataframe(target_idx)`` result (after any
+    ``max_train_samples`` subsampling the caller chose to apply). ``raw_targets`` is
+    the dataset's full, un-subsampled target matrix (``dataset.targets``), used for
+    regression group-id inference; ``sample_idx`` is the row-index array a caller's
+    subsampling produced (``df.sample(...).index.to_numpy()``), or ``None`` if ``df``
+    wasn't subsampled -- mirrors ``run_one``'s own alignment between the (possibly
+    subsampled) dataframe and the full target matrix.
+
+    Returns ``(task_name, task_wrapper)``, or ``(None, None)`` if this target should
+    be cleanly skipped -- every row has a missing label, or (classification only)
+    rare-class filtering drops below 2 classes. Matches ``run_one``'s own skip
+    semantics: log a message and return a sentinel, not raise -- the caller should
+    treat this the same way (log, exit 0, no ``results.pkl`` written).
+    """
+    df = prepare_task_dataframe(
+        dataset_name=dataset_name,
+        target_idx=target_idx,
+        df=df,
+        raw_targets=raw_targets,
+        problem_type=problem_type,
+        sample_idx=sample_idx,
+        min_samples_per_class=min_samples_per_class,
+        filter_unlabeled=filter_unlabeled,
+    )
+    if df is None:
+        return None, None
+    label_col = df.columns[-1]
 
     task_name = f"{dataset_name}__{target_idx}"
     _, task_obj = build_user_task(

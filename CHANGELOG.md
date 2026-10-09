@@ -11,6 +11,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The v1 outer folds as plain spectrum ids** (`raman_bench.folds`, `raman-bench
+  folds`). `export_folds()` writes, for every protocol task, which outer fold's test
+  set each used spectrum lies in, keyed by its row in the dataset, so the protocol can
+  be run in another framework without TabArena or AutoGluon. `train_test_ids()` gives
+  one fold's training and test ids. The row cleaning before the split moved from
+  `build_task` into `experiment_utils.prepare_task_dataframe`, which both use; no
+  change to `run_experiment.py`'s behaviour.
+
 - **`TABSTAR` back in the sweep with a 3600 s budget** (`configs/v1/scope_*.json`,
   `model_time_limit_overrides`). At 600 s it was always cut off after ~9-10 epochs,
   before its own early stopping, and was excluded on 2026-09-25. 3600 s is
