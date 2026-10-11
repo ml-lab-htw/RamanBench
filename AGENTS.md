@@ -69,6 +69,8 @@ Default is `use_mirror=True`. Tests and integration scripts that need raw source
 
 ## Versions & Releases
 
+The rules and steps for every release are in [RELEASING.md](RELEASING.md); this is a summary.
+
 **Version numbering**: the major version is the benchmark version, so every `1.x.y` release
 runs and scores benchmark v1 (`configs/v1/`, `results/v1/`, the bundled `data/precomputed/v1/`
 reference). Minor: new models, features, or an API break within the same benchmark version.

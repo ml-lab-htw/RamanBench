@@ -6,6 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 The major version is the benchmark version: every 1.x release runs and scores benchmark v1.
 Minor releases add models and features (and may change the API); patch releases fix bugs.
 2.0.0 and 2.0.1 were benchmark v1 too, released before this scheme; benchmark v2 starts at 2.1.0.
+The full rules are in [RELEASING.md](RELEASING.md).
 
 ---
 

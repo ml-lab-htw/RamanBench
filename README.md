@@ -56,7 +56,8 @@ Running a model on the benchmark protocol needs TabArena and AutoGluon (Option 3
 
 **Versions.** The package's major version is the benchmark version: every `raman-bench 1.x`
 release runs and scores RamanBench v1. 2.0.0 and 2.0.1 predate that rule and are benchmark v1
-too (2.0.1 is yanked on PyPI).
+too (2.0.1 is yanked on PyPI). Pin the benchmark with `raman-bench>=1.2,<2`; the rules are in
+[RELEASING.md](RELEASING.md).
 
 ### Option 2 — With all built-in models
 
