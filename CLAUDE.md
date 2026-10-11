@@ -2,15 +2,15 @@
 
 Guidance for Claude Code when working with this repository.
 
-## Current State (as of v2.0.0)
+## Current State (as of v1.2.0)
 
-**Status**: v2.0.0 (2026-09-18) — the legacy v0.1-era execution pipeline
+**Status**: since v2.0.0 (2026-09-18; renumbered to the 1.x line in v1.2.0) — the legacy v0.1-era execution pipeline
 (`raman_bench.model.AutoGluonModel`, `raman_bench.predictions`,
 `scripts/run_benchmark.py`, `configs/benchmark_v0.1.json`) has been removed.
 The only benchmark execution path now is the TabArena-based one:
 `scripts/run_experiment.py`, driven by `cluster/submit_job.py`/
 `cluster/submit_full_benchmark.py` against `configs/v1/target_list.json`.
-Anyone needing the old pipeline should check out the last v1.x release tag.
+Anyone needing the old pipeline should check out the `v1.1.1` tag.
 
 The `Leaderboard` class (`from raman_bench import Leaderboard`, precomputed
 CSVs, `raman-bench leaderboard` CLI) was deliberately kept — it's a scoring
@@ -59,7 +59,7 @@ This is a real architectural dependency, not a style reference. If you need to:
 | `src/raman_bench/evaluate.py` | `evaluate_estimator()` runs any scikit-learn estimator on the v1 protocol; `protocol_commands()` gives `run_experiment.py` calls for a registered model |
 | `src/raman_bench/experiment_utils.py` | Shared by every v1 runner: `build_task`, `load_dataframe`, `bag_experiment_kwargs`, `run_cached` |
 | `scripts/build_reference_results.py` | Rebuilds the bundled reference results after a sweep (see `data/precomputed/v1/README.md`) |
-| `pyproject.toml` | Version (currently 1.0.0), dependencies (including `tabarena`), package metadata |
+| `pyproject.toml` | Version (currently 1.2.0), dependencies (including `tabarena`), package metadata |
 | `CHANGELOG.md` | Release notes; update this for every release (move "Unreleased" → version section) |
 
 ## Datasets & The Mirror
@@ -73,7 +73,14 @@ Default is `use_mirror=True`. Tests and integration scripts that need raw source
 
 ## Versions & Releases
 
-**Version numbering**: Semantic versioning. v1.0.0 was the TabArena+k-fold release.
+The rules and steps for every release are in [RELEASING.md](RELEASING.md); this is a summary.
+
+**Version numbering**: the major version is the benchmark version, so every `1.x.y` release
+runs and scores benchmark v1 (`configs/v1/`, `results/v1/`, the bundled `data/precomputed/v1/`
+reference). Minor: new models, features, or an API break within the same benchmark version.
+Patch: fixes. Since 1.2.0 (2026-10-11). The earlier `2.0.0`/`2.0.1` releases were still
+benchmark v1; 2.0.1 is yanked on PyPI, and both numbers are taken for good, so benchmark v2
+starts at `2.1.0`.
 
 **Release process**:
 1. Update `pyproject.toml` version field
@@ -90,7 +97,7 @@ Default is `use_mirror=True`. Tests and integration scripts that need raw source
    every single time it ran, on every release from v1.0.0 through v2.0.1, harmlessly racing the real
    `publish.yml` publish and always losing).
 
-**Current version**: 1.0.0 (released Sept 1, 2026)
+**Current version**: 1.2.0
 
 ## Testing
 
@@ -131,7 +138,7 @@ Cluster runs (SLURM or Kubernetes) use `cluster/submit_job.py`,
 
 ## Important: No Half-Done State
 
-This codebase is currently in a released state (v2.0.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
+This codebase is currently in a released state (v1.2.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
 
 If you're about to start significant work, create a feature branch, but assume main is stable.
 
