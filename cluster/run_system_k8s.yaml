@@ -1,0 +1,48 @@
+# One CPU pod running scripts/run_system.py on BHT, writing straight to the results PVC.
+# For hosted systems (raman_bench.systems), e.g. Chakra-Tab: no GPU needed, the API does the fit.
+#
+# Before the first run, store the API key as a secret (typed at the prompt, never in a file):
+#   read -s KEY && kubectl --context oidc_ds_cluster -n mkoddenbrock-ext create secret generic \
+#       chakra-tab-key --from-literal=CHAKRA_TAB_KEY="$KEY"; unset KEY
+# Copy the RamanBench code to run onto the PVC (as for aggregation, the image may be stale):
+#   git archive --format=tar.gz -o code.tgz HEAD src scripts configs   # then kubectl cp + tar xzf
+#   into /data/RamanBench_v1/code_<sha>
+# Fill in <SHA>, <SYSTEM>, <WORKERS> (the concurrency the provider allows) and <EXTRA>
+# (e.g. "--tasks alzheimer__0 --folds 0" for a first single-fold check, empty for all 405), then:
+#   kubectl --context oidc_ds_cluster -n mkoddenbrock-ext apply -f run_system_k8s.yaml
+# Cached folds are skipped, so the same pod spec resumes an interrupted run.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rb-system-<system-lowercase>
+  labels: {app: raman-bench}
+spec:
+  restartPolicy: Never
+  imagePullSecrets: [{name: private-registry-auth}]
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms: [{matchExpressions: [{key: gpu, operator: In, values: ["false"]}]}]
+  containers:
+  - name: run
+    # Pinned digest: the :v1 tag is stale on some nodes (docs/internal/results-pipeline.md).
+    image: registry.datexis.com/mkoddenbrock-ext/ramanbench@sha256:6f6fb32d4fc71f23cdaa23930145f566d6146850a769573df783094095de9bfe
+    workingDir: /data/RamanBench_v1/code_<SHA>
+    command: ["bash", "-c"]
+    args:
+    - >-
+      set -e;
+      python scripts/run_system.py --system <SYSTEM> --workers <WORKERS> <EXTRA>
+      --results-dir /data/RamanBench_v1/results/v1/data
+      --cache-dir /data/RamanBench_v1/.cache_v1;
+      echo SYSTEM_RUN_DONE
+    env:
+    - {name: PYTHONPATH, value: /data/RamanBench_v1/code_<SHA>/src}
+    - {name: CHAKRA_TAB_KEY, valueFrom: {secretKeyRef: {name: chakra-tab-key, key: CHAKRA_TAB_KEY}}}
+    resources:
+      requests: {cpu: "4", memory: 32Gi}
+      limits: {cpu: "4", memory: 32Gi}
+    volumeMounts: [{name: data, mountPath: /data}]
+  volumes:
+  - name: data
+    persistentVolumeClaim: {claimName: raman-bench-pvc}

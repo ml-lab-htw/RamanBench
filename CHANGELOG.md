@@ -3,7 +3,10 @@
 All notable changes to RamanBench are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-Versions follow [Semantic Versioning](https://semver.org/).
+The major version is the benchmark version: every 1.x release runs and scores benchmark v1.
+Minor releases add models and features (and may change the API); patch releases fix bugs.
+2.0.0 and 2.0.1 were benchmark v1 too, released before this scheme; benchmark v2 starts at 2.1.0.
+The full rules are in [RELEASING.md](RELEASING.md).
 
 ---
 
@@ -14,10 +17,77 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **LightPFN and PrismBoost** (`LIGHTPFN`, `PRISMBOOST`), TabArena's two newest models
   ([#655](https://github.com/autogluon/tabarena/pull/655),
   [#629](https://github.com/autogluon/tabarena/pull/629)). LightPFN is a 4.6M-parameter
-  in-context classifier (GPU, also runs on CPU; classification only, at most 10 classes).
-  PrismBoost is gradient boosting with SEFR oblique splits (CPU). The TabArena pin moves to
-  `9d771c3` plus exactly these two models (`742133b4`), so the code behind every existing
+  in-context classifier (GPU, also runs on CPU; classification only); label sets wider than
+  its 10-class head are output-coded ([#659](https://github.com/autogluon/tabarena/pull/659)).
+  PrismBoost is gradient boosting with SEFR oblique splits (CPU). Not on the leaderboard yet.
+- **TabFM+ on datasets with more than ten classes**, output-coded like TabFM
+  ([#657](https://github.com/autogluon/tabarena/pull/657)).
+
+### Changed
+
+- **TabArena pin** moves to `66198aba` (`mario-koddenbrock/tabarena`, branch
+  `ramanbench/lightpfn-prismboost`): `9d771c3` plus LightPFN, PrismBoost and the many-class
+  support for LightPFN and TabFM+, cherry-picked from upstream. The code behind every other
   model, Kumo-Tabular included, is unchanged.
+
+### Known issues
+
+- **PrismBoost models above 2 GiB** (wide spectra with oblique splits) can't be loaded
+  again with `prismboost` 0.5.0: its model length is stored as int32. The fix
+  ([PrismBoost#4](https://github.com/PrismBoost/PrismBoost/pull/4)) isn't released yet;
+  the v1 PrismBoost results used a build with it.
+
+## [1.3.0] — 2026-10-13
+
+### Added
+
+- **Systems: self-contained methods on the v1 protocol** (`raman_bench.systems`,
+  `scripts/run_system.py`, `cluster/run_system_k8s.yaml`). A system does its own validation
+  and ensembling, so it is fit once per outer fold through TabArena's
+  `ExternalSystemExperiment` instead of AutoGluon's bagging, on the same tasks, folds, row
+  sample and time budgets as every v1 result. Its results store their test predictions like
+  the other models', so the fold check and the per-fold metrics cover them. First entry:
+  **Chakra-Tab** (`CHAKRA-TAB`, `CHAKRA-TAB-FULL`), YHat Labs' hosted, closed-source tabular
+  API; the client is copied from TabArena's
+  [#654](https://github.com/autogluon/tabarena/pull/654) until our TabArena pin includes it.
+  Running it sends each fold's training and test data to the provider's API and needs its key
+  (`CHAKRA_TAB_KEY`).
+  Second entry: **TabFM+** (`TABFM-PLUS`), TabArena's own system running TabFM through its
+  heavier `ensemble` interface (GPU; `run_system.py --num-gpus`).
+
+### Fixed
+
+- **Stateful preprocessing (`StandardScaler`, MSC, EMSC, GCU, LVSE,
+  `crop_physical`) could crash or silently misalign on a constant feature
+  column.** AutoGluon's `drop_unique=True` auxiliary-param default drops
+  columns that are constant within a bagged fold child's own (small)
+  training partition, after `RamanPreprocessingMixin` has already fit a
+  stateful step on the wider, pre-drop column set — raising e.g. `ValueError:
+  X has 1896 features, but StandardScaler is expecting 1897 features as
+  input.` for the scaler/MSC/EMSC/GCU/LVSE case, or a silently shifted/
+  mismatched crop window for `crop_physical` (whose wavenumber axis is
+  captured from the same pre-drop columns). Most likely on datasets with
+  small bag-fold partitions (e.g. `fuel_handheld`), fold-content-dependent
+  elsewhere. `RamanPreprocessingMixin._get_default_auxiliary_params` now
+  disables `drop_unique` only for model instances with one of these stateful
+  steps actually enabled (including inside a `prep_ensemble_blocks` entry);
+  models with no prep recipe keep AutoGluon's default behavior unchanged.
+
+## [1.2.1] — 2026-10-13
+
+### Fixed
+
+- **Regression targets with inferred replicate groups failed to build** (about 78 of the
+  135 tasks: sugar_mixtures, fuel, bioprocess and the acid-species sets). Since 1.2.0,
+  `prepare_task_dataframe` appended the inferred `_group_id` column after the target, so
+  every caller that takes the last column as the label (`build_task`, the fold export in
+  `raman_bench.folds`) took the group ids as the label, and building the task stopped
+  with `KeyError: ['_group_id'] not found in axis`. The column now goes before the target.
+  It only ever crashed, so no stored result is affected (#138).
+
+## [1.2.0] — 2026-10-11
+
+### Added
 
 - **Rank by other metrics** (`raman_bench.fold_metrics`). Every result's stored test
   predictions give 20 metrics per fold: accuracy, balanced accuracy, F1 (macro/weighted),
@@ -167,6 +237,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
   historical data, same convention as `TABPFN-WIDE`'s earlier removal.
 
 ### Changed
+
+- **Versions follow the benchmark.** The major version is now the benchmark version, so
+  this release, still benchmark v1, is 1.2.0 and follows 2.0.1. 2.0.1 is yanked on PyPI
+  (`pip install raman-bench` gives 1.2.0; an exact `==2.0.1` pin still installs it). 2.0.x
+  had the same benchmark and API as this line; 1.2.0 contains everything in 2.0.1.
+  Benchmark v2 will start at 2.1.0.
 
 - **`raman_bench.plotting` no longer forces matplotlib's Agg backend** when
   `MPLBACKEND` is set (Jupyter sets it), so `plt.show()` works in notebooks that

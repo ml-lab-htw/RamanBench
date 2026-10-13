@@ -127,8 +127,15 @@
 # `9d771c3`. Their own packages (`lightpfn==1.0.0`, `prismboost>=0.5.0`) need
 # nothing beyond what is already installed (torch, scikit-learn, huggingface-hub;
 # checked with `pip install --dry-run --report`).
+#
+# FURTHER BUMPED 2026-10-13: onto `66198aba` (same fork branch) -- `742133b4`
+# plus the many-class (output-coding) support for TabFM+ (#657) and LightPFN
+# (#659), both merged upstream 2026-10-10 and cherry-picked here. Touches only
+# `models/lightpfn/`, `systems/tabfm_plus/` and an unused-by-default
+# `interface` argument of TabFM's output-code estimator. The BHT LightPFN/TabFM+
+# reruns of the >10-class datasets used exactly this commit.
 # ############################################################################
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost] @ git+https://github.com/mario-koddenbrock/tabarena.git@742133b465e30ad956a3b53f2aad9707200b4c61#subdirectory=packages/tabarena
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost] @ git+https://github.com/mario-koddenbrock/tabarena.git@66198abac051459bdcb8e5106836b910a6a64ad4#subdirectory=packages/tabarena
 
 # tabicl -- pinned to an EXACT version, not left floating on tabarena's own
 # `tabicl` extra (`tabicl>=2.0.0`, unbounded upward). Flagged by a downstream

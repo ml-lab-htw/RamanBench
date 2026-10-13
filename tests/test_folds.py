@@ -69,6 +69,26 @@ def test_folds_equal_the_runners_task_splits(fake_task, problem_type, grouped):
         np.testing.assert_array_equal(np.sort(test_ids), expected)
 
 
+def test_inferred_regression_groups_keep_the_label_last():
+    # Repeated target rows (replicates) get an inferred group id; the label must stay the target.
+    raw = _frame("regression")
+    raw["target"] = np.repeat(np.arange(len(raw) // 3, dtype=float), 3)
+    df = prepare_task_dataframe(
+        dataset_name="toy", target_idx=0, df=raw.copy(),
+        raw_targets=raw["target"].to_numpy()[:, None], problem_type="regression",
+    )
+    assert GROUP_COL in df.columns and df.columns[-1] == "target"
+
+    _, wrapper = build_task(
+        dataset_name="toy", target_idx=0, df=raw.copy(), raw_targets=raw["target"].to_numpy()[:, None],
+        problem_type="regression", n_repeats=1, n_splits=3,
+    )
+    assert wrapper.label == "target" and GROUP_COL not in wrapper.X.columns
+    train_pos, test_pos = wrapper.get_split_indices(fold=0, repeat=0)
+    groups = df[GROUP_COL].to_numpy()
+    assert not set(groups[train_pos]) & set(groups[test_pos])
+
+
 def test_dropped_rows_are_absent_and_ids_are_original(fake_task):
     _, df = fake_task("classification")
     folds = folds_mod.task_folds("toy__0")
