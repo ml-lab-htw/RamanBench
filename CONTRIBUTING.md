@@ -29,7 +29,7 @@ Before you start, here are the key resources:
 git clone https://github.com/ml-lab-htw/RamanBench.git
 cd RamanBench
 pip install -e ".[full,dev]"
-pre-commit install
+pip install -r requirements-tabarena-git.txt
 ```
 
 ---
@@ -38,23 +38,25 @@ pre-commit install
 
 ### Option A: Scikit-learn compatible model (simplest)
 
-If your model has `.fit(X, y)` / `.predict(X)` methods, you can evaluate it
-immediately using the leaderboard without touching the package source:
+If your model has `.fit(X, y)` / `.predict(X)` (and `predict_proba` for classification),
+you can run it on the v1 protocol and rank it against the leaderboard without touching the
+package source:
 
 ```python
-from raman_bench import Leaderboard
-from mypackage import MyModel
+from mypackage import MyClassifier, MyRegressor
+from raman_bench.evaluate import evaluate_estimator
+from raman_bench.compare import compare
 
-lb = Leaderboard.from_precomputed()
-lb.evaluate_and_add("My Model", MyModel())
-print(lb.rank())
+evaluate_estimator("MY-MODEL", classifier=MyClassifier(), regressor=MyRegressor(),
+                   results_dir="results/my_model")
+compare("results/my_model")["all"].leaderboard.head(15)
 ```
 
 ### Option B: Wrapping a TabArena-native model
 
 Use this path when the model already exists in TabArena (check the pinned
-commit's `tabarena.models.<key>` — see `pyproject.toml`'s `tabarena`
-dependency comment for which commit is currently pinned and why) rather than
+commit's `tabarena.models.<key>` — see `requirements-tabarena-git.txt` for
+which commit is currently pinned and why) rather than
 subclassing a raw AutoGluon model directly.
 
 #### 1. Confirm TabArena has it, don't reinvent
@@ -99,7 +101,9 @@ Use this path when implementing a new neural network or algorithm from scratch.
 
 #### 1. Implement the model
 
-Create `src/raman_bench/models/custom/my_model.py` by subclassing `BaseCustomModel`:
+Create `src/raman_bench/models/custom/my_model.py`. The sketch below shows the shape of a
+training loop; for a real PyTorch model, subclass `BaseRamanEstimator`
+(`models/custom/base.py`) and see `models/custom/ridge/` for the per-directory layout:
 
 ```python
 import torch.nn as nn
@@ -130,7 +134,7 @@ class MyModel(BaseCustomModel):
             batch_size=params["batch_size"], lr=params["learning_rate"])
 ```
 
-Then follow steps 2–6 from Option B above (the `Prep_*` wrapper, config registration,
+Then follow steps 2–4 from Option B above (the `Prep_*` wrapper, config registration,
 and cluster scripts are identical regardless of whether the model is custom or wrapped).
 
 ---
@@ -184,7 +188,7 @@ See the existing entries in raman-data for examples.
 ### Step 4: Open an issue here
 
 Once the raman-data PR is merged and a new raman-data release is published, open an issue
-in this repository requesting the dataset be added to `configs/datasets/`.
+in this repository requesting the dataset be added to `configs/v1/datasets/`.
 
 ### Dataset inclusion criteria
 
@@ -210,11 +214,10 @@ format.  See [NEW_DATASETS.md](NEW_DATASETS.md) for examples.
 ```bash
 ruff check src/          # linting
 black src/ tests/        # formatting
-mypy src/raman_bench/    # type checking
 pytest                   # tests
 ```
 
-All of these are run automatically in CI.
+CI runs `ruff check src/`, `black --check src/ tests/` and `pytest`.
 
 ---
 
