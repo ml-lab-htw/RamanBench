@@ -19,7 +19,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
   [#629](https://github.com/autogluon/tabarena/pull/629)). LightPFN is a 4.6M-parameter
   in-context classifier (GPU, also runs on CPU; classification only); label sets wider than
   its 10-class head are output-coded ([#659](https://github.com/autogluon/tabarena/pull/659)).
-  PrismBoost is gradient boosting with SEFR oblique splits (CPU). Not on the leaderboard yet.
+  PrismBoost is gradient boosting with SEFR oblique splits (CPU). Both are registered and
+  have complete v1 results, but are not in `configs/v1/scope_default.json` yet, so they stay
+  off the leaderboard.
 - **TabFM+ on datasets with more than ten classes**, output-coded like TabFM
   ([#657](https://github.com/autogluon/tabarena/pull/657)).
 
