@@ -447,6 +447,7 @@ _STATEFUL_ENABLED_PARAMS = (
     "prep_scaling_enabled",
     "prep_gcu_enabled",
     "prep_lvse_enabled",
+    "prep_crop_physical_enabled",
 )
 
 # The matching _PREP_STEP_DEFINITIONS step_keys, for checking
@@ -457,7 +458,7 @@ _STATEFUL_ENABLED_PARAMS = (
 # _preprocess_fit_ensemble's step_key loop, which iterates STEP_ENABLED_PARAMS
 # and therefore never touches scaling), so "standard_scaling" is intentionally
 # absent here.
-_STATEFUL_STEP_KEYS = ("msc", "emsc", "gcu", "lvse")
+_STATEFUL_STEP_KEYS = ("msc", "emsc", "gcu", "lvse", "crop_physical")
 
 # Ensemble-mechanism param names. Deliberately NOT part of
 # _PREP_STEP_DEFINITIONS: the ensemble is an orthogonal fan-out/concatenate
@@ -514,59 +515,21 @@ class RamanPreprocessingMixin:
     _optimize_preprocessing: bool = False
     _supports_augmentation: bool = False
 
-    # AutoGluon's own `drop_unique` auxiliary param (default True on every
-    # AbstractModel, see `AuxiliaryParams.base_defaults()`) silently removes
-    # columns that are constant (`nunique(dropna=False) < 2`) *within the exact
-    # X this model instance's own `fit()` call received* -- which, for a bagged
-    # fold child, is that fold's own small training partition, not the full
-    # dataset. AutoGluon's own code acknowledges this is fold-unsafe (see the
-    # "FIXME: v1.3: Need to do this on a per-fold basis" comment immediately
-    # above the `drop_unique` branch in `AbstractModel._preprocess_set_features`).
-    #
-    # That column drop is applied by `_preprocess_align_features`, which AutoGluon
-    # calls from `preprocess()` *after* `_preprocess_nonadaptive` but *before* our
-    # own `_preprocess` hook -- i.e. strictly between where `_fit` (below) captures
-    # `X`'s width and fits a stateful transform on it (`self.scaler` for
-    # `prep_scaling_enabled`; `self._msc_reference`/`self._emsc_reference` for
-    # MSC/EMSC; the GCU/LVSE fitted state) and where `_preprocess_transform` later
-    # replays that transform on the (by then narrower) aligned `X`. Every one of
-    # those stateful fits therefore silently captures a width AutoGluon then
-    # shrinks by 1+ columns the moment any fold's own small training sample has a
-    # literal zero-variance spectral channel -- common for real Raman data
-    # (saturated/clipped detector pixels, dead channels, flat baseline edges),
-    # near-deterministic on datasets with very small bag-fold partitions (e.g.
-    # `fuel_handheld`, reliably ~10-80 rows per fold) and fold-content-dependent
-    # (hence intermittent) everywhere else. Confirmed via a real cluster traceback
-    # (`ValueError: X has 1896 features, but StandardScaler is expecting 1897
-    # features as input.`, DEEPCNN on fuel_handheld, job 222212) and by reading
-    # AutoGluon's `_preprocess_set_features`/`_preprocess_align_features` source
-    # directly -- not merely inferred from the message.
-    #
-    # Disabling `drop_unique` fixes this, but ONLY scoping it to model
-    # instances that actually have a stateful prep step enabled is required --
-    # a `Prep_*` instance with no recipe at all (most of the v1 leaderboard,
-    # e.g. foundation models that count/subsample features) must keep
-    # AutoGluon's default `drop_unique=True` behavior unchanged, since
-    # RamanBench's own protocol rule is that v1 scores must not move within
-    # the 1.x line for reasons unrelated to preprocessing. `_get_default_auxiliary_params`
-    # below overrides the base `AbstractModel` implementation (an *instance*
-    # method, not the declarative `_default_auxiliary_params_extra` class-dict
-    # merge AutoGluon also supports -- see `_has_stateful_prep_enabled`'s
-    # docstring for why a class-level override can't be conditional here) to
-    # flip `drop_unique` off only when `_has_stateful_prep_enabled()` is True.
-    # When it is: every stateful prep step fits and later replays on the exact
-    # same width AutoGluon handed `_fit`, and this is safe to do unconditionally
-    # within that scope -- a genuinely constant column simply flows through
-    # unmodified (sklearn's `StandardScaler` already treats zero-variance
-    # columns as scale=1, not a divide-by-zero), and every other mixin step
-    # either preserves width (SNV/derivative/etc. tolerate an all-equal
-    # row/column) or already has its own NaN-to-zero guard
-    # (`_preprocess_fit`/`_preprocess_transform`'s `np.nan_to_num` call) for
-    # anything that could turn a constant column into a NaN-producing one.
+    # AutoGluon's `drop_unique` auxiliary param (default True) drops columns
+    # that are constant within the exact X a bagged fold child's `fit()`
+    # receives -- that fold's own small training partition, not the full
+    # dataset (AutoGluon's own code flags this as fold-unsafe). The drop
+    # happens between where our stateful steps fit (scaler, MSC/EMSC
+    # reference, GCU/LVSE state, and now the `_wavenumbers` axis
+    # `crop_physical` indexes) and where transform later replays on a
+    # narrower X, desyncing fit-width from transform-width. We disable
+    # `drop_unique` only when a stateful step is enabled
+    # (`_has_stateful_prep_enabled`), since models with no prep recipe must
+    # keep AutoGluon's default behavior unchanged.
     def _has_stateful_prep_enabled(self) -> bool:
         """True if this model instance's own hyperparameters enable a
-        stateful prep step (scaling, MSC, EMSC, GCU, or LVSE -- i.e. anything
-        in `_STATEFUL_PREP_ATTRS`).
+        stateful prep step (scaling, MSC, EMSC, GCU, LVSE, or crop_physical --
+        i.e. anything in `_STATEFUL_PREP_ATTRS`/`_STATEFUL_ENABLED_PARAMS`).
 
         Checked against `self._user_params` -- the raw hyperparameters dict
         AutoGluon's `AbstractModel.__init__` stashes *before* `initialize()`

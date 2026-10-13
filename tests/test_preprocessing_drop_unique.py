@@ -1,61 +1,20 @@
 """Regression tests for the AutoGluon ``drop_unique`` / stateful-prep
 fold-width mismatch bug, and for the scope-narrowing fix that followed it.
 
-Root cause (see ``RamanPreprocessingMixin._has_stateful_prep_enabled``'s
-docstring in ``mixin.py`` for the full trace): AutoGluon's own
-``AbstractModel`` defaults ``aux_params.drop_unique=True``. ``_fit()``
-(``RamanPreprocessingMixin._fit``) fits a stateful mixin transform
-(``StandardScaler`` for ``prep_scaling_enabled``; MSC/EMSC's reference
-spectrum; GCU/LVSE's fitted state) on ``X``'s *raw* width, captured directly
-from the ``X`` argument AutoGluon's own ``fit()`` wrapper hands to ``_fit()``
--- i.e. *before* ``_preprocess_set_features`` has had a chance to drop any
-column. If that same ``X`` has a column that is constant
-(``nunique(dropna=False) < 2``), ``_preprocess_set_features`` (called once,
-inside ``initialize()``, before ``_fit()`` even runs) drops it from
-``self._features_internal`` when ``drop_unique=True``. The model's own
-``_fit`` (e.g. ``KNNModel._fit``) then calls ``self.preprocess(X, y=y)``,
-which re-applies that now-narrower feature alignment *before* calling our
-``_preprocess`` hook -- so ``_preprocess_transform`` receives one column
-fewer than ``self.scaler``/``self._msc_reference``/etc. was fit with,
-raising e.g.::
+AutoGluon's ``drop_unique=True`` default drops columns that are constant
+within the ``X`` a model's own ``_fit()`` receives, *before* our stateful
+prep steps (scaler, MSC/EMSC, GCU/LVSE, and the ``_wavenumbers`` axis
+``crop_physical`` indexes) fit on that same ``X`` -- desyncing fit-width
+from the narrower transform-width AutoGluon later replays, e.g.::
 
     ValueError: X has 49 features, but StandardScaler is expecting 50
     features as input.
 
-On real spectral data this is most often triggered by a literal
-zero-variance channel within a bagged fold child's own small training
-partition (a saturated/clipped detector pixel, a dead channel, a flat
-baseline edge) -- fold-content-dependent, hence intermittent, in production.
-The test below reproduces the same code-level mechanism deterministically
-with a single (non-bagged) ``.fit()`` call on data with one genuinely
-constant column: a bagged fold child's ``_fit()`` call sees exactly the same
-``RamanPreprocessingMixin``/``AbstractModel`` interaction on its own
-(smaller) partition, so this is a faithful minimal repro of the underlying
-bug, not a different one. (A bagged, ``TabularPredictor``-level version of
-this repro was attempted first but turned out to be confounded by two
-unrelated AutoGluon behaviors that also happen to produce the identical
-error message: (1) the dataset-level ``AutoMLPipelineFeatureGenerator`` a
-``TabularPredictor`` applies before any model ever sees the data already
-drops a column that is constant over the *entire* training set, regardless
-of any model's own ``drop_unique`` setting -- sidestepping this bug
-entirely; (2) a column with few enough distinct values can get tagged a
-"bool" special feature type and excluded via ``ignored_type_group_special``,
-again regardless of ``drop_unique``. Both would have made a
-``TabularPredictor``-level test non-discriminating or misleading about which
-mechanism it was actually exercising, so the direct, single-model-instance
-repro below is used instead.)
-
-First fix attempt (commit 85be2cf) set
-``_default_auxiliary_params_extra = {"drop_unique": False}`` unconditionally
-on ``RamanPreprocessingMixin`` -- which also silently changed
-``drop_unique`` behavior for every ``Prep_*`` model with NO recipe enabled
-at all (most of the v1 leaderboard, e.g. feature-counting/subsampling
-foundation models), violating RamanBench's rule that v1 scores must not move
-within the 1.x line for reasons unrelated to preprocessing. The fix was
-narrowed to only disable ``drop_unique`` when a stateful prep step
-(scaling, MSC, EMSC, GCU, LVSE) is actually enabled for that model instance
--- see ``RamanPreprocessingMixin._has_stateful_prep_enabled``/
-``_get_default_auxiliary_params``.
+Fix: disable ``drop_unique`` only on model instances with a stateful prep
+step enabled (``RamanPreprocessingMixin._has_stateful_prep_enabled`` /
+``_get_default_auxiliary_params``), leaving no-recipe models' default
+AutoGluon behavior untouched. See PR #142 for the investigation history
+(confounded ``TabularPredictor``-level repro attempt, etc.).
 """
 
 import numpy as np
@@ -157,3 +116,34 @@ def test_ensemble_block_stateful_step_also_disables_drop_unique():
         }
     )
     assert model._has_stateful_prep_enabled() is True
+
+
+def test_crop_physical_survives_fit_with_constant_column():
+    """Same bug class as the StandardScaler case, but for ``crop_physical``:
+    ``_fit`` captures ``self._wavenumbers`` from the pre-drop ``X`` columns,
+    then indexes the (potentially narrower, post-``drop_unique``) ``X`` with
+    it. Without the fix, a constant column desyncs that axis from the
+    columns actually being cropped -- either a length mismatch or a
+    silently-shifted crop. Uses real float wavenumber column names (as
+    RamanBench spectra actually have), with one genuinely constant channel.
+    """
+    cls = PREPROCESSED_MODELS["KNN"]
+    wavenumbers = np.linspace(200.0, 2200.0, N_FEATURES)
+    rng = np.random.RandomState(0)
+    X = pd.DataFrame(rng.rand(N_SAMPLES, N_FEATURES), columns=wavenumbers)
+    X.iloc[:, 0] = 0.0  # constant column, within the crop_physical window below
+    y = pd.Series(rng.rand(N_SAMPLES))
+
+    model = cls(
+        hyperparameters={
+            "prep_crop_physical_enabled": True,
+            "prep_crop_physical_start_cm": 200.0,
+            "prep_crop_physical_end_cm": 1200.0,
+        }
+    )
+    assert model._has_stateful_prep_enabled() is True
+    model.fit(X=X, y=y)
+
+    preds = model.predict(X.iloc[:5])
+    assert len(preds) == 5
+    assert not pd.isna(preds).any()
