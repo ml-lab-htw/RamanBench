@@ -102,6 +102,14 @@ def aggregate_results(results_lst: list[dict]) -> tuple[pd.DataFrame, pd.DataFra
     from tabarena.benchmark.task.metadata.collection import TaskMetadataCollection
     from tabarena.end_to_end.end_to_end import EndToEnd
 
+    # A system (raman_bench.systems) stores test predictions but no validation rows. TabArena
+    # would score the empty validation set (ROC AUC fails on it); record no validation error
+    # instead, as for its own fits without validation.
+    for result in results_lst:
+        sa = result.get("simulation_artifacts")
+        if sa is not None and "metric_error_val" not in result and len(sa.get("y_val_idx", [None])) == 0:
+            result["metric_error_val"] = float("nan")
+
     task_metadata = build_task_metadata(results_lst)
     logger.info(
         "Found %d cached result(s) across %d task(s): %s",
