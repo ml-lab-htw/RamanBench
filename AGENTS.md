@@ -2,7 +2,7 @@
 
 Guidance for Codex when working with this repository.
 
-## Current State (as of v1.2.0)
+## Current State (as of v1.3.0)
 
 **Status**: since v2.0.0 (2026-09-18; renumbered to the 1.x line in v1.2.0) — the legacy v0.1-era execution pipeline
 (`raman_bench.model.AutoGluonModel`, `raman_bench.predictions`,
@@ -19,8 +19,9 @@ feature independent of the removed execution pipeline, not part of it.
 - Main branch contains the completed v1 refactor (TabArena integration, k-fold CV, new preprocessing)
 - Cluster support now includes both SLURM (HTW/TU) and Kubernetes backends
   (`cluster/submit_job.py`'s backend dispatch)
-- `tabarena` is pinned to a specific upstream git commit, not a PyPI release —
-  see `pyproject.toml`'s `tabarena` dependency comment for why
+- `tabarena` is pinned to a commit of our fork (`mario-koddenbrock/tabarena`), not a PyPI
+  release: PyPI forbids git dependencies, so it is installed from
+  `requirements-tabarena-git.txt`, whose comments give the pin history and why
 
 ## What This Repo Is
 
@@ -128,7 +129,7 @@ Cluster runs (SLURM or Kubernetes) use `cluster/submit_job.py`,
 
 ## Important: No Half-Done State
 
-This codebase is currently in a released state (v1.2.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
+This codebase is currently in a released state (v1.3.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
 
 If you're about to start significant work, create a feature branch, but assume main is stable.
 
@@ -152,5 +153,5 @@ If you're about to start significant work, create a feature branch, but assume m
 - PyPI: https://pypi.org/project/raman-bench/
 - Paper: https://arxiv.org/abs/2605.02003
 - Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
-- Upstream TabArena: https://github.com/ml-lab-htw/tabarena (our fork; original at https://github.com/automl/tabarena)
+- Upstream TabArena: https://github.com/autogluon/tabarena (the pin is on our fork, https://github.com/mario-koddenbrock/tabarena)
 - raman_data: https://github.com/ml-lab-htw/raman_data

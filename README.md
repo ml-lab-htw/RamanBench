@@ -12,7 +12,7 @@
 
 RamanBench collects 74 public Raman datasets (163 prediction targets, four
 application domains: Material Science, Biological, Medical, Chemical) behind one
-evaluation protocol, and ships the results of 28 baseline models run through it.
+evaluation protocol, and ships the v1 results of 55 models on its 135 benchmark tasks.
 You can score a new model against those baselines without re-running the
 experiments. The baselines cover classical chemometrics, gradient boosting,
 tabular foundation models, and deep networks built for spectra.
@@ -106,10 +106,10 @@ two limitations of AutoGluon 1.5:
    `_default_auxiliary_params_extra` subclass extension point — see
    `Prep_MITRA` / `Prep_TABDPT` / `Prep_TABICL` / `Prep_REALTABPFN_V2` /
    `Prep_REALTABPFN_V25` in `preprocessing/wrapped_models.py`. No fork needed.
-   Accepted tradeoff: the fork additionally routed >10-class datasets on
-   Mitra/TabPFN through an ECOC many-class wrapper (`tabpfn-extensions`'
-   `ManyClassClassifier`); that extra is not reproduced, so such datasets may
-   now fail on those two models instead of falling back to the wrapper.
+   Datasets with more than 10 classes go through `tabpfn-extensions`'
+   output-coding `ManyClassClassifier`, as the fork did: RamanBench applies it
+   itself for the TabPFN v2/v2.5/v2.6 wrappers, and TabArena does for LightPFN
+   and TabFM+.
 2. **TabICL v2 regression** — AutoGluon 1.5 shipped TabICL v1 (classification
    only). AutoGluon 1.6 upgraded to TabICL v2 natively, adding regression
    support — no fork or override needed for this part anymore.
@@ -118,7 +118,7 @@ two limitations of AutoGluon 1.5:
 
 ## RamanBench v1
 
-The benchmark-running layer is being rebuilt directly on
+The benchmark-running layer is built directly on
 [TabArena](https://github.com/autogluon/tabarena) (`tabarena` / `bencheval`)
 instead of on its own reimplementation of the same ideas.
 
@@ -149,9 +149,12 @@ Key entry points:
   (`--use-mirror`/`--no-use-mirror` to opt out).
 - `raman_bench.models.registry.raman_bench_model_registry` — TabArena's full model
   registry plus RamanBench's own architectures and Raman-preprocessing overrides.
-- `cluster/` — cluster-agnostic SLURM job submission (`submit_job.py`,
-  `run_experiment.sbatch`, `detect_cluster.py`, `janitor.py`) driven by a profile YAML;
-  works locally too when no cluster is available.
+- `scripts/run_system.py` — runs a self-contained *system* (`raman_bench.systems`:
+  Chakra-Tab's hosted API, TabFM+) once per outer fold, on the same tasks, folds and
+  budgets; see [Run the full benchmark pipeline](#run-the-full-benchmark-pipeline).
+- `cluster/` — cluster-agnostic job submission for SLURM and Kubernetes (`submit_job.py`,
+  `run_experiment.sbatch`, `k8s_entrypoint.sh`, `detect_cluster.py`, `janitor.py`) driven
+  by a profile YAML; works locally too when no cluster is available.
 - `.claude/agents/` — Claude Code agents for routine maintenance, spread across
   this repo and its siblings (see **Contributor Agents** below).
 
@@ -404,6 +407,16 @@ python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \
 
 See `cluster/submit_job.py --help` for submitting a real array/sweep.
 
+A *system* does its own validation and ensembling, so it isn't wrapped in AutoGluon's
+bagging: `scripts/run_system.py` fits it once per outer fold on the same tasks, folds,
+row sample and time budgets, into the same result cache (`raman_bench.systems` lists them):
+
+```bash
+python scripts/run_system.py --system TABFM-PLUS --tasks alzheimer__0 --folds 0
+export CHAKRA_TAB_KEY=...        # hosted API: every fold's data is sent to the provider
+python scripts/run_system.py --system CHAKRA-TAB --workers 4
+```
+
 ### Leaderboard figures
 
 Once results exist, aggregate them and draw the leaderboard figures (needs
@@ -463,8 +476,7 @@ All results in the paper were produced through the AutoGluon pipeline (Option 3 
 ### Standalone sklearn wrappers (`raman-bench[models]`)
 
 `raman-bench[models]` provides sklearn-compatible (`fit` / `predict`) wrappers
-for many of the same algorithm families, usable directly without AutoGluon or
-the fork.  These are **not** the exact pipeline configurations from the paper
+for many of the same algorithm families, usable directly without AutoGluon.  These are **not** the exact pipeline configurations from the paper
 (no AutoGluon preprocessing or HPO), but they use the same underlying
 algorithms, and are a convenient starting point for building a new model.
 
@@ -561,6 +573,9 @@ RamanBench/
 │   ├── model.py                # build_prep_model_hyperparameters (Prep_* hyperparameter builder)
 │   ├── config.py               # JSON config loader
 │   ├── splitting.py            # Repeated k-fold CV + TabArena UserTask construction
+│   ├── folds.py                # the v1 outer folds as plain spectrum ids (raman-bench folds)
+│   ├── fold_metrics.py         # per-fold metrics from stored test predictions
+│   ├── systems/                # self-contained systems (Chakra-Tab, TabFM+) for run_system.py
 │   ├── models/
 │   │   ├── registry.py         #   raman_bench_model_registry (TabArena's + ours)
 │   │   ├── discover.py         #   auto-discovery for models/custom/<key>/info.py
@@ -577,11 +592,13 @@ RamanBench/
 │       ├── mixin.py            #   RamanPreprocessingMixin (AutoGluon HPO)
 │       ├── bridge_bases.py     #   SklearnAutoGluonBridge + shared bases
 │       └── wrapped_models.py   #   Prep_* classes, PREPROCESSED_MODELS registry
-├── cluster/                    # v1: cluster-agnostic SLURM submission
-│   ├── detect_cluster.py, submit_job.py, run_experiment.sbatch, janitor.py
+├── cluster/                    # v1: cluster-agnostic SLURM and Kubernetes submission
+│   ├── detect_cluster.py, submit_job.py, run_experiment.sbatch, k8s_entrypoint.sh, janitor.py
 │   └── profiles/                #   generic + example cluster profiles (no secrets)
 ├── scripts/
 │   ├── run_experiment.py       # v1: per-(model,dataset,target,repeat,fold,config) job runner
+│   ├── run_system.py           # v1: one self-contained system per outer fold
+│   ├── compute_fold_metrics.py # v1: per-fold metrics for the reference results
 │   ├── build_target_list.py    # v1: builds the full-benchmark target list (mirror-first)
 │   ├── aggregate_results.py    # v1: recycles cached results into default/tuned/tuned+ensemble
 │   ├── build_reference_results.py  # v1: bundles the leaderboard results + protocol with the package
@@ -606,7 +623,7 @@ subclasses, and the same classes serve both usage modes:
         ├─── Standalone path (pip install "raman-bench[models]")
         │      CUSTOM_MODELS["DEEPCNN"] → DeepCNNModel().fit(X, y)
         │
-        └─── AutoGluon pipeline path (fork required)
+        └─── AutoGluon pipeline path (pip install -e ".[models]" + TabArena)
                SklearnAutoGluonBridge._fit() → DeepCNNModel(**params).fit(X_np, y_np)
                Prep_DEEPCNN(_RamanDLBase, _DeepCNNBridge)
 ```
@@ -736,7 +753,7 @@ file in the repo it works on:
 | `cluster-agent` | `RamanBench` (public) + `raman_bench_paper` (private profiles) | Fleet management: submit job arrays, detect stalled/cancelled tasks and resubmit, run `cluster/janitor.py`'s disk-cleanup sweep. |
 | `leaderboard-agent` | `raman_bench_paper` | Regenerate leaderboard CSVs/figures from completed results; always shows a diff and asks permission before publishing to the live HF Space. |
 | `hf-frontend-agent` | `HF_spaces/RamanBench` | Frontend work on the public Gradio leaderboard Space. |
-| `docs-agent` | `raman_bench_paper` (cross-repo aware) | Keeps README/CONTRIBUTING in sync across all repos as things change. |
+| `docs-agent` | `RamanBench` (this repo) | Keeps README/CONTRIBUTING in sync across all repos as things change. |
 
 A typical handoff runs dataset-agent → model-agent (optional) → cluster-agent →
 leaderboard-agent (which asks before publishing) → hf-frontend-agent. docs-agent

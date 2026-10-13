@@ -7,7 +7,7 @@ institution-specific values -- HTW/TU account, partition, mail, workspace path -
 stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
 
 - `datasets/classification_all.json`, `datasets/regression_all.json` -- the curated
-  68-dataset v1 scope (25 classification + 43 regression), by `raman_data` key.
+  70-dataset v1 scope (27 classification + 43 regression), by `raman_data` key.
   Mirrors (and is the canonical source for) the same lists historically kept in
   `raman_bench_paper/configs/datasets/`; that copy stays in place since the paper
   repo's own already-published results were produced by the older `run_benchmark.py`/
@@ -45,8 +45,9 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
   Datasets/targets excluded here stay fully available via `raman_data`/`RamanBench`
   itself -- this only controls what the benchmark's own sweep runs against.
 - `models.json` -- the curated roster of models considered "real-benchmark ready"
-  under the new pipeline (currently just `PLS`; grows as more models are validated
-  end-to-end against `scripts/run_experiment.py`, see `.claude/agents/model-agent.md`).
+  under the new pipeline: PLS, HYDRA, ROCKET and the Raman-specific networks (COATNET,
+  DEEPCNN, FCRESNEXT, RAMANFORMER, RAMANNET, RAMANTRANSFORMER, REZERONET, SANET). The
+  leaderboard's own model list is `scope_default.json`'s `models`.
 - `scope_default.json` -- the opportunistic scheduler's (`cluster/opportunistic_scheduler.py`)
   default scope: which models, which target list, chunk size, and capacity
   thresholds. No institution-specific values -- a private wrapper
