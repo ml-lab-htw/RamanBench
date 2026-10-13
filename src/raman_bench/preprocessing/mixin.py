@@ -435,6 +435,30 @@ _STATEFUL_PREP_ATTRS = (
     "_lvse_components",
 )
 
+# The "_enabled" hyperparameter names for the (base-pipeline) steps above --
+# used by _has_stateful_prep_enabled (see RamanPreprocessingMixin) to decide
+# whether this model instance needs AutoGluon's drop_unique aux param
+# disabled. "standard_scaling" has no _PREP_STEP_DEFINITIONS entry of its own
+# (see the "handled separately" note above _PREP_STEP_DEFINITIONS), so it is
+# listed directly by its enabled-param name rather than via STEP_ENABLED_PARAMS.
+_STATEFUL_ENABLED_PARAMS = (
+    "prep_msc_enabled",
+    "prep_emsc_enabled",
+    "prep_scaling_enabled",
+    "prep_gcu_enabled",
+    "prep_lvse_enabled",
+)
+
+# The matching _PREP_STEP_DEFINITIONS step_keys, for checking
+# prep_ensemble_blocks entries (each a {step_key: bool} dict, see
+# _preprocess_fit_ensemble) -- ensemble blocks only ever toggle
+# STEP_ENABLED_PARAMS-mapped steps (scaling is applied uniformly across all
+# blocks from the top-level prep_scaling_enabled flag, never per-block; see
+# _preprocess_fit_ensemble's step_key loop, which iterates STEP_ENABLED_PARAMS
+# and therefore never touches scaling), so "standard_scaling" is intentionally
+# absent here.
+_STATEFUL_STEP_KEYS = ("msc", "emsc", "gcu", "lvse")
+
 # Ensemble-mechanism param names. Deliberately NOT part of
 # _PREP_STEP_DEFINITIONS: the ensemble is an orthogonal fan-out/concatenate
 # mechanism rather than one more step in the sequential pipeline (see the
@@ -518,17 +542,68 @@ class RamanPreprocessingMixin:
     # AutoGluon's `_preprocess_set_features`/`_preprocess_align_features` source
     # directly -- not merely inferred from the message.
     #
-    # Disabling `drop_unique` here removes the silent column drop entirely for
-    # every `RamanPreprocessingMixin` subclass, so every stateful prep step fits
-    # and later replays on the exact same width AutoGluon handed `_fit`. This is
-    # safe: a genuinely constant column simply flows through unmodified (sklearn's
-    # `StandardScaler` already treats zero-variance columns as scale=1, not a
-    # divide-by-zero), and every other mixin step either preserves width
-    # (SNV/derivative/etc. tolerate an all-equal row/column) or already has its
-    # own NaN-to-zero guard (`_preprocess_fit`/`_preprocess_transform`'s
-    # `np.nan_to_num` call) for anything that could turn a constant column into
-    # a NaN-producing one.
-    _default_auxiliary_params_extra = {"drop_unique": False}
+    # Disabling `drop_unique` fixes this, but ONLY scoping it to model
+    # instances that actually have a stateful prep step enabled is required --
+    # a `Prep_*` instance with no recipe at all (most of the v1 leaderboard,
+    # e.g. foundation models that count/subsample features) must keep
+    # AutoGluon's default `drop_unique=True` behavior unchanged, since
+    # RamanBench's own protocol rule is that v1 scores must not move within
+    # the 1.x line for reasons unrelated to preprocessing. `_get_default_auxiliary_params`
+    # below overrides the base `AbstractModel` implementation (an *instance*
+    # method, not the declarative `_default_auxiliary_params_extra` class-dict
+    # merge AutoGluon also supports -- see `_has_stateful_prep_enabled`'s
+    # docstring for why a class-level override can't be conditional here) to
+    # flip `drop_unique` off only when `_has_stateful_prep_enabled()` is True.
+    # When it is: every stateful prep step fits and later replays on the exact
+    # same width AutoGluon handed `_fit`, and this is safe to do unconditionally
+    # within that scope -- a genuinely constant column simply flows through
+    # unmodified (sklearn's `StandardScaler` already treats zero-variance
+    # columns as scale=1, not a divide-by-zero), and every other mixin step
+    # either preserves width (SNV/derivative/etc. tolerate an all-equal
+    # row/column) or already has its own NaN-to-zero guard
+    # (`_preprocess_fit`/`_preprocess_transform`'s `np.nan_to_num` call) for
+    # anything that could turn a constant column into a NaN-producing one.
+    def _has_stateful_prep_enabled(self) -> bool:
+        """True if this model instance's own hyperparameters enable a
+        stateful prep step (scaling, MSC, EMSC, GCU, or LVSE -- i.e. anything
+        in `_STATEFUL_PREP_ATTRS`).
+
+        Checked against `self._user_params` -- the raw hyperparameters dict
+        AutoGluon's `AbstractModel.__init__` stashes *before* `initialize()`
+        ever runs (`self.params`, which merges in `_set_default_params()`'s
+        defaults, is not populated yet: `AbstractModel.initialize()` calls
+        `_init_params_aux()` -- which is what triggers this method, via
+        `_get_default_auxiliary_params()` -- strictly *before* `_init_params()`).
+        `_user_params` is exactly what `raman_bench.model.build_prep_model_hyperparameters`
+        resolves a recipe's `prep_*_enabled` flags into and hands to AutoGluon
+        as this model's `hyperparameters`, so it already reflects the actual
+        resolved recipe, not just whatever a subclass's own `_set_default_params()`
+        would later flip on -- the latter never hardcodes a stateful step to
+        True today (verified: only `Prep_PLS` hardcodes defaults, and only for
+        stateless steps -- baseline correction, denoising, SNV), but checking
+        `_user_params` rather than `self.params` is still the robust choice
+        regardless, since it reflects this instance's actual construction-time
+        configuration rather than a class-wide default that could change later.
+
+        Also checks `prep_ensemble_blocks` (a list of {step_key: bool} dicts,
+        see `_preprocess_fit_ensemble`): a stateful step can be enabled inside
+        an ensemble block without any top-level `prep_*_enabled` flag being
+        set at all.
+        """
+        user_params = getattr(self, "_user_params", None) or {}
+        if any(user_params.get(p) for p in _STATEFUL_ENABLED_PARAMS):
+            return True
+        if user_params.get("prep_ensemble_enabled") and user_params.get("prep_ensemble_blocks"):
+            for block in user_params["prep_ensemble_blocks"]:
+                if isinstance(block, dict) and any(block.get(k) for k in _STATEFUL_STEP_KEYS):
+                    return True
+        return False
+
+    def _get_default_auxiliary_params(self) -> dict:
+        default_auxiliary_params = super()._get_default_auxiliary_params()
+        if self._has_stateful_prep_enabled():
+            default_auxiliary_params["drop_unique"] = False
+        return default_auxiliary_params
 
     def _set_default_params(self):
         super()._set_default_params()
