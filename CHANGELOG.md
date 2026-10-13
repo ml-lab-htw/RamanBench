@@ -12,6 +12,24 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stateful preprocessing (`StandardScaler`, MSC, EMSC, GCU, LVSE,
+  `crop_physical`) could crash or silently misalign on a constant feature
+  column.** AutoGluon's `drop_unique=True` auxiliary-param default drops
+  columns that are constant within a bagged fold child's own (small)
+  training partition, after `RamanPreprocessingMixin` has already fit a
+  stateful step on the wider, pre-drop column set — raising e.g. `ValueError:
+  X has 1896 features, but StandardScaler is expecting 1897 features as
+  input.` for the scaler/MSC/EMSC/GCU/LVSE case, or a silently shifted/
+  mismatched crop window for `crop_physical` (whose wavenumber axis is
+  captured from the same pre-drop columns). Most likely on datasets with
+  small bag-fold partitions (e.g. `fuel_handheld`), fold-content-dependent
+  elsewhere. `RamanPreprocessingMixin._get_default_auxiliary_params` now
+  disables `drop_unique` only for model instances with one of these stateful
+  steps actually enabled (including inside a `prep_ensemble_blocks` entry);
+  models with no prep recipe keep AutoGluon's default behavior unchanged.
+
 ## [1.2.1] — 2026-10-13
 
 ### Fixed

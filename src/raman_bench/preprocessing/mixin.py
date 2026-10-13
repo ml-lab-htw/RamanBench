@@ -435,6 +435,31 @@ _STATEFUL_PREP_ATTRS = (
     "_lvse_components",
 )
 
+# The "_enabled" hyperparameter names for the (base-pipeline) steps above --
+# used by _has_stateful_prep_enabled (see RamanPreprocessingMixin) to decide
+# whether this model instance needs AutoGluon's drop_unique aux param
+# disabled. "standard_scaling" has no _PREP_STEP_DEFINITIONS entry of its own
+# (see the "handled separately" note above _PREP_STEP_DEFINITIONS), so it is
+# listed directly by its enabled-param name rather than via STEP_ENABLED_PARAMS.
+_STATEFUL_ENABLED_PARAMS = (
+    "prep_msc_enabled",
+    "prep_emsc_enabled",
+    "prep_scaling_enabled",
+    "prep_gcu_enabled",
+    "prep_lvse_enabled",
+    "prep_crop_physical_enabled",
+)
+
+# The matching _PREP_STEP_DEFINITIONS step_keys, for checking
+# prep_ensemble_blocks entries (each a {step_key: bool} dict, see
+# _preprocess_fit_ensemble) -- ensemble blocks only ever toggle
+# STEP_ENABLED_PARAMS-mapped steps (scaling is applied uniformly across all
+# blocks from the top-level prep_scaling_enabled flag, never per-block; see
+# _preprocess_fit_ensemble's step_key loop, which iterates STEP_ENABLED_PARAMS
+# and therefore never touches scaling), so "standard_scaling" is intentionally
+# absent here.
+_STATEFUL_STEP_KEYS = ("msc", "emsc", "gcu", "lvse", "crop_physical")
+
 # Ensemble-mechanism param names. Deliberately NOT part of
 # _PREP_STEP_DEFINITIONS: the ensemble is an orthogonal fan-out/concatenate
 # mechanism rather than one more step in the sequential pipeline (see the
@@ -489,6 +514,40 @@ class RamanPreprocessingMixin:
 
     _optimize_preprocessing: bool = False
     _supports_augmentation: bool = False
+
+    # AutoGluon's `drop_unique` auxiliary param (default True) drops columns
+    # that are constant within the exact X a bagged fold child's `fit()`
+    # receives -- that fold's own small training partition, not the full
+    # dataset (AutoGluon's own code flags this as fold-unsafe). The drop
+    # happens between where our stateful steps fit (scaler, MSC/EMSC
+    # reference, GCU/LVSE state, and now the `_wavenumbers` axis
+    # `crop_physical` indexes) and where transform later replays on a
+    # narrower X, desyncing fit-width from transform-width. We disable
+    # `drop_unique` only when a stateful step is enabled
+    # (`_has_stateful_prep_enabled`), since models with no prep recipe must
+    # keep AutoGluon's default behavior unchanged.
+    def _has_stateful_prep_enabled(self) -> bool:
+        """True if this model instance enables a stateful prep step (scaling,
+        MSC, EMSC, GCU, LVSE, or crop_physical), checked against
+        `self._user_params` rather than `self.params` since the latter isn't
+        populated yet at the point AutoGluon calls this (before
+        `_init_params()`). Also checks inside `prep_ensemble_blocks`, since a
+        stateful step can be enabled there without a top-level flag.
+        """
+        user_params = getattr(self, "_user_params", None) or {}
+        if any(user_params.get(p) for p in _STATEFUL_ENABLED_PARAMS):
+            return True
+        if user_params.get("prep_ensemble_enabled") and user_params.get("prep_ensemble_blocks"):
+            for block in user_params["prep_ensemble_blocks"]:
+                if isinstance(block, dict) and any(block.get(k) for k in _STATEFUL_STEP_KEYS):
+                    return True
+        return False
+
+    def _get_default_auxiliary_params(self) -> dict:
+        default_auxiliary_params = super()._get_default_auxiliary_params()
+        if self._has_stateful_prep_enabled():
+            default_auxiliary_params["drop_unique"] = False
+        return default_auxiliary_params
 
     def _set_default_params(self):
         super()._set_default_params()
