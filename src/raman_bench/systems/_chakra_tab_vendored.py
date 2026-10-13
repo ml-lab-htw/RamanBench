@@ -1,6 +1,7 @@
 """Chakra-Tab, YHat Labs' hosted tabular prediction API, as a TabArena system.
 
-Copied from TabArena (only this header and the import order differ): ``packages/tabarena/src/tabarena/systems/chakra_tab/system.py``
+Copied from TabArena (only this header, the import order and the request timeout, which
+follows the fit budget, differ): ``packages/tabarena/src/tabarena/systems/chakra_tab/system.py``
 as merged in https://github.com/autogluon/tabarena/pull/654 (merge commit 9044df07), Apache License 2.0,
 Copyright the TabArena authors. RamanBench's TabArena pin predates that merge;
 :mod:`raman_bench.systems` imports TabArena's own class instead once the pin has it.
@@ -32,6 +33,12 @@ _SCHEME_ENV = (
 _DEFAULT_URL = "https://api.yhatlabs.com/v1/tabular/predict"
 _METRICS = {"log_loss": "log_loss", "roc_auc": "roc_auc", "rmse": "rmse", "root_mean_squared_error": "rmse"}
 _MAX_ATTEMPTS = 4
+
+
+def _request_timeout(time_limit: float | None) -> float:
+    # The fit runs inside the request, so give it the fit budget plus an hour for the upload,
+    # the queue and the prediction (TabArena's fixed 7,200 s is short of v1's 10,800 s on mlrod).
+    return max(7200.0, float(time_limit or 0) + 3600.0)
 
 
 def _parquet_b64(df: pd.DataFrame) -> dict:
@@ -131,7 +138,7 @@ class ChakraTabSystemModel(ExternalSystemModel):
         out, failure, start = None, None, time.monotonic()
         for attempt in range(1, _MAX_ATTEMPTS + 1):
             try:
-                r = requests.post(self.url, json=body, headers=headers, timeout=7200)
+                r = requests.post(self.url, json=body, headers=headers, timeout=_request_timeout(self._time_limit))
             except requests.RequestException as exc:
                 failure, retry = f"{type(exc).__name__}: {str(exc)[:300]}", True
             else:

@@ -124,3 +124,11 @@ def test_every_system_names_its_result_dir_and_key():
     with pytest.raises(KeyError, match="Unknown system"):
         get_system("nope")
 
+
+
+def test_chakra_tab_request_outlasts_the_fit_budget():
+    from raman_bench.systems._chakra_tab_vendored import _request_timeout
+
+    assert _request_timeout(600) == 7200  # TabArena's own timeout covers the default budget
+    assert _request_timeout(10800) == 14400  # mlrod: the fit budget plus an hour
+    assert _request_timeout(None) == 7200

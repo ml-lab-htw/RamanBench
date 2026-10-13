@@ -39,6 +39,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
   ([PrismBoost#4](https://github.com/PrismBoost/PrismBoost/pull/4)) isn't released yet;
   the v1 PrismBoost results used a build with it.
 
+### Fixed
+
+- **Chakra-Tab requests on mlrod** timed out after TabArena's fixed 7,200 s while the fit
+  budget there is 10,800 s, so a long fit would have been cut off and retried. The request
+  timeout is now the fit budget plus an hour (at least 7,200 s).
+
 ## [1.3.0] — 2026-10-13
 
 ### Added
