@@ -12,6 +12,33 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **LightPFN and PrismBoost** (`LIGHTPFN`, `PRISMBOOST`), TabArena's two newest models
+  ([#655](https://github.com/autogluon/tabarena/pull/655),
+  [#629](https://github.com/autogluon/tabarena/pull/629)). LightPFN is a 4.6M-parameter
+  in-context classifier (GPU, also runs on CPU; classification only); label sets wider than
+  its 10-class head are output-coded ([#659](https://github.com/autogluon/tabarena/pull/659)).
+  PrismBoost is gradient boosting with SEFR oblique splits (CPU). Both are registered and
+  have complete v1 results, but are not in `configs/v1/scope_default.json` yet, so they stay
+  off the leaderboard.
+- **TabFM+ on datasets with more than ten classes**, output-coded like TabFM
+  ([#657](https://github.com/autogluon/tabarena/pull/657)).
+
+### Changed
+
+- **TabArena pin** moves to `66198aba` (`mario-koddenbrock/tabarena`, branch
+  `ramanbench/lightpfn-prismboost`): `9d771c3` plus LightPFN, PrismBoost and the many-class
+  support for LightPFN and TabFM+, cherry-picked from upstream. The code behind every other
+  model, Kumo-Tabular included, is unchanged.
+
+### Known issues
+
+- **PrismBoost models above 2 GiB** (wide spectra with oblique splits) can't be loaded
+  again with `prismboost` 0.5.0: its model length is stored as int32. The fix
+  ([PrismBoost#4](https://github.com/PrismBoost/PrismBoost/pull/4)) isn't released yet;
+  the v1 PrismBoost results used a build with it.
+
 ## [1.3.0] — 2026-10-13
 
 ### Added
