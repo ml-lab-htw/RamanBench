@@ -3,11 +3,28 @@
 All notable changes to RamanBench are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-Versions follow [Semantic Versioning](https://semver.org/).
+The major version is the benchmark version: every 1.x release runs and scores benchmark v1.
+Minor releases add models and features (and may change the API); patch releases fix bugs.
+2.0.0 and 2.0.1 were benchmark v1 too, released before this scheme; benchmark v2 starts at 2.1.0.
+The full rules are in [RELEASING.md](RELEASING.md).
 
 ---
 
 ## [Unreleased]
+
+## [1.2.1] — 2026-10-13
+
+### Fixed
+
+- **Regression targets with inferred replicate groups failed to build** (about 78 of the
+  135 tasks: sugar_mixtures, fuel, bioprocess and the acid-species sets). Since 1.2.0,
+  `prepare_task_dataframe` appended the inferred `_group_id` column after the target, so
+  every caller that takes the last column as the label (`build_task`, the fold export in
+  `raman_bench.folds`) took the group ids as the label, and building the task stopped
+  with `KeyError: ['_group_id'] not found in axis`. The column now goes before the target.
+  It only ever crashed, so no stored result is affected (#138).
+
+## [1.2.0] — 2026-10-11
 
 ### Added
 
@@ -173,6 +190,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
   historical data, same convention as `TABPFN-WIDE`'s earlier removal.
 
 ### Changed
+
+- **Versions follow the benchmark.** The major version is now the benchmark version, so
+  this release, still benchmark v1, is 1.2.0 and follows 2.0.1. 2.0.1 is yanked on PyPI
+  (`pip install raman-bench` gives 1.2.0; an exact `==2.0.1` pin still installs it). 2.0.x
+  had the same benchmark and API as this line; 1.2.0 contains everything in 2.0.1.
+  Benchmark v2 will start at 2.1.0.
 
 - **`raman_bench.plotting` no longer forces matplotlib's Agg backend** when
   `MPLBACKEND` is set (Jupyter sets it), so `plt.show()` works in notebooks that

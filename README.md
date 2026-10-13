@@ -54,6 +54,11 @@ With `pip install "raman-bench[plots]"` you can also score them and rank your ow
 results against them (`raman_bench.compare`, see [Compare your model](#compare-your-model-against-the-v1-leaderboard)).
 Running a model on the benchmark protocol needs TabArena and AutoGluon (Option 3).
 
+**Versions.** The package's major version is the benchmark version: every `raman-bench 1.x`
+release runs and scores RamanBench v1. 2.0.0 and 2.0.1 predate that rule and are benchmark v1
+too (2.0.1 is yanked on PyPI). Pin the benchmark with `raman-bench>=1.2,<2`; the rules are in
+[RELEASING.md](RELEASING.md).
+
 ### Option 2 — With all built-in models
 
 Adds all Raman-specific architectures and standalone tabular foundation models,
