@@ -527,31 +527,12 @@ class RamanPreprocessingMixin:
     # (`_has_stateful_prep_enabled`), since models with no prep recipe must
     # keep AutoGluon's default behavior unchanged.
     def _has_stateful_prep_enabled(self) -> bool:
-        """True if this model instance's own hyperparameters enable a
-        stateful prep step (scaling, MSC, EMSC, GCU, LVSE, or crop_physical --
-        i.e. anything in `_STATEFUL_PREP_ATTRS`/`_STATEFUL_ENABLED_PARAMS`).
-
-        Checked against `self._user_params` -- the raw hyperparameters dict
-        AutoGluon's `AbstractModel.__init__` stashes *before* `initialize()`
-        ever runs (`self.params`, which merges in `_set_default_params()`'s
-        defaults, is not populated yet: `AbstractModel.initialize()` calls
-        `_init_params_aux()` -- which is what triggers this method, via
-        `_get_default_auxiliary_params()` -- strictly *before* `_init_params()`).
-        `_user_params` is exactly what `raman_bench.model.build_prep_model_hyperparameters`
-        resolves a recipe's `prep_*_enabled` flags into and hands to AutoGluon
-        as this model's `hyperparameters`, so it already reflects the actual
-        resolved recipe, not just whatever a subclass's own `_set_default_params()`
-        would later flip on -- the latter never hardcodes a stateful step to
-        True today (verified: only `Prep_PLS` hardcodes defaults, and only for
-        stateless steps -- baseline correction, denoising, SNV), but checking
-        `_user_params` rather than `self.params` is still the robust choice
-        regardless, since it reflects this instance's actual construction-time
-        configuration rather than a class-wide default that could change later.
-
-        Also checks `prep_ensemble_blocks` (a list of {step_key: bool} dicts,
-        see `_preprocess_fit_ensemble`): a stateful step can be enabled inside
-        an ensemble block without any top-level `prep_*_enabled` flag being
-        set at all.
+        """True if this model instance enables a stateful prep step (scaling,
+        MSC, EMSC, GCU, LVSE, or crop_physical), checked against
+        `self._user_params` rather than `self.params` since the latter isn't
+        populated yet at the point AutoGluon calls this (before
+        `_init_params()`). Also checks inside `prep_ensemble_blocks`, since a
+        stateful step can be enabled there without a top-level flag.
         """
         user_params = getattr(self, "_user_params", None) or {}
         if any(user_params.get(p) for p in _STATEFUL_ENABLED_PARAMS):
