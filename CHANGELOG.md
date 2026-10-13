@@ -12,6 +12,18 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-10-13
+
+### Fixed
+
+- **Regression targets with inferred replicate groups failed to build** (about 78 of the
+  135 tasks: sugar_mixtures, fuel, bioprocess and the acid-species sets). Since 1.2.0,
+  `prepare_task_dataframe` appended the inferred `_group_id` column after the target, so
+  every caller that takes the last column as the label (`build_task`, the fold export in
+  `raman_bench.folds`) took the group ids as the label, and building the task stopped
+  with `KeyError: ['_group_id'] not found in axis`. The column now goes before the target.
+  It only ever crashed, so no stored result is affected (#138).
+
 ## [1.2.0] — 2026-10-11
 
 ### Added

@@ -55,7 +55,7 @@ This is a real architectural dependency, not a style reference. If you need to:
 | `src/raman_bench/preprocessing/mixin.py` | `RamanPreprocessingMixin`: joint AutoGluon preprocessing + model HPO (8 core steps + ensemble + GCU/LVSE) |
 | `src/raman_bench/models/custom/` | Raman-specific architectures (DeepCNN, RamanNet, RamanPFN, etc.); custom models go here |
 | `src/raman_bench/splitting.py` | Repeated k-fold logic with group-aware fallbacks for replicate structure |
-| `pyproject.toml` | Version (currently 1.2.0), dependencies (including `tabarena`), package metadata |
+| `pyproject.toml` | Version (currently 1.2.1), dependencies (including `tabarena`), package metadata |
 | `CHANGELOG.md` | Release notes; update this for every release (move "Unreleased" → version section) |
 
 ## Datasets & The Mirror
@@ -87,7 +87,7 @@ starts at `2.1.0`.
 6. Push: `git push origin main vX.Y.Z` (or create PR if main is protected)
 7. Tag will trigger PyPI publish via CI (if configured)
 
-**Current version**: 1.2.0
+**Current version**: 1.2.1
 
 ## Testing
 

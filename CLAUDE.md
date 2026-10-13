@@ -59,7 +59,7 @@ This is a real architectural dependency, not a style reference. If you need to:
 | `src/raman_bench/evaluate.py` | `evaluate_estimator()` runs any scikit-learn estimator on the v1 protocol; `protocol_commands()` gives `run_experiment.py` calls for a registered model |
 | `src/raman_bench/experiment_utils.py` | Shared by every v1 runner: `build_task`, `load_dataframe`, `bag_experiment_kwargs`, `run_cached` |
 | `scripts/build_reference_results.py` | Rebuilds the bundled reference results after a sweep (see `data/precomputed/v1/README.md`) |
-| `pyproject.toml` | Version (currently 1.2.0), dependencies (including `tabarena`), package metadata |
+| `pyproject.toml` | Version (currently 1.2.1), dependencies (including `tabarena`), package metadata |
 | `CHANGELOG.md` | Release notes; update this for every release (move "Unreleased" → version section) |
 
 ## Datasets & The Mirror
@@ -97,7 +97,7 @@ starts at `2.1.0`.
    every single time it ran, on every release from v1.0.0 through v2.0.1, harmlessly racing the real
    `publish.yml` publish and always losing).
 
-**Current version**: 1.2.0
+**Current version**: 1.2.1
 
 ## Testing
 
