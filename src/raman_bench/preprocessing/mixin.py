@@ -490,6 +490,46 @@ class RamanPreprocessingMixin:
     _optimize_preprocessing: bool = False
     _supports_augmentation: bool = False
 
+    # AutoGluon's own `drop_unique` auxiliary param (default True on every
+    # AbstractModel, see `AuxiliaryParams.base_defaults()`) silently removes
+    # columns that are constant (`nunique(dropna=False) < 2`) *within the exact
+    # X this model instance's own `fit()` call received* -- which, for a bagged
+    # fold child, is that fold's own small training partition, not the full
+    # dataset. AutoGluon's own code acknowledges this is fold-unsafe (see the
+    # "FIXME: v1.3: Need to do this on a per-fold basis" comment immediately
+    # above the `drop_unique` branch in `AbstractModel._preprocess_set_features`).
+    #
+    # That column drop is applied by `_preprocess_align_features`, which AutoGluon
+    # calls from `preprocess()` *after* `_preprocess_nonadaptive` but *before* our
+    # own `_preprocess` hook -- i.e. strictly between where `_fit` (below) captures
+    # `X`'s width and fits a stateful transform on it (`self.scaler` for
+    # `prep_scaling_enabled`; `self._msc_reference`/`self._emsc_reference` for
+    # MSC/EMSC; the GCU/LVSE fitted state) and where `_preprocess_transform` later
+    # replays that transform on the (by then narrower) aligned `X`. Every one of
+    # those stateful fits therefore silently captures a width AutoGluon then
+    # shrinks by 1+ columns the moment any fold's own small training sample has a
+    # literal zero-variance spectral channel -- common for real Raman data
+    # (saturated/clipped detector pixels, dead channels, flat baseline edges),
+    # near-deterministic on datasets with very small bag-fold partitions (e.g.
+    # `fuel_handheld`, reliably ~10-80 rows per fold) and fold-content-dependent
+    # (hence intermittent) everywhere else. Confirmed via a real cluster traceback
+    # (`ValueError: X has 1896 features, but StandardScaler is expecting 1897
+    # features as input.`, DEEPCNN on fuel_handheld, job 222212) and by reading
+    # AutoGluon's `_preprocess_set_features`/`_preprocess_align_features` source
+    # directly -- not merely inferred from the message.
+    #
+    # Disabling `drop_unique` here removes the silent column drop entirely for
+    # every `RamanPreprocessingMixin` subclass, so every stateful prep step fits
+    # and later replays on the exact same width AutoGluon handed `_fit`. This is
+    # safe: a genuinely constant column simply flows through unmodified (sklearn's
+    # `StandardScaler` already treats zero-variance columns as scale=1, not a
+    # divide-by-zero), and every other mixin step either preserves width
+    # (SNV/derivative/etc. tolerate an all-equal row/column) or already has its
+    # own NaN-to-zero guard (`_preprocess_fit`/`_preprocess_transform`'s
+    # `np.nan_to_num` call) for anything that could turn a constant column into
+    # a NaN-producing one.
+    _default_auxiliary_params_extra = {"drop_unique": False}
+
     def _set_default_params(self):
         super()._set_default_params()
         # Set all preprocessing defaults to False (disabled).
