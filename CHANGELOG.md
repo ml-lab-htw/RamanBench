@@ -24,6 +24,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
   off the leaderboard.
 - **TabFM+ on datasets with more than ten classes**, output-coded like TabFM
   ([#657](https://github.com/autogluon/tabarena/pull/657)).
+- **Single-panel Elo vs. time figures**: `elo_vs_time_all`, `elo_vs_time_classification`
+  and `elo_vs_time_regression`, next to the two-panel `elo_vs_time`
+  (`static.plot_tradeoff_per_group`). The same four figures as `elo_vs_time_new*` colour only
+  the Pareto-optimal models, the best model per category and the new models
+  (`models.NEW_MODELS`: TabDPT-1.3, LightPFN, PrismBoost, TabFM+, Chakra-Tab and HIVE-COTE 2).
 
 ### Changed
 

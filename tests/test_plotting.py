@@ -186,6 +186,10 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
         assert (out / "static" / f"{stem}.png").exists()
         assert (out / "static" / f"{stem}.pdf").exists()
         assert (out / "interactive" / f"{stem}.html").exists()
+    for group in ("all", "classification", "regression"):
+        assert (out / "static" / f"elo_vs_time_{group}.png").exists()
+        assert (out / "static" / f"elo_vs_time_new_{group}.png").exists()
+    assert (out / "static" / "elo_vs_time_new.png").exists()
     assert (out / "leaderboards" / "leaderboard_regression.csv").exists()
     assert written["index"][0].read_text().count("<section>") >= 6
 
@@ -232,6 +236,13 @@ def test_known_contamination_is_marked_and_explained(tmp_path):
     assert "arXiv:2608.02157" in page.read_text(encoding="utf-8")
     clean = interactive.write(go.Figure(go.Scatter(x=[1], y=[1], name="Random Forest")), tmp_path, "clean")
     assert "arXiv:2608.02157" not in clean.read_text(encoding="utf-8")
+
+
+def test_new_models():
+    assert model_info.is_new("TABDPT-V1.3")
+    assert model_info.is_new("HIVECOTEV2")
+    assert not model_info.is_new("RF")
+    assert not model_info.is_new("REALTABPFN-V2.6")
 
 
 def test_closed_api_models_are_marked_once_per_note():

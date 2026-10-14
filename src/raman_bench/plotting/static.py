@@ -283,14 +283,21 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title):
     return lambda: _label_points(ax, shown, x, metric, highlight, avoid=df)
 
 
-def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str):
-    """Score vs time, one panel per task type, with the Pareto front."""
-    label, higher = {
-        "normalized_score": ("Normalized score", True),
-        "improvability": ("Improvability", False),
-        "elo": ("Elo", True),
-    }[metric]
-    groups = [g for g in ("classification", "regression") if g in scores] or ["all"]
+_TRADEOFF_METRICS = {
+    "normalized_score": ("Normalized score", True),
+    "improvability": ("Improvability", False),
+    "elo": ("Elo", True),
+}
+
+
+def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str, groups=None):
+    """Score vs time, one panel per task type in *groups*, with the Pareto front.
+
+    *groups* defaults to classification and regression side by side (all tasks when
+    neither is present).
+    """
+    label, higher = _TRADEOFF_METRICS[metric]
+    groups = groups or [g for g in ("classification", "regression") if g in scores] or ["all"]
     fig, axes = plt.subplots(1, len(groups), figsize=(7.5 * len(groups), 5.2))
     axes = np.atleast_1d(axes)
     models, labelers = set(), []
@@ -305,6 +312,15 @@ def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str)
         add_labels()
     _category_legend(fig, models, y=0.0, muted=True)
     return save(fig, out_dir, stem, formats)
+
+
+def plot_tradeoff_per_group(scores, focus, out_dir: Path, formats, metric: str, stem: str):
+    """One single-panel figure per task type: ``<stem>_all``, ``<stem>_classification``, ..."""
+    paths = []
+    for g in ("all", "classification", "regression"):
+        if g in scores:
+            paths += plot_tradeoff(scores, focus, out_dir, formats, metric, f"{stem}_{g}", groups=[g])
+    return paths
 
 
 # --------------------------------------------------------------------------- Elo vs release date

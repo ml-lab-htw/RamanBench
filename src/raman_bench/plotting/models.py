@@ -185,6 +185,17 @@ def _marks(model: str) -> list[tuple[str, str]]:
     return [(m, n) for m, n in flags if n]
 
 
+#: Models highlighted as new in the ``elo_vs_time_new*`` figures (:func:`is_new`).
+NEW_MODELS = frozenset({
+    "TABDPT-V1.3", "LIGHTPFN", "PRISMBOOST", "TABFM-PLUS", "CHAKRA-TAB", "CHAKRA-TAB-FULL", "HIVECOTEV2",
+})
+
+
+def is_new(model: str) -> bool:
+    """Whether *model* is highlighted as new in the ``elo_vs_time_new*`` figures."""
+    return model.upper() in NEW_MODELS
+
+
 #: Name suffix for a model ranked across all tasks that was evaluated on one task type only.
 SUBSET_TAGS = {"classification": "clf. only", "regression": "reg. only"}
 SUBSET_NOTE = (
