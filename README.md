@@ -445,6 +445,9 @@ no separate development data reported. Its TabPFN weights were not trained on
 RamanBench, but its fixed design choices may be tuned to these datasets, so its
 scores may be optimistic. It is ranked like every other model and marked with
 † in figures and tables (`raman_bench.plotting.models.KNOWN_CONTAMINATION`).
+Models behind a closed-source hosted API (Chakra-Tab) are marked with ‡: the
+model and its code are not public, so their results can't be reproduced
+independently (`raman_bench.plotting.models.CLOSED_API`).
 
 ### Notebooks
 
