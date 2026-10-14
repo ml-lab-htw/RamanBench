@@ -300,4 +300,5 @@ def test_mobile_layout_stacks_panels_and_keeps_desktop_height(tmp_path):
     # The Space sizes its iframe from the last '"height":N' in the page; the phone spec must not add one.
     page = interactive.write(fig, tmp_path, "stacked").read_text(encoding="utf-8")
     assert "frameElement" in page
+    assert 'addEventListener("resize"' in page  # switches layout without a reload
     assert re.findall(r'"height":(\d+)', page)[-1] == "620"

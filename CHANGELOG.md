@@ -12,6 +12,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Interactive figures switch between the desktop and phone layout when the window is
+  resized**, not only on load. Each switch also resizes the embedding iframe.
+
 ## [1.4.0] — 2026-10-14
 
 A leaderboard release: six new models on the v1 leaderboard and in the bundled
