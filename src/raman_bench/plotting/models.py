@@ -171,6 +171,22 @@ KNOWN_CONTAMINATION = {
 CONTAMINATION_MARK = "†"
 
 
+#: The models of the v1.0.0 release (``configs/v1/scope_default.json`` at tag ``v1.0.0``,
+#: 2026-09-01). Every other model counts as new since v1 (:func:`is_new_since_v1`).
+V1_MODELS = frozenset({
+    "RF", "CAT", "XGB", "XT", "KNN", "LR", "NN_TORCH", "FASTAI", "DUMMY", "REALMLP", "MITRA", "TABM",
+    "TABDPT", "TABICL", "REALTABPFN-V2", "REALTABPFN-V2.5", "TABFM", "TABPFN-V3", "TABSWIFT", "MODERNNCA",
+    "EBM", "PERPETUAL_BOOSTER", "XRFM", "CHIMERABOOST", "NORI", "SAP_RPT_OSS", "ORIONMSP", "ILTM", "LIMIX",
+    "TABSTAR", "COATNET", "DEEPCNN", "FCRESNEXT", "RAMANFORMER", "RAMANNET", "RAMANTRANSFORMER",
+    "REZERONET", "ROCKET", "SANET", "TABPFN-WIDE", "RAMANPFN", "HYDRA", "PLS",
+})
+
+
+def is_new_since_v1(model: str) -> bool:
+    """Whether *model* was added after the v1.0.0 release (reference systems never are)."""
+    return model.upper() not in V1_MODELS and model.upper() not in REFERENCE_MODELS
+
+
 #: Name suffix for a model ranked across all tasks that was evaluated on one task type only.
 SUBSET_TAGS = {"classification": "clf. only", "regression": "reg. only"}
 SUBSET_NOTE = (

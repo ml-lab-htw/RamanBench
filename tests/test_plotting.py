@@ -188,6 +188,8 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
         assert (out / "interactive" / f"{stem}.html").exists()
     for group in ("all", "classification", "regression"):
         assert (out / "static" / f"elo_vs_time_{group}.png").exists()
+        assert (out / "static" / f"elo_vs_time_new_{group}.png").exists()
+    assert (out / "static" / "elo_vs_time_new.png").exists()
     assert (out / "leaderboards" / "leaderboard_regression.csv").exists()
     assert written["index"][0].read_text().count("<section>") >= 6
 
@@ -234,6 +236,12 @@ def test_known_contamination_is_marked_and_explained(tmp_path):
     assert "arXiv:2608.02157" in page.read_text(encoding="utf-8")
     clean = interactive.write(go.Figure(go.Scatter(x=[1], y=[1], name="Random Forest")), tmp_path, "clean")
     assert "arXiv:2608.02157" not in clean.read_text(encoding="utf-8")
+
+
+def test_new_since_v1():
+    assert not model_info.is_new_since_v1("RF")
+    assert model_info.is_new_since_v1("KUMO-TABULAR")
+    assert not model_info.is_new_since_v1("AUTOGLUON-EXTREME-1H")
 
 
 def test_figure_notes_explain_marks():
