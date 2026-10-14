@@ -136,28 +136,62 @@ MOBILE_BREAKPOINT = 700
 #: then fits the embedding iframe (same-origin ``srcdoc``) to the new page height.
 _MOBILE_JS = """<script>
 (function () {
-  var M = %s, BP = %d;
-  function go() {
-    var gd = document.querySelector(".plotly-graph-div");
-    if (!gd || !window.Plotly || !gd._fullLayout) { setTimeout(go, 100); return; }
-    if (document.documentElement.clientWidth >= BP) return;
-    var lay = Object.assign({}, M.layout || {});
-    if (M.min_width) {
-      lay.width = M.min_width; lay.autosize = false; document.body.style.overflowX = "auto";
-      var hint = document.createElement("p");
-      hint.textContent = "Swipe sideways to see the whole figure.";
-      hint.style.cssText = "font:12px Inter,Arial,sans-serif;color:#777;margin:6px 12px;position:sticky;left:0";
-      document.body.insertBefore(hint, document.body.firstChild);
-    }
-    if (M.mobile_height) { lay.height = M.mobile_height; }
-    var p = Plotly.relayout(gd, lay);
-    if (M.restyle) { p = p.then(function () { return Plotly.restyle(gd, M.restyle); }); }
-    p.then(function () {
-      var f = window.frameElement;
-      if (f) { f.style.height = (document.documentElement.scrollHeight + 8) + "px"; }
-    });
+  var M = %s, BP = %d, desk = null, mobile = false, hint = null;
+  // Read a relayout/restyle path ("margin.t", "annotations[0].x") from a layout or trace.
+  function get(o, path) {
+    var parts = path.replace(/\\[(\\d+)\\]/g, ".$1").split(".");
+    for (var i = 0; i < parts.length; i++) { if (o == null) return null; o = o[parts[i]]; }
+    return o === undefined ? null : JSON.parse(JSON.stringify(o));
   }
-  if (document.readyState === "complete") { go(); } else { window.addEventListener("load", go); }
+  function fit(gd) {
+    // The div and its wrapper keep their original CSS height; match them to the layout so
+    // the page (and the iframe embedding it) grows and shrinks with the figure.
+    gd.style.height = gd.parentElement.style.height = gd._fullLayout.height + "px";
+    var f = window.frameElement;
+    if (f) { f.style.height = (document.body.offsetHeight + 24) + "px"; }
+  }
+  function apply(gd, toMobile) {
+    var lay = Object.assign({}, M.layout || {});
+    if (M.min_width) { lay.width = M.min_width; lay.autosize = false; }
+    if (M.mobile_height) { lay.height = M.mobile_height; }
+    if (desk === null) {  // the desktop values of everything the phone layout changes
+      desk = {layout: {}, restyle: {}, height: gd._fullLayout.height};
+      Object.keys(lay).forEach(function (k) { desk.layout[k] = get(gd.layout, k); });
+      Object.keys(M.restyle || {}).forEach(function (k) {
+        desk.restyle[k] = gd.data.map(function (t) { return get(t, k); });
+      });
+    }
+    if (M.min_width) {
+      document.body.style.overflowX = toMobile ? "auto" : "";
+      if (toMobile && !hint) {
+        hint = document.createElement("p");
+        hint.textContent = "Swipe sideways to see the whole figure.";
+        hint.style.cssText = "font:12px Inter,Arial,sans-serif;color:#777;margin:6px 12px;position:sticky;left:0";
+        document.body.insertBefore(hint, document.body.firstChild);
+      }
+      if (hint) { hint.style.display = toMobile ? "" : "none"; }
+    }
+    // A fixed width only for figures that scroll sideways on phones; otherwise fill the page.
+    gd.style.width = toMobile && M.min_width ? M.min_width + "px" : "100%%";
+    // Size the div first: Plotly's resize reads it.
+    var h = toMobile ? (M.mobile_height || desk.height) : desk.height;
+    gd.style.height = gd.parentElement.style.height = h + "px";
+    var p = Plotly.relayout(gd, toMobile ? lay : desk.layout);
+    if (!toMobile && !M.min_width) { p = p.then(function () { return Plotly.Plots.resize(gd); }); }
+    var rs = toMobile ? M.restyle : desk.restyle;
+    if (rs && Object.keys(rs).length) { p = p.then(function () { return Plotly.restyle(gd, rs); }); }
+    mobile = toMobile;
+    p.then(function () { fit(gd); });
+  }
+  function update() {
+    var gd = document.querySelector(".plotly-graph-div");
+    if (!gd || !window.Plotly || !gd._fullLayout) { setTimeout(update, 100); return; }
+    var narrow = document.documentElement.clientWidth < BP;
+    if (narrow !== mobile) { apply(gd, narrow); } else { fit(gd); }
+  }
+  var timer = null;
+  window.addEventListener("resize", function () { clearTimeout(timer); timer = setTimeout(update, 150); });
+  if (document.readyState === "complete") { update(); } else { window.addEventListener("load", update); }
 })();
 </script>"""
 
