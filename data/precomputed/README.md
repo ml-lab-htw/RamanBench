@@ -1,6 +1,6 @@
 # Precomputed Results — RamanBench v0.1
 
-> The **v1** leaderboard results (58 models, 135 tasks, 3-fold CV) ship with the package
+> The **v1** leaderboard results (64 models, 135 tasks, 3-fold CV) ship with the package
 > under [`src/raman_bench/data/precomputed/v1/`](../../src/raman_bench/data/precomputed/v1/README.md)
 > and are read by `raman_bench.compare`. The files here are the v0.1 results and use a
 > different protocol; don't compare the two.

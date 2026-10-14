@@ -12,16 +12,31 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-14
+
+A leaderboard release: six new models on the v1 leaderboard and in the bundled
+reference results. The benchmark protocol is unchanged, so earlier scores stay comparable.
+
 ### Added
 
+- **Six new models on the leaderboard** (`configs/v1/scope_default.json` and the bundled
+  reference results, now 64 models and 24,317 rows):
+  - **Chakra-Tab** (`CHAKRA-TAB`, `CHAKRA-TAB-FULL`), YHat Labs' closed-source tabular
+    model, run through its hosted API as a system. The full preset is #3 over all tasks
+    (Elo 1512), the medium preset #4 (1507).
+  - **TabFM+** (`TABFM-PLUS`), the first system on the leaderboard: TabFM through its
+    ensemble interface, #8 (Elo 1487).
+  - **HIVE-COTE 2** (`HIVECOTEV2`), classification only, with a 21,600 s budget (see
+    the README's "Departures from the protocol"). Second-best model outside the tabular
+    foundation models, behind RamanPFN. No result on `mlrod`, which is imputed.
+  - **LightPFN** (`LIGHTPFN`), classification only.
+  - **PrismBoost** (`PRISMBOOST`).
 - **LightPFN and PrismBoost** (`LIGHTPFN`, `PRISMBOOST`), TabArena's two newest models
   ([#655](https://github.com/autogluon/tabarena/pull/655),
   [#629](https://github.com/autogluon/tabarena/pull/629)). LightPFN is a 4.6M-parameter
   in-context classifier (GPU, also runs on CPU; classification only); label sets wider than
   its 10-class head are output-coded ([#659](https://github.com/autogluon/tabarena/pull/659)).
-  PrismBoost is gradient boosting with SEFR oblique splits (CPU). Both are registered and
-  have complete v1 results, but are not in `configs/v1/scope_default.json` yet, so they stay
-  off the leaderboard.
+  PrismBoost is gradient boosting with SEFR oblique splits (CPU).
 - **TabFM+ on datasets with more than ten classes**, output-coded like TabFM
   ([#657](https://github.com/autogluon/tabarena/pull/657)).
 - **Single-panel Elo vs. time figures**: `elo_vs_time_all`, `elo_vs_time_classification`

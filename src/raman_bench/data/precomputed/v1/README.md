@@ -6,7 +6,7 @@ the leaderboard without rerunning it (`raman_bench.compare`).
 
 | File | Contents |
 |---|---|
-| `reference_results.parquet` | One row per (task, fold, model): 58 models (incl. the `DUMMY` baseline and two AutoGluon reference systems) x 135 tasks x 3 folds, 22,574 rows |
+| `reference_results.parquet` | One row per (task, fold, model): 64 models (incl. the `DUMMY` baseline and two AutoGluon reference systems) x 135 tasks x 3 folds, 24,317 rows |
 | `protocol.json` | Folds, bagging, time budget, row caps, the task list and each model's enabled preprocessing |
 
 ## `reference_results.parquet`
@@ -72,5 +72,6 @@ tasks. When the raw results live elsewhere (e.g. on a cluster volume), write
 `raman_bench.aggregation.preprocessing_by_model(results_dir)` to JSON there and pass it as
 `--preprocessing-json`.
 
-This build (2026-10-05): the 2026-10-05 sweep including Causilo, scope
-`scope_default.json` + `CAUSILO`, without TabSTAR (later release).
+This build (2026-10-14, release 1.4.0): `scope_default.json` without TabSTAR (later
+release), i.e. the 2026-10-09 rebuild plus LightPFN, PrismBoost, TabFM+, Chakra-Tab
+(medium and full) and HIVE-COTE 2.

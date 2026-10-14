@@ -12,7 +12,7 @@
 
 RamanBench collects 74 public Raman datasets (163 prediction targets, four
 application domains: Material Science, Biological, Medical, Chemical) behind one
-evaluation protocol, and ships the v1 results of 55 models on its 135 benchmark tasks.
+evaluation protocol, and ships the v1 results of 61 models on its 135 benchmark tasks.
 You can score a new model against those baselines without re-running the
 experiments. The baselines cover classical chemometrics, gradient boosting,
 tabular foundation models, and deep networks built for spectra.
@@ -449,12 +449,17 @@ Models behind a closed-source hosted API (Chakra-Tab) are marked with ‡: the
 model and its code are not public, so their results can't be reproduced
 independently (`raman_bench.plotting.models.CLOSED_API`).
 
+**Departures from the protocol.** Systems (Chakra-Tab, TabFM+) do their own validation
+and ensembling, so they are fit once per outer fold instead of through AutoGluon's
+bagging. HIVE-COTE 2 gets 21,600 s per fit instead of 600 s, because aeon turns the
+budget into its own time contract; it has no result on `mlrod`, which is imputed.
+
 ### Notebooks
 
 | Notebook | Description |
 |---|---|
 | [`01_quick_start.ipynb`](notebooks/01_quick_start.ipynb) | Load a dataset, look at the v1 leaderboard |
-| [`02_benchmark_new_model.ipynb`](notebooks/02_benchmark_new_model.ipynb) | Run your own model on the benchmark protocol and rank it against the 55 leaderboard models |
+| [`02_benchmark_new_model.ipynb`](notebooks/02_benchmark_new_model.ipynb) | Run your own model on the benchmark protocol and rank it against the 61 leaderboard models |
 | [`03_explore_results.ipynb`](notebooks/03_explore_results.ipynb) | Per-task results, task types, speed against accuracy, pairwise win rates |
 | [`04_contribute_dataset.ipynb`](notebooks/04_contribute_dataset.ipynb) | Adding a new dataset, step by step |
 
