@@ -244,13 +244,9 @@ def _winrate_caption(n_shown: int, n_total: int, top_k: int) -> str:
 
 
 def _contamination_notes(scores) -> str:
-    """Footnotes for flagged models present in any leaderboard."""
-    flagged = sorted({m for s in scores.values() for m in s.leaderboard.index if model_info.contamination(m)})
-    return "".join(
-        f'<p class="caption">{model_info.CONTAMINATION_MARK} {html.escape(model_info.display_name(m, mark=False))}: '
-        f"{html.escape(model_info.contamination(m))}</p>"
-        for m in flagged
-    )
+    """Footnotes for marked models (contamination, closed API) present in any leaderboard."""
+    shown = " ".join(model_info.display_name(m) for s in scores.values() for m in s.leaderboard.index)
+    return "".join(f'<p class="caption">{html.escape(note)}</p>' for note in model_info.figure_notes(shown))
 
 
 def _write_index(out_dir: Path, scores, variant: str, captions: dict[str, str] | None = None) -> Path:

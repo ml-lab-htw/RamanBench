@@ -245,6 +245,12 @@ def test_new_models():
     assert not model_info.is_new("REALTABPFN-V2.6")
 
 
+def test_closed_api_models_are_marked_once_per_note():
+    assert model_info.display_name("CHAKRA-TAB") == "Chakra-Tab (API)" + model_info.CLOSED_API_MARK
+    notes = model_info.figure_notes(" ".join(model_info.display_name(m) for m in ("CHAKRA-TAB", "CHAKRA-TAB-FULL", "RF")))
+    assert notes == [f"{model_info.CLOSED_API_MARK} Chakra-Tab (API), Chakra-Tab full (API): {model_info.CLOSED_API['CHAKRA-TAB']}"]
+
+
 def test_figure_notes_explain_marks():
     assert model_info.figure_notes("Random Forest, XGBoost") == []
     notes = model_info.figure_notes("RamanPFN† and OrionMSP (clf. only)")
