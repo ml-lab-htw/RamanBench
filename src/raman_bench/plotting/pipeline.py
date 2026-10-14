@@ -44,10 +44,10 @@ FIGURES = {
     "elo_vs_time_all": "Elo vs. time, all tasks",
     "elo_vs_time_classification": "Elo vs. time, classification",
     "elo_vs_time_regression": "Elo vs. time, regression",
-    "elo_vs_time_new": "Elo vs. time: Pareto-optimal, best per category and new since v1 in colour",
-    "elo_vs_time_new_all": "Elo vs. time, all tasks: Pareto-optimal, best per category and new since v1",
-    "elo_vs_time_new_classification": "Elo vs. time, classification: Pareto-optimal, best per category and new since v1",
-    "elo_vs_time_new_regression": "Elo vs. time, regression: Pareto-optimal, best per category and new since v1",
+    "elo_vs_time_new": "Elo vs. time: Pareto-optimal, best per category and new models in colour",
+    "elo_vs_time_new_all": "Elo vs. time, all tasks: Pareto-optimal, best per category and new models",
+    "elo_vs_time_new_classification": "Elo vs. time, classification: Pareto-optimal, best per category and new models",
+    "elo_vs_time_new_regression": "Elo vs. time, regression: Pareto-optimal, best per category and new models",
     "elo_vs_release_date": "Model progress over time",
     "pairwise_win_rates": "Pairwise win rates",
     "efficiency_overview": "Efficiency overview",
@@ -158,10 +158,10 @@ def generate_from_results(
     ):
         written[stem] = static.plot_tradeoff(scores, focus, st, formats, metric, stem)
     written["elo_vs_time"] += static.plot_tradeoff_per_group(scores, focus, st, formats, "elo", "elo_vs_time")
-    # Same plots with the best model per category and every model added since v1 in colour
+    # Same plots with the best model per category and the new models (models.NEW_MODELS) in colour
     # (Pareto-optimal models always are).
     new_focus = {
-        g: select_focus(s.leaderboard, 1, always=tuple(m for m in s.leaderboard.index if model_info.is_new_since_v1(m)))
+        g: select_focus(s.leaderboard, 1, always=tuple(m for m in s.leaderboard.index if model_info.is_new(m)))
         for g, s in scores.items()
     }
     written["elo_vs_time_new"] = static.plot_tradeoff(scores, new_focus, st, formats, "elo", "elo_vs_time_new")

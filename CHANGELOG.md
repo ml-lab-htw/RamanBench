@@ -27,8 +27,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 - **Single-panel Elo vs. time figures**: `elo_vs_time_all`, `elo_vs_time_classification`
   and `elo_vs_time_regression`, next to the two-panel `elo_vs_time`
   (`static.plot_tradeoff_per_group`). The same four figures as `elo_vs_time_new*` colour only
-  the Pareto-optimal models, the best model per category and every model added since v1.0.0
-  (`models.is_new_since_v1`, against the v1.0.0 model list `models.V1_MODELS`).
+  the Pareto-optimal models, the best model per category and the new models
+  (`models.NEW_MODELS`: TabDPT-1.3, LightPFN, PrismBoost, TabFM+, Chakra-Tab and HIVE-COTE 2).
 
 ### Changed
 

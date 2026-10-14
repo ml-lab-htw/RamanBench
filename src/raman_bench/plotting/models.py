@@ -171,20 +171,15 @@ KNOWN_CONTAMINATION = {
 CONTAMINATION_MARK = "†"
 
 
-#: The models of the v1.0.0 release (``configs/v1/scope_default.json`` at tag ``v1.0.0``,
-#: 2026-09-01). Every other model counts as new since v1 (:func:`is_new_since_v1`).
-V1_MODELS = frozenset({
-    "RF", "CAT", "XGB", "XT", "KNN", "LR", "NN_TORCH", "FASTAI", "DUMMY", "REALMLP", "MITRA", "TABM",
-    "TABDPT", "TABICL", "REALTABPFN-V2", "REALTABPFN-V2.5", "TABFM", "TABPFN-V3", "TABSWIFT", "MODERNNCA",
-    "EBM", "PERPETUAL_BOOSTER", "XRFM", "CHIMERABOOST", "NORI", "SAP_RPT_OSS", "ORIONMSP", "ILTM", "LIMIX",
-    "TABSTAR", "COATNET", "DEEPCNN", "FCRESNEXT", "RAMANFORMER", "RAMANNET", "RAMANTRANSFORMER",
-    "REZERONET", "ROCKET", "SANET", "TABPFN-WIDE", "RAMANPFN", "HYDRA", "PLS",
+#: Models highlighted as new in the ``elo_vs_time_new*`` figures (:func:`is_new`).
+NEW_MODELS = frozenset({
+    "TABDPT-V1.3", "LIGHTPFN", "PRISMBOOST", "TABFM-PLUS", "CHAKRA-TAB", "CHAKRA-TAB-FULL", "HIVECOTEV2",
 })
 
 
-def is_new_since_v1(model: str) -> bool:
-    """Whether *model* was added after the v1.0.0 release (reference systems never are)."""
-    return model.upper() not in V1_MODELS and model.upper() not in REFERENCE_MODELS
+def is_new(model: str) -> bool:
+    """Whether *model* is highlighted as new in the ``elo_vs_time_new*`` figures."""
+    return model.upper() in NEW_MODELS
 
 
 #: Name suffix for a model ranked across all tasks that was evaluated on one task type only.

@@ -238,10 +238,11 @@ def test_known_contamination_is_marked_and_explained(tmp_path):
     assert "arXiv:2608.02157" not in clean.read_text(encoding="utf-8")
 
 
-def test_new_since_v1():
-    assert not model_info.is_new_since_v1("RF")
-    assert model_info.is_new_since_v1("KUMO-TABULAR")
-    assert not model_info.is_new_since_v1("AUTOGLUON-EXTREME-1H")
+def test_new_models():
+    assert model_info.is_new("TABDPT-V1.3")
+    assert model_info.is_new("HIVECOTEV2")
+    assert not model_info.is_new("RF")
+    assert not model_info.is_new("REALTABPFN-V2.6")
 
 
 def test_figure_notes_explain_marks():
