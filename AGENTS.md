@@ -2,7 +2,7 @@
 
 Guidance for Codex when working with this repository.
 
-## Current State (as of v1.3.0)
+## Current State (as of v1.4.0)
 
 **Status**: since v2.0.0 (2026-09-18; renumbered to the 1.x line in v1.2.0) — the legacy v0.1-era execution pipeline
 (`raman_bench.model.AutoGluonModel`, `raman_bench.predictions`,
@@ -56,7 +56,7 @@ This is a real architectural dependency, not a style reference. If you need to:
 | `src/raman_bench/preprocessing/mixin.py` | `RamanPreprocessingMixin`: joint AutoGluon preprocessing + model HPO (8 core steps + ensemble + GCU/LVSE) |
 | `src/raman_bench/models/custom/` | Raman-specific architectures (DeepCNN, RamanNet, RamanPFN, etc.); custom models go here |
 | `src/raman_bench/splitting.py` | Repeated k-fold logic with group-aware fallbacks for replicate structure |
-| `pyproject.toml` | Version (currently 1.3.0), dependencies (including `tabarena`), package metadata |
+| `pyproject.toml` | Version (currently 1.4.0), dependencies (including `tabarena`), package metadata |
 | `CHANGELOG.md` | Release notes; update this for every release (move "Unreleased" → version section) |
 
 ## Datasets & The Mirror
@@ -88,7 +88,7 @@ starts at `2.1.0`.
 6. Push: `git push origin main vX.Y.Z` (or create PR if main is protected)
 7. Tag will trigger PyPI publish via CI (if configured)
 
-**Current version**: 1.3.0
+**Current version**: 1.4.0
 
 ## Testing
 
@@ -129,7 +129,7 @@ Cluster runs (SLURM or Kubernetes) use `cluster/submit_job.py`,
 
 ## Important: No Half-Done State
 
-This codebase is currently in a released state (v1.3.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
+This codebase is currently in a released state (v1.4.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
 
 If you're about to start significant work, create a feature branch, but assume main is stable.
 
