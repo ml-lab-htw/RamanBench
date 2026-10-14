@@ -162,13 +162,27 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
 #: :data:`CONTAMINATION_MARK` in figures and tables.
 KNOWN_CONTAMINATION = {
     "RAMANPFN": (
-        "Developed and evaluated on the RamanBench v0.1 datasets and task splits (Pan et al., 2026, "
-        "arXiv:2608.02157, Sec. 4.1); no separate development data is reported. Its TabPFN weights were "
-        "not trained on RamanBench, but its fixed design choices (representations, integration "
-        "coefficients) may be tuned to these datasets."
+        "Developed on the RamanBench v0.1 datasets and splits (Pan et al., 2026, arXiv:2608.02157), "
+        "so its scores may be optimistic."
     ),
 }
 CONTAMINATION_MARK = "†"
+
+#: Models served by a closed-source API: neither the model nor its code is public, so the
+#: results can't be reproduced independently. Ranked like every other model but marked
+#: with :data:`CLOSED_API_MARK`.
+CLOSED_API = {
+    "CHAKRA-TAB": "Closed-source hosted API (YHat Labs); model and code are not public.",
+    "CHAKRA-TAB-FULL": "Closed-source hosted API (YHat Labs); model and code are not public.",
+}
+CLOSED_API_MARK = "‡"
+
+
+def _marks(model: str) -> list[tuple[str, str]]:
+    """``(mark, note)`` for each flag *model* carries."""
+    key = model.upper()
+    flags = [(CONTAMINATION_MARK, KNOWN_CONTAMINATION.get(key)), (CLOSED_API_MARK, CLOSED_API.get(key))]
+    return [(m, n) for m, n in flags if n]
 
 
 #: Name suffix for a model ranked across all tasks that was evaluated on one task type only.
@@ -181,11 +195,13 @@ SUBSET_NOTE = (
 
 def figure_notes(text: str) -> list[str]:
     """Footnotes a figure needs, given all the text it shows (model names, labels, ...)."""
-    notes = [
-        f"{CONTAMINATION_MARK} {display_name(m, mark=False)}: {note}"
-        for m, note in KNOWN_CONTAMINATION.items()
-        if display_name(m) in text
-    ]
+    # One note per explanation, naming every shown model it applies to.
+    shown: dict[tuple[str, str], list[str]] = {}
+    for m in {**KNOWN_CONTAMINATION, **CLOSED_API}:
+        if display_name(m) in text:
+            for flag in _marks(m):
+                shown.setdefault(flag, []).append(display_name(m, mark=False))
+    notes = [f"{mark} {', '.join(names)}: {note}" for (mark, note), names in shown.items()]
     if any(f"({tag})" in text for tag in SUBSET_TAGS.values()):
         notes.append(SUBSET_NOTE)
     return notes
@@ -199,13 +215,14 @@ def contamination(model: str) -> str | None:
 def display_name(model: str, mark: bool = True) -> str:
     """Human-readable name for *model*; the key itself when unknown.
 
-    With *mark*, models in :data:`KNOWN_CONTAMINATION` get :data:`CONTAMINATION_MARK` appended.
+    With *mark*, models in :data:`KNOWN_CONTAMINATION` get :data:`CONTAMINATION_MARK` appended,
+    and models in :data:`CLOSED_API` get :data:`CLOSED_API_MARK`.
     """
     if model.upper() in REFERENCE_MODELS:
         return REFERENCE_MODELS[model.upper()][0]
     entry = _MODELS.get(model.upper())
     name = entry[0] if entry else model
-    return name + CONTAMINATION_MARK if mark and contamination(model) else name
+    return name + "".join(m for m, _ in _marks(model)) if mark else name
 
 
 def category(model: str) -> str:

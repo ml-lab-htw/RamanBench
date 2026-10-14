@@ -27,6 +27,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- **Figures mark closed-source API models with ‡** (Chakra-Tab), with a footnote that the
+  model and its code are not public (`raman_bench.plotting.models.CLOSED_API`). The † note
+  on RamanPFN is shorter.
 - **TabArena pin** moves to `66198aba` (`mario-koddenbrock/tabarena`, branch
   `ramanbench/lightpfn-prismboost`): `9d771c3` plus LightPFN, PrismBoost and the many-class
   support for LightPFN and TabFM+, cherry-picked from upstream. The code behind every other
