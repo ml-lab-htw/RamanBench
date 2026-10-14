@@ -186,6 +186,8 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
         assert (out / "static" / f"{stem}.png").exists()
         assert (out / "static" / f"{stem}.pdf").exists()
         assert (out / "interactive" / f"{stem}.html").exists()
+    for group in ("all", "classification", "regression"):
+        assert (out / "static" / f"elo_vs_time_{group}.png").exists()
     assert (out / "leaderboards" / "leaderboard_regression.csv").exists()
     assert written["index"][0].read_text().count("<section>") >= 6
 

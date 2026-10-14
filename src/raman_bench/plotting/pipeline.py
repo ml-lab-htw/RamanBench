@@ -41,6 +41,9 @@ FIGURES = {
     "metrics_vs_time": "Normalized score vs. time",
     "improvability_vs_time": "Improvability vs. time",
     "elo_vs_time": "Elo vs. time",
+    "elo_vs_time_all": "Elo vs. time, all tasks",
+    "elo_vs_time_classification": "Elo vs. time, classification",
+    "elo_vs_time_regression": "Elo vs. time, regression",
     "elo_vs_release_date": "Model progress over time",
     "pairwise_win_rates": "Pairwise win rates",
     "efficiency_overview": "Efficiency overview",
@@ -150,6 +153,7 @@ def generate_from_results(
         ("elo", "elo_vs_time"),
     ):
         written[stem] = static.plot_tradeoff(scores, focus, st, formats, metric, stem)
+    written["elo_vs_time"] += static.plot_tradeoff_per_group(scores, focus, st, formats, "elo", "elo_vs_time")
     written["elo_vs_release_date"] = static.plot_elo_vs_release_date(
         scores["all"], focus["all"], st, formats, "elo_vs_release_date"
     )

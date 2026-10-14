@@ -24,6 +24,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
   off the leaderboard.
 - **TabFM+ on datasets with more than ten classes**, output-coded like TabFM
   ([#657](https://github.com/autogluon/tabarena/pull/657)).
+- **Single-panel Elo vs. time figures**: `elo_vs_time_all`, `elo_vs_time_classification`
+  and `elo_vs_time_regression`, next to the two-panel `elo_vs_time`
+  (`static.plot_tradeoff_per_group`).
 
 ### Changed
 
