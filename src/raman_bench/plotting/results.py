@@ -370,6 +370,20 @@ def split_references(leaderboard: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFr
     return leaderboard[~ref], leaderboard[ref]
 
 
+def by_release(leaderboard: pd.DataFrame) -> pd.DataFrame:
+    """Ranked models with a release date, oldest first; same-day releases best first."""
+    lb = split_references(leaderboard)[0].dropna(subset=["release_date"])
+    return lb.sort_values(["release_date", "elo"], ascending=[True, False], kind="stable")
+
+
+def record_holders(lb: pd.DataFrame) -> pd.DataFrame:
+    """Rows of :func:`by_release` output that beat every earlier release.
+
+    Variants released the same day (e.g. Kumo-Tabular S/M/L) give one record, not one each.
+    """
+    return lb[lb["elo"] > lb["elo"].cummax().shift(fill_value=-np.inf)]
+
+
 def select_focus(leaderboard: pd.DataFrame, top_k: int | None, always: tuple[str, ...] = ()) -> set[str]:
     """Models drawn in colour: the *top_k* best by Elo in each category.
 

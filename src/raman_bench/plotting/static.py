@@ -32,7 +32,9 @@ from raman_bench.plotting.results import (  # noqa: E402
     TIME_COL,
     CriticalDifference,
     GroupScores,
+    by_release,
     pareto_front,
+    record_holders,
     split_references,
 )
 
@@ -339,9 +341,9 @@ def release_ax(ax, scores: GroupScores, focus: set[str], label: bool = True) -> 
 
     Models in *focus* and every record holder are coloured; the rest are grey.
     """
-    lb = split_references(scores.leaderboard)[0].dropna(subset=["release_date"]).sort_values("release_date")
+    lb = by_release(scores.leaderboard)
     lb = lb.assign(x=[_release_x(d) for d in lb["release_date"]])
-    record = lb[lb["elo"] > lb["elo"].cummax().shift(fill_value=-np.inf)]
+    record = record_holders(lb)
     shown = focus | set(record.index)
 
     stairs_x = list(record["x"]) + [_release_x(lb["release_date"].max() + 0.3)]
