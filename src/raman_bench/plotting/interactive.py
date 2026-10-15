@@ -26,7 +26,9 @@ from raman_bench.plotting.results import (
     TIME_COL,
     CriticalDifference,
     GroupScores,
+    by_release,
     pareto_front,
+    record_holders,
     split_references,
 )
 from raman_bench.plotting.static import CD_CAPTION, TASK_TITLES, cd_geometry, cd_title
@@ -380,8 +382,8 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
 def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k):
     """Elo over release date; the staircase is the best Elo released so far."""
     go = _go()
-    lb = split_references(scores.leaderboard)[0].dropna(subset=["release_date"]).sort_values("release_date")
-    record = lb[lb["elo"] > lb["elo"].cummax().shift(fill_value=-np.inf)]
+    lb = by_release(scores.leaderboard)
+    record = record_holders(lb)
     fig = go.Figure()
     end = lb["release_date"].max() + 0.3
     fig.add_trace(

@@ -16,6 +16,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 - **Interactive figures switch between the desktop and phone layout when the window is
   resized**, not only on load. Each switch also resizes the embedding iframe.
+- **Model progress over time (Figure 1b, `elo_vs_release_date`) colours one record per release
+  date.** Variants released the same day (Kumo-Tabular S/M/L) were each counted as a new state
+  of the art; now only the best of them is.
 
 ## [1.4.0] — 2026-10-14
 

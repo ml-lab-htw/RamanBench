@@ -143,6 +143,15 @@ def test_mostly_imputed_models_are_dropped(tmp_path):
     assert "LR" in scores["classification"].leaderboard.index
 
 
+def test_same_day_releases_give_one_record():
+    lb = pd.DataFrame(
+        {"elo": [900.0, 1100.0, 1200.0, 1300.0], "release_date": [2020.0, 2026.5, 2026.5, 2026.5]},
+        index=["old", "kumo_s", "kumo_m", "kumo_l"],
+    )
+    ordered = res.by_release(lb)
+    assert list(res.record_holders(ordered).index) == ["old", "kumo_l"]
+
+
 def test_select_focus_takes_top_k_per_category():
     lb = pd.DataFrame(
         {"elo": [1500, 1400, 1300, 1000, 900], "category": ["A", "A", "A", "B", "B"]},
