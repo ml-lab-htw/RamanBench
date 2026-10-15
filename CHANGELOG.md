@@ -12,6 +12,15 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **raman-data ≥ 1.6.6**, which adds the glioma datasets `glioma_methylation` and `glioma_idh`
+  (Lita et al. 2024; 257,904 tumour spectra from 46 patients). They are on the HF mirror for
+  test runs but not in `configs/v1/target_list.json`, so the leaderboard is unchanged.
+- **Dataset inclusion criteria** (`CONTRIBUTING.md`): non-commercial licences are accepted, and
+  data without a licence of its own takes its paper's, as already done for `marine_pathogens`
+  and `mlrod`.
+
 ### Fixed
 
 - **Interactive figures switch between the desktop and phone layout when the window is
