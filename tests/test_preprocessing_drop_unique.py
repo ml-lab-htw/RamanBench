@@ -69,6 +69,36 @@ def test_stateful_prep_survives_fit_with_constant_column():
     assert not pd.isna(preds).any()
 
 
+def test_stateful_prep_survives_fit_with_bool_typed_column():
+    """Same fit/transform width desync, via KNN's own feature filter instead of
+    ``drop_unique``: ``KNNModel``'s ``ignored_type_group_special=[S_BOOL]``
+    drops any column AutoGluon's feature generator typed as boolean (exactly
+    two distinct values), after the mixin has already fit its scaler on the
+    full width. Seen on ``fuel_handheld`` (``X has 1896 features, but
+    StandardScaler is expecting 1898``). The ``S_BOOL`` tag normally comes from
+    the predictor-level feature generator, so it is passed in explicitly here.
+    """
+    from autogluon.common.features.feature_metadata import FeatureMetadata
+    from autogluon.common.features.types import R_FLOAT, S_BOOL
+
+    cls = PREPROCESSED_MODELS["KNN"]
+    rng = np.random.RandomState(0)
+    X = pd.DataFrame(rng.rand(N_SAMPLES, N_FEATURES), columns=[f"w{i:04d}" for i in range(N_FEATURES)])
+    X.iloc[:, 1] = np.tile([0.0, 1.0], N_SAMPLES // 2)
+    y = pd.Series(rng.rand(N_SAMPLES))
+    feature_metadata = FeatureMetadata(
+        type_map_raw={c: R_FLOAT for c in X.columns},
+        type_group_map_special={S_BOOL: [X.columns[1]]},
+    )
+
+    model = cls(hyperparameters={"prep_scaling_enabled": True})
+    model.fit(X=X, y=y, feature_metadata=feature_metadata)
+
+    preds = model.predict(X.iloc[:5])
+    assert len(preds) == 5
+    assert not pd.isna(preds).any()
+
+
 def test_no_recipe_model_keeps_default_drop_unique_behavior():
     """Required scope-narrowing regression test: a ``Prep_*`` instance
     constructed with NO recipe hyperparameters at all must keep AutoGluon's
