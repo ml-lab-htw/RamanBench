@@ -46,7 +46,7 @@ dependencies = [
     # classification-shaped output -- any benchmark run below this floor
     # regresses against an arbitrary sample ordering on those two datasets,
     # not a real quantity (ml-lab-htw/raman_data#44).
-    "raman-data>=1.6.5",
+    "raman-data>=1.6.6",
     "torch>=2.0,<3.0",
     "python-dotenv>=1.0",
     # Reads the bundled v1 reference results (data/precomputed/v1/reference_results.parquet).
