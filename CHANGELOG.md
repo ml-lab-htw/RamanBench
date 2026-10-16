@@ -12,6 +12,13 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Version comparison figures** (`scripts/version_comparison/`): two benchmark versions compared
+  on their own metrics (who wins per category and family, winner flows, Elo rank changes), plus
+  looks at the newer version (progress by release date, headroom, ties, cost, regret, licences).
+  Model families keep one colour across all figures. First used for v0.1 vs. v1.
+
 ### Changed
 
 - **raman-data ≥ 1.6.6**, which adds the glioma datasets `glioma_methylation` and `glioma_idh`
