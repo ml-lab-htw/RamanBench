@@ -270,6 +270,16 @@
     "is_core": true
   },
   {
+    "dataset": "glioma_idh",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 257904,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "is_core": false
+  },
+  {
     "dataset": "amino_acids_glycine",
     "target_idx": 0,
     "target_name": "target",
@@ -1620,3 +1630,4 @@
     "is_core": false
   }
 ]
+
