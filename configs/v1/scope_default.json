@@ -139,14 +139,16 @@
             "cancer_cell_cooh": 10800,
             "cancer_cell_nh2": 10800,
             "mlrod": 10800,
-            "rruff_mineral_raw": 10800
+            "rruff_mineral_raw": 10800,
+            "glioma_idh": 10800
         },
         "TA-MITRA-V2": {
             "bacteria_identification": 7200,
             "cancer_cell_cooh": 7200,
             "cancer_cell_nh2": 7200,
             "mlrod": 7200,
-            "rruff_mineral_raw": 7200
+            "rruff_mineral_raw": 7200,
+            "glioma_idh": 7200
         },
         "RAMANTRANSFORMER": {
             "serum_alzheimer_disease": 5400,
@@ -192,7 +194,8 @@
             "microgel_size_raw_global": 5400,
             "microgel_synthesis": 5400,
             "succinic_acid_species": 5400,
-            "itaconic_acid_species": 5400
+            "itaconic_acid_species": 5400,
+            "glioma_idh": 5400
         },
         "ORIONMSP": {
             "pharmaceutical_ingredients": 7200,
