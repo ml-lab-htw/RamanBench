@@ -63,7 +63,7 @@ Practical notes:
   `rai_supplement.yaml` entries.
 - **Licence**: CC BY 4.0 or more permissive is preferred. Non-commercial terms are
   accepted, and data without a licence of its own takes its paper's licence, written like
-  `"CC BY-NC (paper; non-commercial)"` (precedents: `marine_pathogens`, `mlrod`). Never
+  `"CC BY-NC (paper; non-commercial)"` (precedents: `marine_pathogens`, `glioma_*`). Never
   invent a licence; if there is neither a data nor a paper licence, ask.
 - **Local benchmark run before anything goes out**: run a real experiment on every target
   the dataset declares, right here in `RamanBench`, against the unreleased checkout:
