@@ -194,7 +194,7 @@ in this repository requesting the dataset be added to `configs/v1/datasets/`.
 
 | Criterion | Details |
 |---|---|
-| **Freely accessible** | Publicly downloadable without a request (HuggingFace, Zenodo, Kaggle, a public Drive folder, etc.). CC BY 4.0 or more permissive is preferred; non-commercial terms are accepted, and data without a licence of its own takes its paper's licence (e.g. `marine_pathogens`, `mlrod`, `glioma_*`) |
+| **Freely accessible** | Publicly downloadable without a request (HuggingFace, Zenodo, Kaggle, a public Drive folder, etc.). CC BY 4.0 or more permissive is preferred; non-commercial terms are accepted, and data without a licence of its own takes its paper's licence (e.g. `marine_pathogens`, `glioma_*`) |
 | **Experimentally acquired** | Real instrument measurements — no simulated or synthetic spectra |
 | **Supervised labels** | At least one regression target or classification label per spectrum |
 | **Minimum size** | ≥ 10 labeled spectra total; for classification ≥ 9 spectra per class (rare classes removed; excluded if < 2 classes remain) |
