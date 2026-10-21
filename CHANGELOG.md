@@ -14,6 +14,16 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **Benchmark v2 dataset candidates** (`configs/v2/`): the 40 raman_data keys added after
+  1.6.6, with the targets that are not run and why (too few spectra per class, duplicates,
+  glaucoma targets outside the severity measures). v1 is unchanged.
+- **`--min-groups-per-class`** for `run_experiment.py` and `build_target_list.py`: drops classes
+  with fewer distinct groups than this. Off (0) by default, so v1 is unchanged; v2 uses 3,
+  since grouped 3-fold CV otherwise can test a class that no training fold contains.
+- `build_target_list.py` marks classification targets that keep fewer than 2 classes after
+  the class filters as excluded (`too_few_classes`), with a warning. Before, they were listed
+  as runnable and every job then skipped without a result.
+
 - **Version comparison figures** (`scripts/version_comparison/`): two benchmark versions compared
   on their own metrics (who wins per category and family, winner flows, Elo rank changes), plus
   looks at the newer version (progress by release date, headroom, ties, cost, regret, licences).

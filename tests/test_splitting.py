@@ -190,6 +190,35 @@ def test_filter_rare_classes_disabled_when_threshold_zero():
     assert len(filtered) == 5
 
 
+
+def _grouped_classes():
+    # a: 12 rows in 4 groups, b: 12 rows in 3 groups, c: 12 rows in 2 groups
+    return pd.DataFrame({
+        "x": range(36),
+        GROUP_COL: [f"a{i % 4}" for i in range(12)] + [f"b{i % 3}" for i in range(12)]
+        + [f"c{i % 2}" for i in range(12)],
+        "target": ["a"] * 12 + ["b"] * 12 + ["c"] * 12,
+    })
+
+
+def test_filter_rare_classes_group_rule_off_by_default():
+    filtered = filter_rare_classes(_grouped_classes(), label_col="target", min_samples_per_class=9)
+    assert sorted(filtered["target"].unique()) == ["a", "b", "c"]
+
+
+def test_filter_rare_classes_drops_classes_with_too_few_groups():
+    filtered = filter_rare_classes(
+        _grouped_classes(), label_col="target", min_samples_per_class=9, min_groups_per_class=3
+    )
+    assert sorted(filtered["target"].unique()) == ["a", "b"]
+
+
+def test_filter_rare_classes_group_rule_ignored_without_groups():
+    df = _grouped_classes().drop(columns=GROUP_COL)
+    filtered = filter_rare_classes(df, label_col="target", min_samples_per_class=0, min_groups_per_class=3)
+    assert len(filtered) == 36
+
+
 def test_infer_group_ids_finds_real_replicates():
     targets = np.array(
         [
