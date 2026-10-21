@@ -375,6 +375,7 @@ def submit_jobs(
     profile: dict,
     throttle: int,
     dry_run: bool,
+    min_groups_per_class: int = 0,
     dataset_time_limit_overrides: dict[str, float] | None = None,
     model_time_limit_overrides: dict[str, float] | float | None = None,
     default_time_limit: float | None = None,
@@ -427,6 +428,7 @@ def submit_jobs(
             num_random_configs=num_random_configs, num_bag_folds=num_bag_folds, time_limit=time_limit,
             results_dir=results_dir, cache_dir=cache_dir, mirror_repo=mirror_repo,
             profile=profile, throttle=throttle, dry_run=dry_run,
+            min_groups_per_class=min_groups_per_class,
             dataset_time_limit_overrides=dataset_time_limit_overrides,
             model_time_limit_overrides=model_time_limit_overrides,
             default_time_limit=base_time_limit,
@@ -455,6 +457,7 @@ def submit_jobs(
                 "--num-bag-folds", str(num_bag_folds), "--time-limit", str(task_time_limit),
                 "--results-dir", results_dir, "--cache-dir", cache_dir, "--mirror-repo", mirror_repo,
                 "--scratch-dir", scratch_dir,
+                "--min-groups-per-class", str(min_groups_per_class),
             ]
             if task_max_train_samples is not None:
                 cmd += ["--max-train-samples", str(task_max_train_samples)]
@@ -524,6 +527,7 @@ def submit_jobs(
             f"N_SPLITS={n_splits}",
             f"NUM_RANDOM_CONFIGS={num_random_configs}",
             f"NUM_BAG_FOLDS={num_bag_folds}",
+            f"MIN_GROUPS_PER_CLASS={min_groups_per_class}",
             # Array-wide fallback only -- run_experiment.sbatch prefers the
             # per-task 7th jobspec field (see write_jobspec/resolve_time_limit
             # above) and falls back to this env var just for jobspec lines
@@ -606,6 +610,7 @@ def _build_k8s_job_manifest(
     use_gpu: bool,
     tasks_per_pod: int,
     throttle: int,
+    min_groups_per_class: int = 0,
 ) -> tuple[str, str, int, dict]:
     """Build the (job_name, configmap_name, n_pods, job_manifest) for one k8s
     Indexed Job -- pure construction, no cluster I/O, so it's directly
@@ -624,6 +629,7 @@ def _build_k8s_job_manifest(
         {"name": "N_SPLITS", "value": str(n_splits)},
         {"name": "NUM_RANDOM_CONFIGS", "value": str(num_random_configs)},
         {"name": "NUM_BAG_FOLDS", "value": str(num_bag_folds)},
+        {"name": "MIN_GROUPS_PER_CLASS", "value": str(min_groups_per_class)},
         {"name": "TIME_LIMIT", "value": str(time_limit)},
         {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir, workspace)},
         {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir, workspace)},
@@ -814,6 +820,7 @@ def build_k8s_job_manifest_multimodel(
     tasks_per_pod: int,
     throttle: int,
     force_recompute: bool = False,
+    min_groups_per_class: int = 0,
 ) -> tuple[str, str, int, dict]:
     """Multi-model counterpart to _build_k8s_job_manifest: ``image``/``mem_tier``
     are already resolved by the caller (the SHARED image and the MAX memory
@@ -837,6 +844,7 @@ def build_k8s_job_manifest_multimodel(
         {"name": "N_SPLITS", "value": str(n_splits)},
         {"name": "NUM_RANDOM_CONFIGS", "value": str(num_random_configs)},
         {"name": "NUM_BAG_FOLDS", "value": str(num_bag_folds)},
+        {"name": "MIN_GROUPS_PER_CLASS", "value": str(min_groups_per_class)},
         {"name": "TIME_LIMIT", "value": str(time_limit)},
         {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir, workspace)},
         {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir, workspace)},
@@ -938,6 +946,7 @@ def submit_jobs_k8s(
     profile: dict,
     throttle: int,
     dry_run: bool,
+    min_groups_per_class: int = 0,
     dataset_time_limit_overrides: dict[str, float] | None = None,
     model_time_limit_overrides: dict[str, float] | float | None = None,
     default_time_limit: float | None = None,
@@ -992,6 +1001,7 @@ def submit_jobs_k8s(
             time_limit=time_limit, results_dir=results_dir, cache_dir=cache_dir,
             mirror_repo=mirror_repo, profile=profile, use_gpu=use_gpu,
             tasks_per_pod=tasks_per_pod, throttle=throttle,
+            min_groups_per_class=min_groups_per_class,
         )
 
         print(f"  jobspec: {jobspec_path}  ({len(chunk_jobs)} task(s))")
@@ -1044,6 +1054,7 @@ def submit(
     throttle: int,
     dry_run: bool,
     max_train_samples: int | None = None,
+    min_groups_per_class: int = 0,
 ) -> None:
     jobs: list[Job] = [
         (dataset, target_idx, repeat, fold, cfg, n_repeats)
@@ -1059,6 +1070,7 @@ def submit(
         results_dir=results_dir, cache_dir=cache_dir, mirror_repo=mirror_repo,
         profile=profile, throttle=throttle, dry_run=dry_run,
         max_train_samples_overrides=max_train_samples_overrides,
+        min_groups_per_class=min_groups_per_class,
     )
 
 
@@ -1221,6 +1233,10 @@ def main():
     )
     parser.add_argument("--num-random-configs", type=int, default=50)
     parser.add_argument("--num-bag-folds", type=int, default=8)
+    parser.add_argument(
+        "--min-groups-per-class", type=int, default=0,
+        help="Passed to run_experiment.py (0 = off, benchmark v1; v2 uses 3).",
+    )
     parser.add_argument("--time-limit", type=float, default=3600)
     parser.add_argument("--results-dir", default="results/v1/data")
     parser.add_argument("--cache-dir", default=".cache_v1")
@@ -1244,6 +1260,7 @@ def main():
         time_limit=args.time_limit, results_dir=args.results_dir, cache_dir=args.cache_dir,
         mirror_repo=args.mirror_repo, profile=profile, throttle=args.throttle, dry_run=args.dry_run,
         max_train_samples=args.max_train_samples,
+        min_groups_per_class=args.min_groups_per_class,
     )
 
 

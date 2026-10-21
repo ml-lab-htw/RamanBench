@@ -76,6 +76,10 @@ Default is `use_mirror=True`. Tests and integration scripts that need raw source
 
 The rules and steps for every release are in [RELEASING.md](RELEASING.md); this is a summary.
 
+**Branches**: `main` is benchmark v1 (new models land here, `1.x` releases); the long-lived
+`v2` branch is benchmark v2 (new datasets land only there; `2.1.0` on). Merge `main` into
+`v2` after every merge into `main`, never the other way. See RELEASING.md, "Branches".
+
 **Version numbering**: the major version is the benchmark version, so every `1.x.y` release
 runs and scores benchmark v1 (`configs/v1/`, `results/v1/`, the bundled `data/precomputed/v1/`
 reference). Minor: new models, features, or an API break within the same benchmark version.

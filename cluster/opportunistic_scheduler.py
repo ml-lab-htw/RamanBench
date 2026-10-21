@@ -778,6 +778,7 @@ def run_tick(
         results_dir=scope["results_dir"], cache_dir=scope.get("cache_dir", ".cache_v1"),
         mirror_repo=scope.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench"),
         profile=profile, throttle=throttle, dry_run=dry_run,
+        min_groups_per_class=int(scope.get("min_groups_per_class", 0)),
         dataset_time_limit_overrides=dataset_time_limit_overrides,
         model_time_limit_overrides=model_time_limit_overrides,
         default_time_limit=flat_default_time_limit,

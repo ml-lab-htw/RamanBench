@@ -14,6 +14,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **Branch model for benchmark v2** (RELEASING.md, "Branches"): `main` stays benchmark v1 and
+  gets new models; the long-lived `v2` branch gets new datasets. `main` is merged into `v2`,
+  never the other way.
+- Cluster submissions pass a scope's `min_groups_per_class` (default 0) to every pod, via the
+  SLURM, k8s per-model and k8s by-dataset paths.
+
 - **Benchmark v2 dataset candidates** (`configs/v2/`): the 40 raman_data keys added after
   1.6.6, with the targets that are not run and why (too few spectra per class, duplicates,
   glaucoma targets outside the severity measures). v1 is unchanged.
