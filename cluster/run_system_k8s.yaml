@@ -26,7 +26,7 @@ spec:
   containers:
   - name: run
     # Pinned digest: the :v1 tag is stale on some nodes (docs/internal/results-pipeline.md).
-    image: registry.datexis.com/mkoddenbrock-ext/ramanbench@sha256:6f6fb32d4fc71f23cdaa23930145f566d6146850a769573df783094095de9bfe
+    image: registry.datexis.com/mkoddenbrock-ext/ramanbench@sha256:85e5306bb4bb0da4d290a9ff9b40f05e4b364d293fc354d86f6b147852043f6e
     workingDir: /data/RamanBench_v1/code_<SHA>
     command: ["bash", "-c"]
     args:
