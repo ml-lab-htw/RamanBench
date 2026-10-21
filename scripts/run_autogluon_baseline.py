@@ -80,6 +80,7 @@ def run_one(
     min_samples_per_class: int = 9,
     max_train_samples: int | None = None,
     force_recompute: bool = False,
+    min_groups_per_class: int = 0,
 ) -> dict | None:
     """Run exactly one (dataset, target, repeat, fold) AutoGluon-extreme baseline job.
 
@@ -138,6 +139,7 @@ def run_one(
         n_splits=n_splits,
         sample_idx=sample_idx,
         min_samples_per_class=min_samples_per_class,
+        min_groups_per_class=min_groups_per_class,
         filter_unlabeled=True,
     )
     if task_wrapper is None:
@@ -262,6 +264,10 @@ def main():
     parser.add_argument("--use-gpu", action="store_true")
     parser.add_argument("--scratch-dir", default=None)
     parser.add_argument("--min-samples-per-class", type=int, default=9)
+    parser.add_argument(
+        "--min-groups-per-class", type=int, default=0,
+        help="Drop classes with fewer groups (0 = off, benchmark v1; v2 uses 3).",
+    )
     args = parser.parse_args()
 
     budget_label = args.budget_label or f"{int(args.time_limit)}s"
@@ -284,6 +290,7 @@ def main():
         min_samples_per_class=args.min_samples_per_class,
         max_train_samples=args.max_train_samples,
         force_recompute=args.force_recompute,
+        min_groups_per_class=args.min_groups_per_class,
     )
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")

@@ -90,6 +90,7 @@ JOBMETA
         --cache-dir "${CACHE_DIR}" \
         --mirror-repo "${MIRROR_REPO}" \
         --scratch-dir "${SCRATCH_DIR}" \
+        --min-groups-per-class "${MIN_GROUPS_PER_CLASS:-0}" \
         ${GPU_FLAG}
     TASK_RC=$?
     rm -rf "${SCRATCH_DIR}" "${OPENML_CACHE_DIR}"

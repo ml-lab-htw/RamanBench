@@ -35,6 +35,18 @@ logger = logging.getLogger("run_system")
 N_SPLITS = 3
 
 
+def _load_protocol(path: str | None) -> dict:
+    """The bundled v1 protocol, or the protocol file at *path* (e.g. configs/v2/protocol_v2_only.json)."""
+    if path is None:
+        from raman_bench.compare import load_protocol
+
+        return load_protocol()
+    import json
+
+    with open(path) as f:
+        return json.load(f)
+
+
 def task_time_limit(protocol: dict, dataset: str) -> float:
     return max(protocol["time_limit"], protocol.get("time_limit_overrides", {}).get(dataset, 0))
 
@@ -52,16 +64,16 @@ def run_one(
     num_gpus: int | None = None,
     time_limit: float | None = None,
     force_recompute: bool = False,
+    protocol_path: str | None = None,
 ) -> dict | None:
     """Fit *system_key* on one outer fold of one protocol task and cache the result."""
     from tabarena.benchmark.experiment.experiment_constructor import ExternalSystemExperiment
 
-    from raman_bench.compare import load_protocol
     from raman_bench.experiment_utils import build_task, load_dataframe, run_cached
     from raman_bench.systems import get_system
 
     system = get_system(system_key)
-    protocol = load_protocol()
+    protocol = _load_protocol(protocol_path)
     (spec,) = [t for t in protocol["tasks"] if t["task"] == task]
     dataset_name, target_idx = spec["dataset"], spec["target_idx"]
 
@@ -83,6 +95,7 @@ def run_one(
         n_splits=spec["n_folds"],
         sample_idx=sample_idx,
         min_samples_per_class=protocol["min_samples_per_class"],
+        min_groups_per_class=protocol.get("min_groups_per_class", 0),
     )
     if task_wrapper is None:
         logger.warning("%s has no usable rows; skipped", task)
@@ -138,17 +151,29 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=1, help="Folds run at once (separate processes)")
     parser.add_argument("--num-cpus", type=int, default=None, help="CPUs reported to the system per fold")
     parser.add_argument("--num-gpus", type=int, default=None, help="GPUs per fold (default: the system's)")
+    parser.add_argument(
+        "--protocol", default=None,
+        help="Protocol JSON with the tasks to run (default: the bundled v1 protocol; "
+             "benchmark v2's own tasks are in configs/v2/protocol_v2_only.json)",
+    )
     parser.add_argument("--force-recompute", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="List the folds that would run, call nothing")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
-    from raman_bench.compare import load_protocol, protocol_tasks
+    from raman_bench.compare import protocol_tasks
     from raman_bench.systems import get_system
 
     system = get_system(args.system)
-    protocol = load_protocol()
-    tasks = protocol_tasks(task_type=args.task_type, tasks=args.tasks or None)
+    protocol = _load_protocol(args.protocol)
+    if args.protocol is None:
+        tasks = protocol_tasks(task_type=args.task_type, tasks=args.tasks or None)
+    else:
+        tasks = [
+            t for t in protocol["tasks"]
+            if (args.task_type is None or t["problem_type"] == args.task_type)
+            and (not args.tasks or t["task"] in args.tasks or t["dataset"] in args.tasks)
+        ]
     jobs = []
     for spec in tasks:
         for fold in args.folds:
@@ -168,6 +193,7 @@ def main() -> None:
                     "num_cpus": args.num_cpus,
                     "num_gpus": args.num_gpus,
                     "force_recompute": args.force_recompute,
+                    "protocol_path": args.protocol,
                 }
             )
     n_all = len(tasks) * len(args.folds)

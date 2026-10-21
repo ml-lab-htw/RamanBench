@@ -1,5 +1,5 @@
 {
-  "_comment": "Benchmark v2 candidate exclusions (decided 2026-10-21, see configs/v2/README.md). Same shape as configs/v1/quality_exclusions.json, for scripts/build_target_list.py --quality-exclusions. Every key stays loadable from raman_data.",
+  "_comment": "Benchmark v2 exclusions of v2-only targets (decided 2026-10-21, see configs/v2/README.md). Same shape as configs/v1/quality_exclusions.json, for scripts/build_target_list.py --quality-exclusions. Every key stays loadable from raman_data.",
   "too_few_classes": {
     "glucose_liquid_10level_0": "fewer than 9 spectra in every class, nothing left after the class filter",
     "glucose_liquid_14level_0": "fewer than 9 spectra in every class, nothing left after the class filter",
