@@ -173,6 +173,7 @@ def run_one(
     use_gpu: bool = False,
     scratch_dir: str | None = None,
     min_samples_per_class: int = 9,
+    min_groups_per_class: int = 0,
     filter_unlabeled: bool = True,
     recipe_config: str | None = None,
     max_train_samples: int | None = None,
@@ -333,6 +334,7 @@ def run_one(
         n_splits=n_splits,
         sample_idx=sample_idx,
         min_samples_per_class=min_samples_per_class,
+        min_groups_per_class=min_groups_per_class,
         filter_unlabeled=filter_unlabeled,
     )
     if task_wrapper is None:
@@ -544,6 +546,13 @@ def main():
         "defaults to AutoGluon's own relative AutogluonModels/ag-<timestamp> under cwd",
     )
     parser.add_argument(
+        "--min-groups-per-class",
+        type=int,
+        default=0,
+        help="Classification only: also drop classes with fewer distinct groups than this "
+        "(needs group ids). 0 (default, benchmark v1) disables it; benchmark v2 uses 3.",
+    )
+    parser.add_argument(
         "--min-samples-per-class",
         type=int,
         default=9,
@@ -582,6 +591,7 @@ def main():
         use_gpu=args.use_gpu,
         scratch_dir=args.scratch_dir,
         min_samples_per_class=args.min_samples_per_class,
+        min_groups_per_class=args.min_groups_per_class,
         filter_unlabeled=not args.keep_unlabeled,
         recipe_config=args.recipe_config,
         max_train_samples=args.max_train_samples,

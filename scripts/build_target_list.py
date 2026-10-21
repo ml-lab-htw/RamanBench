@@ -38,6 +38,12 @@ part of the pipeline can read them fine. Pass ``--no-use-mirror`` to force direc
 raman-data (original source) access instead -- e.g. to verify the mirror itself is
 faithfully in sync, or when a specific dataset's mirror entry is suspected stale.
 
+A classification target where fewer than 2 classes survive the class filters of
+``scripts/run_experiment.py`` (``--min-samples-per-class``, default 9, and
+``--min-groups-per-class``, default 0; pass the values the sweep uses) is marked
+``excluded`` with ``exclusion_reason`` ``"too_few_classes"`` and a warning, instead of
+being listed as runnable and then skipped by every job without a result.
+
 A dataset that fails to load from *both* the mirror and the original source (network
 hiccup, a genuinely broken source) is skipped with a warning rather than aborting the
 whole build -- rerun for just that dataset separately once fixed.
@@ -53,8 +59,11 @@ from __future__ import annotations
 import argparse
 import json
 
+import numpy as np
+import pandas as pd
+
 from raman_bench.benchmark import RamanBenchmark
-from raman_bench.splitting import get_n_repeats
+from raman_bench.splitting import GROUP_COL, TooFewClassesError, filter_rare_classes, get_n_repeats
 
 
 def load_quality_exclusions(path: str | None) -> dict[str, str]:
@@ -87,6 +96,8 @@ def build_target_list(
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
     use_mirror: bool = True,
     force_n_repeats: int | None = None,
+    min_samples_per_class: int = 9,
+    min_groups_per_class: int = 0,
 ) -> tuple[list[dict], list[str]]:
     quality_exclusions = quality_exclusions or {}
     names: list[str] = []
@@ -130,8 +141,26 @@ def build_target_list(
             target_names = ds.target_names if isinstance(ds.target_names, list) else [ds.target_names]
             target_entries = list(enumerate(target_names))
 
+        too_few_classes = False
+        if "class" in str(getattr(ds, "task_type", "")).lower() and ds.targets.ndim == 1:
+            labels = pd.DataFrame({"label": np.asarray(ds.targets)})
+            if getattr(ds, "group_ids", None) is not None:
+                labels[GROUP_COL] = np.asarray(ds.group_ids)
+            try:
+                filter_rare_classes(
+                    labels,
+                    label_col="label",
+                    min_samples_per_class=min_samples_per_class,
+                    min_groups_per_class=min_groups_per_class,
+                )
+            except TooFewClassesError as e:
+                too_few_classes = True
+                print(f"WARNING: {name}: excluded, {e}")
+
         for idx, tname in target_entries:
             quality_reason = quality_exclusions.get(f"{name}_{idx}")
+            if quality_reason is None and too_few_classes:
+                quality_reason = "too_few_classes"
             targets.append({
                 "dataset": name,
                 "target_idx": idx,
@@ -168,6 +197,15 @@ def main():
              "change to reproduce. Does not affect already-cached results.pkl "
              "files, only what gets resubmitted going forward.",
     )
+    parser.add_argument(
+        "--min-samples-per-class", type=int, default=9,
+        help="As in scripts/run_experiment.py: targets where fewer than 2 classes keep "
+             "this many spectra are marked excluded (too_few_classes).",
+    )
+    parser.add_argument(
+        "--min-groups-per-class", type=int, default=0,
+        help="As in scripts/run_experiment.py (0 = off, benchmark v1; v2 uses 3).",
+    )
     parser.add_argument("--output", required=True)
     parser.add_argument("--cache-dir", default=None)
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
@@ -185,6 +223,8 @@ def main():
         args.dataset_lists, set(args.exclude_targets), quality_exclusions,
         cache_dir=args.cache_dir, mirror_repo=args.mirror_repo, use_mirror=args.use_mirror,
         force_n_repeats=args.force_n_repeats,
+        min_samples_per_class=args.min_samples_per_class,
+        min_groups_per_class=args.min_groups_per_class,
     )
 
     with open(args.output, "w") as f:
