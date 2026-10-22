@@ -12,6 +12,13 @@ set of k8s Jobs:
 * ``systems``: TABFM-PLUS through run_system.py, one pod per target.
 * ``autogluon``: the AUTOGLUON-EXTREME 5m and 1h references, as submit_autogluon_baseline.py.
 
+``--job-per-model`` instead gives every model (and each AutoGluon budget) its own Job with a
+single pod that runs all of that model's tasks, created paused (parallelism 0) so a controller
+can start them one model at a time. Such a pod runs for days, so an eviction or preemption
+(pod condition DisruptionTarget) does not count as a failure and a crash is retried twice;
+exit code 1 (some task failed, the rest ran) ends the index. Finished tasks are skipped on a
+retry.
+
 Every pod installs raman-data (``--raman-data``, which knows the v2 datasets) and runs the
 code snapshot ``--code-dir`` on the PVC instead of the image's copy. Results go to the scope's
 results_dir (results/v2/data under the profile workspace), with min_groups_per_class=3.
@@ -74,6 +81,16 @@ def set_container(manifest: dict, command: list[str], min_groups: int) -> None:
     c["env"] = env + [{"name": "MIN_GROUPS_PER_CLASS", "value": str(min_groups)}]
 
 
+def run_alone(manifest: dict) -> None:
+    """Make *manifest* a paused one-pod Job that survives evictions (see --job-per-model)."""
+    spec = manifest["spec"]
+    spec.update(parallelism=0, backoffLimit=3, backoffLimitPerIndex=2, maxFailedIndexes=1)
+    spec["podFailurePolicy"] = {"rules": [
+        {"action": "Ignore", "onPodConditions": [{"type": "DisruptionTarget"}]},
+        {"action": "FailIndex", "onExitCodes": {"operator": "In", "values": [1]}},
+    ]}
+
+
 def apply(profile: dict, configmap_name: str, files: dict[str, Path], manifest: dict) -> None:
     namespace = profile.get("namespace", "default")
     cm_cmd = ["kubectl", "create", "configmap", configmap_name, "-n", namespace, "--dry-run=client", "-o", "yaml"]
@@ -104,6 +121,8 @@ def main() -> None:
     parser.add_argument("--tag", default="", help="Suffix for Job names, e.g. 'test' for a verification run")
     parser.add_argument("--tasks-per-pod", type=int, default=30)
     parser.add_argument("--throttle", type=int, default=None, help="Pods at once per Job (default: the scope's)")
+    parser.add_argument("--job-per-model", action="store_true",
+                        help="One paused one-pod Job per model / AutoGluon budget (see the docstring)")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -135,8 +154,9 @@ def main() -> None:
         groups: dict[tuple[str, bool], list[str]] = defaultdict(list)
         for model in roster:
             if model not in SYSTEMS and model not in AUTOGLUON:
-                groups[(resolve_k8s_image(profile, model), model in GPU_MODELS)].append(model)
-        for (image, use_gpu), models in groups.items():
+                key = (resolve_k8s_image(profile, model), model in GPU_MODELS)
+                groups[(*key, model) if args.job_per_model else key].append(model)
+        for (image, use_gpu, *_), models in groups.items():
             # target-major: a pod's tasks span many models of one (target, fold)
             tasks = [
                 (m, t["dataset"], t["target_idx"], 0, fold, 0, t.get("n_repeats", 1))
@@ -145,6 +165,10 @@ def main() -> None:
             tier = "gpu" if use_gpu else "cpu"
             image_slug = image.rsplit("/", 1)[-1].replace("ramanbench", "rb").replace("@sha256:", "-")[:16]
             group_slug = f"{prefix}-{image_slug}-{tier}"
+            tasks_per_pod = args.tasks_per_pod
+            if args.job_per_model:
+                group_slug = f"{prefix}-{models[0].lower().replace('_', '-').replace('.', '')}"
+                tasks_per_pod = len(tasks)
             mem = _max_memory_tier([profile.get("mem_tiers", {}).get(m, profile.get("default_memory", "64G"))
                                     for m in models])
             for part, chunk in enumerate(_chunk(tasks, profile.get("max_array_size", 5000))):
@@ -162,12 +186,14 @@ def main() -> None:
                     num_random_configs=scope["num_random_configs"], num_bag_folds=scope["num_bag_folds"],
                     time_limit=scope["time_limit"], results_dir=results_dir, cache_dir=cache_dir,
                     mirror_repo=mirror_repo, profile=profile, image=image, mem_tier=mem, use_gpu=use_gpu,
-                    tasks_per_pod=args.tasks_per_pod, throttle=throttle, min_groups_per_class=min_groups,
+                    tasks_per_pod=tasks_per_pod, throttle=throttle, min_groups_per_class=min_groups,
                 )
                 set_container(manifest, boot(args.code_dir, args.raman_data,
                                              "bash cluster/k8s_entrypoint_by_dataset.sh"), min_groups)
+                if args.job_per_model:
+                    run_alone(manifest)
                 print(f"models {tier} {image.rsplit('/', 1)[-1][:40]}: {len(models)} model(s), {len(chunk)} task(s), "
-                      f"{n_pods} pod(s) of {args.tasks_per_pod}, mem {mem}, job {job}")
+                      f"{n_pods} pod(s) of {tasks_per_pod}, mem {mem}, job {job}")
                 if not args.dry_run:
                     apply(profile, cm, {"jobspec.txt": jobspec}, manifest)
                     created.append(job)
@@ -198,25 +224,35 @@ def main() -> None:
 
     if "autogluon" in args.part:
         budgets = [b for m, b in AUTOGLUON.items() if m in roster]
-        jobs = [
-            (t["dataset"], t["target_idx"], 0, fold, EXTREME_TIME_BUDGETS[b], b, t.get("n_repeats", 1), n_splits)
-            for b in budgets for t in targets for fold in range(n_splits)
-        ]
-        if jobs:
-            slug = f"{prefix}-ag-extreme-" + "-".join(budgets)
-            jobspec = write_jobspec_autogluon(jobs, slug)
-            job, cm, n_pods, manifest = build_k8s_job_manifest_autogluon(
-                slug=slug, n_tasks=len(jobs), results_dir=results_dir, cache_dir=cache_dir,
-                mirror_repo=mirror_repo, profile=profile, use_gpu=True, tasks_per_pod=4, throttle=throttle,
-            )
-            set_container(manifest, boot(args.code_dir, args.raman_data,
-                                         "bash cluster/k8s_entrypoint_autogluon.sh"), min_groups)
-            print(f"autogluon {'/'.join(budgets)}: {len(jobs)} task(s), {n_pods} pod(s) of 4, job {job}")
-            if not args.dry_run:
-                apply(profile, cm, {"jobspec.txt": jobspec}, manifest)
-                created.append(job)
+        for budget_group in ([[b] for b in budgets] if args.job_per_model else [budgets]):
+            submit_autogluon(args, profile, targets, budget_group, prefix, n_splits, min_groups,
+                             results_dir, cache_dir, mirror_repo, throttle, created)
 
     print(f"\n{'Dry run, nothing submitted' if args.dry_run else f'Created {len(created)} Job(s): {created}'}")
+
+
+def submit_autogluon(args, profile, targets, budgets, prefix, n_splits, min_groups,
+                     results_dir, cache_dir, mirror_repo, throttle, created) -> None:
+    jobs = [
+        (t["dataset"], t["target_idx"], 0, fold, EXTREME_TIME_BUDGETS[b], b, t.get("n_repeats", 1), n_splits)
+        for b in budgets for t in targets for fold in range(n_splits)
+    ]
+    if jobs:
+        slug = f"{prefix}-ag-extreme-" + "-".join(budgets)
+        jobspec = write_jobspec_autogluon(jobs, slug)
+        job, cm, n_pods, manifest = build_k8s_job_manifest_autogluon(
+            slug=slug, n_tasks=len(jobs), results_dir=results_dir, cache_dir=cache_dir,
+            mirror_repo=mirror_repo, profile=profile, use_gpu=True,
+            tasks_per_pod=len(jobs) if args.job_per_model else 4, throttle=throttle,
+        )
+        set_container(manifest, boot(args.code_dir, args.raman_data,
+                                     "bash cluster/k8s_entrypoint_autogluon.sh"), min_groups)
+        if args.job_per_model:
+            run_alone(manifest)
+        print(f"autogluon {'/'.join(budgets)}: {len(jobs)} task(s), {n_pods} pod(s), job {job}")
+        if not args.dry_run:
+            apply(profile, cm, {"jobspec.txt": jobspec}, manifest)
+            created.append(job)
 
 
 if __name__ == "__main__":
