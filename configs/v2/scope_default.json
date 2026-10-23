@@ -152,7 +152,12 @@
             "mlrod": 10800,
             "rruff_mineral_raw": 10800,
             "glioma_idh": 10800,
-            "raman_mpi": 10800
+            "raman_mpi": 10800,
+            "liver_cancer_raman": 10800,
+            "raman_spi": 10800,
+            "single_cell_prokaryotes": 10800,
+            "stroke_urine_sers_532": 10800,
+            "stroke_urine_sers_633": 10800
         },
         "TA-MITRA-V2": {
             "bacteria_identification": 7200,
@@ -188,7 +193,9 @@
             "cancer_cell_nh2": 7200,
             "mlrod": 7200,
             "rruff_mineral_raw": 7200,
-            "raman_mpi": 3600
+            "raman_mpi": 3600,
+            "infant_formula_raman": 3600,
+            "raman_spi": 3600
         },
         "LIMIX": 800000,
         "LIMIX2": 800000,
@@ -203,7 +210,15 @@
             "glioma_idh": 5400,
             "raman_mpi": 5400,
             "stroke_urine_sers_532": 5400,
-            "stroke_urine_sers_633": 5400
+            "stroke_urine_sers_633": 5400,
+            "breast_cancer_subtypes": 5400,
+            "infant_formula_raman": 5400,
+            "infra_art_raman": 5400,
+            "microplastics_training_clean": 5400,
+            "nanoplastics_individual": 5400,
+            "raman_spi": 5400,
+            "single_cell_prokaryotes": 5400,
+            "yeast_batch_effects": 5400
         },
         "EBM": {
             "bioprocess_analytes_kaiser": 5400,
@@ -216,7 +231,9 @@
             "microgel_synthesis": 5400,
             "succinic_acid_species": 5400,
             "itaconic_acid_species": 5400,
-            "glioma_idh": 5400
+            "glioma_idh": 5400,
+            "stroke_urine_sers_532": 3600,
+            "stroke_urine_sers_633": 3600
         },
         "ORIONMSP": {
             "pharmaceutical_ingredients": 7200,
@@ -248,7 +265,8 @@
             "glioma_idh": 10800,
             "raman_mpi": 10800,
             "stroke_urine_sers_532": 10800,
-            "stroke_urine_sers_633": 10800
+            "stroke_urine_sers_633": 10800,
+            "raman_spi": 3600
         },
         "TABPFN-WIDE": {
             "raman_mpi": 3600
