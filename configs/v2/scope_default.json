@@ -151,7 +151,8 @@
             "cancer_cell_nh2": 10800,
             "mlrod": 10800,
             "rruff_mineral_raw": 10800,
-            "glioma_idh": 10800
+            "glioma_idh": 10800,
+            "raman_mpi": 10800
         },
         "TA-MITRA-V2": {
             "bacteria_identification": 7200,
@@ -172,19 +173,22 @@
             "stroke_urine_sers_633": 5400
         },
         "REALTABPFN-V2": {
-            "bacteria_identification": 7200
+            "bacteria_identification": 7200,
+            "raman_mpi": 3600
         },
         "REALTABPFN-V2.6": {
             "bacteria_identification": 7200,
             "mlrod": 7200,
-            "rruff_mineral_raw": 7200
+            "rruff_mineral_raw": 7200,
+            "raman_mpi": 3600
         },
         "TABFM": {
             "bacteria_identification": 7200,
             "cancer_cell_cooh": 7200,
             "cancer_cell_nh2": 7200,
             "mlrod": 7200,
-            "rruff_mineral_raw": 7200
+            "rruff_mineral_raw": 7200,
+            "raman_mpi": 3600
         },
         "LIMIX": 800000,
         "LIMIX2": 800000,
@@ -245,6 +249,9 @@
             "raman_mpi": 10800,
             "stroke_urine_sers_532": 10800,
             "stroke_urine_sers_633": 10800
+        },
+        "TABPFN-WIDE": {
+            "raman_mpi": 3600
         }
     },
     "results_dir": "results/v2/data",
