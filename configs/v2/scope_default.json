@@ -270,6 +270,9 @@
         },
         "TABPFN-WIDE": {
             "raman_mpi": 3600
+        },
+        "KUMO-TABULAR": {
+            "raman_mpi": 3600
         }
     },
     "results_dir": "results/v2/data",
