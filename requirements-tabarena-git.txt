@@ -135,7 +135,7 @@
 # `interface` argument of TabFM's output-code estimator. The BHT LightPFN/TabFM+
 # reruns of the >10-class datasets used exactly this commit.
 # ############################################################################
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost] @ git+https://github.com/mario-koddenbrock/tabarena.git@66198abac051459bdcb8e5106836b910a6a64ad4#subdirectory=packages/tabarena
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost] @ git+https://github.com/mario-koddenbrock/tabarena.git@7d68a12c517bd2ca61b8c62e526dec59a673fbdb#subdirectory=packages/tabarena
 
 # tabicl -- pinned to an EXACT version, not left floating on tabarena's own
 # `tabicl` extra (`tabicl>=2.0.0`, unbounded upward). Flagged by a downstream
