@@ -130,7 +130,9 @@ def _normalize_preprocessing_params(config):
     if not isinstance(raw, dict):
         raise TypeError(f"preprocessing_params must be a dict, got {type(raw)}")
 
-    known = _collect_known_prep_param_names()
+    # The chemometric models' complexity parameters may be set to "cv" (inner-CV tuning, see
+    # raman_bench.models.custom._inner_cv); they reach the model like any other key.
+    known = _collect_known_prep_param_names() | {"n_components", "alpha"}
     unknown = sorted(set(raw) - known)
     if unknown:
         raise ValueError(
