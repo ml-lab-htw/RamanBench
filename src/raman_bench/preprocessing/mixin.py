@@ -224,6 +224,7 @@ _PREP_STEP_DEFINITIONS = {
             "prep_airpls_lam": 1e5,
             "prep_airpls_max_iter": 15,
             "prep_airpls_tol": 1e-3,
+            "prep_airpls_reference_update": False,
         },
     },
     "arpls": {
@@ -333,6 +334,7 @@ _PREP_STEP_DEFINITIONS = {
         "defaults": {
             "prep_gcu_enabled": False,
             "prep_gcu_rho": 16,
+            "prep_gcu_random_state": None,
         },
     },
     "lvse": {
@@ -683,7 +685,10 @@ class RamanPreprocessingMixin:
                 max_iter,
                 tol,
             )
-            X = baseline_correction_airpls(X, lam=lam, max_iter=max_iter, tol=tol)
+            X = baseline_correction_airpls(
+                X, lam=lam, max_iter=max_iter, tol=tol,
+                reference_update=params.get("prep_airpls_reference_update", False),
+            )
 
         if params.get("prep_arpls_enabled", False):
             lam = params.get("prep_arpls_lam", 1e5)
@@ -788,7 +793,9 @@ class RamanPreprocessingMixin:
         if gcu_enabled:
             rho = params.get("prep_gcu_rho", 16)
             logger.debug("Fit — GCU: rho=%s", rho)
-            self._gcu_shift, self._gcu_nmf, gcu_out = gcu_fit(X, rho=rho)
+            self._gcu_shift, self._gcu_nmf, gcu_out = gcu_fit(
+                X, rho=rho, random_state=params.get("prep_gcu_random_state")
+            )
 
         lvse_out = None
         if lvse_enabled:
@@ -920,7 +927,10 @@ class RamanPreprocessingMixin:
                 max_iter,
                 tol,
             )
-            X = baseline_correction_airpls(X, lam=lam, max_iter=max_iter, tol=tol)
+            X = baseline_correction_airpls(
+                X, lam=lam, max_iter=max_iter, tol=tol,
+                reference_update=params.get("prep_airpls_reference_update", False),
+            )
 
         if params.get("prep_arpls_enabled", False):
             lam = params.get("prep_arpls_lam", 1e5)

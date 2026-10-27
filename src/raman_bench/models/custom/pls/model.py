@@ -29,13 +29,25 @@ class PLSModel(BaseEstimator):
         X_np = X.values if hasattr(X, "values") else np.asarray(X)
         y_arr = np.asarray(y)
 
-        n_components = min(self.n_components, X_np.shape[1], X_np.shape[0] - 1)
-
         if np.issubdtype(y_arr.dtype, np.floating):
             self.problem_type_ = "regression"
         else:
             unique = np.unique(y_arr)
             self.problem_type_ = "binary" if len(unique) == 2 else "multiclass"
+
+        scale = self.scale
+        n_components = self.n_components
+        if n_components == "cv":
+            # Inner CV on the training data chooses the number of latent variables and whether
+            # to autoscale (see raman_bench.models.custom._inner_cv).
+            from raman_bench.models.custom._inner_cv import select_pls
+
+            classes = None if self.problem_type_ == "regression" else np.unique(y_arr)
+            n_components, scale = select_pls(
+                np.asarray(X_np, dtype=float), y_arr, classes, self.max_iter, self.tol
+            )
+            self.selected_params_ = {"n_components": int(n_components), "scale": bool(scale)}
+        n_components = min(n_components, X_np.shape[1], X_np.shape[0] - 1)
 
         if self.problem_type_ in ("multiclass", "binary"):
             self.classes_ = np.unique(y_arr)
@@ -46,7 +58,7 @@ class PLSModel(BaseEstimator):
             self.model_ = PLSRegression(
                 n_components=n_components,
                 max_iter=self.max_iter,
-                scale=self.scale,
+                scale=scale,
                 tol=self.tol,
             )
             self.model_.fit(X_np, y_encoded)
@@ -54,7 +66,7 @@ class PLSModel(BaseEstimator):
             self.model_ = PLSRegression(
                 n_components=n_components,
                 max_iter=self.max_iter,
-                scale=self.scale,
+                scale=scale,
                 tol=self.tol,
             ).fit(X_np, y_arr)
 

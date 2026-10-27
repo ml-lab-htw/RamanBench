@@ -132,7 +132,7 @@ def baseline_correction_asls(X, lam=1e5, p=0.01, n_iter=10):
     return X_corrected
 
 
-def baseline_correction_airpls(X, lam=1e5, max_iter=15, tol=1e-3):
+def baseline_correction_airpls(X, lam=1e5, max_iter=15, tol=1e-3, reference_update=False):
     """Adaptive Iteratively Reweighted Penalized Least Squares (airPLS) baseline correction.
 
     Reuses the same penalized-least-squares scaffold as
@@ -161,6 +161,12 @@ def baseline_correction_airpls(X, lam=1e5, max_iter=15, tol=1e-3):
         Maximum number of reweighting iterations (10-20).
     tol : float
         Relative convergence tolerance on the sum of negative residuals.
+    reference_update : bool
+        False (default, unchanged since v1.3.0) applies Eq. 9 of the paper as printed:
+        weight ``exp(t * d_i / |S|)`` with ``d_i < 0``, i.e. weights in (0, 1] that shrink
+        with distance below the baseline. True applies the update of the authors'
+        reference implementation: ``exp(t * |d_i| / |S|)`` (weights >= 1, growing with
+        distance), and both end points weighted ``exp(t * max(d_neg) / |S|)``.
 
     Returns
     -------
@@ -189,7 +195,13 @@ def baseline_correction_airpls(X, lam=1e5, max_iter=15, tol=1e-3):
                 break
 
             w = np.zeros(n)
-            w[neg_mask] = np.exp(t * d[neg_mask] / abs(d_neg_sum))
+            if reference_update:
+                if not neg_mask.any():  # only reachable for an all-zero spectrum (tol * 0)
+                    break
+                w[neg_mask] = np.exp(t * np.abs(d[neg_mask]) / abs(d_neg_sum))
+                w[0] = w[-1] = np.exp(t * d[neg_mask].max() / abs(d_neg_sum))
+            else:
+                w[neg_mask] = np.exp(t * d[neg_mask] / abs(d_neg_sum))
 
         X_corrected[i] = y - z
 

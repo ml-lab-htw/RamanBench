@@ -33,7 +33,14 @@ class PCRModel(BaseEstimator):
         X_np = X.values if hasattr(X, "values") else np.asarray(X, dtype=np.float64)
         y_arr = np.asarray(y)
 
-        k = min(self.n_components, X_np.shape[1], X_np.shape[0] - 1)
+        n_components = self.n_components
+        if n_components == "cv":
+            from raman_bench.models.custom._inner_cv import select_pcr
+
+            classes = None if np.issubdtype(y_arr.dtype, np.floating) else np.unique(y_arr)
+            n_components = select_pcr(X_np, y_arr, classes)
+            self.selected_params_ = {"n_components": int(n_components)}
+        k = min(n_components, X_np.shape[1], X_np.shape[0] - 1)
         self.pca_ = PCA(n_components=max(k, 1))
         scores = self.pca_.fit_transform(X_np)
 

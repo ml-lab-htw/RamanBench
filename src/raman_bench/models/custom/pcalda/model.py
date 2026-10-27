@@ -40,7 +40,13 @@ class PCALDAModel(BaseEstimator):
         # PCA rank is bounded by min(n-1, p) and, usefully for LDA, by n_classes-1
         # after the fact -- but keep PCA at the requested width so the model still
         # sees non-discriminant structure.
-        k = min(self.n_components, X_np.shape[1], X_np.shape[0] - 1)
+        n_components = self.n_components
+        if n_components == "cv":
+            from raman_bench.models.custom._inner_cv import select_pcalda
+
+            n_components = select_pcalda(X_np, y_arr)
+            self.selected_params_ = {"n_components": int(n_components)}
+        k = min(n_components, X_np.shape[1], X_np.shape[0] - 1)
         self.pca_ = PCA(n_components=max(k, 1))
         scores = self.pca_.fit_transform(X_np)
         self.lda_ = LinearDiscriminantAnalysis(solver="svd").fit(scores, y_arr)

@@ -40,16 +40,26 @@ class RidgeModel(BaseEstimator):
             unique = np.unique(y_arr)
             self.problem_type_ = "binary" if len(unique) == 2 else "multiclass"
 
+        alpha = self.alpha
+        if alpha == "cv":
+            # Inner CV on the training data chooses the penalty (see
+            # raman_bench.models.custom._inner_cv).
+            from raman_bench.models.custom._inner_cv import select_ridge
+
+            classes = None if self.problem_type_ == "regression" else np.unique(y_arr)
+            alpha = select_ridge(np.asarray(X_np, dtype=float), y_arr, classes)
+            self.selected_params_ = {"alpha": float(alpha)}
+
         if self.problem_type_ in ("multiclass", "binary"):
             self.classes_ = np.unique(y_arr)
             self._class_to_idx = {c: i for i, c in enumerate(self.classes_)}
             y_encoded = np.zeros((len(y_arr), len(self.classes_)))
             for i, val in enumerate(y_arr):
                 y_encoded[i, self._class_to_idx[val]] = 1.0
-            self.model_ = Ridge(alpha=self.alpha, max_iter=self.max_iter, tol=self.tol)
+            self.model_ = Ridge(alpha=alpha, max_iter=self.max_iter, tol=self.tol)
             self.model_.fit(X_np, y_encoded)
         else:
-            self.model_ = Ridge(alpha=self.alpha, max_iter=self.max_iter, tol=self.tol).fit(
+            self.model_ = Ridge(alpha=alpha, max_iter=self.max_iter, tol=self.tol).fit(
                 X_np, y_arr
             )
 
