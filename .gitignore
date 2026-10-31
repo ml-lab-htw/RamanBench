@@ -316,3 +316,6 @@ cluster/k8s_docs_summary.md
 # Private/internal working notes (setup runbooks, session logs, status trackers) --
 # useful day-to-day but not meant for the public repo; see docs/internal/README.md.
 docs/internal/
+
+# Local cluster prep, probe outputs and caches (not part of the package)
+reports/
