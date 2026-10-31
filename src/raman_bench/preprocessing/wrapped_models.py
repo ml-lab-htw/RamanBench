@@ -237,6 +237,8 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # cherry-picked onto the pin (requirements-tabarena-git.txt). Own pip packages
     # (``lightpfn==1.0.0``, ``prismboost>=0.5.0``) via TabArena's extras of the same name.
     "LightPFNModel": "tabarena.models.lightpfn.model",
+    "FTFMModel": "tabarena.models.ftfm.model",
+    "TabSTARv1p1Model": "tabarena.models.tabstar_v1p1.model",
     "PrismBoostModel": "tabarena.models.prismboost.model",
 }
 _missing_optional_tabarena_models = []
@@ -960,6 +962,13 @@ Prep_KUMO_TABULAR_SMALL = _make_optional_prep_class(
 # (``default_num_gpus = 1``) but runs on CPU too (``minimum_num_gpus = 0``). No
 # max_features/max_rows cap. ag_key "TA-LIGHTPFN" -> "LIGHTPFN" (staging prefix stripped).
 Prep_LIGHTPFN = _make_optional_prep_class("Prep_LIGHTPFN", LightPFNModel, ag_key="LIGHTPFN")
+# FTFM (2026-10-25, autogluon/tabarena#679): binary/multiclass only, so in
+# CLASSIFICATION_ONLY_MODELS below. ag_key "TA-FTFM" -> "FTFM" (staging prefix stripped).
+Prep_FTFM = _make_optional_prep_class("Prep_FTFM", FTFMModel, ag_key="FTFM")
+# TabSTAR-v1.1 (2026-10-25, autogluon/tabarena#674): a separate model next to TABSTAR
+# (1.1.15). Supports regression. ag_key "TA-TabSTAR-v1.1" -> "TABSTAR_V1P1" (underscore
+# convention for multi-word keys, as SAP_RPT_OSS).
+Prep_TABSTAR_V1P1 = _make_optional_prep_class("Prep_TABSTAR_V1P1", TabSTARv1p1Model, ag_key="TABSTAR_V1P1")
 # PrismBoost (2026-10-09, autogluon/tabarena#629): gradient boosting with SEFR oblique
 # splits. CPU, single-threaded C++ core (``num_cpus`` is unused upstream), all problem
 # types, no max_features/max_rows/max_classes cap. Its wrapper hands 95% of the remaining
@@ -1623,6 +1632,8 @@ PREPROCESSED_MODELS = {
     "KUMO-TABULAR-MEDIUM": Prep_KUMO_TABULAR_MEDIUM,
     "KUMO-TABULAR-SMALL": Prep_KUMO_TABULAR_SMALL,
     "LIGHTPFN": Prep_LIGHTPFN,
+    "FTFM": Prep_FTFM,
+    "TABSTAR_V1P1": Prep_TABSTAR_V1P1,
     "PRISMBOOST": Prep_PRISMBOOST,
 }
 
@@ -1659,7 +1670,7 @@ del _key, _info
 # classifiers with no regression counterpart in HC2. LIGHTPFN is an in-context
 # classifier (TabArena's LightPFNModel supports binary/multiclass only).
 CLASSIFICATION_ONLY_MODELS = {
-    "TABPFN-WIDE", "ORIONMSP", "PCALDA", "HIVECOTEV2", "STC", "DRCIF", "ARSENAL", "TDE", "LIGHTPFN",
+    "TABPFN-WIDE", "ORIONMSP", "PCALDA", "HIVECOTEV2", "STC", "DRCIF", "ARSENAL", "TDE", "LIGHTPFN", "FTFM",
 }
 
 # Mirror of CLASSIFICATION_ONLY_MODELS: NORI (OrionMSPModel's opposite number in

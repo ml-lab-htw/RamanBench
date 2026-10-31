@@ -49,6 +49,11 @@ RUN pip install --no-cache-dir --pre -e ".[models,benchmark]"
 RUN pip install --no-cache-dir --pre -r requirements-tabarena-git.txt
 RUN pip install --no-cache-dir --pre -r requirements-models-git.txt
 RUN pip uninstall -y torchaudio
+# datasets>=5.1 needs huggingface_hub>=1.31, but transformers 4.x (TabArena's models) keeps
+# huggingface_hub<1.0; the separate installs above don't resolve that, and raman_data then fails
+# to import. The import check makes such a mismatch fail the build, not the pods.
+RUN pip install --no-cache-dir "datasets<5.1" \
+    && python -c "import datasets, raman_data, raman_bench, tabarena; print('imports ok')"
 # torchaudio: the base image's bundled 2.5.1+cu124 build is left over from
 # before torch got bumped to 2.14.0+cu130 (same drift class as the
 # torchvision fix above), and unlike torchvision, PyPI has published no

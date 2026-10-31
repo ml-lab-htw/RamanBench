@@ -84,6 +84,12 @@ def _tabfm_plus_cls():
     return TabFMPlusSystemModel
 
 
+def _tabldm_plus_cls():
+    from tabarena.systems.tabldm_plus.system import TabLDMPlusSystemModel
+
+    return TabLDMPlusSystemModel
+
+
 @dataclass(frozen=True)
 class System:
     key: str
@@ -95,7 +101,13 @@ class System:
     num_gpus: int = 0  # GPUs the system fits with (scripts/run_system.py --num-gpus overrides)
     # Row sample per dataset, as a model's ``model_max_train_samples_overrides`` (the smaller
     # of this and the protocol's own sample wins; the fold check accepts it as match_capped).
-    max_train_samples: int | None = None
+    # An int applies to every dataset, a dict only to the datasets it names.
+    max_train_samples: int | dict[str, int] | None = None
+
+    def train_sample_cap(self, dataset: str) -> int | None:
+        if isinstance(self.max_train_samples, dict):
+            return self.max_train_samples.get(dataset)
+        return self.max_train_samples
 
     def load_cls(self) -> type:
         """The system class, storing its test predictions like the v1 models (:func:`with_test_artifacts`)."""
@@ -114,6 +126,9 @@ SYSTEMS: dict[str, System] = {
         {"preset": "medium"},
         env=("CHAKRA_TAB_KEY",),
         notes="hosted API; the data of every fold is sent to api.yhatlabs.com",
+        # One request holds the whole fold; at glioma_idh's 10000-row sample it is ~130 MB,
+        # over the API's 100 MB request limit (HTTP 413). 5000 rows is ~65 MB.
+        max_train_samples={"glioma_idh": 5000},
     ),
     "CHAKRA-TAB-FULL": System(
         "CHAKRA-TAB-FULL",
@@ -122,6 +137,9 @@ SYSTEMS: dict[str, System] = {
         {"preset": "full"},
         env=("CHAKRA_TAB_KEY",),
         notes="hosted API; the data of every fold is sent to api.yhatlabs.com",
+        # One request holds the whole fold; at glioma_idh's 10000-row sample it is ~130 MB,
+        # over the API's 100 MB request limit (HTTP 413). 5000 rows is ~65 MB.
+        max_train_samples={"glioma_idh": 5000},
     ),
     # TabFM run through its heavier ``ensemble`` interface (TabArena's own TabFM+ system,
     # tabarena.systems.tabfm_plus; Google, non-commercial licence). Shares TABFM's
@@ -134,6 +152,17 @@ SYSTEMS: dict[str, System] = {
         {"interface": "ensemble"},
         num_gpus=1,
         # TABFM's own cap (it ran out of memory above it); TabFM+ runs the same network.
+        max_train_samples=5000,
+    ),
+    # Xiaomi-TabLDM+ (TabArena's own system, tabarena.systems.tabldm_plus; autogluon/tabarena#658):
+    # TabLDM run with candidate enhancement, which carves its own hold-out split for the candidate
+    # weights. Shares TABLDM's checkpoints (occams/Xiaomi-TabLDM). Default enhance_candidates=True.
+    "TABLDM-PLUS": System(
+        "TABLDM-PLUS",
+        _tabldm_plus_cls,
+        "TabLDM-Plus",
+        num_gpus=1,
+        # Same row cap as TABFM-PLUS: the enhanced path fits a second model on a hold-out split.
         max_train_samples=5000,
     ),
 }
