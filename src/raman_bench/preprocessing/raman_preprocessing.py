@@ -835,7 +835,7 @@ def vector_normalize(X):
     return X / norms
 
 
-def gcu_fit(X, rho=16, random_state=None, max_iter=500):
+def gcu_fit(X, rho=16, random_state=0, max_iter=500):
     """Global Compositional Unmixing (GCU) — fit on training data.
 
     Reproduces the GCU representation from Pan et al. (RamanPFN,
@@ -886,9 +886,11 @@ def gcu_fit(X, rho=16, random_state=None, max_iter=500):
         Number of NMF components ("compositional endmembers"). Typical: 8,
         16, 32, 64.
     random_state : int | None
-        Passed to ``sklearn.decomposition.NMF`` for reproducibility (the
-        "nndsvd" init is itself deterministic, so this mainly affects the
-        coordinate-descent solver's tie-breaking).
+        Passed to ``sklearn.decomposition.NMF``. The "nndsvd" init computes a
+        randomized SVD (``sklearn.utils.extmath.randomized_svd``) seeded by this
+        value, so ``None`` makes repeated fits on identical data differ. The
+        default 0 makes GCU reproducible; fits made before this default was set
+        used ``None``.
     max_iter : int
         Maximum NMF solver iterations.
 

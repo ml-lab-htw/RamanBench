@@ -38,6 +38,19 @@ def test_gcu_fit_replaces_representation():
     assert hasattr(model, "_gcu_nmf")
 
 
+def test_gcu_fit_is_reproducible():
+    # The nndsvd init runs a randomized SVD; an unseeded gcu_fit gave different features on
+    # identical data (RamanPreprocessing paper, ESI parameter-sweep protocol).
+    X_train = _spectra(n_samples=30, n_features=200, seed=3)
+    X_test = _spectra(n_samples=6, n_features=200, seed=4)
+    outs = []
+    for _ in range(2):
+        model = _FakeModel({"prep_gcu_enabled": True, "prep_gcu_rho": 16})
+        model._preprocess_fit(X_train)
+        outs.append(model._preprocess_transform(X_test))
+    np.testing.assert_array_equal(outs[0], outs[1])
+
+
 def test_gcu_transform_reuses_fitted_state():
     X_train = _spectra(n_samples=15, n_features=40, seed=1)
     X_test = _spectra(n_samples=5, n_features=40, seed=2)
