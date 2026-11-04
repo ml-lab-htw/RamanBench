@@ -46,6 +46,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Fixed
 
+- **`import raman_bench` no longer loads a `.env` file** (#165). It searched upward from the
+  package's install location, so it could load an unrelated `.env` into the caller's process.
+  The `raman-bench` CLI, the run scripts and the tests now call `raman_bench.env.load_env()`,
+  which loads the first `.env` found from the working directory upward. Code that imports
+  `raman_bench` and needs the tokens calls it, or loads its own `.env`.
 - **Interactive figures switch between the desktop and phone layout when the window is
   resized**, not only on load. Each switch also resizes the embedding iframe.
 - **Model progress over time (Figure 1b, `elo_vs_release_date`) colours one record per release

@@ -30,6 +30,8 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+from raman_bench.env import load_env
+
 logger = logging.getLogger("run_system")
 
 N_SPLITS = 3
@@ -127,6 +129,7 @@ def _run_job(kwargs: dict) -> tuple[str, int, str]:
 
 
 def main() -> None:
+    load_env()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--system", required=True, help="Key of raman_bench.systems.SYSTEMS, e.g. CHAKRA-TAB")
     parser.add_argument("--tasks", nargs="*", help="Protocol tasks (<dataset>__<target_idx>); default: all")

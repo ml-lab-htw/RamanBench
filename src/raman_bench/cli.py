@@ -38,6 +38,7 @@ import warnings
 warnings.filterwarnings("ignore", message="'force_all_finite' was renamed")
 
 from raman_bench.logging_utils import LOG_FORMAT  # noqa: E402
+from raman_bench.env import load_env
 
 
 def cmd_leaderboard(args):
@@ -138,6 +139,7 @@ def cmd_info(_args):
 
 
 def main():
+    load_env()
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 
     parser = argparse.ArgumentParser(
