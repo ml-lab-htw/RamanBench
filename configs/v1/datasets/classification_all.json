@@ -25,5 +25,6 @@
   "cspp_serum_metabolites",
   "marine_pathogens",
   "marine_pathogens_binary",
-  "synthetic_organic_pigments_raw"
+  "synthetic_organic_pigments_raw",
+  "glioma_idh"
 ]
