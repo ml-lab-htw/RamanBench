@@ -88,6 +88,7 @@ def main():
     max_train_samples_overrides = scope.get("max_train_samples_overrides", {})
     model_time_limit_overrides = scope.get("model_time_limit_overrides", {})
     model_max_train_samples_overrides = scope.get("model_max_train_samples_overrides", {})
+    min_groups_per_class = int(scope.get("min_groups_per_class", 0))
 
     targets_file = args.targets_file
     if targets_file is None:
@@ -160,6 +161,7 @@ def main():
                 profile=profile, image=image, mem_tier=mem_tier, use_gpu=use_gpu,
                 tasks_per_pod=args.tasks_per_pod, throttle=throttle,
                 force_recompute=args.force_recompute,
+                min_groups_per_class=min_groups_per_class,
             )
             print(f"\n=== group ({image}, {'gpu' if use_gpu else 'cpu'}): {len(group_models)} model(s) "
                   f"x {len(matched)} target(s) x {n_splits} fold(s) x {len(args.config_indices)} config(s) "

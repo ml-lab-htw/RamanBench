@@ -89,25 +89,40 @@ class TooFewClassesError(ValueError):
 
 
 def filter_rare_classes(
-    df: pd.DataFrame, *, label_col: str, min_samples_per_class: int = 9
+    df: pd.DataFrame,
+    *,
+    label_col: str,
+    min_samples_per_class: int = 9,
+    min_groups_per_class: int = 0,
 ) -> pd.DataFrame:
-    """Drop classes with fewer than ``min_samples_per_class`` rows.
+    """Drop classes with fewer than ``min_samples_per_class`` rows or, when ``df``
+    has a ``GROUP_COL``, fewer than ``min_groups_per_class`` distinct groups.
 
     Port of :meth:`~raman_bench.benchmark.RamanBenchmark._filter_rare_classes`
     for the new pipeline. Only meaningful for classification; call only when
     ``problem_type == "classification"``. Raises :class:`TooFewClassesError`
     if fewer than 2 classes remain after filtering.
+
+    ``min_groups_per_class`` is off (0) by default, so benchmark v1 is unchanged.
+    Grouped k-fold CV with k splits needs at least k groups per class; with fewer,
+    a test fold can hold a class absent from its training folds.
     """
-    if min_samples_per_class <= 0:
+    rare: list = []
+    if min_samples_per_class > 0:
+        counts = df[label_col].value_counts()
+        rare = counts[counts < min_samples_per_class].index.tolist()
+    if min_groups_per_class > 0 and GROUP_COL in df.columns:
+        n_groups = df.groupby(label_col)[GROUP_COL].nunique()
+        rare += [c for c in n_groups[n_groups < min_groups_per_class].index if c not in rare]
+    if min_samples_per_class <= 0 and min_groups_per_class <= 0:
         return df
-    counts = df[label_col].value_counts()
-    rare = counts[counts < min_samples_per_class].index.tolist()
     if rare:
         df = df[~df[label_col].isin(rare)]
     if df[label_col].nunique() < 2:
         raise TooFewClassesError(
             f"Fewer than 2 classes remain in {label_col!r} after dropping classes with "
-            f"< {min_samples_per_class} samples (dropped: {rare})."
+            f"< {min_samples_per_class} samples or < {min_groups_per_class} groups "
+            f"(dropped {len(rare)}: {rare[:10]}{' ...' if len(rare) > 10 else ''})."
         )
     return df
 

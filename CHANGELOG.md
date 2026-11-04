@@ -12,6 +12,29 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Branch model for benchmark v2** (RELEASING.md, "Branches"): `main` stays benchmark v1 and
+  gets new models; the long-lived `v2` branch gets new datasets. `main` is merged into `v2`,
+  never the other way.
+- Cluster submissions pass a scope's `min_groups_per_class` (default 0) to every pod, via the
+  SLURM, k8s per-model and k8s by-dataset paths.
+
+- **Benchmark v2 dataset candidates** (`configs/v2/`): the 40 raman_data keys added after
+  1.6.6, with the targets that are not run and why (too few spectra per class, duplicates,
+  glaucoma targets outside the severity measures). v1 is unchanged.
+- **`--min-groups-per-class`** for `run_experiment.py` and `build_target_list.py`: drops classes
+  with fewer distinct groups than this. Off (0) by default, so v1 is unchanged; v2 uses 3,
+  since grouped 3-fold CV otherwise can test a class that no training fold contains.
+- `build_target_list.py` marks classification targets that keep fewer than 2 classes after
+  the class filters as excluded (`too_few_classes`), with a warning. Before, they were listed
+  as runnable and every job then skipped without a result.
+
+- **Version comparison figures** (`scripts/version_comparison/`): two benchmark versions compared
+  on their own metrics (who wins per category and family, winner flows, Elo rank changes), plus
+  looks at the newer version (progress by release date, headroom, ties, cost, regret, licences).
+  Model families keep one colour across all figures. First used for v0.1 vs. v1.
+
 ### Changed
 
 - **raman-data ≥ 1.6.6**, which adds the glioma datasets `glioma_methylation` and `glioma_idh`
@@ -23,6 +46,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Fixed
 
+- **`import raman_bench` no longer loads a `.env` file** (#165). It searched upward from the
+  package's install location, so it could load an unrelated `.env` into the caller's process.
+  The `raman-bench` CLI, the run scripts and the tests now call `raman_bench.env.load_env()`,
+  which loads the first `.env` found from the working directory upward. Code that imports
+  `raman_bench` and needs the tokens calls it, or loads its own `.env`.
 - **Interactive figures switch between the desktop and phone layout when the window is
   resized**, not only on load. Each switch also resizes the embedding iframe.
 - **Model progress over time (Figure 1b, `elo_vs_release_date`) colours one record per release

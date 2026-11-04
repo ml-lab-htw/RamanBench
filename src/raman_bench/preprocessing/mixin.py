@@ -86,6 +86,7 @@ import pandas as pd
 
 try:
     from autogluon.common import space
+    from autogluon.common.features.types import S_BOOL
 except ImportError as _ag_err:
     raise ImportError(
         "RamanPreprocessingMixin requires autogluon. "
@@ -525,7 +526,10 @@ class RamanPreprocessingMixin:
     # narrower X, desyncing fit-width from transform-width. We disable
     # `drop_unique` only when a stateful step is enabled
     # (`_has_stateful_prep_enabled`), since models with no prep recipe must
-    # keep AutoGluon's default behavior unchanged.
+    # keep AutoGluon's default behavior unchanged. KNNModel's
+    # `ignored_type_group_special=[S_BOOL]` drops columns typed as boolean
+    # (exactly two distinct values) at the same point and desyncs the same
+    # way, so that filter is lifted under the same condition.
     def _has_stateful_prep_enabled(self) -> bool:
         """True if this model instance enables a stateful prep step (scaling,
         MSC, EMSC, GCU, LVSE, or crop_physical), checked against
@@ -547,6 +551,11 @@ class RamanPreprocessingMixin:
         default_auxiliary_params = super()._get_default_auxiliary_params()
         if self._has_stateful_prep_enabled():
             default_auxiliary_params["drop_unique"] = False
+            ignored_special = default_auxiliary_params.get("ignored_type_group_special")
+            if ignored_special and S_BOOL in ignored_special:
+                default_auxiliary_params["ignored_type_group_special"] = [
+                    t for t in ignored_special if t != S_BOOL
+                ]
         return default_auxiliary_params
 
     def _set_default_params(self):

@@ -102,6 +102,7 @@ JOBMETA
         --config-index "${CONFIG_INDEX}" \
         --num-random-configs "${NUM_RANDOM_CONFIGS}" \
         --num-bag-folds "${NUM_BAG_FOLDS}" \
+        --min-groups-per-class "${MIN_GROUPS_PER_CLASS:-0}" \
         --time-limit "${EFFECTIVE_TIME_LIMIT}" \
         --results-dir "${RESULTS_DIR}" \
         --cache-dir "${CACHE_DIR}" \

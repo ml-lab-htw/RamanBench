@@ -80,12 +80,14 @@ def prepare_task_dataframe(
     sample_idx: np.ndarray | None = None,
     min_samples_per_class: int = 9,
     filter_unlabeled: bool = True,
+    min_groups_per_class: int = 0,
 ) -> pd.DataFrame | None:
     """The rows of one (dataset, target) that enter the cross-validation, as :func:`build_task` uses them.
 
     Adds inferred regression group ids, then drops rows with a NaN feature, (by default)
     rows without a label and, for classification, classes with fewer than
-    *min_samples_per_class* rows. The index is kept, so it still names the
+    *min_samples_per_class* rows or fewer than *min_groups_per_class* groups
+    (0, the default, disables the group rule). The index is kept, so it still names the
     ``dataset.to_dataframe(target_idx)`` row. Returns ``None`` when the target is
     skipped (no labelled rows, or fewer than 2 classes left). Arguments as for
     :func:`build_task`.
@@ -149,7 +151,10 @@ def prepare_task_dataframe(
     if problem_type == "classification":
         try:
             df = filter_rare_classes(
-                df, label_col=label_col, min_samples_per_class=min_samples_per_class
+                df,
+                label_col=label_col,
+                min_samples_per_class=min_samples_per_class,
+                min_groups_per_class=min_groups_per_class,
             )
         except TooFewClassesError as e:
             logger.info("Skipping %s target %d: %s", dataset_name, target_idx, e)
@@ -170,6 +175,7 @@ def build_task(
     sample_idx: np.ndarray | None = None,
     min_samples_per_class: int = 9,
     filter_unlabeled: bool = True,
+    min_groups_per_class: int = 0,
 ) -> tuple[str, RamanBenchTaskWrapper] | tuple[None, None]:
     """Clean and split an already-loaded (dataset, target) dataframe into a TabArena task.
 
@@ -196,6 +202,7 @@ def build_task(
         sample_idx=sample_idx,
         min_samples_per_class=min_samples_per_class,
         filter_unlabeled=filter_unlabeled,
+        min_groups_per_class=min_groups_per_class,
     )
     if df is None:
         return None, None

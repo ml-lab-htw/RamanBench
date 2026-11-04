@@ -22,6 +22,24 @@ Notes:
   **2.1.0**.
 - Downstream projects pin the benchmark with `raman-bench>=1.2,<2`.
 
+## Branches: v1 on `main`, v2 on `v2`
+
+- **`main` is benchmark v1.** New models land here first and ship as `1.x` releases, as
+  before. Nothing that changes the protocol goes to `main`.
+- **`v2` is benchmark v2** (released from `2.1.0` on). New datasets, and anything else that
+  changes the protocol, land only there. v2 is every v1 target plus the datasets in
+  `configs/v2/`, with one protocol change: classes with fewer than 3 groups are dropped
+  (`min_groups_per_class: 3`). That rule changes no v1 task (checked 2026-10-21: the two
+  grouped v1 classification datasets have at least 3 groups per class), so v1 results count
+  for v2 unchanged.
+- **Merge direction is `main` → `v2` only.** Merge `main` into `v2` after every merge into
+  `main`, at the latest after each `1.x` release. Never merge `v2` into `main`.
+- **A new model** is added on `main`, run on the v1 targets as usual (`results/v1/data`), and,
+  once `main` is merged into `v2`, also on the v2-only targets with `configs/v2/scope_default.json`
+  (`results/v2/data`).
+- **A new dataset** goes into raman_data and the HF mirror as usual, but into the target list
+  of `v2` only (`configs/v2/`), never into `configs/v1/`.
+
 ## Release steps
 
 1. On a branch, set `version` in `pyproject.toml` and `__version__` in

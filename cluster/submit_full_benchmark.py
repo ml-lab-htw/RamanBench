@@ -141,6 +141,8 @@ def main():
         args.time_limit = float(scope_data.get("time_limit", 3600))
     if args.num_bag_folds is None:
         args.num_bag_folds = int(scope_data.get("num_bag_folds", 8))
+    # Benchmark v2 drops classes with fewer than this many groups (configs/v2); v1 has none.
+    min_groups_per_class = int(scope_data.get("min_groups_per_class", 0))
 
     from submit_job import resolve_time_limit
 
@@ -189,6 +191,7 @@ def main():
                 model_time_limit_overrides=model_time_limit_override,
                 results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                 profile=profile, throttle=args.throttle, dry_run=args.dry_run,
+                min_groups_per_class=min_groups_per_class,
                 max_train_samples_overrides=max_train_samples_overrides,
                 model_max_train_samples_overrides=model_max_train_samples_override,
             )
@@ -218,6 +221,7 @@ def main():
                 model_time_limit_overrides=model_time_limit_override,
                 results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                 profile=big_gpu_profile, throttle=args.throttle, dry_run=args.dry_run,
+                min_groups_per_class=min_groups_per_class,
                 max_train_samples_overrides=max_train_samples_overrides,
                 model_max_train_samples_overrides=model_max_train_samples_override,
             )
@@ -235,6 +239,7 @@ def main():
             "--config-indices", *[str(c) for c in args.config_indices],
             "--num-random-configs", str(args.num_random_configs),
             "--num-bag-folds", str(args.num_bag_folds),
+            "--min-groups-per-class", str(min_groups_per_class),
             "--time-limit", str(task_time_limit(t["dataset"])),
             "--results-dir", args.results_dir, "--cache-dir", args.cache_dir,
             "--throttle", str(args.throttle),
