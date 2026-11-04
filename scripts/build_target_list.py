@@ -174,6 +174,9 @@ def build_target_list(
 
 
 def main():
+    from raman_bench.env import load_env
+
+    load_env()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--dataset-list", action="append", required=True, dest="dataset_lists",

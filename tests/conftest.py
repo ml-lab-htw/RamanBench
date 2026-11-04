@@ -8,6 +8,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from raman_bench.env import load_env
+
+# TabPFN and RamanPFN tests need TABPFN_TOKEN and HUGGING_FACE_HUB_TOKEN.
+load_env()
+
 
 @pytest.fixture
 def small_clf_df():

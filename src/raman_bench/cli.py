@@ -138,6 +138,9 @@ def cmd_info(_args):
 
 
 def main():
+    from raman_bench.env import load_env
+
+    load_env()
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 
     parser = argparse.ArgumentParser(
