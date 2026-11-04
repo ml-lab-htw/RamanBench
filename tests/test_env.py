@@ -9,14 +9,13 @@ from raman_bench.env import load_env
 _VAR = "RAMAN_BENCH_TEST_DOTENV"
 
 
-def test_import_does_not_load_dotenv(tmp_path):
-    (tmp_path / ".env").write_text(f"{_VAR}=loaded\n")
-    env = {k: v for k, v in os.environ.items() if k != _VAR}
+def test_import_does_not_load_dotenv():
+    # python-dotenv is only imported by load_env(); importing the package must not touch it.
     out = subprocess.run(
-        [sys.executable, "-c", f"import os, raman_bench; print(os.environ.get('{_VAR}'))"],
-        cwd=tmp_path, env=env, capture_output=True, text=True, check=True,
+        [sys.executable, "-c", "import sys, raman_bench; print('dotenv' in sys.modules)"],
+        capture_output=True, text=True, check=True,
     )
-    assert out.stdout.strip() == "None"
+    assert out.stdout.strip() == "False"
 
 
 def test_load_env_finds_dotenv_above_cwd(tmp_path, monkeypatch):

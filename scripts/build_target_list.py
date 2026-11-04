@@ -65,6 +65,8 @@ import pandas as pd
 from raman_bench.benchmark import RamanBenchmark
 from raman_bench.splitting import GROUP_COL, TooFewClassesError, filter_rare_classes, get_n_repeats
 
+from raman_bench.env import load_env
+
 
 def load_quality_exclusions(path: str | None) -> dict[str, str]:
     """Flatten a ``configs/v1/quality_exclusions.json``-shaped registry into
@@ -174,8 +176,6 @@ def build_target_list(
 
 
 def main():
-    from raman_bench.env import load_env
-
     load_env()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(

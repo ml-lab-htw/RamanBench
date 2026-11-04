@@ -44,6 +44,8 @@ import logging
 import os
 from pathlib import Path
 
+from raman_bench.env import load_env
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -226,8 +228,6 @@ def run_one(
 
 
 def main():
-    from raman_bench.env import load_env
-
     load_env()
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
