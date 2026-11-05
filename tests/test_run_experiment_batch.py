@@ -68,3 +68,29 @@ def test_memoized_loader_loads_once_and_returns_copies(monkeypatch):
     eu.load_dataframe("ds", 1, cache_dir="c")
     assert calls == [("ds", 0), ("ds", 1)]
     assert df2.loc[0, "a"] == 1.0
+
+
+def test_memoized_torch_load_reads_once_and_copies(tmp_path, monkeypatch):
+    import torch
+
+    path = tmp_path / "ckpt.pt"
+    torch.save({"w": torch.arange(4.0)}, path)
+    reads = []
+    real = torch.load
+
+    def counting(f, *a, **k):
+        reads.append(str(f))
+        return real(f, *a, **k)
+
+    monkeypatch.setattr(torch, "load", counting)
+    rb.memoize_torch_load()
+    a = torch.load(str(path), map_location="cpu")
+    a["w"][0] = 99.0  # a caller modifying its copy must not affect the next one
+    b = torch.load(path, map_location="cpu")
+    assert len(reads) == 1 and b["w"][0] == 0.0
+    torch.load(str(path), map_location="cpu", weights_only=True)  # other kwargs: own entry
+    assert len(reads) == 2
+    torch.save({"w": torch.ones(2)}, path)  # changed file is read again
+    import os
+    os.utime(path, ns=(1, 1))
+    assert torch.load(str(path), map_location="cpu")["w"].shape == (2,) and len(reads) == 3

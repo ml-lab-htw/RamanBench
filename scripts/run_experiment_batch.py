@@ -140,6 +140,35 @@ def memoize_load_dataframe() -> None:
     eu.load_dataframe = load
 
 
+def memoize_torch_load() -> None:
+    """Read each checkpoint file once per process; every caller gets its own deep copy.
+
+    Foundation models (TabPFN, TabICL, RamanPFN) build a fresh estimator for every bag child
+    and every job, and each one reads and unpickles its checkpoint from disk again. Only calls
+    with a file path are memoised, keyed by the file's real path, modification time and size and
+    the keyword arguments, so a changed file is read again. The copy keeps fits independent: no
+    job can see weights another job modified.
+    """
+    import copy
+
+    import torch
+
+    inner = torch.load
+    memo: dict = {}
+
+    @functools.wraps(inner)
+    def load(f, *args, **kwargs):
+        if args or not isinstance(f, (str, os.PathLike)) or not os.path.isfile(f):
+            return inner(f, *args, **kwargs)
+        st = os.stat(f)
+        key = (os.path.realpath(f), st.st_mtime_ns, st.st_size, repr(sorted(kwargs.items())))
+        if key not in memo:
+            memo[key] = inner(f, **kwargs)
+        return copy.deepcopy(memo[key])
+
+    torch.load = load
+
+
 def claim_name(job: dict) -> str:
     recipe = job.get("recipe_config")
     recipe = Path(recipe).stem if recipe else "default"
@@ -210,6 +239,8 @@ def main() -> None:
     ap.add_argument("--spectrum-cache", default="memory",
                     help="Per-spectrum preprocessing cache (raman_bench.preprocessing.spectrum_cache): "
                     "'memory', a directory with precomputed rows (plus memory), or 'off'")
+    ap.add_argument("--no-memo-checkpoints", action="store_true",
+                    help="Read model checkpoints from disk for every fit (as run_experiment.py does)")
     ap.add_argument("--no-memo-data", action="store_true",
                     help="Reload the dataset for every job (as run_experiment.py does)")
     args = ap.parse_args()
@@ -218,6 +249,8 @@ def main() -> None:
     from raman_bench.preprocessing import spectrum_cache
 
     os.environ[spectrum_cache.ENV_MODE] = args.spectrum_cache
+    if not args.no_memo_checkpoints:
+        memoize_torch_load()  # before instrument(), so the timer measures the memoised load
     timer = StageTimer()
     instrument(timer)
     if not args.no_memo_data:
