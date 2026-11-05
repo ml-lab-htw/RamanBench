@@ -217,17 +217,31 @@ def summarise(records: list[dict]) -> str:
 
 
 @contextlib.contextmanager
-def exclusive(lock_path: Path | None):
-    """Hold an exclusive ``flock`` on ``lock_path`` (no-op for None); blocks until free."""
+def gpu_lock(lock_path: Path | None, exclusive: bool):
+    """Hold ``flock`` on ``lock_path`` (no-op for None) for one job: shared for ordinary jobs,
+    exclusive for models that need the whole GPU. An exclusive job waits until no other runner
+    on the host is fitting, and new jobs wait while it runs (BHT verification 2026-11-05:
+    TabICLv2 next to Kumo/DeepCNN ran an L4 out of memory)."""
     if lock_path is None:
         yield
         return
-    with lock_path.open("a") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+    # Turnstile: every job passes ``.gate`` first; an exclusive job keeps the gate while it waits
+    # and runs, so new shared jobs queue behind it instead of starving it (Linux flock grants
+    # shared locks even while an exclusive request waits).
+    gate_path = lock_path.with_name(lock_path.name + ".gate")
+    with gate_path.open("a") as gate, lock_path.open("a") as f:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        finally:
+            if not exclusive:
+                fcntl.flock(gate, fcntl.LOCK_UN)
         try:
             yield
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
+            if exclusive:
+                fcntl.flock(gate, fcntl.LOCK_UN)
 
 
 def rotate(jobs: list[dict], worker_index: int, n_workers: int) -> list[dict]:
@@ -274,8 +288,8 @@ def main() -> None:
                     "models instead of all loading the same one at once")
     ap.add_argument("--n-workers", type=int, default=1)
     ap.add_argument("--exclusive-models", nargs="*", default=[],
-                    help="Models that need the whole GPU (e.g. TABICLV2 on wide spectra): runners "
-                    "on one host take turns for them via --exclusive-lock")
+                    help="Models that need the whole GPU (e.g. TABICLV2 on wide spectra): such a job "
+                    "runs only when no other runner on the host is fitting (--exclusive-lock)")
     ap.add_argument("--exclusive-lock", type=Path, default=Path("/tmp/raman_bench_gpu_exclusive.lock"))
     args = ap.parse_args()
     assert 0 <= args.worker_index < args.n_workers, (args.worker_index, args.n_workers)
@@ -330,7 +344,8 @@ def main() -> None:
         t0 = time.perf_counter()
         status = "done"
         try:
-            with exclusive(args.exclusive_lock if job["model_key"] in args.exclusive_models else None):
+            with gpu_lock(args.exclusive_lock if args.exclusive_models else None,
+                          exclusive=job["model_key"] in args.exclusive_models):
                 out = rex.run_one(**job, **fixed, scratch_dir=str(scratch) if scratch else None)
             if out is None:
                 status = "skipped"

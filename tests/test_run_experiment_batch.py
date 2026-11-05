@@ -104,29 +104,69 @@ def test_rotate_starts_workers_at_different_jobs():
     assert all(sorted(j["i"] for j in rb.rotate(jobs, k, 3)) == list(range(10)) for k in range(3))
 
 
-def test_exclusive_lock_serialises_holders(tmp_path):
+def test_gpu_lock_exclusive_excludes_shared_and_shared_overlap(tmp_path):
     import multiprocessing as mp
 
     lock = tmp_path / "gpu.lock"
     log = tmp_path / "log"
-
-    with rb.exclusive(None):  # no lock requested: no-op
+    with rb.gpu_lock(None, exclusive=True):  # no lock requested: no-op
         pass
-    procs = [mp.get_context("fork").Process(target=_hold, args=(lock, log, i)) for i in range(3)]
+    ctx = mp.get_context("fork")
+    procs = [ctx.Process(target=_hold, args=(lock, log, name, ex))
+             for name, ex in [("s1", False), ("s2", False), ("x1", True), ("x2", True)]]
     for p in procs:
         p.start()
     for p in procs:
         p.join()
-    spans = sorted(tuple(map(float, line.split()[1:])) for line in log.read_text().splitlines())
-    assert len(spans) == 3
-    assert all(a[1] <= b[0] for a, b in zip(spans, spans[1:])), spans  # no overlap
+    spans = {line.split()[0]: tuple(map(float, line.split()[1:])) for line in log.read_text().splitlines()}
+    assert len(spans) == 4
+
+    def overlap(a, b):
+        return spans[a][0] < spans[b][1] and spans[b][0] < spans[a][1]
+
+    for x in ("x1", "x2"):
+        assert not any(overlap(x, o) for o in spans if o != x), spans
+    assert overlap("s1", "s2"), spans  # shared holders run together
 
 
-def _hold(lock, log, i):
+def _hold(lock, log, name, exclusive):
     import time
 
-    with rb.exclusive(lock):
+    with rb.gpu_lock(lock, exclusive=exclusive):
         t0 = time.time()
-        time.sleep(0.2)
+        time.sleep(0.4)
         with open(log, "a") as f:
-            f.write(f"{i} {t0} {time.time()}\n")
+            f.write(f"{name} {t0} {time.time()}\n")
+
+
+def test_gpu_lock_exclusive_is_not_starved_by_shared_stream(tmp_path):
+    """Two runners keep overlapping shared jobs; an exclusive request must still get its turn."""
+    import multiprocessing as mp
+    import time
+
+    lock = tmp_path / "gpu.lock"
+    log = tmp_path / "log"
+    stop = tmp_path / "stop"
+    ctx = mp.get_context("fork")
+    streams = [ctx.Process(target=_shared_stream, args=(lock, stop, k)) for k in range(2)]
+    for p in streams:
+        p.start()
+    time.sleep(0.3)
+    x = ctx.Process(target=_hold, args=(lock, log, "x", True))
+    t0 = time.time()
+    x.start()
+    x.join(timeout=10)
+    stop.touch()
+    for p in streams:
+        p.join()
+    assert not x.is_alive() and time.time() - t0 < 5, "exclusive job starved"
+
+
+def _shared_stream(lock, stop, k):
+    import time
+
+    time.sleep(0.1 * k)  # stagger so the two shared holders always overlap
+    while not stop.exists():
+        with rb.gpu_lock(lock, exclusive=False):
+            time.sleep(0.2)
+
