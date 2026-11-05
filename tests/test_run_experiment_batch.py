@@ -7,6 +7,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+pytest.importorskip("autogluon")
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import run_experiment_batch as rb  # noqa: E402
 

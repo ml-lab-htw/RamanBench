@@ -4,7 +4,10 @@ import numpy as np
 import pytest
 
 from raman_bench.preprocessing import spectrum_cache as sc
-from raman_bench.preprocessing.mixin import RamanPreprocessingMixin as M
+
+pytest.importorskip("autogluon")
+
+from raman_bench.preprocessing.mixin import RamanPreprocessingMixin as M  # noqa: E402
 
 WN = np.linspace(200.0, 2200.0, 600)
 
