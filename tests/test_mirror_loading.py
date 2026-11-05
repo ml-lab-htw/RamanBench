@@ -97,3 +97,19 @@ def test_pinned_commit_loads_from_prefilled_cache_without_the_hub(tmp_path, monk
     bench = _bench(tmp_path, mirror_revision=commit, fallback_to_source=False)
 
     assert bench._load_raman_dataset("ds").target_names == ["label"]
+
+
+def test_processed_cache_is_keyed_only_by_a_pinned_revision(tmp_path):
+    # Default ("main"): the existing path, so existing caches stay valid.
+    default = _bench(tmp_path)
+    assert default.cache_dir_processed == str(tmp_path / "cache" / "datasets_processed" / "seed_42")
+
+    # Pinned: splits go to their own folder, so another revision's splits are never reused.
+    pinned = _bench(tmp_path, mirror_revision="0123abcd")
+    assert pinned.cache_dir_processed == str(
+        tmp_path / "cache" / "datasets_processed" / "seed_42" / "revision_0123abcd"
+    )
+
+    # A pinned revision without the mirror does not change the path.
+    raw = _bench(tmp_path, mirror_revision="0123abcd", use_mirror=False)
+    assert raw.cache_dir_processed == default.cache_dir_processed

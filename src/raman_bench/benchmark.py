@@ -169,6 +169,13 @@ class RamanBenchmark:
         self.cache_dir_processed = os.path.join(
             cache_dir, "datasets_processed", f"seed_{random_state}"
         )
+        # A pinned mirror revision gets its own split cache: splits are built from the
+        # mirror's data, so another revision's splits must not be reused. The default
+        # ("main") keeps the existing path, so existing caches stay valid.
+        if use_mirror and mirror_revision != "main":
+            self.cache_dir_processed = os.path.join(
+                self.cache_dir_processed, f"revision_{mirror_revision.replace('/', '_')}"
+            )
         os.makedirs(self.cache_dir_processed, exist_ok=True)
 
         self.test_size = test_size
