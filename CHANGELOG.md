@@ -16,8 +16,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 - **`mirror_revision`** for `RamanBenchmark`, `configure_benchmark` and `load_dataframe`: the
   branch, tag or commit hash of the HF mirror, passed to every mirror download. The default,
-  `main`, keeps the current behaviour. A commit hash makes a run reproducible, and with the
-  files already in `cache_dir` it loads without contacting the Hub.
+  `main`, keeps the current behaviour. A commit hash makes a run reproducible, and with that
+  commit's files already in the Hugging Face cache at `<cache_dir>/datasets_mirror` it loads
+  without contacting the Hub.
 - **`fallback_to_source`** for the same three: `False` raises the mirror's error instead of
   falling back to the original source. The default, `True`, keeps the current behaviour.
 

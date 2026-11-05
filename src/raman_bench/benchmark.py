@@ -124,8 +124,9 @@ class RamanBenchmark:
         ``"HTW-KI-Werkstatt/RamanBench"``).
     mirror_revision : str
         Branch, tag or commit hash of the mirror to load (default ``"main"``). A
-        commit hash makes a run reproducible, and with the files already in
-        *cache_dir* it loads without contacting the Hub.
+        commit hash makes a run reproducible. With that commit's files already in
+        the Hugging Face cache at ``<cache_dir>/datasets_mirror``, it loads without
+        contacting the Hub.
     fallback_to_source : bool
         If ``True`` (default), a failed mirror load falls back to the original
         source via raman-data. If ``False``, it raises the mirror's error.

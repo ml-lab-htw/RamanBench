@@ -71,3 +71,29 @@ def test_failed_mirror_load_falls_back_only_when_allowed(tmp_path, monkeypatch, 
         with pytest.raises(OSError, match="mirror unreachable"):
             bench._load_raman_dataset("ds")
         assert source_loads == []
+
+
+def test_pinned_commit_loads_from_prefilled_cache_without_the_hub(tmp_path, monkeypatch):
+    commit = "0123456789abcdef0123456789abcdef01234567"
+    snapshot = (
+        tmp_path
+        / "cache"
+        / "datasets_mirror"
+        / "datasets--HTW-KI-Werkstatt--RamanBench"
+        / "snapshots"
+        / commit
+        / "ds"
+    )
+    (snapshot / "data").mkdir(parents=True)
+    pd.DataFrame({"100.0": [1.0, 2.0], "label": ["a", "b"]}).to_parquet(
+        snapshot / "data" / "train-00000-of-00001.parquet"
+    )
+    (snapshot / "metadata.json").write_text(json.dumps({"target_names": ["label"]}))
+
+    def no_hub(*args, **kwargs):
+        raise AssertionError("contacted the Hub")
+
+    monkeypatch.setattr("huggingface_hub.file_download.get_hf_file_metadata", no_hub)
+    bench = _bench(tmp_path, mirror_revision=commit, fallback_to_source=False)
+
+    assert bench._load_raman_dataset("ds").target_names == ["label"]
