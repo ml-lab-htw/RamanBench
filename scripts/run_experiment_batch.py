@@ -22,7 +22,7 @@ give the defaults for every key a line leaves out::
 atomic ``mkdir`` on the shared filesystem before it runs; a job claimed elsewhere is skipped, and
 a failed job releases its claim. Use a fresh directory per submission round.
 
-A failing job is logged with its traceback and the loop continues; the exit code is 1 if any job
+A failing job is logged with its traceback and the loop continues; the exit code is 2 if any job
 failed. ``--timings-out`` writes one JSON record per job with the seconds spent in each stage
 (data loading, task building, preprocessing fit/transform, checkpoint loading, the cached
 experiment run as a whole), and a per-model summary is printed at the end.
@@ -384,7 +384,9 @@ def main() -> None:
         print(f"Spectrum cache: {cache.hits} rows served, {cache.misses} computed", flush=True)
     print(f"Batch finished in {(time.perf_counter() - t_start) / 60:.1f} min: "
           + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())), flush=True)
-    sys.exit(1 if counts["failed"] else 0)
+    # 2, not 1: the batch ran to the end but some jobs failed (logged above, claims released so a
+    # later pass retries them). An uncaught crash exits 1. Pod chains can tell the two apart.
+    sys.exit(2 if counts["failed"] else 0)
 
 
 if __name__ == "__main__":
