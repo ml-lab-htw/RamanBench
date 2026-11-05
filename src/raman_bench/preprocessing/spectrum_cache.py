@@ -31,8 +31,8 @@ import inspect
 import json
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
@@ -75,8 +75,11 @@ def code_fingerprint() -> str:
 
 def step_key(params: dict, wavenumbers: np.ndarray | None) -> str | None:
     """Key of the per-spectrum part of a recipe, or ``None`` if that part does nothing."""
-    enabled = {flag: [params.get(p) for p in names]
-               for flag, names in SPECTRUMWISE_STEPS.items() if params.get(flag, False)}
+    enabled = {
+        flag: [params.get(p) for p in names]
+        for flag, names in SPECTRUMWISE_STEPS.items()
+        if params.get(flag, False)
+    }
     if not enabled:
         return None
     payload = {"steps": enabled, "code": code_fingerprint()}
@@ -116,7 +119,11 @@ class SpectrumCache:
         return self._tables[key]
 
     def apply(
-        self, X: np.ndarray, key: str, compute: Callable[[np.ndarray], np.ndarray], store: bool = True
+        self,
+        X: np.ndarray,
+        key: str,
+        compute: Callable[[np.ndarray], np.ndarray],
+        store: bool = True,
     ) -> np.ndarray:
         """Return ``compute(X)``, computing only the rows not cached under ``key``.
 
@@ -126,7 +133,9 @@ class SpectrumCache:
         evict the real spectra.
         """
         if self._bytes > self.max_bytes:
-            logger.info("Spectrum cache: %.1f GB > limit, dropping in-memory tables", self._bytes / 1e9)
+            logger.info(
+                "Spectrum cache: %.1f GB > limit, dropping in-memory tables", self._bytes / 1e9
+            )
             self._tables.clear()
             self._bytes = 0
         table = self._table(key)

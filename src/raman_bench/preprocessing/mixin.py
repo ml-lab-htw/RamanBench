@@ -714,7 +714,9 @@ class RamanPreprocessingMixin:
         cache = get_cache()
         if key is None or cache is None:
             return compute(X)
-        return cache.apply(X, key, compute, store=not getattr(self, "_prep_fitting_augmented", False))
+        return cache.apply(
+            X, key, compute, store=not getattr(self, "_prep_fitting_augmented", False)
+        )
 
     def _preprocess_fit(self, X: np.ndarray) -> np.ndarray:
         """Fit stateful preprocessing and transform training data.

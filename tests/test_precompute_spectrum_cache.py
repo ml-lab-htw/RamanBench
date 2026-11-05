@@ -15,7 +15,9 @@ from raman_bench.preprocessing.spectrum_cache import step_key  # noqa: E402
 
 def test_recipe_defaults_and_shared_key(tmp_path):
     recipe = tmp_path / "sg_rubberband_snv.json"
-    recipe.write_text(json.dumps({"preprocessing": {"denoising": True, "rubberband": True, "snv": True}}))
+    recipe.write_text(
+        json.dumps({"preprocessing": {"denoising": True, "rubberband": True, "snv": True}})
+    )
     _, p_pls = pc.resolved_params("PLS", str(recipe))
     _, p_ridge = pc.resolved_params("RIDGE", str(recipe))
     assert p_pls["prep_denoise_enabled"] and p_pls["prep_rubberband_enabled"]

@@ -73,7 +73,9 @@ def _spectrumwise_worker(X: np.ndarray, params: dict, phase: str, wavenumbers) -
 def spectrumwise_rows(X: np.ndarray, params: dict, phase: str, wavenumbers) -> np.ndarray:
     """``_apply_spectrumwise_steps`` on the rows of ``X``, in row chunks across the pool."""
     parts = _chunks(len(X), _N_WORKERS)
-    futures = [_pool().submit(_spectrumwise_worker, X[s], params, phase, wavenumbers) for s in parts]
+    futures = [
+        _pool().submit(_spectrumwise_worker, X[s], params, phase, wavenumbers) for s in parts
+    ]
     return np.concatenate([f.result() for f in futures], axis=0)
 
 

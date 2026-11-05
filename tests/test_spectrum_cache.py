@@ -9,15 +9,22 @@ from raman_bench.preprocessing.mixin import RamanPreprocessingMixin as M
 WN = np.linspace(200.0, 2200.0, 600)
 
 STEPS = {
-    "crop_physical": {"prep_crop_physical_enabled": True, "prep_crop_physical_start_cm": 400.0,
-                      "prep_crop_physical_end_cm": 1800.0},
+    "crop_physical": {
+        "prep_crop_physical_enabled": True,
+        "prep_crop_physical_start_cm": 400.0,
+        "prep_crop_physical_end_cm": 1800.0,
+    },
     "crop": {"prep_crop_enabled": True, "prep_crop_start_frac": 0.15, "prep_crop_end_frac": 0.75},
     "crr": {"prep_crr_enabled": True, "prep_crr_threshold": 6, "prep_crr_kernel_size": 3},
     "sg": {"prep_denoise_enabled": True, "prep_denoise_wl": 9, "prep_denoise_po": 3},
     "wavelet": {"prep_wavelet_enabled": True, "prep_wavelet_name": "sym7", "prep_wavelet_level": 4},
     "asls": {"prep_bl_enabled": True, "prep_bl_lam": 1e5, "prep_bl_p": 0.01},
-    "airpls": {"prep_airpls_enabled": True, "prep_airpls_lam": 1e5, "prep_airpls_max_iter": 15,
-               "prep_airpls_tol": 1e-3},
+    "airpls": {
+        "prep_airpls_enabled": True,
+        "prep_airpls_lam": 1e5,
+        "prep_airpls_max_iter": 15,
+        "prep_airpls_tol": 1e-3,
+    },
     "arpls": {"prep_arpls_enabled": True, "prep_arpls_lam": 1e5, "prep_arpls_max_iter": 15},
     "rubberband": {"prep_rubberband_enabled": True},
 }
@@ -27,7 +34,9 @@ ALL = {k: v for step in STEPS.values() for k, v in step.items()}
 def _spectra(n=40, seed=0):
     rng = np.random.default_rng(seed)
     x = np.linspace(0, 1, WN.size)
-    peaks = sum(np.exp(-((x - c) ** 2) / 2e-4) * rng.uniform(0.5, 2, (n, 1)) for c in (0.3, 0.5, 0.7))
+    peaks = sum(
+        np.exp(-((x - c) ** 2) / 2e-4) * rng.uniform(0.5, 2, (n, 1)) for c in (0.3, 0.5, 0.7)
+    )
     X = peaks + rng.uniform(0, 3, (n, 1)) * x**2 + rng.normal(0, 0.02, (n, WN.size))
     X[rng.integers(0, n, 5), rng.integers(0, WN.size, 5)] += 5.0  # cosmic-ray spikes
     return X
@@ -73,8 +82,10 @@ def test_cache_off_by_default(monkeypatch):
     monkeypatch.setattr(sc, "_CACHE", None)
     assert sc.get_cache() is None
     X = _spectra(5)
-    assert np.array_equal(_model()._spectrumwise(X, STEPS["sg"], "Fit"),
-                          _model()._apply_spectrumwise_steps(X, STEPS["sg"], "Fit"))
+    assert np.array_equal(
+        _model()._spectrumwise(X, STEPS["sg"], "Fit"),
+        _model()._apply_spectrumwise_steps(X, STEPS["sg"], "Fit"),
+    )
 
 
 def test_step_key():
