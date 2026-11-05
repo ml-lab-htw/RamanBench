@@ -14,6 +14,13 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **`mirror_revision`** for `RamanBenchmark`, `configure_benchmark` and `load_dataframe`: the
+  branch, tag or commit hash of the HF mirror, passed to every mirror download. The default,
+  `main`, keeps the current behaviour. A commit hash makes a run reproducible, and with the
+  files already in `cache_dir` it loads without contacting the Hub.
+- **`fallback_to_source`** for the same three: `False` raises the mirror's error instead of
+  falling back to the original source. The default, `True`, keeps the current behaviour.
+
 - **Branch model for benchmark v2** (RELEASING.md, "Branches"): `main` stays benchmark v1 and
   gets new models; the long-lived `v2` branch gets new datasets. `main` is merged into `v2`,
   never the other way.
@@ -37,6 +44,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- The fallback from a failed mirror load to the original source logs a warning, not a debug
+  message.
 - **raman-data ≥ 1.6.6**, which adds the glioma datasets `glioma_methylation` and `glioma_idh`
   (Lita et al. 2024; 257,904 tumour spectra from 46 patients). They are on the HF mirror for
   test runs but not in `configs/v1/target_list.json`, so the leaderboard is unchanged.
