@@ -96,22 +96,3 @@ def test_step_key():
     assert k != sc.step_key({**STEPS["sg"], **STEPS["asls"]}, WN)
     kp = sc.step_key(STEPS["crop_physical"], WN)
     assert kp != sc.step_key(STEPS["crop_physical"], WN + 1.0)
-
-
-def test_precomputed_directory_is_read(tmp_path, monkeypatch):
-    params = {**STEPS["sg"], **STEPS["asls"]}
-    X = _spectra(12)
-    m = _model()
-    key = sc.step_key(params, WN)
-    ref = m._apply_spectrumwise_steps(X, params, "Fit")
-    sc.save_table(tmp_path, key, dict(zip(sc.row_digests(X), ref)), "ds")
-    monkeypatch.setenv(sc.ENV_MODE, str(tmp_path))
-    monkeypatch.setattr(sc, "_CACHE", None)
-
-    def fail(Z):
-        raise AssertionError("row should have come from the precomputed file")
-
-    cache = sc.get_cache()
-    got = cache.apply(X[::-1], key, fail)
-    assert np.array_equal(got, ref[::-1]) and cache.misses == 0
-    monkeypatch.setattr(sc, "_CACHE", None)

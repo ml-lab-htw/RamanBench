@@ -271,17 +271,15 @@ def main() -> None:
     ap.add_argument("--max-train-samples", type=int, default=None)
     ap.add_argument("--min-samples-per-class", type=int, default=9)
     ap.add_argument("--min-groups-per-class", type=int, default=0)
-    ap.add_argument("--spectrum-cache", default="memory",
-                    help="Per-spectrum preprocessing cache (raman_bench.preprocessing.spectrum_cache): "
-                    "'memory', a directory with precomputed rows (plus memory), or 'off'")
+    ap.add_argument("--spectrum-cache", default="memory", choices=["memory", "off"],
+                    help="Per-spectrum preprocessing cache (raman_bench.preprocessing.spectrum_cache)")
     ap.add_argument("--no-memo-checkpoints", action="store_true",
                     help="Read model checkpoints from disk for every fit (as run_experiment.py does)")
     ap.add_argument("--no-memo-data", action="store_true",
                     help="Reload the dataset for every job (as run_experiment.py does)")
     ap.add_argument("--prep-workers", type=int, default=1,
-                    help="Worker processes for the per-spectrum preprocessing rows and for "
-                    "TabICL's Yeo-Johnson column lambdas (raman_bench.preprocessing.parallel); "
-                    "1 = serial, as run_experiment.py")
+                    help="Worker processes for the per-spectrum preprocessing rows "
+                    "(raman_bench.preprocessing.parallel); 1 = serial, as run_experiment.py")
     ap.add_argument("--worker-index", type=int, default=0,
                     help="With --n-workers: this runner starts at job worker_index * n / n_workers "
                     "and wraps around, so runners sharing one --claim-dir start on different "
@@ -310,7 +308,6 @@ def main() -> None:
         from raman_bench.preprocessing import parallel
 
         parallel.configure(args.prep_workers)
-        parallel.patch_power_transformer()
 
     jobs = rotate(read_jobspec(args.jobspec), args.worker_index, args.n_workers)
     defaults = dict(

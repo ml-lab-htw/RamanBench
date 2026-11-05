@@ -23,11 +23,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
   some jobs failed and the rest ran.
 - **Per-spectrum preprocessing cache** (`raman_bench.preprocessing.spectrum_cache`): the
   row-wise recipe steps (crop, cosmic-ray removal, Savitzky-Golay, wavelet, AsLS/airPLS/arPLS,
-  rubberband) are computed once per spectrum and parameter set, in memory or from a directory
-  filled by `scripts/precompute_spectrum_cache.py`. Off unless the runner switches it on.
-- **`--prep-workers`** (`raman_bench.preprocessing.parallel`): runs the row-wise steps and
-  the per-column Yeo-Johnson fit inside TabICL's default normalisation in a process pool.
-  Results equal the serial ones, except Savitzky-Golay, which can differ in the last bits.
+  rubberband) are computed once per spectrum and parameter set, in memory. Off unless the
+  runner switches it on.
+- **`--prep-workers`** (`raman_bench.preprocessing.parallel`): runs the row-wise steps in a
+  process pool. Results equal the serial ones, except Savitzky-Golay, which can differ in the
+  last bits.
 
 - **Branch model for benchmark v2** (RELEASING.md, "Branches"): `main` stays benchmark v1 and
   gets new models; the long-lived `v2` branch gets new datasets. `main` is merged into `v2`,

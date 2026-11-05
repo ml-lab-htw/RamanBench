@@ -15,10 +15,7 @@ results are the same with or without it; the tests check this bit for bit.
 Off by default. ``RAMAN_BENCH_SPECTRUM_CACHE`` turns it on:
 
 - ``memory``: one in-process cache (useful for a process that runs many jobs, e.g.
-  ``scripts/run_experiment_batch.py``);
-- a directory: as ``memory``, and on first use of a step key also load the rows precomputed into
-  ``<dir>/<step key>/*.npz`` by ``scripts/precompute_spectrum_cache.py`` (shared by all pods).
-  Runs only read this directory; only the precompute script writes it.
+  ``scripts/run_experiment_batch.py``).
 
 ``RAMAN_BENCH_SPECTRUM_CACHE_MAX_GB`` (default 8) bounds the in-memory size; when it is exceeded
 the in-memory tables are dropped and refilled on demand.
@@ -32,7 +29,6 @@ import json
 import logging
 import os
 from collections.abc import Callable
-from pathlib import Path
 
 import numpy as np
 
@@ -96,8 +92,7 @@ def row_digests(X: np.ndarray) -> list[bytes]:
 
 
 class SpectrumCache:
-    def __init__(self, directory: str | Path | None = None, max_bytes: float = 8e9) -> None:
-        self.directory = Path(directory) if directory else None
+    def __init__(self, max_bytes: float = 8e9) -> None:
         self.max_bytes = max_bytes
         self._tables: dict[str, dict[bytes, np.ndarray]] = {}
         self._bytes = 0
@@ -106,16 +101,7 @@ class SpectrumCache:
 
     def _table(self, key: str) -> dict[bytes, np.ndarray]:
         if key not in self._tables:
-            table: dict[bytes, np.ndarray] = {}
-            if self.directory is not None and (self.directory / key).is_dir():
-                for f in sorted((self.directory / key).glob("*.npz")):
-                    with np.load(f) as z:
-                        out = z["out"]
-                        for d, row in zip(z["digests"], out):
-                            table[bytes(d)] = row
-                        self._bytes += out.nbytes
-                logger.info("Spectrum cache: loaded %d precomputed rows for %s", len(table), key)
-            self._tables[key] = table
+            self._tables[key] = {}
         return self._tables[key]
 
     def apply(
@@ -168,22 +154,11 @@ def get_cache() -> SpectrumCache | None:
     mode = os.environ.get(ENV_MODE, "").strip()
     if mode in ("", "0", "off"):
         return None
+    if mode != "memory":
+        raise ValueError(f"{ENV_MODE} must be 'memory' or 'off', got {mode!r}")
     if _CACHE is None or mode != _CACHE_MODE:
         max_bytes = float(os.environ.get(ENV_MAX_GB, "8")) * 1e9
-        _CACHE = SpectrumCache(None if mode == "memory" else mode, max_bytes=max_bytes)
+        _CACHE = SpectrumCache(max_bytes=max_bytes)
         _CACHE_MODE = mode
         logger.info("Spectrum cache on: %s", mode)
     return _CACHE
-
-
-def save_table(directory: str | Path, key: str, table: dict[bytes, np.ndarray], name: str) -> Path:
-    """Write one table as ``<directory>/<key>/<name>.npz`` (written to a temporary name first, so
-    a reader never sees a partial file)."""
-    out_dir = Path(directory) / key
-    out_dir.mkdir(parents=True, exist_ok=True)
-    digests = np.frombuffer(b"".join(table), dtype=np.uint8).reshape(len(table), DIGEST_SIZE)
-    path = out_dir / f"{name}.npz"
-    tmp = out_dir / f".{name}.{os.getpid()}.tmp.npz"
-    np.savez(tmp, digests=digests, out=np.stack(list(table.values())))
-    os.replace(tmp, path)
-    return path
