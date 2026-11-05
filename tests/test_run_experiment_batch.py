@@ -94,3 +94,39 @@ def test_memoized_torch_load_reads_once_and_copies(tmp_path, monkeypatch):
     import os
     os.utime(path, ns=(1, 1))
     assert torch.load(str(path), map_location="cpu")["w"].shape == (2,) and len(reads) == 3
+
+
+def test_rotate_starts_workers_at_different_jobs():
+    jobs = [{"i": i} for i in range(10)]
+    assert rb.rotate(jobs, 0, 1) == jobs
+    starts = [rb.rotate(jobs, k, 3)[0]["i"] for k in range(3)]
+    assert starts == [0, 3, 6]
+    assert all(sorted(j["i"] for j in rb.rotate(jobs, k, 3)) == list(range(10)) for k in range(3))
+
+
+def test_exclusive_lock_serialises_holders(tmp_path):
+    import multiprocessing as mp
+
+    lock = tmp_path / "gpu.lock"
+    log = tmp_path / "log"
+
+    with rb.exclusive(None):  # no lock requested: no-op
+        pass
+    procs = [mp.get_context("fork").Process(target=_hold, args=(lock, log, i)) for i in range(3)]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
+    spans = sorted(tuple(map(float, line.split()[1:])) for line in log.read_text().splitlines())
+    assert len(spans) == 3
+    assert all(a[1] <= b[0] for a, b in zip(spans, spans[1:])), spans  # no overlap
+
+
+def _hold(lock, log, i):
+    import time
+
+    with rb.exclusive(lock):
+        t0 = time.time()
+        time.sleep(0.2)
+        with open(log, "a") as f:
+            f.write(f"{i} {t0} {time.time()}\n")

@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import fcntl
 import functools
 import gc
 import json
@@ -215,6 +216,26 @@ def summarise(records: list[dict]) -> str:
     return "\n".join(lines)
 
 
+@contextlib.contextmanager
+def exclusive(lock_path: Path | None):
+    """Hold an exclusive ``flock`` on ``lock_path`` (no-op for None); blocks until free."""
+    if lock_path is None:
+        yield
+        return
+    with lock_path.open("a") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def rotate(jobs: list[dict], worker_index: int, n_workers: int) -> list[dict]:
+    """The job list starting at ``worker_index * len / n_workers``, wrapped around."""
+    k = worker_index * len(jobs) // n_workers
+    return jobs[k:] + jobs[:k]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--jobspec", required=True, type=Path, help="JSON Lines, one run_one job per line")
@@ -243,7 +264,22 @@ def main() -> None:
                     help="Read model checkpoints from disk for every fit (as run_experiment.py does)")
     ap.add_argument("--no-memo-data", action="store_true",
                     help="Reload the dataset for every job (as run_experiment.py does)")
+    ap.add_argument("--prep-workers", type=int, default=1,
+                    help="Worker processes for the per-spectrum preprocessing rows and for "
+                    "TabICL's Yeo-Johnson column lambdas (raman_bench.preprocessing.parallel); "
+                    "1 = serial, as run_experiment.py")
+    ap.add_argument("--worker-index", type=int, default=0,
+                    help="With --n-workers: this runner starts at job worker_index * n / n_workers "
+                    "and wraps around, so runners sharing one --claim-dir start on different "
+                    "models instead of all loading the same one at once")
+    ap.add_argument("--n-workers", type=int, default=1)
+    ap.add_argument("--exclusive-models", nargs="*", default=[],
+                    help="Models that need the whole GPU (e.g. TABICLV2 on wide spectra): runners "
+                    "on one host take turns for them via --exclusive-lock")
+    ap.add_argument("--exclusive-lock", type=Path, default=Path("/tmp/raman_bench_gpu_exclusive.lock"))
     args = ap.parse_args()
+    assert 0 <= args.worker_index < args.n_workers, (args.worker_index, args.n_workers)
+    assert args.n_workers == 1 or args.claim_dir is not None, "--n-workers > 1 needs --claim-dir"
 
     rex.load_env()
     from raman_bench.preprocessing import spectrum_cache
@@ -256,7 +292,13 @@ def main() -> None:
     if not args.no_memo_data:
         memoize_load_dataframe()
 
-    jobs = read_jobspec(args.jobspec)
+    if args.prep_workers > 1:
+        from raman_bench.preprocessing import parallel
+
+        parallel.configure(args.prep_workers)
+        parallel.patch_power_transformer()
+
+    jobs = rotate(read_jobspec(args.jobspec), args.worker_index, args.n_workers)
     defaults = dict(
         target_idx=0, config_index=args.config_index, n_repeats=args.n_repeats,
         n_splits=args.n_splits, num_random_configs=args.num_random_configs,
@@ -288,7 +330,8 @@ def main() -> None:
         t0 = time.perf_counter()
         status = "done"
         try:
-            out = rex.run_one(**job, **fixed, scratch_dir=str(scratch) if scratch else None)
+            with exclusive(args.exclusive_lock if job["model_key"] in args.exclusive_models else None):
+                out = rex.run_one(**job, **fixed, scratch_dir=str(scratch) if scratch else None)
             if out is None:
                 status = "skipped"
         except Exception:  # one bad job must not stop the pod; it is reported and counted

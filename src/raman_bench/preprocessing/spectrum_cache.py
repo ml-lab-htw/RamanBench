@@ -115,8 +115,16 @@ class SpectrumCache:
             self._tables[key] = table
         return self._tables[key]
 
-    def apply(self, X: np.ndarray, key: str, compute: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
-        """Return ``compute(X)``, computing only the rows not cached under ``key``."""
+    def apply(
+        self, X: np.ndarray, key: str, compute: Callable[[np.ndarray], np.ndarray], store: bool = True
+    ) -> np.ndarray:
+        """Return ``compute(X)``, computing only the rows not cached under ``key``.
+
+        ``store=False`` serves cached rows but keeps the computed ones out of the cache: for
+        sets whose new rows are never seen again (augmented training sets: random noise copies
+        made fresh at every fit), storing them would only fill memory and, past ``max_bytes``,
+        evict the real spectra.
+        """
         if self._bytes > self.max_bytes:
             logger.info("Spectrum cache: %.1f GB > limit, dropping in-memory tables", self._bytes / 1e9)
             self._tables.clear()
@@ -126,12 +134,16 @@ class SpectrumCache:
         missing = [i for i, d in enumerate(digests) if d not in table]
         self.hits += len(digests) - len(missing)
         self.misses += len(missing)
-        if missing:
-            out = compute(np.ascontiguousarray(X)[missing])
+        if not missing:
+            return np.stack([table[d] for d in digests])
+        out = compute(np.ascontiguousarray(X)[missing])
+        if store:
             for i, row in zip(missing, out):
                 table[digests[i]] = row
             self._bytes += out.nbytes
-        return np.stack([table[d] for d in digests])
+            return np.stack([table[d] for d in digests])
+        computed = dict(zip(missing, out))
+        return np.stack([computed[i] if i in computed else table[d] for i, d in enumerate(digests)])
 
     def tables(self) -> dict[str, dict[bytes, np.ndarray]]:
         return self._tables

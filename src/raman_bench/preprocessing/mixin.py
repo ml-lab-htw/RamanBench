@@ -696,14 +696,25 @@ class RamanPreprocessingMixin:
         return X
 
     def _spectrumwise(self, X: np.ndarray, params: dict, phase: str) -> np.ndarray:
-        """Apply :meth:`_apply_spectrumwise_steps`, through the spectrum cache if enabled."""
+        """Apply :meth:`_apply_spectrumwise_steps`, through the spectrum cache if enabled and
+        in row chunks across worker processes if :mod:`raman_bench.preprocessing.parallel` is
+        configured. Rows computed while ``_fit`` transforms an augmented training set are not
+        stored in the cache (fresh random copies, never requested again)."""
+        from raman_bench.preprocessing import parallel
         from raman_bench.preprocessing.spectrum_cache import get_cache, step_key
 
-        key = step_key(params, getattr(self, "_wavenumbers", None))
+        wavenumbers = getattr(self, "_wavenumbers", None)
+
+        def compute(Z: np.ndarray) -> np.ndarray:
+            if parallel.use_rows(len(Z)):
+                return parallel.spectrumwise_rows(Z, params, phase, wavenumbers)
+            return self._apply_spectrumwise_steps(Z, params, phase)
+
+        key = step_key(params, wavenumbers)
         cache = get_cache()
         if key is None or cache is None:
-            return self._apply_spectrumwise_steps(X, params, phase)
-        return cache.apply(X, key, lambda Z: self._apply_spectrumwise_steps(Z, params, phase))
+            return compute(X)
+        return cache.apply(X, key, compute, store=not getattr(self, "_prep_fitting_augmented", False))
 
     def _preprocess_fit(self, X: np.ndarray) -> np.ndarray:
         """Fit stateful preprocessing and transform training data.
@@ -1248,6 +1259,9 @@ class RamanPreprocessingMixin:
                     X = pd.DataFrame(X_aug, columns=X.columns, index=range(len(X_aug)))
                     y_name = y.name if hasattr(y, "name") else "target"
                     y = pd.Series(y_np, name=y_name, index=X.index)
+                    # The wrapped model now fits on fresh random copies: _spectrumwise must
+                    # not store them in the spectrum cache. Reset after super()._fit below.
+                    self._prep_fitting_augmented = True
 
         # Strip prep_* params before forwarding to the underlying library
         # constructor (e.g. CatBoostClassifier raises on unknown kwargs).
@@ -1261,6 +1275,7 @@ class RamanPreprocessingMixin:
             return result
         finally:
             self.params.update(prep_params_backup)
+            self._prep_fitting_augmented = False
 
     def _preprocess(self, X, **kwargs):
         """Apply the fitted Raman preprocessing recipe.
