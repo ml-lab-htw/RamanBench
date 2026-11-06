@@ -65,3 +65,35 @@ jobs:
         timeout-minutes: 5
         env:
           PYTHONPATH: src
+
+  test-autogluon:
+    # The batch runner, spectrum-cache and parallel-step tests import the AutoGluon-based
+    # mixin and tabarena, so they skip in the jobs above. This job installs both and runs them.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package with AutoGluon and tabarena
+        run: |
+          pip install -e ".[dev,plots,autogluon]"
+          pip install -r requirements-tabarena-git.txt
+
+      - name: Install torch (CPU-only)
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Fail if the AutoGluon stack does not import
+        run: python -c "import autogluon.common, tabarena"
+
+      - name: Run AutoGluon-dependent tests (fails if any test skips)
+        run: |
+          pytest tests/test_spectrum_cache.py tests/test_parallel_preprocessing.py tests/test_run_experiment_batch.py -v -rs --tb=short | tee pytest-autogluon.log
+          if grep -q " skipped" pytest-autogluon.log; then echo "tests were skipped"; exit 1; fi
+        env:
+          PYTHONPATH: src
