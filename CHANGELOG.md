@@ -14,6 +14,15 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **`mirror_revision`** for `RamanBenchmark`, `configure_benchmark` and `load_dataframe`: the
+  branch, tag or commit hash of the HF mirror, passed to every mirror download. The default,
+  `main`, keeps the current behaviour. A commit hash makes a run reproducible, and with that
+  commit's files already in the Hugging Face cache at `<cache_dir>/datasets_mirror` it loads
+  without contacting the Hub.
+- **`fallback_to_source`** for the same three: `False` raises the mirror's error instead of
+  falling back to the original source. It also raises when `metadata.json` cannot be read
+  (instead of using the parquet column names as targets) and in `get_target_names` (instead
+  of returning `[]`). The default, `True`, keeps the current behaviour.
 - **Batch runner** (`scripts/run_experiment_batch.py`): runs a JSON Lines jobspec of
   `run_experiment.py` jobs in one process, so imports, CUDA start-up, dataset loading and model
   checkpoints are paid once per process instead of once per fit. Results go where
@@ -52,6 +61,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- The fallback from a failed mirror load to the original source logs a warning, not a debug
+  message.
 - **raman-data ≥ 1.6.6**, which adds the glioma datasets `glioma_methylation` and `glioma_idh`
   (Lita et al. 2024; 257,904 tumour spectra from 46 patients). They are on the HF mirror for
   test runs but not in `configs/v1/target_list.json`, so the leaderboard is unchanged.
