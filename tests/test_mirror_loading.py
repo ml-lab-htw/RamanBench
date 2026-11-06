@@ -113,3 +113,43 @@ def test_processed_cache_is_keyed_only_by_a_pinned_revision(tmp_path):
     # A pinned revision without the mirror does not change the path.
     raw = _bench(tmp_path, mirror_revision="0123abcd", use_mirror=False)
     assert raw.cache_dir_processed == default.cache_dir_processed
+
+
+@pytest.mark.parametrize("fallback_to_source", [True, False])
+def test_target_names_raise_on_mirror_failure_only_without_fallback(
+    tmp_path, monkeypatch, fallback_to_source
+):
+    def fake_download(**kwargs):
+        raise OSError("mirror unreachable")
+
+    def fake_source(name, **kw):
+        raise OSError("source unreachable")
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", fake_download)
+    monkeypatch.setattr(benchmark_module, "raman_data", fake_source)
+    bench = _bench(tmp_path, fallback_to_source=fallback_to_source)
+
+    if fallback_to_source:
+        assert bench.get_target_names("ds") == []
+    else:
+        with pytest.raises(OSError, match="mirror unreachable"):
+            bench.get_target_names("ds")
+
+
+@pytest.mark.parametrize("fallback_to_source", [True, False])
+def test_unreadable_metadata_raises_only_without_fallback(
+    tmp_path, monkeypatch, mirror_files, fallback_to_source
+):
+    def fake_download(*, filename, **kwargs):
+        if filename.endswith("metadata.json"):
+            raise OSError("metadata unreachable")
+        return mirror_files["parquet"]
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", fake_download)
+    bench = _bench(tmp_path, fallback_to_source=fallback_to_source)
+
+    if fallback_to_source:
+        assert bench._load_raman_dataset("ds").target_names == ["label"]
+    else:
+        with pytest.raises(OSError, match="metadata unreachable"):
+            bench._load_raman_dataset("ds")

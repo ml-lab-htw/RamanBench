@@ -129,7 +129,8 @@ class RamanBenchmark:
         contacting the Hub.
     fallback_to_source : bool
         If ``True`` (default), a failed mirror load falls back to the original
-        source via raman-data. If ``False``, it raises the mirror's error.
+        source via raman-data. If ``False``, it raises the mirror's error, also when
+        ``metadata.json`` cannot be read and in :meth:`get_target_names`.
 
     Examples
     --------
@@ -286,7 +287,8 @@ class RamanBenchmark:
 
         Lightweight: reads only the cached mirror ``metadata.json`` (the same
         source used during loading); falls back to loading the dataset if the
-        metadata is unavailable. Returns ``[]`` on failure. Used to resolve
+        metadata is unavailable. Returns ``[]`` on failure, or raises if
+        ``fallback_to_source`` is False. Used to resolve
         ``exclude_targets`` (target names) to per-target keys.
         """
         if self.use_mirror:
@@ -305,13 +307,15 @@ class RamanBenchmark:
                 if names:
                     return list(names)
             except Exception:
-                pass
+                if not self.fallback_to_source:
+                    raise
         try:
             ds = self._load_raman_dataset(dataset_name)
             if ds is not None and ds.target_names:
                 return list(ds.target_names)
         except Exception:
-            pass
+            if not self.fallback_to_source:
+                raise
         return []
 
     # ------------------------------------------------------------------
@@ -420,7 +424,9 @@ class RamanBenchmark:
             dataset = self._load_from_mirror(dataset_name)
             if dataset is not None:
                 return dataset
-            logger.warning("Mirror load failed for %s; falling back to original source", dataset_name)
+            logger.warning(
+                "Mirror load failed for %s; falling back to original source", dataset_name
+            )
         return raman_data(dataset_name, cache_dir=self.cache_dir_raw)
 
     def _load_from_mirror(self, dataset_name: str):
@@ -497,6 +503,8 @@ class RamanBenchmark:
                     elif task_type_str in ["regression", "1"]:
                         task_type = TASK_TYPE.Regression
         except Exception as e:
+            if not self.fallback_to_source:
+                raise
             logger.debug("Could not load metadata.json for %s: %s", dataset_name, e)
 
         # Infer target_names and task_type if not in metadata

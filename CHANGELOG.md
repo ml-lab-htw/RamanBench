@@ -20,7 +20,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
   commit's files already in the Hugging Face cache at `<cache_dir>/datasets_mirror` it loads
   without contacting the Hub.
 - **`fallback_to_source`** for the same three: `False` raises the mirror's error instead of
-  falling back to the original source. The default, `True`, keeps the current behaviour.
+  falling back to the original source. It also raises when `metadata.json` cannot be read
+  (instead of using the parquet column names as targets) and in `get_target_names` (instead
+  of returning `[]`). The default, `True`, keeps the current behaviour.
 
 - **Branch model for benchmark v2** (RELEASING.md, "Branches"): `main` stays benchmark v1 and
   gets new models; the long-lived `v2` branch gets new datasets. `main` is merged into `v2`,
