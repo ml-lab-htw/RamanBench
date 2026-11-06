@@ -12,6 +12,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-11-06
+
 ### Added
 
 - **`mirror_revision`** for `RamanBenchmark`, `configure_benchmark` and `load_dataframe`: the
