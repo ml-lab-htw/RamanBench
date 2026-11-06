@@ -8,8 +8,8 @@ and scores RamanBench v1, and benchmark v2 will be `2.x.y`. This rule holds sinc
 | Bump | When | Examples |
 |---|---|---|
 | **MAJOR** | A new benchmark version: anything that makes new scores incomparable with the published ones | datasets or targets added/removed from the protocol, different outer folds or repeats, a different metric, time budget or scoring (Elo/imputation) rule |
-| **MINOR** | Anything new within the same benchmark, including an API break | a new model, a new feature or CLI command, rebuilt reference results (reruns, new models), removing or renaming a public function |
-| **PATCH** | Fixes that change nothing above | a bug fix, a packaging or dependency fix, docs |
+| **MINOR** | A new model, or an API break within the same benchmark | a new model (with its reference results), removing or renaming a public function |
+| **PATCH** | Everything else that does not change the protocol: features, CLI commands, fixes, packaging, docs | a bug fix, a new feature or CLI command, a packaging or dependency fix, docs |
 
 Notes:
 
