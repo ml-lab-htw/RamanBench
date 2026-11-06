@@ -230,6 +230,8 @@ def load_dataframe(
     cache_dir: str = ".cache_v1",
     use_mirror: bool = True,
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+    mirror_revision: str = "main",
+    fallback_to_source: bool = True,
 ):
     """Load one (dataset, target) as a dataframe, the way every v1 runner does.
 
@@ -240,7 +242,8 @@ def load_dataframe(
     :func:`build_task`.
 
     Uses ``RamanBenchmark``'s mirror-first loading (with fallback to the original
-    source); ``use_mirror=False`` forces the original source.
+    source unless ``fallback_to_source=False``); ``use_mirror=False`` forces the
+    original source. *mirror_revision* is the mirror's branch, tag or commit hash.
     """
     from raman_data import TASK_TYPE
 
@@ -252,6 +255,8 @@ def load_dataframe(
         cache_dir=cache_dir,
         use_mirror=use_mirror,
         mirror_repo=mirror_repo,
+        mirror_revision=mirror_revision,
+        fallback_to_source=fallback_to_source,
     )
     dataset = bench._load_raman_dataset(dataset_name)
     if dataset is None:

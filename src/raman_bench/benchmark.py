@@ -82,6 +82,8 @@ def configure_benchmark(config, init_benchmark: bool = True) -> "RamanBenchmark"
         group_regression_splits=config.get("group_regression_splits", True),
         use_mirror=config.get("use_mirror", True),
         mirror_repo=config.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench"),
+        mirror_revision=config.get("mirror_revision", "main"),
+        fallback_to_source=config.get("fallback_to_source", True),
     )
 
     if init_benchmark:
@@ -120,6 +122,15 @@ class RamanBenchmark:
     mirror_repo : str
         HuggingFace dataset repo ID for the mirror (default
         ``"HTW-KI-Werkstatt/RamanBench"``).
+    mirror_revision : str
+        Branch, tag or commit hash of the mirror to load (default ``"main"``). A
+        commit hash makes a run reproducible. With that commit's files already in
+        the Hugging Face cache at ``<cache_dir>/datasets_mirror``, it loads without
+        contacting the Hub.
+    fallback_to_source : bool
+        If ``True`` (default), a failed mirror load falls back to the original
+        source via raman-data. If ``False``, it raises the mirror's error, also when
+        ``metadata.json`` cannot be read and in :meth:`get_target_names`.
 
     Examples
     --------
@@ -145,6 +156,8 @@ class RamanBenchmark:
         group_regression_splits: bool = True,
         use_mirror: bool = True,
         mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+        mirror_revision: str = "main",
+        fallback_to_source: bool = True,
     ):
         if not cache_dir:
             cache_dir = ".cache"
@@ -157,6 +170,13 @@ class RamanBenchmark:
         self.cache_dir_processed = os.path.join(
             cache_dir, "datasets_processed", f"seed_{random_state}"
         )
+        # A pinned mirror revision gets its own split cache: splits are built from the
+        # mirror's data, so another revision's splits must not be reused. The default
+        # ("main") keeps the existing path, so existing caches stay valid.
+        if use_mirror and mirror_revision != "main":
+            self.cache_dir_processed = os.path.join(
+                self.cache_dir_processed, f"revision_{mirror_revision.replace('/', '_')}"
+            )
         os.makedirs(self.cache_dir_processed, exist_ok=True)
 
         self.test_size = test_size
@@ -165,6 +185,8 @@ class RamanBenchmark:
         self.group_regression_splits = group_regression_splits
         self.use_mirror = use_mirror
         self.mirror_repo = mirror_repo
+        self.mirror_revision = mirror_revision
+        self.fallback_to_source = fallback_to_source
 
         if dataset_names_classification is None:
             self.dataset_names_classification = raman_data(
@@ -265,7 +287,8 @@ class RamanBenchmark:
 
         Lightweight: reads only the cached mirror ``metadata.json`` (the same
         source used during loading); falls back to loading the dataset if the
-        metadata is unavailable. Returns ``[]`` on failure. Used to resolve
+        metadata is unavailable. Returns ``[]`` on failure, or raises if
+        ``fallback_to_source`` is False. Used to resolve
         ``exclude_targets`` (target names) to per-target keys.
         """
         if self.use_mirror:
@@ -276,6 +299,7 @@ class RamanBenchmark:
                     repo_id=self.mirror_repo,
                     filename=f"{dataset_name}/metadata.json",
                     repo_type="dataset",
+                    revision=self.mirror_revision,
                     cache_dir=self.cache_dir_raw,
                 )
                 with open(metadata_path) as f:
@@ -283,13 +307,15 @@ class RamanBenchmark:
                 if names:
                     return list(names)
             except Exception:
-                pass
+                if not self.fallback_to_source:
+                    raise
         try:
             ds = self._load_raman_dataset(dataset_name)
             if ds is not None and ds.target_names:
                 return list(ds.target_names)
         except Exception:
-            pass
+            if not self.fallback_to_source:
+                raise
         return []
 
     # ------------------------------------------------------------------
@@ -390,15 +416,17 @@ class RamanBenchmark:
     def _load_raman_dataset(self, dataset_name: str):
         """Load dataset from mirror or original source.
 
-        If use_mirror is True, loads from HuggingFace mirror repo with fallback
-        to original sources. Otherwise, downloads from original sources via raman_data().
+        If use_mirror is True, loads from HuggingFace mirror repo, falling back to
+        original sources unless fallback_to_source is False. Otherwise, downloads
+        from original sources via raman_data().
         """
         if self.use_mirror:
             dataset = self._load_from_mirror(dataset_name)
             if dataset is not None:
                 return dataset
-            # Fallback to original source if mirror fails
-            logger.debug("Mirror load failed for %s; falling back to original source", dataset_name)
+            logger.warning(
+                "Mirror load failed for %s; falling back to original source", dataset_name
+            )
         return raman_data(dataset_name, cache_dir=self.cache_dir_raw)
 
     def _load_from_mirror(self, dataset_name: str):
@@ -417,9 +445,12 @@ class RamanBenchmark:
                 repo_id=self.mirror_repo,
                 filename=f"{dataset_name}/data/train-00000-of-00001.parquet",
                 repo_type="dataset",
+                revision=self.mirror_revision,
                 cache_dir=self.cache_dir_raw,
             )
         except Exception as e:
+            if not self.fallback_to_source:
+                raise
             logger.warning("Failed to load %s from mirror: %s", dataset_name, e)
             return None
 
@@ -427,6 +458,8 @@ class RamanBenchmark:
         try:
             df = pd.read_parquet(parquet_path)
         except Exception as e:
+            if not self.fallback_to_source:
+                raise
             logger.warning("Failed to read parquet for %s: %s", dataset_name, e)
             return None
 
@@ -453,6 +486,7 @@ class RamanBenchmark:
                 repo_id=self.mirror_repo,
                 filename=f"{dataset_name}/metadata.json",
                 repo_type="dataset",
+                revision=self.mirror_revision,
                 cache_dir=self.cache_dir_raw,
             )
             with open(metadata_path) as f:
@@ -469,6 +503,8 @@ class RamanBenchmark:
                     elif task_type_str in ["regression", "1"]:
                         task_type = TASK_TYPE.Regression
         except Exception as e:
+            if not self.fallback_to_source:
+                raise
             logger.debug("Could not load metadata.json for %s: %s", dataset_name, e)
 
         # Infer target_names and task_type if not in metadata
