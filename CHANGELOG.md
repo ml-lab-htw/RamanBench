@@ -23,6 +23,20 @@ The full rules are in [RELEASING.md](RELEASING.md).
   falling back to the original source. It also raises when `metadata.json` cannot be read
   (instead of using the parquet column names as targets) and in `get_target_names` (instead
   of returning `[]`). The default, `True`, keeps the current behaviour.
+- **Batch runner** (`scripts/run_experiment_batch.py`): runs a JSON Lines jobspec of
+  `run_experiment.py` jobs in one process, so imports, CUDA start-up, dataset loading and model
+  checkpoints are paid once per process instead of once per fit. Results go where
+  `run_experiment.py` writes them. Several runners can share one GPU and one jobspec
+  (`--claim-dir`, `--worker-index`/`--n-workers`); `--exclusive-models` runs memory-hungry
+  models alone on the GPU. Per-stage timings per job with `--timings-out`. Exit code 2 means
+  some jobs failed and the rest ran.
+- **Per-spectrum preprocessing cache** (`raman_bench.preprocessing.spectrum_cache`): the
+  row-wise recipe steps (crop, cosmic-ray removal, Savitzky-Golay, wavelet, AsLS/airPLS/arPLS,
+  rubberband) are computed once per spectrum and parameter set, in memory. Off unless the
+  runner switches it on.
+- **`--prep-workers`** (`raman_bench.preprocessing.parallel`): runs the row-wise steps in a
+  process pool. Results equal the serial ones, except Savitzky-Golay, which can differ in the
+  last bits.
 
 - **Branch model for benchmark v2** (RELEASING.md, "Branches"): `main` stays benchmark v1 and
   gets new models; the long-lived `v2` branch gets new datasets. `main` is merged into `v2`,
