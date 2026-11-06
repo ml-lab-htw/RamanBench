@@ -578,19 +578,14 @@ class RamanPreprocessingMixin:
         searchspace.update(build_restricted_searchspace(restriction))
         return searchspace
 
-    def _preprocess_fit(self, X: np.ndarray) -> np.ndarray:
-        """Fit stateful preprocessing and transform training data.
-
-        Parameters
-        ----------
-        X : np.ndarray, shape (n_samples, n_features)
-
-        Returns
-        -------
-        np.ndarray, shape (n_samples, n_features)
+    def _apply_spectrumwise_steps(self, X: np.ndarray, params: dict, phase: str) -> np.ndarray:
+        """Crop, cosmic-ray removal, smoothing and baseline correction: the leading steps that
+        act on each spectrum alone, with no state fitted on the training fold. Shared by
+        ``_preprocess_fit`` and ``_preprocess_transform`` (identical there before 2026-11-05,
+        apart from log text); ``phase`` only labels the log lines. Because each output row
+        depends only on its input row and ``params``, ``_spectrumwise`` may serve rows from
+        :mod:`raman_bench.preprocessing.spectrum_cache` instead of recomputing them.
         """
-        params = self._get_model_params()
-
         if params.get("prep_crop_physical_enabled", False):
             if getattr(self, "_wavenumbers", None) is None:
                 raise ValueError(
@@ -606,7 +601,7 @@ class RamanPreprocessingMixin:
                 )
             start_cm = params.get("prep_crop_physical_start_cm", 400.0)
             end_cm = params.get("prep_crop_physical_end_cm", 1800.0)
-            if params.get("prep_crop_enabled", False):
+            if phase == "Fit" and params.get("prep_crop_enabled", False):
                 logger.warning(
                     "Both prep_crop_physical_enabled and prep_crop_enabled (fractional) "
                     "are True; crop_physical runs first (it needs the original, "
@@ -616,7 +611,7 @@ class RamanPreprocessingMixin:
                     "forbidden."
                 )
             logger.debug(
-                "Fit — crop_physical (true wavenumber axis): start_cm=%s, end_cm=%s",
+                f"{phase} — crop_physical (true wavenumber axis): start_cm=%s, end_cm=%s",
                 start_cm,
                 end_cm,
             )
@@ -626,7 +621,7 @@ class RamanPreprocessingMixin:
             start_frac = params.get("prep_crop_start_frac", 0.15)
             end_frac = params.get("prep_crop_end_frac", 0.75)
             logger.debug(
-                "Fit — crop (fingerprint-region proxy): start_frac=%s, end_frac=%s",
+                f"{phase} — crop (fingerprint-region proxy): start_frac=%s, end_frac=%s",
                 start_frac,
                 end_frac,
             )
@@ -636,7 +631,7 @@ class RamanPreprocessingMixin:
             threshold = params.get("prep_crr_threshold", 6)
             kernel_size = params.get("prep_crr_kernel_size", 3)
             logger.debug(
-                "Fit — cosmic ray removal: threshold=%s, kernel_size=%s",
+                f"{phase} — cosmic ray removal: threshold=%s, kernel_size=%s",
                 threshold,
                 kernel_size,
             )
@@ -646,7 +641,7 @@ class RamanPreprocessingMixin:
             window_length = params.get("prep_denoise_wl", 9)
             polyorder = params.get("prep_denoise_po", 3)
             logger.debug(
-                "Fit — denoising (Savitzky-Golay): window_length=%s, polyorder=%s",
+                f"{phase} — denoising (Savitzky-Golay): window_length=%s, polyorder=%s",
                 window_length,
                 polyorder,
             )
@@ -656,7 +651,7 @@ class RamanPreprocessingMixin:
             wavelet_name = params.get("prep_wavelet_name", "sym7")
             wavelet_level = params.get("prep_wavelet_level", 4)
             logger.debug(
-                "Fit — denoising (wavelet threshold): wavelet=%s, level=%s",
+                f"{phase} — denoising (wavelet threshold): wavelet=%s, level=%s",
                 wavelet_name,
                 wavelet_level,
             )
@@ -667,7 +662,7 @@ class RamanPreprocessingMixin:
             p = params.get("prep_bl_p", 0.01)
             if lam > 0 and 0 < p < 1:
                 logger.debug(
-                    "Fit — baseline correction (ASLS): lam=%s, p=%s",
+                    f"{phase} — baseline correction (ASLS): lam=%s, p=%s",
                     lam,
                     p,
                 )
@@ -678,7 +673,7 @@ class RamanPreprocessingMixin:
             max_iter = params.get("prep_airpls_max_iter", 15)
             tol = params.get("prep_airpls_tol", 1e-3)
             logger.debug(
-                "Fit — baseline correction (airPLS): lam=%s, max_iter=%s, tol=%s",
+                f"{phase} — baseline correction (airPLS): lam=%s, max_iter=%s, tol=%s",
                 lam,
                 max_iter,
                 tol,
@@ -689,15 +684,54 @@ class RamanPreprocessingMixin:
             lam = params.get("prep_arpls_lam", 1e5)
             max_iter = params.get("prep_arpls_max_iter", 15)
             logger.debug(
-                "Fit — baseline correction (arPLS): lam=%s, max_iter=%s",
+                f"{phase} — baseline correction (arPLS): lam=%s, max_iter=%s",
                 lam,
                 max_iter,
             )
             X = baseline_correction_arpls(X, lam=lam, max_iter=max_iter)
 
         if params.get("prep_rubberband_enabled", False):
-            logger.debug("Fit — baseline correction (rubberband / convex hull)")
+            logger.debug(f"{phase} — baseline correction (rubberband / convex hull)")
             X = rubberband_correction(X)
+        return X
+
+    def _spectrumwise(self, X: np.ndarray, params: dict, phase: str) -> np.ndarray:
+        """Apply :meth:`_apply_spectrumwise_steps`, through the spectrum cache if enabled and
+        in row chunks across worker processes if :mod:`raman_bench.preprocessing.parallel` is
+        configured. Rows computed while ``_fit`` transforms an augmented training set are not
+        stored in the cache (fresh random copies, never requested again)."""
+        from raman_bench.preprocessing import parallel
+        from raman_bench.preprocessing.spectrum_cache import get_cache, step_key
+
+        wavenumbers = getattr(self, "_wavenumbers", None)
+
+        def compute(Z: np.ndarray) -> np.ndarray:
+            if parallel.use_rows(len(Z)):
+                return parallel.spectrumwise_rows(Z, params, phase, wavenumbers)
+            return self._apply_spectrumwise_steps(Z, params, phase)
+
+        key = step_key(params, wavenumbers)
+        cache = get_cache()
+        if key is None or cache is None:
+            return compute(X)
+        return cache.apply(
+            X, key, compute, store=not getattr(self, "_prep_fitting_augmented", False)
+        )
+
+    def _preprocess_fit(self, X: np.ndarray) -> np.ndarray:
+        """Fit stateful preprocessing and transform training data.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_features)
+
+        Returns
+        -------
+        np.ndarray, shape (n_samples, n_features)
+        """
+        params = self._get_model_params()
+
+        X = self._spectrumwise(X, params, "Fit")
 
         if params.get("prep_msc_enabled", False):
             start_frac = params.get("prep_msc_start_frac", 0.0)
@@ -837,104 +871,7 @@ class RamanPreprocessingMixin:
         if params is None:
             params = self._get_model_params()
 
-        if params.get("prep_crop_physical_enabled", False):
-            if getattr(self, "_wavenumbers", None) is None:
-                raise ValueError(
-                    "prep_crop_physical_enabled=True but self._wavenumbers is unset. "
-                    "Physical-axis cropping requires the true wavenumber (cm^-1) value "
-                    "for every input column, captured from X.columns at fit time (see "
-                    "RamanPreprocessingMixin._fit). This is missing here, which means "
-                    "either the input DataFrame's columns were not the true wavenumber "
-                    "axis (e.g. positional/generic column labels), or preprocessing ran "
-                    "through a code path that never captured them. Refusing to silently "
-                    "fall back to fractional-index cropping, since that would produce an "
-                    "uncalibrated crop while claiming to be a physical-axis one."
-                )
-            start_cm = params.get("prep_crop_physical_start_cm", 400.0)
-            end_cm = params.get("prep_crop_physical_end_cm", 1800.0)
-            logger.debug(
-                "Transform — crop_physical (true wavenumber axis): start_cm=%s, end_cm=%s",
-                start_cm,
-                end_cm,
-            )
-            X = crop_spectra_physical(X, self._wavenumbers, start_cm=start_cm, end_cm=end_cm)
-
-        if params.get("prep_crop_enabled", False):
-            start_frac = params.get("prep_crop_start_frac", 0.15)
-            end_frac = params.get("prep_crop_end_frac", 0.75)
-            logger.debug(
-                "Transform — crop (fingerprint-region proxy): start_frac=%s, end_frac=%s",
-                start_frac,
-                end_frac,
-            )
-            X = crop_spectra(X, start_frac=start_frac, end_frac=end_frac)
-
-        if params.get("prep_crr_enabled", False):
-            threshold = params.get("prep_crr_threshold", 6)
-            kernel_size = params.get("prep_crr_kernel_size", 3)
-            logger.debug(
-                "Transform — cosmic ray removal: threshold=%s, kernel_size=%s",
-                threshold,
-                kernel_size,
-            )
-            X = cosmic_ray_removal(X, threshold=threshold, kernel_size=kernel_size)
-
-        if params.get("prep_denoise_enabled", False):
-            window_length = params.get("prep_denoise_wl", 9)
-            polyorder = params.get("prep_denoise_po", 3)
-            logger.debug(
-                "Transform — denoising (Savitzky-Golay): window_length=%s, polyorder=%s",
-                window_length,
-                polyorder,
-            )
-            X = denoise_savgol(X, window_length=window_length, polyorder=polyorder)
-
-        if params.get("prep_wavelet_enabled", False):
-            wavelet_name = params.get("prep_wavelet_name", "sym7")
-            wavelet_level = params.get("prep_wavelet_level", 4)
-            logger.debug(
-                "Transform — denoising (wavelet threshold): wavelet=%s, level=%s",
-                wavelet_name,
-                wavelet_level,
-            )
-            X = wavelet_denoise(X, wavelet=wavelet_name, level=wavelet_level)
-
-        if params.get("prep_bl_enabled", False):
-            lam = params.get("prep_bl_lam", 1e5)
-            p = params.get("prep_bl_p", 0.01)
-            if lam > 0 and 0 < p < 1:
-                logger.debug(
-                    "Transform — baseline correction (ASLS): lam=%s, p=%s",
-                    lam,
-                    p,
-                )
-                X = baseline_correction_asls(X, lam=lam, p=p)
-
-        if params.get("prep_airpls_enabled", False):
-            lam = params.get("prep_airpls_lam", 1e5)
-            max_iter = params.get("prep_airpls_max_iter", 15)
-            tol = params.get("prep_airpls_tol", 1e-3)
-            logger.debug(
-                "Transform — baseline correction (airPLS): lam=%s, max_iter=%s, tol=%s",
-                lam,
-                max_iter,
-                tol,
-            )
-            X = baseline_correction_airpls(X, lam=lam, max_iter=max_iter, tol=tol)
-
-        if params.get("prep_arpls_enabled", False):
-            lam = params.get("prep_arpls_lam", 1e5)
-            max_iter = params.get("prep_arpls_max_iter", 15)
-            logger.debug(
-                "Transform — baseline correction (arPLS): lam=%s, max_iter=%s",
-                lam,
-                max_iter,
-            )
-            X = baseline_correction_arpls(X, lam=lam, max_iter=max_iter)
-
-        if params.get("prep_rubberband_enabled", False):
-            logger.debug("Transform — baseline correction (rubberband / convex hull)")
-            X = rubberband_correction(X)
+        X = self._spectrumwise(X, params, "Transform")
 
         if params.get("prep_msc_enabled", False) and hasattr(self, "_msc_reference"):
             start_frac = params.get("prep_msc_start_frac", 0.0)
@@ -1324,6 +1261,9 @@ class RamanPreprocessingMixin:
                     X = pd.DataFrame(X_aug, columns=X.columns, index=range(len(X_aug)))
                     y_name = y.name if hasattr(y, "name") else "target"
                     y = pd.Series(y_np, name=y_name, index=X.index)
+                    # The wrapped model now fits on fresh random copies: _spectrumwise must
+                    # not store them in the spectrum cache. Reset after super()._fit below.
+                    self._prep_fitting_augmented = True
 
         # Strip prep_* params before forwarding to the underlying library
         # constructor (e.g. CatBoostClassifier raises on unknown kwargs).
@@ -1337,6 +1277,7 @@ class RamanPreprocessingMixin:
             return result
         finally:
             self.params.update(prep_params_backup)
+            self._prep_fitting_augmented = False
 
     def _preprocess(self, X, **kwargs):
         """Apply the fitted Raman preprocessing recipe.

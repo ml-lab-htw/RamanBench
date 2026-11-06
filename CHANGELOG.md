@@ -14,6 +14,21 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **Batch runner** (`scripts/run_experiment_batch.py`): runs a JSON Lines jobspec of
+  `run_experiment.py` jobs in one process, so imports, CUDA start-up, dataset loading and model
+  checkpoints are paid once per process instead of once per fit. Results go where
+  `run_experiment.py` writes them. Several runners can share one GPU and one jobspec
+  (`--claim-dir`, `--worker-index`/`--n-workers`); `--exclusive-models` runs memory-hungry
+  models alone on the GPU. Per-stage timings per job with `--timings-out`. Exit code 2 means
+  some jobs failed and the rest ran.
+- **Per-spectrum preprocessing cache** (`raman_bench.preprocessing.spectrum_cache`): the
+  row-wise recipe steps (crop, cosmic-ray removal, Savitzky-Golay, wavelet, AsLS/airPLS/arPLS,
+  rubberband) are computed once per spectrum and parameter set, in memory. Off unless the
+  runner switches it on.
+- **`--prep-workers`** (`raman_bench.preprocessing.parallel`): runs the row-wise steps in a
+  process pool. Results equal the serial ones, except Savitzky-Golay, which can differ in the
+  last bits.
+
 - **Branch model for benchmark v2** (RELEASING.md, "Branches"): `main` stays benchmark v1 and
   gets new models; the long-lived `v2` branch gets new datasets. `main` is merged into `v2`,
   never the other way.
@@ -46,6 +61,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Fixed
 
+- **`import raman_bench` no longer loads a `.env` file** (#165). It searched upward from the
+  package's install location, so it could load an unrelated `.env` into the caller's process.
+  The `raman-bench` CLI, the run scripts and the tests now call `raman_bench.env.load_env()`,
+  which loads the first `.env` found from the working directory upward. Code that imports
+  `raman_bench` and needs the tokens calls it, or loads its own `.env`.
 - **Interactive figures switch between the desktop and phone layout when the window is
   resized**, not only on load. Each switch also resizes the embedding iframe.
 - **Model progress over time (Figure 1b, `elo_vs_release_date`) colours one record per release

@@ -30,6 +30,8 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+from raman_bench.env import load_env
+
 logger = logging.getLogger("run_system")
 
 N_SPLITS = 3
@@ -77,7 +79,7 @@ def run_one(
     (spec,) = [t for t in protocol["tasks"] if t["task"] == task]
     dataset_name, target_idx = spec["dataset"], spec["target_idx"]
 
-    caps = [c for c in (protocol["max_train_samples_overrides"].get(dataset_name), system.max_train_samples) if c]
+    caps = [c for c in (protocol["max_train_samples_overrides"].get(dataset_name), system.train_sample_cap(dataset_name)) if c]
     dataset, df, sample_idx, problem_type = load_dataframe(
         dataset_name,
         target_idx,
@@ -140,6 +142,7 @@ def _run_job(kwargs: dict) -> tuple[str, int, str]:
 
 
 def main() -> None:
+    load_env()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--system", required=True, help="Key of raman_bench.systems.SYSTEMS, e.g. CHAKRA-TAB")
     parser.add_argument("--tasks", nargs="*", help="Protocol tasks (<dataset>__<target_idx>); default: all")
