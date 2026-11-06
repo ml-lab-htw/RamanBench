@@ -8,6 +8,7 @@ Benchmark v2 lives on the long-lived `v2` branch; `main` stays benchmark v1 (see
 
 - `target_list.json`: all v2 targets. `since` says where a target comes from: `"v1"` (the 135
   targets of `configs/v1/target_list.json`, unchanged) or `"v2"` (67, of which 41 run).
+- `datasets/v2_all.json`: all 111 datasets of v2 (the 70 of v1 plus the 41 below).
 - `datasets/v2_only.json`: the 41 datasets of the `since: "v2"` targets.
 - `exclusions.json`: v2-only targets that are not run, with a reason, in the format of
   `configs/v1/quality_exclusions.json`.
@@ -38,10 +39,12 @@ groups per class), so v1 results count for v2 as they are.
 
 ## Results
 
-- v1 targets: the v1 results (`results/v1/data`).
-- v2-only targets: `results/v2/data` (BHT PVC `/data/RamanBench_v1/results/v2/data`).
-  `glioma_idh` was swept with the v1 parameters before it moved to v2; its results are copied
-  from `results/v1/data`.
+- All targets, v1 and v2-only: `results/v2/data` (BHT PVC `/data/RamanBench_v1/results/v2/data`).
+  The v1 results were copied there from `results/v1/data` (2026-10-26), so v2 holds the full
+  set. `glioma_idh` was swept with the v1 parameters before it moved to v2; its results are
+  copied from `results/v1/data` too.
+- New models for v1 are swept on `results/v1/data`; their results are copied into
+  `results/v2/data` as well once they finish.
 - `cluster/submit_v2_sweep.py` runs the roster on the v2-only targets (all models except
   Chakra-Tab, which runs through its hosted API, and TABSTAR and AUTOGLUON-EXTREME-4H, which
   are not in the reference).
