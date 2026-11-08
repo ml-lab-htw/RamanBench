@@ -21,6 +21,17 @@ The full rules are in [RELEASING.md](RELEASING.md).
   turns it on. Every model drops the group column itself (`RamanPreprocessingMixin._preprocess`).
 - `data-foundry` in the `benchmark` extra: TabArena's grouped splitter imports it.
 
+### Fixed
+
+- **Torch models are reproducible** (issue #171): the Raman deep models (DeepCNN, ReZeroNet, CoAtNet,
+  FCResNeXt, RamanFormer, RamanNet, RamanTransformer, SANet) and RamanPFN drew weight init, shuffling
+  and augmentation from unseeded numpy and torch generators. Each fit now seeds them from its
+  AutoGluon child seed, and RamanPFN takes that seed as its `random_state`. Two fits of the same cell
+  now give identical predictions (before: differences up to 0.2 in the probabilities of one cell).
+  **This changes the numbers of these models.** Existing v1 results of these models stay as they are
+  until they are refitted. Non-torch models that draw from numpy's global generator also become
+  deterministic; their numbers can change too.
+
 ## [1.4.1] — 2026-11-06
 
 ### Added

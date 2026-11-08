@@ -118,6 +118,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     vector_normalize,
     wavelet_denoise,
 )
+from raman_bench.seeding import model_seed, seed_global_rngs
 from raman_bench.splitting import GROUP_COL
 
 logger = logging.getLogger(__name__)
@@ -1105,6 +1106,8 @@ class RamanPreprocessingMixin:
     # consistent, and ``self.features`` is never touched.
 
     def _fit(self, X, y, **kwargs):
+        # Seed before the augmentation below draws its noise (issue #171).
+        seed_global_rngs(model_seed(self))
         # Pop _prep_restriction so it doesn't reach underlying library constructors.
         prep_restriction = self.params.pop("_prep_restriction", None)
         if prep_restriction is not None:
