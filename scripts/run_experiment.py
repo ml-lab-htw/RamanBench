@@ -176,6 +176,7 @@ def run_one(
     scratch_dir: str | None = None,
     min_samples_per_class: int = 9,
     min_groups_per_class: int = 0,
+    inner_group_folds: bool = False,
     filter_unlabeled: bool = True,
     recipe_config: str | None = None,
     max_train_samples: int | None = None,
@@ -338,6 +339,7 @@ def run_one(
         min_samples_per_class=min_samples_per_class,
         min_groups_per_class=min_groups_per_class,
         filter_unlabeled=filter_unlabeled,
+        inner_group_folds=inner_group_folds,
     )
     if task_wrapper is None:
         return None
@@ -418,6 +420,7 @@ def run_one(
         time_limit=time_limit,
         num_bag_folds=effective_num_bag_folds,
         scratch_dir=scratch_dir,
+        task_specific_validation=inner_group_folds,
     )
     if extra_model_hyperparameters:
         generate_kwargs["extra_model_hyperparameters"] = extra_model_hyperparameters
@@ -556,6 +559,12 @@ def main():
         "(needs group ids). 0 (default, benchmark v1) disables it; benchmark v2 uses 3.",
     )
     parser.add_argument(
+        "--inner-group-folds",
+        action="store_true",
+        help="Build group-disjoint inner bagging folds on grouped tasks (issue #162). Off for "
+        "benchmark v1 (reproducibility); benchmark v2 turns it on.",
+    )
+    parser.add_argument(
         "--min-samples-per-class",
         type=int,
         default=9,
@@ -595,6 +604,7 @@ def main():
         scratch_dir=args.scratch_dir,
         min_samples_per_class=args.min_samples_per_class,
         min_groups_per_class=args.min_groups_per_class,
+        inner_group_folds=args.inner_group_folds,
         filter_unlabeled=not args.keep_unlabeled,
         recipe_config=args.recipe_config,
         max_train_samples=args.max_train_samples,
