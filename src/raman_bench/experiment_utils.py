@@ -176,6 +176,7 @@ def build_task(
     min_samples_per_class: int = 9,
     filter_unlabeled: bool = True,
     min_groups_per_class: int = 0,
+    inner_group_folds: bool = False,
 ) -> tuple[str, RamanBenchTaskWrapper] | tuple[None, None]:
     """Clean and split an already-loaded (dataset, target) dataframe into a TabArena task.
 
@@ -218,7 +219,7 @@ def build_task(
         n_splits=n_splits,
         group_col=GROUP_COL if GROUP_COL in df.columns else None,
     )
-    task_wrapper = RamanBenchTaskWrapper(task=task_obj)
+    task_wrapper = RamanBenchTaskWrapper(task=task_obj, keep_group_col=inner_group_folds)
     return task_name, task_wrapper
 
 
@@ -284,6 +285,7 @@ def bag_experiment_kwargs(
     num_bag_folds: int,
     scratch_dir: str | None = None,
     verbosity: int | None = None,
+    task_specific_validation: bool = False,
 ) -> dict:
     """Keyword arguments for ``ConfigGenerator.generate_all_bag_experiments``.
 
@@ -292,6 +294,10 @@ def bag_experiment_kwargs(
     - TabArena's ``AGModelBagExperiment`` takes the bagging count from a
       ``ValidationProtocol``; ``num_bag_folds`` stays at the configured value
       regardless of dataset size (2026-09-25 decision, no small-dataset scaling).
+    - ``task_specific_validation`` is off for v1, so the inner bagging folds are plain
+      stratified folds and results stay reproducible. Benchmark v2 turns it on, which
+      builds group-disjoint inner folds on grouped tasks (issue #162). It must go with
+      ``build_task(inner_group_folds=True)``, which keeps the group column for the splitter.
     - ``require_warmup=False``: TabArena's pre-flight "dummy fit" fails for every
       RamanBench custom model (they are not in the model registry TabArena's warm-up
       was built against), so it is disabled.
@@ -309,7 +315,10 @@ def bag_experiment_kwargs(
     kwargs = dict(
         num_random_configs=num_random_configs,
         time_limit=time_limit,
-        validation_protocol=ValidationProtocol(num_bag_folds=num_bag_folds),
+        validation_protocol=ValidationProtocol(
+            num_bag_folds=num_bag_folds,
+            task_specific_validation=task_specific_validation,
+        ),
         fold_fitting_strategy="sequential_local",
         experiment_kwargs={"require_warmup": False},
         add_seed="fold-config-wise",
