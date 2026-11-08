@@ -111,6 +111,9 @@ autogluon = [
 ]
 benchmark = [
     "bencheval>=0.1.0",
+    # TabArena's grouped inner-fold splitter (task-specific validation, issue #162) imports
+    # this; without it, `inner_group_folds=True` fails inside TabArena.
+    "data-foundry>=0.0.5",
     # `tabarena` itself is NOT declared here. PyPI forbids direct-URL
     # requirements in an uploaded package, and this dependency is pinned to a
     # specific upstream commit rather than a PyPI release (see

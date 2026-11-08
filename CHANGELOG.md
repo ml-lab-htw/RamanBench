@@ -12,6 +12,15 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Group-aware inner bagging folds** (`build_task(inner_group_folds=True)`, `run_experiment.py
+  --inner-group-folds`): on grouped tasks, the inner folds that bagging builds inside each training
+  split keep each group on one side, so inner validation scores are no longer inflated by replicate
+  spectra. Off by default: benchmark v1 keeps plain inner folds for reproducibility, and benchmark v2
+  turns it on. Every model drops the group column itself (`RamanPreprocessingMixin._preprocess`).
+- `data-foundry` in the `benchmark` extra: TabArena's grouped splitter imports it.
+
 ## [1.4.1] — 2026-11-06
 
 ### Added

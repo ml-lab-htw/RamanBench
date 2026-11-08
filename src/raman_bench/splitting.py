@@ -193,12 +193,17 @@ class RamanBenchTaskWrapper(OpenMLTaskWrapper):
     group-id column from the feature matrix handed to models -- confirmed by
     direct testing, not merely reading the source. Without this fix, a model
     would be fit with the group id as an ordinary feature.
+
+    ``keep_group_col=True`` (benchmark v2, inner group folds) keeps the column in X,
+    so TabArena's task-specific validation can build group-disjoint inner folds from
+    it. Every model then drops it itself (see ``RamanPreprocessingMixin._preprocess``).
     """
 
-    def __init__(self, task, **kwargs):
+    def __init__(self, task, *, keep_group_col: bool = False, **kwargs):
         super().__init__(task, **kwargs)
+        self.keep_group_col = keep_group_col
         group_cols = self._group_cols()
-        if group_cols and not self.lazy_load_data:
+        if group_cols and not keep_group_col and not self.lazy_load_data:
             self.X = self.X.drop(columns=group_cols)
 
     def _group_cols(self) -> list[str]:
@@ -210,7 +215,7 @@ class RamanBenchTaskWrapper(OpenMLTaskWrapper):
     def get_train_test_split(self, *args, **kwargs):
         X_train, y_train, X_test, y_test = super().get_train_test_split(*args, **kwargs)
         group_cols = self._group_cols()
-        if group_cols:
+        if group_cols and not self.keep_group_col:
             X_train = X_train.drop(columns=[c for c in group_cols if c in X_train.columns])
             X_test = X_test.drop(columns=[c for c in group_cols if c in X_test.columns])
         return X_train, y_train, X_test, y_test

@@ -118,6 +118,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     vector_normalize,
     wavelet_denoise,
 )
+from raman_bench.splitting import GROUP_COL
 
 logger = logging.getLogger(__name__)
 
@@ -1292,6 +1293,10 @@ class RamanPreprocessingMixin:
         validation scoring) and the case where the recipe has already been
         applied to this X are passed through untouched.
         """
+        # The group id is only present in benchmark v2's inner group folds (see
+        # RamanBenchTaskWrapper.keep_group_col): it is needed by TabArena's splitter, not as a feature.
+        if isinstance(X, pd.DataFrame) and GROUP_COL in X.columns:
+            X = X.drop(columns=[GROUP_COL])
         recipe = getattr(self, "_prep_recipe", None)
         if recipe is None or not isinstance(X, pd.DataFrame):
             return super()._preprocess(X, **kwargs)
