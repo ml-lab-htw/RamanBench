@@ -154,6 +154,9 @@ models = [
     # requirements-tabarena-git.txt, which installs the extras-qualified form
     # and satisfies both this extra's and `benchmark`'s tabarena requirement
     # in one shot.
+    # perpetual>=2.2.0: 2.1.0 (the version TabArena's extra resolves to) hits the host-RAM
+    # OOM of upstream perpetual-ml/perpetual#91; 2.2.0 carries the fix. See RamanBench #41.
+    "perpetual>=2.2.0",
     # perpetualboosting/chimeraboost (batch 2 of the TabArena-native onboarding) pull
     # in their own third-party package below TabArena's own `pip_extra` metadata
     # (perpetual, chimeraboost>=0.14.1 respectively -- see

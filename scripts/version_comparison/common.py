@@ -17,7 +17,7 @@ from raman_bench.plotting import models as info
 # Not ranked: baselines and ensembles of the ranked models. RamanPFN is left out because it was
 # developed on the RamanBench datasets, so comparing it would not be fair; TabSTAR is not on the leaderboard.
 EXCLUDE = {"RAMANPFN", "DUMMY", "AUTOGLUON", "AUTOGLUON-EXTREME-1H", "AUTOGLUON-EXTREME-5M",
-           "AUTOGLUON-EXTREME-4H", "TABSTAR"}
+           "AUTOGLUON-EXTREME-4H", "TABSTAR_V1P1"}
 
 # Figure categories: the leaderboard's categories, with tree ensembles and boosting merged.
 # key, label, base colour (Okabe-Ito-like, colour-blind safe)

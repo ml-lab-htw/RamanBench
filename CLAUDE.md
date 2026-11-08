@@ -19,7 +19,7 @@ feature independent of the removed execution pipeline, not part of it.
 - Main branch contains the completed v1 refactor (TabArena integration, k-fold CV, new preprocessing)
 - Cluster support now includes both SLURM (HTW/TU) and Kubernetes backends
   (`cluster/submit_job.py`'s backend dispatch)
-- `tabarena` is pinned to a commit of our fork (`mario-koddenbrock/tabarena`), not a PyPI
+- `tabarena` is pinned to a commit of upstream `autogluon/tabarena` main, not a PyPI
   release: PyPI forbids git dependencies, so it is installed from
   `requirements-tabarena-git.txt`, whose comments give the pin history and why
 
@@ -167,5 +167,5 @@ If you're about to start significant work, create a feature branch, but assume m
 - PyPI: https://pypi.org/project/raman-bench/
 - Paper: https://arxiv.org/abs/2605.02003 (accepted at NeurIPS 2026)
 - Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
-- Upstream TabArena: https://github.com/autogluon/tabarena (the pin is on our fork, https://github.com/mario-koddenbrock/tabarena)
+- Upstream TabArena: https://github.com/autogluon/tabarena 
 - raman_data: https://github.com/ml-lab-htw/raman_data

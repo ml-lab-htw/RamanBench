@@ -21,11 +21,13 @@ from pathlib import Path
 
 import pytest
 
+from tabarena.benchmark.validation_protocol import ValidationProtocol
+
 pytest.importorskip("tabarena")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# NORI, SAP_RPT_OSS, ORIONMSP, and LIMIX all wrap an upstream ConfigGenerator with
+# NORI, SAP_RPT_OSS, ORIONMSP, LIMIX, TABSTAR_V1P1 and TABH2O all wrap an upstream ConfigGenerator with
 # an empty search space (manual/default config only -- see each generate/<key>.py's
 # docstring); requesting more than the default config from an empty space raises
 # ExhaustedSearchSpaceError. ILTM's upstream generator is a CustomAGConfigGenerator
@@ -33,7 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # TABSTAR's is a plain ConfigGenerator with a real (6-knob, all-categorical)
 # autogluon.common.space search space -- both can generate additional random
 # configs.
-_NO_RANDOM_HPO = {"NORI", "SAP_RPT_OSS", "ORIONMSP", "LIMIX"}
+_NO_RANDOM_HPO = {"NORI", "SAP_RPT_OSS", "ORIONMSP", "LIMIX", "TABSTAR_V1P1", "TABH2O"}
 
 TABARENA_BATCH3_KEYS = [
     "NORI",
@@ -41,7 +43,8 @@ TABARENA_BATCH3_KEYS = [
     "ORIONMSP",
     "ILTM",
     "LIMIX",
-    "TABSTAR",
+    "TABSTAR_V1P1",
+    "TABH2O",
 ]
 
 # All six are pretrained/fine-tuned tabular foundation models -- unlike batch 2's
@@ -140,7 +143,7 @@ def test_generator_resolves_and_matches_registry(key, run_experiment):
     experiments = gen.generate_all_bag_experiments(
         num_random_configs=num_random_configs,
         time_limit=60,
-        num_bag_folds=2,
+        validation_protocol=ValidationProtocol(num_bag_folds=2),
         fold_fitting_strategy="sequential_local",
         add_seed="fold-config-wise",
     )
