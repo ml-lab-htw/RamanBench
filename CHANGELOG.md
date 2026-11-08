@@ -12,6 +12,15 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **Group-aware inner bagging folds are on by default for benchmark v1** (issue #162). On grouped
+  tasks, the inner folds that bagging builds inside each training split keep each group on one side.
+  `build_task`, `bag_experiment_kwargs` and `run_experiment.py` default to it. `--no-inner-group-folds`
+  gives the old plain folds. **This changes the v1 results of every grouped task.** Results computed
+  before this change are not comparable with results computed after it, and the bundled v1 reference
+  (`data/precomputed/v1/`) still holds the old numbers until those tasks are rerun.
+
 ### Added
 
 - **Group-aware inner bagging folds** (`build_task(inner_group_folds=True)`, `run_experiment.py

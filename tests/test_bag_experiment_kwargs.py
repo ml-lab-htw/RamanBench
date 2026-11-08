@@ -15,12 +15,12 @@ def _kwargs(**extra):
     return bag_experiment_kwargs(num_random_configs=0, time_limit=60.0, num_bag_folds=3, **extra)
 
 
-def test_task_specific_validation_is_off_by_default():
+def test_task_specific_validation_is_on_by_default():
     protocol = _kwargs()["validation_protocol"]
     assert protocol.num_bag_folds == 3
-    assert protocol.task_specific_validation is False
-
-
-def test_task_specific_validation_can_be_switched_on():
-    protocol = _kwargs(task_specific_validation=True)["validation_protocol"]
     assert protocol.task_specific_validation is True
+
+
+def test_task_specific_validation_can_be_switched_off():
+    protocol = _kwargs(task_specific_validation=False)["validation_protocol"]
+    assert protocol.task_specific_validation is False

@@ -176,7 +176,7 @@ def build_task(
     min_samples_per_class: int = 9,
     filter_unlabeled: bool = True,
     min_groups_per_class: int = 0,
-    inner_group_folds: bool = False,
+    inner_group_folds: bool = True,
 ) -> tuple[str, RamanBenchTaskWrapper] | tuple[None, None]:
     """Clean and split an already-loaded (dataset, target) dataframe into a TabArena task.
 
@@ -285,7 +285,7 @@ def bag_experiment_kwargs(
     num_bag_folds: int,
     scratch_dir: str | None = None,
     verbosity: int | None = None,
-    task_specific_validation: bool = False,
+    task_specific_validation: bool = True,
 ) -> dict:
     """Keyword arguments for ``ConfigGenerator.generate_all_bag_experiments``.
 

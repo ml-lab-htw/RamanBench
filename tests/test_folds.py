@@ -81,7 +81,7 @@ def test_inferred_regression_groups_keep_the_label_last():
 
     _, wrapper = build_task(
         dataset_name="toy", target_idx=0, df=raw.copy(), raw_targets=raw["target"].to_numpy()[:, None],
-        problem_type="regression", n_repeats=1, n_splits=3,
+        problem_type="regression", n_repeats=1, n_splits=3, inner_group_folds=False,
     )
     assert wrapper.label == "target" and GROUP_COL not in wrapper.X.columns
     train_pos, test_pos = wrapper.get_split_indices(fold=0, repeat=0)
