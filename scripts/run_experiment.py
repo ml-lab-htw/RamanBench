@@ -176,7 +176,7 @@ def run_one(
     scratch_dir: str | None = None,
     min_samples_per_class: int = 9,
     min_groups_per_class: int = 0,
-    inner_group_folds: bool = False,
+    inner_group_folds: bool = True,
     filter_unlabeled: bool = True,
     recipe_config: str | None = None,
     max_train_samples: int | None = None,
@@ -560,9 +560,11 @@ def main():
     )
     parser.add_argument(
         "--inner-group-folds",
-        action="store_true",
-        help="Build group-disjoint inner bagging folds on grouped tasks (issue #162). Off for "
-        "benchmark v1 (reproducibility); benchmark v2 turns it on.",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Build group-disjoint inner bagging folds on grouped tasks (issue #162). On by "
+        "default for benchmark v1 and v2; --no-inner-group-folds reproduces the old plain "
+        "inner folds (results from before the change are not comparable).",
     )
     parser.add_argument(
         "--min-samples-per-class",
