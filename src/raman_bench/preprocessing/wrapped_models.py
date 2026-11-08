@@ -239,6 +239,11 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "FTFMModel": "tabarena.models.ftfm.model",
     "TabSTARv1p1Model": "tabarena.models.tabstar_v1p1.model",
     "TabH2OModel": "tabarena.models.tabh2o.model",
+    "SeldonModel": "tabarena.models.seldon.model",
+    "SeldonMiniModel": "tabarena.models.seldon.model",
+    "TabAbaxModel": "tabarena.models.tababax.model",
+    "AgenticMLPModel": "tabarena.models.agentic_mlp.model",
+    "AgenticTabMModel": "tabarena.models.agentic_tabm.model",
     "PrismBoostModel": "tabarena.models.prismboost.model",
 }
 _missing_optional_tabarena_models = []
@@ -980,6 +985,14 @@ Prep_TABSTAR_V1P1 = _make_optional_prep_class(
 # TabH2O (2026-11, upstream TabArena main): GPU, binary/multiclass/regression. ag_key "TA-TABH2O"
 # -> "TABH2O" (staging prefix stripped, as FTFM). Weights are under a non-commercial licence.
 Prep_TABH2O = _make_optional_prep_class("Prep_TABH2O", TabH2OModel, ag_key="TABH2O")
+# Seldon and Seldon-Mini (upstream TA-SELDON / TA-SELDON-MINI): GPU, binary and multiclass only.
+Prep_SELDON = _make_optional_prep_class("Prep_SELDON", SeldonModel, ag_key="SELDON")
+Prep_SELDON_MINI = _make_optional_prep_class("Prep_SELDON_MINI", SeldonMiniModel, ag_key="SELDON-MINI")
+# TabAbax (TA-TABABAX): GPU, binary, multiclass and regression. Installed from git (requirements-models-git.txt).
+Prep_TABABAX = _make_optional_prep_class("Prep_TABABAX", TabAbaxModel, ag_key="TABABAX")
+# Yandex agentic MLP-A and TabM-A (TA-MLP-A / TA-TABM-A): binary, multiclass and regression. Installed from git.
+Prep_MLP_A = _make_optional_prep_class("Prep_MLP_A", AgenticMLPModel, ag_key="MLP-A")
+Prep_TABM_A = _make_optional_prep_class("Prep_TABM_A", AgenticTabMModel, ag_key="TABM-A")
 # PrismBoost (2026-10-09, autogluon/tabarena#629): gradient boosting with SEFR oblique
 # splits. CPU, single-threaded C++ core (``num_cpus`` is unused upstream), all problem
 # types, no max_features/max_rows/max_classes cap. Its wrapper hands 95% of the remaining
@@ -1477,6 +1490,11 @@ PREPROCESSED_MODELS = {
     "FTFM": Prep_FTFM,
     "TABSTAR_V1P1": Prep_TABSTAR_V1P1,
     "TABH2O": Prep_TABH2O,
+    "SELDON": Prep_SELDON,
+    "SELDON-MINI": Prep_SELDON_MINI,
+    "TABABAX": Prep_TABABAX,
+    "MLP-A": Prep_MLP_A,
+    "TABM-A": Prep_TABM_A,
     "PRISMBOOST": Prep_PRISMBOOST,
 }
 

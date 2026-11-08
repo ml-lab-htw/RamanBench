@@ -29,3 +29,11 @@ tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git
 # research/education use only. Fine for RamanBench's own academic benchmarking; flag
 # this before using Prep_EXAONE_TABULAR in any commercial context.
 exaonetabular @ git+https://github.com/LGAI-Research/EXAONE-Tabular.git@cf55bd2d74aeb9c0b5d5d4f509d05831251a827e
+
+# TabAbax  -> Prep_TABABAX   (tabarena.models.tababax.model.TabAbaxModel; pin = tabarena's pip_extra)
+tababax @ git+https://github.com/tababax-research/TabAbax.git@125d26850015597ed371993f3a00375806c0f32c
+
+# Yandex agentic MLP-A and TabM-A  -> Prep_MLP_A, Prep_TABM_A   (tabarena.models.agentic_{mlp,tabm}; pin = tabarena's pip_extra)
+# TabM-A also needs loguru, which the torch extra does not install.
+agentic-tabular[torch] @ git+https://github.com/yandex-research/agentic-hpset.git@3d7349b36df9bea48a5c236830a8f313ba1819c9
+loguru>=0.7.0
