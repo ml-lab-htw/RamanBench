@@ -112,6 +112,11 @@ while IFS= read -r LINE; do
     if [ -n "${TASK_MAX_TRAIN_SAMPLES}" ]; then
         MAX_TRAIN_SAMPLES_FLAG=(--max-train-samples "${TASK_MAX_TRAIN_SAMPLES}")
     fi
+    # Group-aware inner bagging folds (issue #162): on for benchmark v2, set by submit_v2_sweep.py.
+    INNER_FLAG=()
+    if [ "${INNER_GROUP_FOLDS:-0}" = "1" ]; then
+        INNER_FLAG=(--inner-group-folds)
+    fi
     echo ""
     echo "=== Task ${TASK_NUM}/${TASKS_PER_POD} (jobspec line $(( FIRST_LINE + TASK_NUM - 1 ))): dataset=${DATASET} target_idx=${TARGET_IDX} repeat=${REPEAT} fold=${FOLD} config_index=${CONFIG_INDEX} time_limit=${EFFECTIVE_TIME_LIMIT} ==="
 
@@ -148,6 +153,7 @@ JOBMETA
         --mirror-repo "${MIRROR_REPO}" \
         --scratch-dir "${SCRATCH_DIR}" \
         "${MAX_TRAIN_SAMPLES_FLAG[@]}" \
+        "${INNER_FLAG[@]}" \
         ${GPU_FLAG}
     TASK_RC=$?
     rm -rf "${SCRATCH_DIR}" "${OPENML_CACHE_DIR}"

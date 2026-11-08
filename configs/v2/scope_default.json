@@ -300,5 +300,6 @@
     "courtesy_ceiling": 200,
     "max_concurrent_arrays": 1,
     "_comment_v2": "Benchmark v2 (branch v2, RELEASING.md 'Branches'): every v1 target plus the v2-only targets (target_list.json field since='v2'), with min_groups_per_class=3. Models, time limits and caps as v1. glioma_idh, raman_mpi and stroke_urine_sers_* (above the 10,000-row cap) get the overrides wheat_lines has.",
-    "min_groups_per_class": 3
+    "min_groups_per_class": 3,
+    "inner_group_folds": true
 }

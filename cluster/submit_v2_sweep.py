@@ -74,11 +74,14 @@ def boot(code_dir: str, raman_data: str, entrypoint: str) -> list[str]:
     ])]
 
 
-def set_container(manifest: dict, command: list[str], min_groups: int) -> None:
+def set_container(manifest: dict, command: list[str], min_groups: int, inner_group_folds: bool) -> None:
     c = manifest["spec"]["template"]["spec"]["containers"][0]
     c["command"] = command
-    env = [e for e in c["env"] if e["name"] != "MIN_GROUPS_PER_CLASS"]
-    c["env"] = env + [{"name": "MIN_GROUPS_PER_CLASS", "value": str(min_groups)}]
+    env = [e for e in c["env"] if e["name"] not in ("MIN_GROUPS_PER_CLASS", "INNER_GROUP_FOLDS")]
+    c["env"] = env + [
+        {"name": "MIN_GROUPS_PER_CLASS", "value": str(min_groups)},
+        {"name": "INNER_GROUP_FOLDS", "value": "1" if inner_group_folds else "0"},
+    ]
 
 
 def run_alone(manifest: dict) -> None:
@@ -135,6 +138,7 @@ def main() -> None:
     ]
     prefix = f"v2{args.tag}"
     n_splits, min_groups = scope["n_splits"], int(scope.get("min_groups_per_class", 0))
+    inner_group_folds = bool(scope.get("inner_group_folds", False))
     results_dir, cache_dir = scope["results_dir"], scope["cache_dir"]
     mirror_repo = scope.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench")
     throttle = args.throttle or scope.get("throttle", 6)
@@ -189,7 +193,8 @@ def main() -> None:
                     tasks_per_pod=tasks_per_pod, throttle=throttle, min_groups_per_class=min_groups,
                 )
                 set_container(manifest, boot(args.code_dir, args.raman_data,
-                                             "bash cluster/k8s_entrypoint_by_dataset.sh"), min_groups)
+                                             "bash cluster/k8s_entrypoint_by_dataset.sh"),
+                              min_groups, inner_group_folds)
                 if args.job_per_model:
                     run_alone(manifest)
                 print(f"models {tier} {image.rsplit('/', 1)[-1][:40]}: {len(models)} model(s), {len(chunk)} task(s), "
@@ -216,7 +221,7 @@ def main() -> None:
                 f'python scripts/run_system.py --system {system} --protocol configs/v2/protocol_v2_only.json '
                 '--tasks "$TASK" --results-dir "$RESULTS_DIR" --cache-dir "$CACHE_DIR" --mirror-repo "$MIRROR_REPO"'
             )
-            set_container(manifest, boot(args.code_dir, args.raman_data, run), min_groups)
+            set_container(manifest, boot(args.code_dir, args.raman_data, run), min_groups, inner_group_folds)
             print(f"systems {system}: {len(targets)} pod(s), one target each, job {job}")
             if not args.dry_run:
                 apply(profile, cm, {"jobspec.txt": tasks_file}, manifest)
@@ -246,7 +251,7 @@ def submit_autogluon(args, profile, targets, budgets, prefix, n_splits, min_grou
             tasks_per_pod=len(jobs) if args.job_per_model else 4, throttle=throttle,
         )
         set_container(manifest, boot(args.code_dir, args.raman_data,
-                                     "bash cluster/k8s_entrypoint_autogluon.sh"), min_groups)
+                                     "bash cluster/k8s_entrypoint_autogluon.sh"), min_groups, False)
         if args.job_per_model:
             run_alone(manifest)
         print(f"autogluon {'/'.join(budgets)}: {len(jobs)} task(s), {n_pods} pod(s), job {job}")
