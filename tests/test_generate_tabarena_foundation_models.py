@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from tabarena.benchmark.validation_protocol import ValidationProtocol
+
 pytest.importorskip("tabarena")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -90,7 +92,7 @@ def test_generator_resolves_and_matches_registry(key, run_experiment):
     experiments = gen.generate_all_bag_experiments(
         num_random_configs=num_random_configs,
         time_limit=60,
-        num_bag_folds=2,
+        validation_protocol=ValidationProtocol(num_bag_folds=2),
         fold_fitting_strategy="sequential_local",
         add_seed="fold-config-wise",
     )

@@ -53,6 +53,7 @@ behavior in.
 
 from __future__ import annotations
 
+import numpy as np
 import importlib.util
 import sys
 from pathlib import Path
@@ -66,19 +67,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_tabstar_max_features_cap():
-    """Prep_TABSTAR must reject (via AutoGluon's own ag.max_features constraint,
+    """Prep_TABSTAR_V1P1 must reject (via AutoGluon's own ag.max_features constraint,
     which produces a clean ConstraintViolationError skip, not a crash) any
     dataset wider than the confirmed-safe cap."""
     from raman_bench.preprocessing.wrapped_models import (
         _TABSTAR_MAX_FEATURES,
-        Prep_TABSTAR,
+        Prep_TABSTAR_V1P1,
     )
 
-    if Prep_TABSTAR is None:
+    if Prep_TABSTAR_V1P1 is None:
         pytest.skip("TabSTARModel unavailable in this tabarena build")
 
     assert _TABSTAR_MAX_FEATURES > 0
-    model = Prep_TABSTAR(problem_type="regression")
+    model = Prep_TABSTAR_V1P1(problem_type="regression")
     aux = model._get_default_auxiliary_params()
     assert aux["max_features"] == _TABSTAR_MAX_FEATURES
 
@@ -92,7 +93,7 @@ def test_max_features_models_registry():
         MAX_FEATURES_MODELS,
     )
 
-    assert MAX_FEATURES_MODELS["TABSTAR"] == _TABSTAR_MAX_FEATURES
+    assert MAX_FEATURES_MODELS["TABSTAR_V1P1"] == _TABSTAR_MAX_FEATURES
 
 
 def test_ebm_interactions_always_disabled_regardless_of_feature_count():
@@ -250,6 +251,7 @@ class _FakeDataset:
     def __init__(self, task_type, df):
         self.task_type = task_type
         self._df = df
+        self.targets = np.zeros((len(df), 1))  # read by TabArena's task build
 
     def to_dataframe(self, target_idx):
         return self._df.copy()
@@ -422,10 +424,10 @@ def test_run_one_skips_tabstar_above_max_features(run_experiment):
 
     from raman_bench.preprocessing.wrapped_models import MAX_FEATURES_MODELS
 
-    if "TABSTAR" not in MAX_FEATURES_MODELS:
+    if "TABSTAR_V1P1" not in MAX_FEATURES_MODELS:
         pytest.skip("TABSTAR unavailable in this tabarena build")
 
-    n_features = MAX_FEATURES_MODELS["TABSTAR"] + 1
+    n_features = MAX_FEATURES_MODELS["TABSTAR_V1P1"] + 1
     df = _make_df(n_features=n_features, n_rows=4)
     fake = _FakeDataset(TASK_TYPE.Regression, df)
 
@@ -433,7 +435,7 @@ def test_run_one_skips_tabstar_above_max_features(run_experiment):
         out = run_experiment.run_one(
             dataset_name="fake_wide_dataset",
             target_idx=0,
-            model_key="TABSTAR",
+            model_key="TABSTAR_V1P1",
             repeat=0,
             fold=0,
             config_index=0,

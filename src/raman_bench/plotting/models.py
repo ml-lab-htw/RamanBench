@@ -107,6 +107,8 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "TABICL": ("TabICLv2 (AutoGluon)", "Tabular Foundation", 2026 + 1 / 12),  # 2026-02-12
     "SAP_RPT_OSS": ("SAP-RPT-OSS", "Tabular Foundation", 2025 + 5 / 12),  # 2025-06
     "TABSTAR": ("TabSTAR", "Tabular Foundation", 2025 + 4 / 12),  # 2025-05
+    "TABSTAR_V1P1": ("TabSTAR-v1.1", "Tabular Foundation", 2026 + 10 / 12),  # 2026-10
+    "TABH2O": ("TabH2O", "Tabular Foundation", 2026 + 10 / 12),
     "MITRA": ("Mitra", "Tabular Foundation", 2025 + 6 / 12),  # 2025-07
     "LIMIX": ("LimiX", "Tabular Foundation", 2025 + 8 / 12),  # 2025-09
     "TABPFN-WIDE": ("TabPFN-Wide", "Tabular Foundation", 2025 + 9 / 12),  # 2025-10
