@@ -261,14 +261,15 @@ def _label_points(ax, df: pd.DataFrame, x: str, y: str, focus: set[str], avoid: 
             placed.append(text.get_window_extent(renderer))
 
 
-def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title):
+def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, strict=False):
     x = TIME_COL
     lb, refs = split_references(lb)
     df = lb.dropna(subset=[x, metric])
     front = pareto_front(df, x, metric, higher_is_better)
     _reference_lines(ax, refs, metric)
     # Pareto-optimal models always keep their colour: they are the trade-off's answer.
-    highlight = focus | set(front.index)
+    # With ``strict`` (an explicit highlight list) only the focus set is coloured.
+    highlight = focus if strict else focus | set(front.index)
     muted = df[~df.index.isin(highlight)]
     shown = df[df.index.isin(highlight)]
     ax.scatter(muted[x], muted[metric], s=28, color=model_info.MUTED_COLOR, zorder=2, linewidths=0)
@@ -292,7 +293,7 @@ _TRADEOFF_METRICS = {
 }
 
 
-def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str, groups=None):
+def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str, groups=None, strict=False):
     """Score vs time, one panel per task type in *groups*, with the Pareto front.
 
     *groups* defaults to classification and regression side by side (all tasks when
@@ -306,7 +307,7 @@ def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str,
     for ax, g in zip(axes, groups):
         lb = scores[g].leaderboard
         models |= set(split_references(lb)[0].index)
-        labelers.append(_tradeoff_ax(ax, lb, metric, label, higher, focus[g], TASK_TITLES[g]))
+        labelers.append(_tradeoff_ax(ax, lb, metric, label, higher, focus[g], TASK_TITLES[g], strict))
         if metric == "improvability":
             ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
     fig.tight_layout()
@@ -316,12 +317,12 @@ def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str,
     return save(fig, out_dir, stem, formats)
 
 
-def plot_tradeoff_per_group(scores, focus, out_dir: Path, formats, metric: str, stem: str):
+def plot_tradeoff_per_group(scores, focus, out_dir: Path, formats, metric: str, stem: str, strict=False):
     """One single-panel figure per task type: ``<stem>_all``, ``<stem>_classification``, ..."""
     paths = []
     for g in ("all", "classification", "regression"):
         if g in scores:
-            paths += plot_tradeoff(scores, focus, out_dir, formats, metric, f"{stem}_{g}", groups=[g])
+            paths += plot_tradeoff(scores, focus, out_dir, formats, metric, f"{stem}_{g}", groups=[g], strict=strict)
     return paths
 
 
@@ -336,7 +337,7 @@ def _release_x(year: float) -> float:
     return year if year >= _BREAK_YEAR else _BREAK_YEAR - (_BREAK_YEAR - year) * _SQUEEZE
 
 
-def release_ax(ax, scores: GroupScores, focus: set[str], label: bool = True) -> pd.DataFrame:
+def release_ax(ax, scores: GroupScores, focus: set[str], label: bool = True, strict: bool = False) -> pd.DataFrame:
     """Draw Elo over release date with the running best as a staircase; returns the plotted rows.
 
     Models in *focus* and every record holder are coloured; the rest are grey.
@@ -344,7 +345,7 @@ def release_ax(ax, scores: GroupScores, focus: set[str], label: bool = True) -> 
     lb = by_release(scores.leaderboard)
     lb = lb.assign(x=[_release_x(d) for d in lb["release_date"]])
     record = record_holders(lb)
-    shown = focus | set(record.index)
+    shown = focus if strict else focus | set(record.index)
 
     stairs_x = list(record["x"]) + [_release_x(lb["release_date"].max() + 0.3)]
     stairs_y = list(record["elo"]) + [record["elo"].iloc[-1]]
@@ -369,10 +370,10 @@ def release_ax(ax, scores: GroupScores, focus: set[str], label: bool = True) -> 
     return lb
 
 
-def plot_elo_vs_release_date(scores: GroupScores, focus: set[str], out_dir: Path, formats, stem: str):
+def plot_elo_vs_release_date(scores: GroupScores, focus: set[str], out_dir: Path, formats, stem: str, strict: bool = False):
     """Elo over model release date with the running best ("state of the art") as a staircase."""
     fig, ax = plt.subplots(figsize=(9, 5))
-    lb = release_ax(ax, scores, focus)
+    lb = release_ax(ax, scores, focus, strict=strict)
     ax.set_title(f"Model progress over time ({TASK_TITLES[scores.name].lower()})")
     _category_legend(fig, lb.index, y=-0.02, muted=True)
     return save(fig, out_dir, stem, formats)
