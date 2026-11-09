@@ -93,3 +93,121 @@ def test_thinking_regressor_gets_the_same_options(fake_client):
     TabPFNAPIRegressor(thinking=True, thinking_effort="medium", use_groups=False).fit(_X(), np.arange(12.0))
     kwargs = fake_client.TabPFNRegressor.instances[-1].kwargs
     assert kwargs["thinking_mode"] is True and kwargs["thinking_effort"] == "medium"
+
+
+def test_max_columns_none_disables_binning(fake_client):
+    wide = _X(p=THINKING_MAX_COLUMNS + 500)
+    TabPFNAPIClassifier(thinking=True, max_columns=None, use_groups=False).fit(wide, _y())
+    assert fake_client.TabPFNClassifier.instances[-1].fit_X.shape[1] == THINKING_MAX_COLUMNS + 500
+
+
+def test_max_columns_sets_the_bin_width(fake_client):
+    wide = _X(p=600)
+    TabPFNAPIRegressor(thinking=True, max_columns=200, use_groups=False).fit(wide, np.arange(12.0))
+    assert fake_client.TabPFNRegressor.instances[-1].fit_X.shape[1] == 200
+
+
+@pytest.fixture(autouse=True)
+def fake_clock(monkeypatch):
+    from raman_bench.models.api import tabpfn_api
+
+    state = {"now": 100.0, "sleeps": []}
+
+    class _Clock:
+        @staticmethod
+        def monotonic():
+            return state["now"]
+
+        @staticmethod
+        def sleep(seconds):
+            state["sleeps"].append(seconds)
+            state["now"] += seconds
+
+    monkeypatch.setattr(tabpfn_api, "time", _Clock)
+    monkeypatch.setattr(tabpfn_api, "_last_thinking_fit", float("-inf"))
+    return state
+
+
+def test_thinking_fits_wait_for_the_rate_limit(fake_client, fake_clock):
+    clf = TabPFNAPIClassifier(thinking=True, use_groups=False)
+    clf.fit(_X(), _y())
+    assert fake_clock["sleeps"] == []
+    clf.fit(_X(), _y())
+    assert fake_clock["sleeps"] == [6.0]
+    fake_clock["now"] += 10.0  # a slow caller does not wait again
+    clf.fit(_X(), _y())
+    assert fake_clock["sleeps"] == [6.0]
+
+
+def test_rate_limit_is_shared_across_classifier_and_regressor(fake_client, fake_clock):
+    TabPFNAPIClassifier(thinking=True, use_groups=False).fit(_X(), _y())
+    TabPFNAPIRegressor(thinking=True, use_groups=False).fit(_X(), np.arange(12.0))
+    assert fake_clock["sleeps"] == [6.0]
+
+
+def test_partial_wait_covers_only_the_remaining_time(fake_client, fake_clock):
+    TabPFNAPIRegressor(thinking=True, use_groups=False).fit(_X(), np.arange(12.0))
+    fake_clock["now"] += 2.5
+    TabPFNAPIRegressor(thinking=True, use_groups=False).fit(_X(), np.arange(12.0))
+    assert fake_clock["sleeps"] == [pytest.approx(3.5)]
+
+
+def test_non_thinking_fits_are_not_throttled(fake_client, fake_clock):
+    TabPFNAPIClassifier(use_groups=False).fit(_X(), _y())
+    TabPFNAPIClassifier(use_groups=False).fit(_X(), _y())
+    assert fake_clock["sleeps"] == []
+
+
+def test_min_fit_interval_is_configurable(fake_client, fake_clock):
+    TabPFNAPIClassifier(thinking=True, min_fit_interval_s=1.0, use_groups=False).fit(_X(), _y())
+    TabPFNAPIClassifier(thinking=True, min_fit_interval_s=1.0, use_groups=False).fit(_X(), _y())
+    assert fake_clock["sleeps"] == [1.0]
+
+
+RATE_LIMITED = (
+    "Fail to call submit_fit_job: [HTTP 429] Rate limit exceeded: at most 10 thinking_fit "
+    "requests per minute are allowed. Retry in 2s.. Report trace ID: abc"
+)
+
+
+def test_rate_limit_refusal_is_retried_after_the_server_wait(fake_client, fake_clock, monkeypatch):
+    calls = []
+
+    def fit_once_refused(self, X, y):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError(RATE_LIMITED)
+        return self
+
+    monkeypatch.setattr(fake_client.TabPFNClassifier, "fit", fit_once_refused)
+    TabPFNAPIClassifier(thinking=True, use_groups=False).fit(_X(), _y())
+    assert len(calls) == 2
+    assert fake_clock["sleeps"][0] == 3.0  # server said 2 s, plus 1 s
+
+
+def test_other_api_errors_are_not_retried(fake_client, fake_clock, monkeypatch):
+    calls = []
+
+    def fit_refused(self, X, y):
+        calls.append(1)
+        raise RuntimeError("Fail to call submit_fit_job: [HTTP 500] server error")
+
+    monkeypatch.setattr(fake_client.TabPFNRegressor, "fit", fit_refused)
+    with pytest.raises(RuntimeError, match="HTTP 500"):
+        TabPFNAPIRegressor(thinking=True, use_groups=False).fit(_X(), np.arange(12.0))
+    assert len(calls) == 1
+
+
+def test_rate_limit_retries_are_bounded(fake_client, fake_clock, monkeypatch):
+    from raman_bench.models.api.tabpfn_api import RATE_LIMIT_RETRIES
+
+    calls = []
+
+    def always_refused(self, X, y):
+        calls.append(1)
+        raise RuntimeError(RATE_LIMITED)
+
+    monkeypatch.setattr(fake_client.TabPFNClassifier, "fit", always_refused)
+    with pytest.raises(RuntimeError, match="429"):
+        TabPFNAPIClassifier(thinking=True, use_groups=False).fit(_X(), _y())
+    assert len(calls) == RATE_LIMIT_RETRIES + 1

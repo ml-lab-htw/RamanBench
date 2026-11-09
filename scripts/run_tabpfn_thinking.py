@@ -31,6 +31,7 @@ def main() -> None:
         help="Thinking effort, from least to most compute (the API's own default is medium)",
     )
     ap.add_argument("--timeout-s", type=float, default=None, help="Optional thinking timeout, max 2400")
+    ap.add_argument("--max-columns", type=int, default=20000, help="Bin spectra wider than this (v3.5 server ceiling: 20000)")
     ap.add_argument("--tasks", nargs="*", default=None, help="Task keys or dataset names; default all")
     ap.add_argument("--results-dir", default="results/v1/user")
     ap.add_argument("--cache-dir", default=".cache_v1")
@@ -41,10 +42,12 @@ def main() -> None:
     result = evaluate_estimator(
         NAME,
         classifier=TabPFNAPIClassifier(
-            thinking=True, thinking_effort=args.effort, thinking_timeout_s=args.timeout_s, use_groups=False,
+            thinking=True, thinking_effort=args.effort, thinking_timeout_s=args.timeout_s,
+            use_groups=False, max_columns=args.max_columns,
         ),
         regressor=TabPFNAPIRegressor(
-            thinking=True, thinking_effort=args.effort, thinking_timeout_s=args.timeout_s, use_groups=False,
+            thinking=True, thinking_effort=args.effort, thinking_timeout_s=args.timeout_s,
+            use_groups=False, max_columns=args.max_columns,
         ),
         tasks=args.tasks,
         results_dir=args.results_dir,
