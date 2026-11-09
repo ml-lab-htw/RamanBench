@@ -35,7 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # TABSTAR's is a plain ConfigGenerator with a real (6-knob, all-categorical)
 # autogluon.common.space search space -- both can generate additional random
 # configs.
-_NO_RANDOM_HPO = {"NORI", "SAP_RPT_OSS", "ORIONMSP", "LIMIX", "TABSTAR_V1P1", "TABH2O"}
+_NO_RANDOM_HPO = {"NORI", "SAP_RPT_OSS", "ORIONMSP", "LIMIX", "TABSTAR_V1P1", "TABH2O", "SELDON", "SELDON-MINI", "TABABAX"}
 
 TABARENA_BATCH3_KEYS = [
     "NORI",
@@ -45,6 +45,11 @@ TABARENA_BATCH3_KEYS = [
     "LIMIX",
     "TABSTAR_V1P1",
     "TABH2O",
+    "SELDON",
+    "SELDON-MINI",
+    "TABABAX",
+    "MLP-A",
+    "TABM-A",
 ]
 
 # All six are pretrained/fine-tuned tabular foundation models -- unlike batch 2's
@@ -112,6 +117,14 @@ def test_orionmsp_is_classification_only():
     from raman_bench.preprocessing.wrapped_models import CLASSIFICATION_ONLY_MODELS
 
     assert "ORIONMSP" in CLASSIFICATION_ONLY_MODELS
+
+
+def test_seldon_models_are_classification_only():
+    """Seldon and Seldon-Mini only support classification (neuralk-oss' SeldonClassifier). Without the
+    entry, every regression fold of a sweep is submitted and fails with "No models were trained"."""
+    from raman_bench.preprocessing.wrapped_models import CLASSIFICATION_ONLY_MODELS
+
+    assert {"SELDON", "SELDON-MINI"} <= CLASSIFICATION_ONLY_MODELS
 
 
 def test_nori_is_regression_only():

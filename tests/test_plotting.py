@@ -311,3 +311,25 @@ def test_mobile_layout_stacks_panels_and_keeps_desktop_height(tmp_path):
     assert "frameElement" in page
     assert 'addEventListener("resize"' in page  # switches layout without a reload
     assert re.findall(r'"height":(\d+)', page)[-1] == "620"
+
+
+def test_highlight_colours_only_the_listed_models(tmp_path, monkeypatch):
+    pytest.importorskip("plotly")
+    from raman_bench.plotting import generate_all, pipeline
+
+    seen = []
+    real = pipeline.static.plot_tradeoff
+
+    def spy(scores, focus, *args, **kwargs):
+        seen.append((focus["all"], kwargs.get("strict")))
+        return real(scores, focus, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline.static, "plot_tradeoff", spy)
+    path, scope, tl = _hpo_results(tmp_path, n_clf=5, n_reg=6)
+    model = next(iter(MODELS))
+    generate_all(
+        path, tmp_path / "figures", scope=scope, target_list=tl, bootstrap_rounds=10,
+        highlight=(model.lower(),), dataset_figures=False, make_interactive=False,
+    )
+    assert seen and all(focus == {model} and strict for focus, strict in seen)
+    assert (tmp_path / "figures" / "static" / "elo_ranking_combined.png").exists()
