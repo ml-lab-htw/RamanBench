@@ -241,7 +241,6 @@ models = [
     "iltm>=0.1.1",
     "einops",
     "kditransform",
-    "tabstar==1.1.15",
     # Causilo (Prep_CAUSILO) -- pretrained tabular foundation model from Nums AI
     # (github.com/nums-ai/causilo), added as a RamanBench-only custom model (no
     # TabArena integration exists as of tabarena 0.1.0 -- confirmed by inspecting
@@ -289,7 +288,8 @@ models = [
     # required torch version exactly (0.29.0 requires torch==2.14.0) -- this
     # floor forces pip to resolve a genuinely matched pair instead of letting
     # torchvision drift independently of whatever torch ends up selected.
-    "torchvision>=0.29.0",
+    # Lowered from 0.29.0 (torch==2.14.0): synthefy-nori caps torch<2.14. 0.28.x pairs with torch 2.13.
+    "torchvision>=0.28.0",
     # NOTE: three TabArena-native models -- TabFM (Prep_TABFM), SAP-RPT-OSS
     # (Prep_SAP_RPT_OSS) and OrionMSP (Prep_ORIONMSP, from the `tabtune` package) --
     # are NOT installable from here. Their upstream packages publish no PyPI release,

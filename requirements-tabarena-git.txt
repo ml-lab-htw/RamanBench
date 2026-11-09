@@ -56,10 +56,17 @@
 # `tabh2o` extra is left out here: Prep_TABH2O reports itself unavailable in this image.
 # Run it from a Python 3.12 environment with `pip install "tabarena[tabh2o]"`.
 #
+# The `tabstar_v1p1` extra is left out too: tabstar 1.2.0 caps transformers<5 while synthefy-nori needs
+# huggingface-hub>=1 (transformers>=5). The Dockerfile installs tabstar==1.2.0 with --no-deps; its
+# remaining requirements (peft, skrub) are in requirements-models-git.txt.
+#
+# The `agentic_mlp` and `agentic_tabm` extras (MLP-A, TabM-A) are left out as well: agentic-tabular
+# needs Python >=3.12. They share the Python 3.12 image with TabH2O.
+#
 # The `seldon` extra is left out too: neuralk-oss needs structured-data-models==0.2.1, while the
 # `kumo_tabular` extra pins a different structured-data-models build, so the two cannot share an
 # environment. Seldon and Seldon-Mini run from their own image with `pip install "tabarena[seldon]"`.
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm,tabstar_v1p1,tababax,agentic_mlp,agentic_tabm] @ git+https://github.com/autogluon/tabarena.git@0642914dade871dd71ee39c7aa95d3a632d052db#subdirectory=packages/tabarena
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm,tababax] @ git+https://github.com/autogluon/tabarena.git@0642914dade871dd71ee39c7aa95d3a632d052db#subdirectory=packages/tabarena
 
 # tabicl -- pinned to an EXACT version, not left floating on tabarena's own
 # `tabicl` extra (`tabicl>=2.0.0`, unbounded upward). Flagged by a downstream

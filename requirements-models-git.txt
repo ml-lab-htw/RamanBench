@@ -19,8 +19,8 @@ tabfm[pytorch] @ git+https://github.com/google-research/tabfm.git@633cd265f498e1
 # SAP-RPT-OSS  -> Prep_SAP_RPT_OSS   (tabarena.models.sap_rpt_oss.model.SAPRPTOSSModel)
 sap_rpt_oss @ git+https://github.com/SAP-samples/sap-rpt-1-oss.git@a323a0aff976fda4ac43c3196a92406de7689aaa
 
-# OrionMSP  -> Prep_ORIONMSP   (tabarena.models.orionmsp.model.OrionMSPModel, from the tabtune package)
-tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git
+# OrionMSP  -> Prep_ORIONMSP: needs the tabtune package, installed by the Dockerfile with --no-deps
+# (tabtune caps transformers<5, synthefy-nori needs huggingface-hub>=1, which needs transformers>=5).
 
 # EXAONE-Tabular  -> Prep_EXAONE_TABULAR   (tabarena.models.exaone_tabular.model.EXAONETabularModel)
 # LICENSE NOTE: the exaonetabular *code* is BSD-3-Clause-LG AI Research (commercial
@@ -33,7 +33,7 @@ exaonetabular @ git+https://github.com/LGAI-Research/EXAONE-Tabular.git@cf55bd2d
 # TabAbax  -> Prep_TABABAX   (tabarena.models.tababax.model.TabAbaxModel; pin = tabarena's pip_extra)
 tababax @ git+https://github.com/tababax-research/TabAbax.git@125d26850015597ed371993f3a00375806c0f32c
 
-# Yandex agentic MLP-A and TabM-A  -> Prep_MLP_A, Prep_TABM_A   (tabarena.models.agentic_{mlp,tabm}; pin = tabarena's pip_extra)
-# TabM-A also needs loguru, which the torch extra does not install.
-agentic-tabular[torch] @ git+https://github.com/yandex-research/agentic-hpset.git@3d7349b36df9bea48a5c236830a8f313ba1819c9
-loguru>=0.7.0
+# TabSTAR-v1.1 -> Prep_TABSTAR_V1P1: tabstar itself is installed by the Dockerfile with --no-deps
+# (it caps transformers<5); these are its other requirements.
+peft
+skrub
