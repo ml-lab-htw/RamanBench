@@ -123,3 +123,36 @@ def test_shape_changing_preprocessing_survives_bagged_predict(model_key, mechani
     preds = predictor.predict(test)
     assert len(preds) == len(test)
     assert not preds.isna().any()
+
+
+@pytest.mark.parametrize("model_key", ["KNN", "PLS"])
+def test_prep_params_are_hidden_from_the_wrapped_model_at_fit_and_predict(model_key, monkeypatch):
+    """Models like TabH2O splat ``_get_model_params()`` into a library call at predict time, and that
+    call rejects the ``prep_*`` keys (``TabH2O.classify() got an unexpected keyword argument``)."""
+    from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
+
+    cls = PREPROCESSED_MODELS[model_key]
+    base = cls.__mro__[cls.__mro__.index(RamanPreprocessingMixin) + 1]
+    seen = {"fit": [], "predict": []}
+
+    def spy(name):
+        original = getattr(base, name)
+
+        def wrapper(self, *args, **kwargs):
+            seen["fit" if name == "_fit" else "predict"].append(
+                [k for k in self.params if k.startswith("prep_")]
+            )
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(base, name, wrapper)
+
+    spy("_fit")
+    spy("_predict_proba")
+    X, y = _make_data()
+    model = cls(hyperparameters={"prep_crop_enabled": True})
+    model.fit(X=X, y=y)
+    model.predict_proba(X.iloc[:5])
+
+    assert seen["fit"] and seen["predict"]
+    assert all(keys == [] for keys in seen["fit"] + seen["predict"])
+    assert "prep_crop_enabled" in model.params  # restored afterwards
