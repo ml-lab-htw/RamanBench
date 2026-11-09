@@ -22,9 +22,10 @@ from pathlib import Path
 
 import pytest
 
-from tabarena.benchmark.validation_protocol import ValidationProtocol
 
 pytest.importorskip("tabarena")
+
+from tabarena.benchmark.validation_protocol import ValidationProtocol  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
