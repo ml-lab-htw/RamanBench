@@ -12,6 +12,14 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/run_tabpfn_thinking.py`** runs the hosted TabPFN thinking model on every v1 task through
+  `evaluate_estimator` (effort is a required argument, groups are off). The API wrapper keeps to the
+  API's limit of 10 thinking fits per minute, retries its "Retry in N s" refusals up to 3 times, and
+  takes `--max-columns` for the spectral binning width (default 20000, the server ceiling). The daily
+  and monthly token limits are not retried: rerun the script, finished folds are skipped.
+
 ### Changed
 
 - **Group-aware inner bagging folds are on by default for benchmark v1** (issue #162). On grouped
