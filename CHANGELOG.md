@@ -19,6 +19,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
   API's limit of 10 thinking fits per minute, retries its "Retry in N s" refusals up to 3 times, and
   takes `--max-columns` for the spectral binning width (default 20000, the server ceiling). The daily
   and monthly token limits are not retried: rerun the script, finished folds are skipped.
+- **Group-aware inner bagging folds** (`build_task(inner_group_folds=True)`, `run_experiment.py
+  --inner-group-folds`): on grouped tasks, the inner folds that bagging builds inside each training
+  split keep each group on one side, so inner validation scores are no longer inflated by replicate
+  spectra. On by default (see Changed below). Every model drops the group column itself
+  (`RamanPreprocessingMixin._preprocess`).
+- `data-foundry` in the `benchmark` extra: TabArena's grouped splitter imports it.
 
 ### Changed
 
@@ -28,15 +34,6 @@ The full rules are in [RELEASING.md](RELEASING.md).
   gives the old plain folds. **This changes the v1 results of every grouped task.** Results computed
   before this change are not comparable with results computed after it, and the bundled v1 reference
   (`data/precomputed/v1/`) still holds the old numbers until those tasks are rerun.
-
-### Added
-
-- **Group-aware inner bagging folds** (`build_task(inner_group_folds=True)`, `run_experiment.py
-  --inner-group-folds`): on grouped tasks, the inner folds that bagging builds inside each training
-  split keep each group on one side, so inner validation scores are no longer inflated by replicate
-  spectra. Off by default: benchmark v1 keeps plain inner folds for reproducibility, and benchmark v2
-  turns it on. Every model drops the group column itself (`RamanPreprocessingMixin._preprocess`).
-- `data-foundry` in the `benchmark` extra: TabArena's grouped splitter imports it.
 
 ### Fixed
 
