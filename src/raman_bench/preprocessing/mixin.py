@@ -79,6 +79,7 @@ step within the sequence. See ``_preprocess_fit_ensemble`` /
 ``_preprocess_transform_ensemble``.
 """
 
+import contextlib
 import logging
 
 import numpy as np
@@ -118,6 +119,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     vector_normalize,
     wavelet_denoise,
 )
+from raman_bench.seeding import model_seed, seed_global_rngs
 from raman_bench.splitting import GROUP_COL
 
 logger = logging.getLogger(__name__)
@@ -1105,6 +1107,8 @@ class RamanPreprocessingMixin:
     # consistent, and ``self.features`` is never touched.
 
     def _fit(self, X, y, **kwargs):
+        # Seed before the augmentation below draws its noise (issue #171).
+        seed_global_rngs(model_seed(self))
         # Pop _prep_restriction so it doesn't reach underlying library constructors.
         prep_restriction = self.params.pop("_prep_restriction", None)
         if prep_restriction is not None:
@@ -1266,19 +1270,29 @@ class RamanPreprocessingMixin:
                     # not store them in the spectrum cache. Reset after super()._fit below.
                     self._prep_fitting_augmented = True
 
-        # Strip prep_* params before forwarding to the underlying library
-        # constructor (e.g. CatBoostClassifier raises on unknown kwargs).
-        # They are restored in `finally` so _get_model_params() still works
-        # during predict(). _preprocess reads self._prep_recipe instead.
-        prep_keys = [k for k in list(self.params.keys()) if k.startswith("prep_")]
-        prep_params_backup = {k: self.params.pop(k) for k in prep_keys}
         try:
-            result = super()._fit(X, y, **kwargs)
+            with self._prep_params_stripped():
+                result = super()._fit(X, y, **kwargs)
             logger.info("Fitted Model — %s", self.__class__.__name__)
             return result
         finally:
-            self.params.update(prep_params_backup)
             self._prep_fitting_augmented = False
+
+    @contextlib.contextmanager
+    def _prep_params_stripped(self):
+        """Hide the ``prep_*`` params from the wrapped model while it runs.
+
+        Some wrapped models forward every hyperparameter to a library call (a constructor in
+        ``_fit``, e.g. CatBoostClassifier, or ``classify()`` in ``_predict_proba``, e.g. TabH2O),
+        and those raise on unknown kwargs. The params are restored on exit so
+        ``_get_model_params()`` still works elsewhere; ``_preprocess`` reads ``self._prep_recipe``.
+        """
+        prep_keys = [k for k in list(self.params.keys()) if k.startswith("prep_")]
+        backup = {k: self.params.pop(k) for k in prep_keys}
+        try:
+            yield
+        finally:
+            self.params.update(backup)
 
     def _preprocess(self, X, **kwargs):
         """Apply the fitted Raman preprocessing recipe.
@@ -1338,7 +1352,8 @@ class RamanPreprocessingMixin:
         # Thin wrapper: the recipe transform runs in _preprocess now, so this
         # only adds an observability log line (parity with "Fitted Model —").
         n_spectra = len(X) if hasattr(X, "__len__") else None
-        result = super()._predict_proba(X, **kwargs)
+        with self._prep_params_stripped():
+            result = super()._predict_proba(X, **kwargs)
         if n_spectra is not None:
             logger.info("Predicted %d spectra (%s)", n_spectra, self.__class__.__name__)
         return result

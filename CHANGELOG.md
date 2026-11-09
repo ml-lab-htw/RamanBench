@@ -14,12 +14,40 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **`scripts/run_tabpfn_thinking.py`** runs the hosted TabPFN thinking model on every v1 task through
+  `evaluate_estimator` (effort is a required argument, groups are off). The API wrapper keeps to the
+  API's limit of 10 thinking fits per minute, retries its "Retry in N s" refusals up to 3 times, and
+  takes `--max-columns` for the spectral binning width (default 20000, the server ceiling). The daily
+  and monthly token limits are not retried: rerun the script, finished folds are skipped.
+
+### Changed
+
+- **Group-aware inner bagging folds are on by default for benchmark v1** (issue #162). On grouped
+  tasks, the inner folds that bagging builds inside each training split keep each group on one side.
+  `build_task`, `bag_experiment_kwargs` and `run_experiment.py` default to it. `--no-inner-group-folds`
+  gives the old plain folds. **This changes the v1 results of every grouped task.** Results computed
+  before this change are not comparable with results computed after it, and the bundled v1 reference
+  (`data/precomputed/v1/`) still holds the old numbers until those tasks are rerun.
+
+### Added
+
 - **Group-aware inner bagging folds** (`build_task(inner_group_folds=True)`, `run_experiment.py
   --inner-group-folds`): on grouped tasks, the inner folds that bagging builds inside each training
   split keep each group on one side, so inner validation scores are no longer inflated by replicate
   spectra. Off by default: benchmark v1 keeps plain inner folds for reproducibility, and benchmark v2
   turns it on. Every model drops the group column itself (`RamanPreprocessingMixin._preprocess`).
 - `data-foundry` in the `benchmark` extra: TabArena's grouped splitter imports it.
+
+### Fixed
+
+- **Torch models are reproducible** (issue #171): the Raman deep models (DeepCNN, ReZeroNet, CoAtNet,
+  FCResNeXt, RamanFormer, RamanNet, RamanTransformer, SANet) and RamanPFN drew weight init, shuffling
+  and augmentation from unseeded numpy and torch generators. Each fit now seeds them from its
+  AutoGluon child seed, and RamanPFN takes that seed as its `random_state`. Two fits of the same cell
+  now give identical predictions (before: differences up to 0.2 in the probabilities of one cell).
+  **This changes the numbers of these models.** Existing v1 results of these models stay as they are
+  until they are refitted. Non-torch models that draw from numpy's global generator also become
+  deterministic; their numbers can change too.
 
 ## [1.4.1] — 2026-11-06
 

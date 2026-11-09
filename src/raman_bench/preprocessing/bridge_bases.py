@@ -23,6 +23,7 @@ except ImportError as _ag_err:
     ) from _ag_err
 
 from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
+from raman_bench.seeding import model_seed, seed_global_rngs
 
 
 class SklearnAutoGluonBridge(AbstractModel):
@@ -39,6 +40,9 @@ class SklearnAutoGluonBridge(AbstractModel):
     _sklearn_cls = None  # override in subclass
 
     def _fit(self, X, y, time_limit=None, **kwargs):
+        # The estimator's weight init, shuffling and augmentation draw from numpy's and
+        # torch's global generators: seed them from this AutoGluon child's seed (issue #171).
+        seed_global_rngs(model_seed(self))
         # Route through AutoGluon's preprocess() so RamanPreprocessingMixin._preprocess
         # applies the recipe (per AbstractModel's contract that _fit must call
         # self.preprocess(X)). The mixin used to transform X before calling
@@ -58,6 +62,9 @@ class SklearnAutoGluonBridge(AbstractModel):
             for k, v in self._get_model_params().items()
             if not k.startswith("ag.") and not k.startswith("_")
         }
+        # GPU-tier estimators with their own random_state (RamanPFN) take the child's seed too.
+        if isinstance(self, _GPURequiredBridge) and "random_state" in inspect.signature(self._sklearn_cls).parameters:
+            params.setdefault("random_state", model_seed(self))
         self._estimator = self._sklearn_cls(**params)
         # Only the deep-learning estimators accept a training budget; the sklearn
         # wrappers (PLS, ROCKET) have fit(self, X, y). Passing time_limit

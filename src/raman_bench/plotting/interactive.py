@@ -326,7 +326,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
 # --------------------------------------------------------------------------- trade-off
 
 
-def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
+def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: bool = False):
     """Score vs median train+predict time, one panel per task type, with the Pareto front."""
     from plotly.subplots import make_subplots
 
@@ -352,7 +352,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
                        hoverinfo="skip", showlegend=False),
             row=1, col=col,
         )
-        labelled = focus[g] | set(front.index)
+        labelled = focus[g] if strict else focus[g] | set(front.index)
         for cat, sub in _by_category(lb):
             focused, full = _colors(sub.index, labelled)  # Pareto-optimal models stay coloured
             fig.add_trace(
@@ -379,7 +379,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str):
 # --------------------------------------------------------------------------- Elo vs release date
 
 
-def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k):
+def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k, strict: bool = False):
     """Elo over release date; the staircase is the best Elo released so far."""
     go = _go()
     lb = by_release(scores.leaderboard)
@@ -391,7 +391,7 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k):
                    mode="lines", line_shape="hv", line={"color": "#9A9A9A", "width": 2},
                    name="State of the art", hoverinfo="skip")
     )
-    highlight = focus | set(record.index)
+    highlight = focus if strict else focus | set(record.index)
     focus_traces = []
     for cat, sub in _by_category(lb):
         focused, full = _colors(sub.index, highlight)

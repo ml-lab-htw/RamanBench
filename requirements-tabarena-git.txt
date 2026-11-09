@@ -1,154 +1,24 @@
-# tabarena -- NOT installable via `pip install raman-bench[benchmark]` or
-# `[models]`. PyPI forbids direct-URL requirements in an uploaded package (the
-# v2.0.0 release attempt failed the upload with exactly this error), so the
-# pinned-commit `tabarena` dependency has to live here instead of
-# pyproject.toml, same reasoning as requirements-models-git.txt.
-#
-# Pinned to a specific upstream commit (not floating on `main`) rather than
-# PyPI's `tabarena` release: the conda env deployed on HTW was found stuck on
-# the old 0.0.1 PyPI placeholder (cluster/refresh_deps.py only ever upgrades
-# raman-data, never tabarena), and even a healthy PyPI install would still be
-# capped at 0.1.0 (cut 2026-09-03) -- missing mitra_v2, causilo, tabldm,
-# ctboost, aplr, and every other model TabArena has merged since. Bump this
-# SHA deliberately (not automatically -- see refresh_deps.py) when picking up
-# new upstream models; a benchmark run's results should always be traceable
-# to one exact commit, never a floating branch head.
-#
-# Install after `pip install raman-bench[benchmark]` (or `[models]`/`[full]`):
+# tabarena, pinned to a commit of autogluon/tabarena main (0642914d, 2026-11-08).
+# PyPI forbids direct-URL requirements, so this cannot live in pyproject.toml.
+# Install after `pip install raman-bench[benchmark]` (or `[models]` / `[full]`):
 #     pip install -r requirements-tabarena-git.txt
+# Bump the SHA deliberately, never to a branch head, so a run traces to one commit.
 #
-# GOTCHA (confirmed live, RamanICL/HTW, 2026-10-01): if the env already has ANY
-# tabarena install reporting the same version string (e.g. the old `0.1.0` PyPI
-# placeholder mentioned above), a plain `pip install -r requirements-tabarena-git.txt`
-# silently no-ops -- pip matches on version string, not on git URL/commit, so it
-# considers the requirement already satisfied and skips it. Exit 0, no warning, and
-# you're left on whatever tabarena was already installed (confirmed: a different
-# REPOSITORY entirely, `autogluon/tabarena` instead of this fork). `pip show tabarena`
-# reports `0.1.0` identically either way and will NOT catch this -- check
-# `site-packages/tabarena-*.dist-info/direct_url.json`'s `url`/`commit_id` instead, or
-# just use `pip install --force-reinstall -r requirements-tabarena-git.txt` whenever
-# provisioning into a non-fresh env.
+# In a non-fresh env use `--force-reinstall`: pip matches on the version string, so it
+# silently skips this line if any tabarena 0.1.0 is already installed. Check
+# `site-packages/tabarena-*.dist-info/direct_url.json` for the real commit. Afterwards
+# re-check torch and torchvision (a forced tabarena reinstall can move torch).
 #
-# Related, observed in the same incident: `--force-reinstall` on tabarena alone (not
-# the whole raman-bench[models] stack) can pull its own transitive torch version,
-# independent of the torch~=2.14/torchvision>=0.29.0 pairing this package's own
-# pyproject.toml deliberately maintains (see pyproject.toml's torchvision comment --
-# torchvision's PyPI metadata pins its required torch version exactly, so any drift
-# between the two breaks torchvision's C-extension import). If you `--force-reinstall`
-# tabarena into an existing env, re-check `torch`/`torchvision` versions afterward
-# (or re-run `pip install raman-bench[models]` to let its own pins win) rather than
-# assuming they're untouched.
-#
-# `[models]` needs the extras-qualified form (tabicl, ebm, search_spaces,
-# realmlp, tabdpt, tabm, perpetualboosting, chimeraboost, nori) -- installing
-# this after `raman-bench[models]` satisfies both `[benchmark]` and
-# `[models]`'s tabarena requirement in one shot, since pip treats these as the
-# same package with a superset of extras.
-#
-# `nori` was missing here until 2026-09-20 -- confirmed as a real production
-# failure: NORI's large partition failed 237/654 tasks (36%), NORI's full
-# partition was failing every task reached so far, all with
-# "ModuleNotFoundError: No module named 'synthefy_nori'" (tabarena's own
-# `nori` extra is `synthefy-nori>=0.10.0`, never installed here).
-#
-# `tabldm` added 2026-09-28 for the TABLDM onboarding (Prep_TABLDM,
-# tabarena.models.tabldm.model.TabLDMModel): TabArena's own pyproject.toml
-# declares it as its own extra (`tabldm = ["Xiaomi-TabLDM @ git+https://github.com/
-# xiaomi-research/xiaomi-tabldm.git@6773a30d43e43fad3e8b474e20ca8c7ec40dcd76"]`,
-# not on PyPI, git-pinned deliberately) -- same mechanism as `nori` above, not a
-# direct pyproject.toml pin (unlike APLR/CTBoost's `aplr`/`ctboost`, which ARE
-# on PyPI and so got a normal pyproject.toml dependency instead).
-#
-# ############################################################################
-# PROVISIONAL 2026-09-30: bumped straight off the mario-koddenbrock/tabarena
-# personal fork (previous pin: 3db69f9, itself d06f406 -- the old
-# since-deleted benchmark/rerun-new-pipeline-16092026 branch -- plus one
-# cherry-picked TabSwift fix, 8b08bf2/PR #620) onto an UNMERGED upstream PR
-# branch -- `autogluon/tabarena#625` ("Add Kumo Tabular (large, medium,
-# small)"), branch `kumo-tabular`, head commit
-# `bd22348ac1b895c54728d59edc37454f83c054c4`. This is NOT a normal merged-main
-# pin: PR #625 is still OPEN as of this bump (CI green, a maintainer and the
-# author still discussing usage questions) -- the user explicitly asked for
-# Kumo Tabular onboarded now, ahead of the merge, rather than waiting.
-# Verified directly (not assumed): `8b08bf2` (the fork's one cherry-picked
-# fix) IS a strict git ancestor of `bd22348a`, so nothing from the fork is
-# lost; every model RamanBench imports (aplr, causilo, ctboost,
-# exaone_tabular, iltm, mitra, mitra_v2, nori, orionmsp, tabfm, tabldm,
-# tabpfn_3, tabpfn_3_5, tabpfnv2_5, tabpfnwide, tabstar, limix, limix_2) still
-# resolves against this commit. `kumo_tabular` added to the extras bracket
-# below (TabArena's own PR-local `kumo_tabular` extra, its
-# `structured-data-models` dependency git-pinned to
-# `NVIDIA/structured-data-models@ee6acd402176b0efa42527babd63f15672d63418`,
-# not on PyPI -- same "own extra, not a direct pyproject.toml pin" mechanism
-# as `nori`/`tabldm` above).
-#
-# Separate, independent bump also in flight (branch
-# `bump-tabarena-to-upstream-main`): moving off the personal fork onto
-# `autogluon/tabarena`'s actual `main` (52dac56, motivated by TabFM's
-# already-upstream many-class fix, unrelated to Kumo Tabular). That bump is a
-# STRICT ANCESTOR of this one (`bd22348a` branches off main after 52dac56),
-# so whichever of the two PRs merges first, the other's rebase is a clean
-# fast-forward, not a conflict.
-#
-# TODO revisit once #625 actually merges to `autogluon/tabarena`'s `main`:
-# bump to a normal `@<main-commit>` pin (dropping the branch reference) so
-# this stops depending on an upstream branch that could be force-pushed or
-# deleted.
-#
-# FURTHER BUMPED 2026-09-30 (same day): off `bd22348a` onto
-# `mario-koddenbrock/tabarena@9d771c3` -- `bd22348a` plus one more cherry-pick,
-# a fix for a real crash found live on this cluster: KumoTabularModel's
-# `_estimator_batch_size` heuristic batches all ensemble members together on
-# small datasets, which raises `ValueError: Estimators in one batch must
-# share column names, category counts and classes` on ~26/303 full-partition
-# tasks (confirmed: diabetes_skin_ear_lobe/vein, fuel_benchtop[1],
-# fuel_handheld[1], kaiser_ecoli_fermentation[2],
-# kaiser_ecoli_fermentation_supernatant[1,2],
-# streptococcus_thermophilus_fermentation_kaiser[1],
-# ait_glucose_blood_sers[0]). Fix (fall back to `estimator_batch_size=1` on
-# exactly this error, compared against `sdm.models.base`'s own
-# `_INCOMPATIBLE_ESTIMATORS` constant rather than a guessed message
-# substring) opened upstream as `autogluon/tabarena#630` against the
-# `kumo-tabular` branch itself, not yet merged -- same provisional-pin
-# situation as #625 above, just one level deeper. `9d771c3` IS `bd22348a` plus
-# only this one commit (verified: same branch, `git log` shows a strict
-# linear history). Revisit alongside the #625 TODO above once #630 merges.
-#
-# FURTHER BUMPED 2026-10-09: onto `mario-koddenbrock/tabarena@742133b4`
-# (branch `ramanbench/lightpfn-prismboost`) -- `9d771c3` plus exactly two
-# cherry-picks from upstream `main`: PrismBoost (#629, 39682ae7) and LightPFN
-# (#655, 3db71334), each a new `models/<name>/` folder plus its registry,
-# pyproject-extra and website lines. Conflicts were only in upstream bookkeeping
-# (results checksums, BENCHMARK_LOG.md, CLAUDE.md) and in the `methods.py` list,
-# where the Kumo lines upstream carries were left out as before. Deliberately NOT
-# a bump to upstream `main`: upstream has since rewritten KumoTabularModel (#625
-# merged in a different form), and moving onto it would change the code behind
-# every KUMO-TABULAR rerun. Everything else on the pin is byte-identical to
-# `9d771c3`. Their own packages (`lightpfn==1.0.0`, `prismboost>=0.5.0`) need
-# nothing beyond what is already installed (torch, scikit-learn, huggingface-hub;
-# checked with `pip install --dry-run --report`).
-#
-# FURTHER BUMPED 2026-10-13: onto `66198aba` (same fork branch) -- `742133b4`
-# plus the many-class (output-coding) support for TabFM+ (#657) and LightPFN
-# (#659), both merged upstream 2026-10-10 and cherry-picked here. Touches only
-# `models/lightpfn/`, `systems/tabfm_plus/` and an unused-by-default
-# `interface` argument of TabFM's output-code estimator. The BHT LightPFN/TabFM+
-# reruns of the >10-class datasets used exactly this commit.
-# ############################################################################
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm] @ git+https://github.com/mario-koddenbrock/tabarena.git@0745ac43dc45b39a437cc75afa027ce6f8377ba7#subdirectory=packages/tabarena
+# Extras left out of the Python 3.11 image, each with its own install:
+#   tabh2o, agentic_mlp, agentic_tabm  need Python >=3.12 (TabH2O, MLP-A, TabM-A).
+#   tabstar_v1p1  tabstar 1.2.0 caps transformers<5 but synthefy-nori needs transformers>=5.
+#                 The Dockerfile installs tabstar with --no-deps; peft and skrub are in
+#                 requirements-models-git.txt.
+#   seldon        neuralk-oss needs a structured-data-models build that conflicts with
+#                 kumo_tabular. Use `pip install "tabarena[seldon]"` in its own env.
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm,tababax] @ git+https://github.com/autogluon/tabarena.git@0642914dade871dd71ee39c7aa95d3a632d052db#subdirectory=packages/tabarena
 
-# tabicl -- pinned to an EXACT version, not left floating on tabarena's own
-# `tabicl` extra (`tabicl>=2.0.0`, unbounded upward). Flagged by a downstream
-# consumer (RamanICL): a TabICL checkpoint carries its architecture config,
-# splatted into `TabICL.__init__` at load time -- a build that doesn't
-# recognize a key the checkpoint was trained with hard-fails
-# (`TypeError: ... got an unexpected keyword argument ...`), or worse, if the
-# mismatch lands on a key with a default, silently changes the architecture
-# instead of erroring. TabArena's own TABICLV2 baseline uses an official,
-# PyPI-released checkpoint (not a bleeding-edge retrain), so this specific
-# failure mode isn't known to be live for us today -- but an unbounded floor
-# means a future `pip install --upgrade` could silently pick one up with no
-# warning, exactly the risk flagged. Pinned to 2.2.0, the version already
-# confirmed running in production (verified live on a real cluster pod) --
-# not a guess at some other "safer" version.
+# tabicl is pinned exactly: tabarena's extra is `tabicl>=2.0.0`, and a checkpoint with a key
+# an older build does not know either fails to load or silently changes the architecture.
+# 2.2.0 is the version the cluster runs.
 tabicl==2.2.0

@@ -1027,8 +1027,9 @@ def submit_jobs_k8s(
         subprocess.run(
             ["kubectl", "apply", "--validate=false", "-f", "-"], input=cm_yaml, text=True, check=True,
         )
+        # Jobs go through the per-user queue (`kq submit`), never `kubectl apply`.
         subprocess.run(
-            ["kubectl", "apply", "--validate=false", "-f", "-"],
+            ["kq", "submit", "-n", namespace, "-"],
             input=yaml.safe_dump(job_manifest), text=True, check=True,
         )
         job_names.append(job_name)
