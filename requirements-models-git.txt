@@ -1,39 +1,28 @@
-# Git-only model dependencies -- NOT installable via `pip install raman-bench[models]`.
-#
-# These four TabArena-native models are wrapped by RamanBench (Prep_TABFM,
-# Prep_SAP_RPT_OSS, Prep_ORIONMSP, Prep_EXAONE_TABULAR) but their upstream packages
-# publish no PyPI release, only a git repo. PyPI forbids direct-URL requirements in
-# an uploaded package, so they cannot live in pyproject.toml's `[models]` extra.
-#
+# Models whose upstream packages publish no PyPI release, so they cannot live in
+# pyproject.toml's `[models]` extra (PyPI forbids direct-URL requirements).
 # Install after `pip install raman-bench[models]` (or `[full]`):
 #     pip install -r requirements-models-git.txt
-#
-# Each pin matches tabarena's own pip_extra metadata (tabarena.models.<key>.info)
-# so the wrapped estimator stays the one tabarena's search space was tuned against.
-# Until installed, the corresponding Prep_* classes raise a clear "not available"
-# error (see src/raman_bench/preprocessing/wrapped_models.py).
+# Each pin matches the tabarena extra of the same model. Until installed, the Prep_*
+# class raises a "not available" error (preprocessing/wrapped_models.py).
 
-# TabFM  -> Prep_TABFM   (tabarena.models.tabfm.model.TabFMModel)
+# TabFM -> Prep_TABFM
 tabfm[pytorch] @ git+https://github.com/google-research/tabfm.git@633cd265f498e1d20c9625be0639f6305d8e2541
 
-# SAP-RPT-OSS  -> Prep_SAP_RPT_OSS   (tabarena.models.sap_rpt_oss.model.SAPRPTOSSModel)
+# SAP-RPT-OSS -> Prep_SAP_RPT_OSS
 sap_rpt_oss @ git+https://github.com/SAP-samples/sap-rpt-1-oss.git@a323a0aff976fda4ac43c3196a92406de7689aaa
 
-# OrionMSP  -> Prep_ORIONMSP: needs the tabtune package, installed by the Dockerfile with --no-deps
-# (tabtune caps transformers<5, synthefy-nori needs huggingface-hub>=1, which needs transformers>=5).
-
-# EXAONE-Tabular  -> Prep_EXAONE_TABULAR   (tabarena.models.exaone_tabular.model.EXAONETabularModel)
-# LICENSE NOTE: the exaonetabular *code* is BSD-3-Clause-LG AI Research (commercial
-# use permitted), but the released *weights* it downloads from Hugging Face on first
-# fit are under the separate EXAONE AI Model License Agreement 1.2-NC -- non-commercial
-# research/education use only. Fine for RamanBench's own academic benchmarking; flag
-# this before using Prep_EXAONE_TABULAR in any commercial context.
+# EXAONE-Tabular -> Prep_EXAONE_TABULAR
+# The code is BSD-3-Clause, but the weights it downloads on first fit are under the EXAONE AI
+# Model License 1.2-NC (non-commercial research and education only).
 exaonetabular @ git+https://github.com/LGAI-Research/EXAONE-Tabular.git@cf55bd2d74aeb9c0b5d5d4f509d05831251a827e
 
-# TabAbax  -> Prep_TABABAX   (tabarena.models.tababax.model.TabAbaxModel; pin = tabarena's pip_extra)
+# TabAbax -> Prep_TABABAX
 tababax @ git+https://github.com/tababax-research/TabAbax.git@125d26850015597ed371993f3a00375806c0f32c
 
-# TabSTAR-v1.1 -> Prep_TABSTAR_V1P1: tabstar itself is installed by the Dockerfile with --no-deps
-# (it caps transformers<5); these are its other requirements.
+# Installed separately, with --no-deps, because both cap transformers<5 while synthefy-nori
+# needs transformers>=5 (the Dockerfile does this):
+#     pip install --no-deps tabstar==1.2.0                                      # TabSTAR-v1.1
+#     pip install --no-deps "tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git"   # OrionMSP
+# tabstar's other requirements:
 peft
 skrub
