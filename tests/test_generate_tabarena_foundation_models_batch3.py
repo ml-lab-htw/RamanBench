@@ -119,6 +119,14 @@ def test_orionmsp_is_classification_only():
     assert "ORIONMSP" in CLASSIFICATION_ONLY_MODELS
 
 
+def test_seldon_models_are_classification_only():
+    """Seldon and Seldon-Mini only support classification (neuralk-oss' SeldonClassifier). Without the
+    entry, every regression fold of a sweep is submitted and fails with "No models were trained"."""
+    from raman_bench.preprocessing.wrapped_models import CLASSIFICATION_ONLY_MODELS
+
+    assert {"SELDON", "SELDON-MINI"} <= CLASSIFICATION_ONLY_MODELS
+
+
 def test_nori_is_regression_only():
     """NoriModel.supported_problem_types() == ["regression"] -- NORI must be
     listed so predictions.py's old v0 path skips it (rather than crashing) on

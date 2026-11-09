@@ -1532,6 +1532,7 @@ del _key, _info
 # classifier (TabArena's LightPFNModel supports binary/multiclass only).
 CLASSIFICATION_ONLY_MODELS = {
     "TABPFN-WIDE", "ORIONMSP", "PCALDA", "HIVECOTEV2", "STC", "DRCIF", "ARSENAL", "TDE", "LIGHTPFN", "FTFM",
+    "SELDON", "SELDON-MINI",
 }
 
 # Mirror of CLASSIFICATION_ONLY_MODELS: NORI (OrionMSPModel's opposite number in
