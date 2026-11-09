@@ -67,6 +67,11 @@
         "HIVECOTEV2",
         "TABSTAR_V1P1",
         "TABH2O",
+        "SELDON",
+        "SELDON-MINI",
+        "TABABAX",
+        "MLP-A",
+        "TABM-A",
         "AUTOGLUON-EXTREME-5M",
         "AUTOGLUON-EXTREME-1H",
         "AUTOGLUON-EXTREME-4H"

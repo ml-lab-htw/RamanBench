@@ -48,6 +48,8 @@ COPY src ./src
 RUN pip install --no-cache-dir --pre -e ".[models,benchmark]"
 RUN pip install --no-cache-dir --pre -r requirements-tabarena-git.txt
 RUN pip install --no-cache-dir --pre -r requirements-models-git.txt
+RUN pip install --no-cache-dir --no-deps tabstar==1.2.0
+RUN pip install --no-cache-dir --no-deps "tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git"
 RUN pip uninstall -y torchaudio
 # datasets>=5.1 needs huggingface_hub>=1.31, but transformers 4.x (TabArena's models) keeps
 # huggingface_hub<1.0; the separate installs above don't resolve that, and raman_data then fails
