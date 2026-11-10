@@ -12,8 +12,8 @@ actually comparable.
 
 ``build_task`` takes an already-loaded dataframe/dataset rather than loading one itself:
 ``run_one`` needs the raw dataframe's shape *before* splitting to run its own
-model-specific compatibility checks (``MAX_FEATURES_MODELS``/``VRAM_CAPPED_MODELS``,
-which don't apply to the model-agnostic AutoGluon baseline runner at all) --
+model-specific compatibility checks (``VRAM_CAPPED_MODELS``,
+which doesn't apply to the model-agnostic AutoGluon baseline runner at all) --
 threading those checks through this helper would couple it back to
 ``model_key``-specific concerns it's deliberately free of. Loading itself is the
 separate :func:`load_dataframe`.

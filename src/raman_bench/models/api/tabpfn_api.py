@@ -24,6 +24,8 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 
+from raman_bench.preprocessing.raman_preprocessing import bin_columns
+
 GROUP_COL = "_group_id"
 
 
@@ -40,20 +42,10 @@ RATE_LIMIT_RETRIES = 3
 _RETRY_IN_RE = re.compile(r"Retry in (\d+(?:\.\d+)?)s")
 
 
-def _bin_columns(X: np.ndarray, n_bins: int) -> np.ndarray:
-    """Average runs of neighbouring columns (spectral bins) down to *n_bins*.
-
-    Stateless: it depends only on the column count, so training and test rows are
-    transformed identically and the labels are never used.
-    """
-    edges = np.linspace(0, X.shape[1], n_bins + 1).round().astype(int)
-    return np.stack([X[:, a:b].mean(axis=1) for a, b in zip(edges[:-1], edges[1:])], axis=1)
-
-
 def _frame(X, groups=None, max_columns=None) -> pd.DataFrame:
     X = np.asarray(X, dtype=np.float32)
-    if max_columns is not None and X.shape[1] > max_columns:
-        X = _bin_columns(X, max_columns).astype(np.float32)
+    if max_columns is not None:
+        X = bin_columns(X, max_columns).astype(np.float32)
     cols = [f"f{i}" for i in range(X.shape[1])]
     df = pd.DataFrame(X, columns=cols)
     if groups is not None:

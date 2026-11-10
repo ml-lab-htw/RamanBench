@@ -974,13 +974,16 @@ Prep_FTFM = _make_optional_prep_class("Prep_FTFM", FTFMModel, ag_key="FTFM")
 # (1.1.15). Supports regression. ag_key "TA-TabSTAR-v1.1" -> "TABSTAR_V1P1" (underscore
 # convention for multi-word keys, as SAP_RPT_OSS).
 # Feature cap for TabSTAR (text-embedding memory grows with feature count). 4,000 was measured
-# for the 1.1.15 model; carried over unchanged to v1.1 and to be re-measured on its first run.
+# for the 1.1.15 model; carried over unchanged to v1.1. Wider spectra are binned down to the cap
+# (neighbouring columns averaged, see ``RamanPreprocessingMixin._bin_to_feature_cap``) instead of being
+# skipped, so AutoGluon's own ``max_features`` constraint is lifted: it would reject the raw width.
 _TABSTAR_MAX_FEATURES = 4000
 Prep_TABSTAR_V1P1 = _make_optional_prep_class(
     "Prep_TABSTAR_V1P1",
     TabSTARv1p1Model,
     ag_key="TABSTAR_V1P1",
-    _default_auxiliary_params_extra={"max_features": _TABSTAR_MAX_FEATURES},
+    _default_auxiliary_params_extra={"max_features": None},
+    _max_input_features=_TABSTAR_MAX_FEATURES,
 )
 # TabH2O (2026-11, upstream TabArena main): GPU, binary/multiclass/regression. ag_key "TA-TABH2O"
 # -> "TABH2O" (staging prefix stripped, as FTFM). Weights are under a non-commercial licence.
@@ -1543,26 +1546,6 @@ CLASSIFICATION_ONLY_MODELS = {
 # (CLASSIFICATION_ONLY_MODELS); this is the first model needing the reverse.
 REGRESSION_ONLY_MODELS = {"NORI"}
 
-# A model this registry has confirmed genuinely cannot handle RamanBench's widest
-# spectra (as opposed to CLASSIFICATION_ONLY_MODELS/REGRESSION_ONLY_MODELS'
-# problem-type mismatch) -- keyed by model name -> max feature count. Consumed by
-# scripts/run_experiment.py::run_one() as a clean, job-level skip (return None,
-# log a message, exit 0 -- no results.pkl written, same convention as the
-# rare-class-filtering / all-NaN-label skips already there), mirroring exactly how
-# CLASSIFICATION_ONLY_MODELS/REGRESSION_ONLY_MODELS are consumed by
-# predictions.py. This is belt-and-suspenders with the AutoGluon-level
-# `max_features` cap set on the model class itself (see Prep_TABSTAR_V1P1 above): the
-# AutoGluon-level cap alone produces a clean `ConstraintViolationError` skip
-# in a multi-model `TabularPredictor.fit()` call, but RamanBench's own cluster
-# jobs always fit exactly one model, so with no other model to fall back on,
-# AutoGluon's `raise_on_no_models_fitted=True` default (see
-# `autogluon.tabular.predictor.predictor.TabularPredictor._post_fit`) turns that
-# same clean skip into a job-crashing `RuntimeError: No models were trained
-# successfully during fit()` -- confirmed with a real local run against a
-# too-wide dataset. This dict lets `run_experiment.py` catch that case BEFORE
-# ever calling into AutoGluon, for a real clean exit instead.
-MAX_FEATURES_MODELS = {"TABSTAR_V1P1": _TABSTAR_MAX_FEATURES}
-
 # ORIONMSP: a real production CUDA OOM (`pharmaceutical_ingredients`, 3,276
 # features, 2,340 train rows, on a 79.25 GiB GPU: "Tried to allocate 94.47
 # GiB. ... 63.84 GiB is free") looked at first like the same shape of problem
@@ -1638,7 +1621,7 @@ MAX_FEATURES_MODELS = {"TABSTAR_V1P1": _TABSTAR_MAX_FEATURES}
 #   not just noise around a feature-count signal.
 #
 # So the cap below is a joint predicate (features AND rows), not a second
-# `MAX_FEATURES_MODELS` entry. The budget (40 GiB) is chosen the same way
+# feature cap like TabSTAR's. The budget (40 GiB) is chosen the same way
 # TabSTAR's 4,000 was: it sits in a real, wide, dataset-free gap in the
 # predicted-GiB distribution across all 152 real v1 targets -- nothing
 # between 26.30 GiB (`flow_microgel_synthesis`, kept) and 61.22 GiB
@@ -1677,14 +1660,14 @@ def _orionmsp_exceeds_vram_budget(n_features: int, n_rows: int) -> bool:
     return _orionmsp_predicted_attn_gib(n_features, n_rows) > _ORIONMSP_MAX_PREDICTED_ATTN_GIB
 
 
-# Joint (features AND rows) counterpart to `MAX_FEATURES_MODELS` -- keyed by
+# Joint (features AND rows) skip rule -- keyed by
 # model name -> a `(n_features, n_rows) -> bool` predicate (True = skip)
 # instead of a single int, since (see the comment block above) a single
 # number can't express OrionMSP's real constraint. Consumed the same way by
 # `scripts/run_experiment.py::run_one()`: a clean, job-level skip (return
 # `None`, log, exit 0) BEFORE ever calling into AutoGluon/CUDA, for the same
-# `raise_on_no_models_fitted=True` reason `MAX_FEATURES_MODELS`'s own
-# docstring explains.
+# `raise_on_no_models_fitted=True` reason: with one model per fit, AutoGluon's own clean
+# skip becomes a job-crashing "No models were trained" error.
 VRAM_CAPPED_MODELS = {"ORIONMSP": _orionmsp_exceeds_vram_budget}
 
 
