@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from raman_bench.preprocessing.raman_preprocessing import bin_columns
 
@@ -40,6 +41,7 @@ def _stub(cap):
 
 
 def test_mixin_bins_wide_frames_only():
+    pytest.importorskip("autogluon.tabular")
     from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
 
     wide = pd.DataFrame(np.arange(20, dtype=float).reshape(2, 10), columns=[f"{i}.0" for i in range(10)])
