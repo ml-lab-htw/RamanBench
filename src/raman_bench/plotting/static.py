@@ -261,7 +261,7 @@ def _label_points(ax, df: pd.DataFrame, x: str, y: str, focus: set[str], avoid: 
             placed.append(text.get_window_extent(renderer))
 
 
-def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, n_tasks, strict=False):
+def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, strict=False):
     x = TIME_COL
     lb, refs = split_references(lb)
     df = lb.dropna(subset=[x, metric])
@@ -281,19 +281,18 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, n_tasks,
     ax.set_xscale("log")
     ax.set_xlabel("Median train + predict time per 1K spectra (s)")
     ax.set_ylabel(label)
-    ax.set_title(f"{title} (N={n_tasks})")
+    ax.set_title(title)
     # Arrow towards the better corner (high scores / low times for higher-is-better metrics).
-    y_tip, y_tail = (0.94, 0.86) if higher_is_better else (0.06, 0.14)
+    y_tip, y_tail = (0.95, 0.83) if higher_is_better else (0.05, 0.17)
     ax.add_patch(matplotlib.patches.FancyArrowPatch(
-        (0.075, y_tail), (0.022, y_tip), transform=ax.transAxes, zorder=5,
+        (0.10, y_tail), (0.025, y_tip), transform=ax.transAxes, zorder=5,
         connectionstyle=f"arc3,rad={-0.2 if higher_is_better else 0.2}",
-        arrowstyle="simple,head_width=9,head_length=10,tail_width=2.5", mutation_scale=1,
-        facecolor="#6f8fb3", edgecolor="white", linewidth=0.8, alpha=0.85,
+        arrowstyle="simple,head_width=11,head_length=13,tail_width=3.2", mutation_scale=1,
+        facecolor="#6f8fb3", edgecolor="white", linewidth=0.9, alpha=0.85,
     ))
     ax.text(
-        0.072, (y_tip + y_tail) / 2 + (0.035 if higher_is_better else -0.035), "better", transform=ax.transAxes,
-        ha="center", va="center", fontsize=8.5, fontweight="bold", fontstyle="italic", color="#4a6785",
-        rotation=50 if higher_is_better else -50, zorder=5,
+        0.03, y_tail - (0.06 if higher_is_better else -0.06), "better", transform=ax.transAxes,
+        ha="left", va="center", fontsize=9, fontweight="bold", fontstyle="italic", color="#4a6785", zorder=5,
     )
     # Labels are placed in display space, so the caller adds them once the layout is final.
     return lambda: _label_points(ax, shown, x, metric, highlight, avoid=df)
@@ -320,7 +319,7 @@ def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str,
     for ax, g in zip(axes, groups):
         lb = scores[g].leaderboard
         models |= set(split_references(lb)[0].index)
-        labelers.append(_tradeoff_ax(ax, lb, metric, label, higher, focus[g], TASK_TITLES[g], scores[g].n_tasks, strict))
+        labelers.append(_tradeoff_ax(ax, lb, metric, label, higher, focus[g], TASK_TITLES[g], strict))
         if metric == "improvability":
             ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
     fig.tight_layout()
