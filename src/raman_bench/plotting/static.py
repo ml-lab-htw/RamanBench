@@ -261,7 +261,7 @@ def _label_points(ax, df: pd.DataFrame, x: str, y: str, focus: set[str], avoid: 
             placed.append(text.get_window_extent(renderer))
 
 
-def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, strict=False):
+def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, n_tasks, strict=False):
     x = TIME_COL
     lb, refs = split_references(lb)
     df = lb.dropna(subset=[x, metric])
@@ -281,7 +281,17 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, strict=F
     ax.set_xscale("log")
     ax.set_xlabel("Median train + predict time per 1K spectra (s)")
     ax.set_ylabel(label)
-    ax.set_title(f"{title}  ({'upper' if higher_is_better else 'lower'} left is better)")
+    ax.set_title(f"{title} (N={n_tasks})")
+    # Arrow towards the better corner (high scores / low times for higher-is-better metrics).
+    y_tip, y_tail = (0.95, 0.80) if higher_is_better else (0.05, 0.20)
+    ax.annotate(
+        "", xy=(0.03, y_tip), xytext=(0.12, y_tail), xycoords="axes fraction", textcoords="axes fraction",
+        arrowprops=dict(arrowstyle="-|>", color="#555555", lw=1.4), zorder=5,
+    )
+    ax.text(
+        0.10, (y_tip + y_tail) / 2 + (0.035 if higher_is_better else -0.035), "better", transform=ax.transAxes,
+        ha="center", va="center", fontsize=9, color="#555555", rotation=45 if higher_is_better else -45, zorder=5,
+    )
     # Labels are placed in display space, so the caller adds them once the layout is final.
     return lambda: _label_points(ax, shown, x, metric, highlight, avoid=df)
 
@@ -307,7 +317,7 @@ def plot_tradeoff(scores, focus, out_dir: Path, formats, metric: str, stem: str,
     for ax, g in zip(axes, groups):
         lb = scores[g].leaderboard
         models |= set(split_references(lb)[0].index)
-        labelers.append(_tradeoff_ax(ax, lb, metric, label, higher, focus[g], TASK_TITLES[g], strict))
+        labelers.append(_tradeoff_ax(ax, lb, metric, label, higher, focus[g], TASK_TITLES[g], scores[g].n_tasks, strict))
         if metric == "improvability":
             ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
     fig.tight_layout()
