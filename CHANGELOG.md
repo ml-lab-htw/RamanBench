@@ -12,6 +12,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
+  so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
+
 ### Changed
 
 - **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
