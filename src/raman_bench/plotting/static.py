@@ -277,11 +277,33 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, strict=F
         shown[x], shown[metric], s=60, zorder=3, linewidths=0.6, edgecolors="white",
         color=[model_info.color(m) for m in shown.index],
     )
-    ax.step(front[x], front[metric], where="post", color=FRONT_COLOR, ls="--", lw=1, zorder=1)
+    # Run the front out to the axes: down (or up, for lower-is-better metrics) from its fastest point to the
+    # x axis, and horizontally from its last point to the right edge.
+    ax.set_xscale("log")
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
+    edge = ylim[0] if higher_is_better else ylim[1]
+    ax.step(
+        [front[x].iloc[0], *front[x], xlim[1]], [edge, *front[metric], front[metric].iloc[-1]],
+        where="post", color=FRONT_COLOR, ls="--", lw=1, zorder=1,
+    )
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     ax.set_xscale("log")
     ax.set_xlabel("Median train + predict time per 1K spectra (s)")
     ax.set_ylabel(label)
-    ax.set_title(f"{title}  ({'upper' if higher_is_better else 'lower'} left is better)")
+    ax.set_title(title)
+    # Arrow towards the better corner (high scores / low times for higher-is-better metrics).
+    y_tip, y_tail = (0.95, 0.83) if higher_is_better else (0.05, 0.17)
+    ax.add_patch(matplotlib.patches.FancyArrowPatch(
+        (0.09, y_tail), (0.015, y_tip), transform=ax.transAxes, zorder=5,
+        connectionstyle=f"arc3,rad={-0.2 if higher_is_better else 0.2}",
+        arrowstyle="simple,head_width=11,head_length=13,tail_width=3.2", mutation_scale=1,
+        facecolor="#6f8fb3", edgecolor="white", linewidth=0.9, alpha=0.85,
+    ))
+    ax.text(
+        0.06, y_tail + (0.07 if higher_is_better else 0.06), "better", transform=ax.transAxes,
+        ha="left", va="center", fontsize=11, fontweight="bold", fontstyle="italic", color="#4a6785", zorder=10,
+    )
     # Labels are placed in display space, so the caller adds them once the layout is final.
     return lambda: _label_points(ax, shown, x, metric, highlight, avoid=df)
 

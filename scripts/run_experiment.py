@@ -189,9 +189,7 @@ def run_one(
     ``RamanBenchmark`` silently excluded such keys from the benchmark), if
     every row for this target has a missing (NaN) label, if ``model_key`` only
     supports the other problem type (``wrapped_models.CLASSIFICATION_ONLY_MODELS``/
-    ``REGRESSION_ONLY_MODELS``), if ``model_key`` is capped below this dataset's
-    feature count (``wrapped_models.MAX_FEATURES_MODELS``, e.g. TABSTAR), or if
-    ``model_key`` is predicted to exceed its VRAM budget on this dataset's
+    ``REGRESSION_ONLY_MODELS``), if ``model_key`` is predicted to exceed its VRAM budget on this dataset's
     feature-count/row-count combination (``wrapped_models.VRAM_CAPPED_MODELS``,
     e.g. ORIONMSP).
 
@@ -235,7 +233,6 @@ def run_one(
     from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
     from raman_bench.preprocessing.wrapped_models import (
         CLASSIFICATION_ONLY_MODELS,
-        MAX_FEATURES_MODELS,
         REGRESSION_ONLY_MODELS,
         VRAM_CAPPED_MODELS,
     )
@@ -257,8 +254,7 @@ def run_one(
 
     # Model/dataset compatibility checks that AutoGluon itself would also
     # reject (via a clean `ConstraintViolationError` skip -- see
-    # `wrapped_models.CLASSIFICATION_ONLY_MODELS`/`REGRESSION_ONLY_MODELS`/
-    # `MAX_FEATURES_MODELS`'s own docstrings), but RamanBench's own cluster
+    # `wrapped_models.CLASSIFICATION_ONLY_MODELS`/`REGRESSION_ONLY_MODELS`), but RamanBench's own cluster
     # jobs always fit exactly one model per `TabularPredictor.fit()` call, with
     # no other model for AutoGluon to fall back on -- so its own
     # `raise_on_no_models_fitted=True` default turns that same clean skip into
@@ -286,24 +282,9 @@ def run_one(
             model_key,
         )
         return None
-    if model_key_upper in MAX_FEATURES_MODELS:
-        max_features = MAX_FEATURES_MODELS[model_key_upper]
-        n_features = df.shape[1] - 1  # exclude label_col; group_id (if any) isn't added yet here
-        if n_features > max_features:
-            logger.info(
-                "Skipping %s target %d: %s is capped at max_features=%d, but this "
-                "dataset has %d features",
-                dataset_name,
-                target_idx,
-                model_key,
-                max_features,
-                n_features,
-            )
-            return None
     if model_key_upper in VRAM_CAPPED_MODELS:
-        # Joint (features AND rows) counterpart to the MAX_FEATURES_MODELS check
-        # above -- see wrapped_models.VRAM_CAPPED_MODELS's own docstring for why
-        # a single max_features number can't express this model's real
+        # Joint (features AND rows) check -- see wrapped_models.VRAM_CAPPED_MODELS's
+        # own docstring for why a single max_features number can't express this model's real
         # constraint. `n_rows` mirrors the outer-CV train partition size this
         # job will actually fit on (n_splits-1/n_splits of the full dataset,
         # BEFORE any rare-class/NaN-label filtering below -- a slight
