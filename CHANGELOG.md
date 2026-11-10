@@ -12,6 +12,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- `cluster/submit_autogluon_baseline.py` creates its Job with `kq submit` instead of `kubectl apply`, and takes
+  `RB_KQ_AFTER` like `submit_job.py`.
+
 ### Added
 
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
