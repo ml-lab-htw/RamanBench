@@ -24,9 +24,10 @@ The full rules are in [RELEASING.md](RELEASING.md).
   - TabSTAR-v1.1 skips the 18 targets with more than 4,000 features (351 of 405 folds).
   - TabAbax fails on 15 classification folds from a device mismatch in upstream's
     `_predict_hierarchical` (390 of 405).
-  - Seldon runs out of its time limit on `mlrod` (10800 s per fold) and on fold 2 of
-    `cancer_cell_cooh` (3600 s). `bacteria_identification` was still running at release time.
-  - Seldon-Mini, MLP-A, TabM-A and TabH2O have all 405 folds (Seldon-Mini 63 of 63 classification folds).
+  - Seldon and Seldon-Mini have all 63 classification folds. Seldon first timed out on `mlrod`,
+    `bacteria_identification` and fold 2 of `cancer_cell_cooh` on A100 and H100 nodes (time limits of 10800 s,
+    600 s and 3600 s); on a B200 node every fold took about 5 minutes, so the rerun completed them all.
+  - MLP-A, TabM-A and TabH2O have all 405 folds.
 - TabSTAR-v1.1, TabH2O, MLP-A, TabM-A and Seldon need images other than the main one (transformers 4,
   Python 3.12, neuralk-oss 0.2.3); the BHT profile pins them by digest through `image_overrides`.
 - Plot metadata for the new models, and `--highlight` in `plot_results.py` to colour only a given list of models.
