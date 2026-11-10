@@ -277,15 +277,17 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, strict=F
         shown[x], shown[metric], s=60, zorder=3, linewidths=0.6, edgecolors="white",
         color=[model_info.color(m) for m in shown.index],
     )
-    # Run the front out to both axes: horizontally to the left edge from its first point and to the right
-    # edge from its last point.
+    # Run the front out to the axes: down (or up, for lower-is-better metrics) from its fastest point to the
+    # x axis, and horizontally from its last point to the right edge.
     ax.set_xscale("log")
-    xlim = ax.get_xlim()
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
+    edge = ylim[0] if higher_is_better else ylim[1]
     ax.step(
-        [xlim[0], *front[x], xlim[1]], [front[metric].iloc[0], *front[metric], front[metric].iloc[-1]],
+        [front[x].iloc[0], *front[x], xlim[1]], [edge, *front[metric], front[metric].iloc[-1]],
         where="post", color=FRONT_COLOR, ls="--", lw=1, zorder=1,
     )
     ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     ax.set_xscale("log")
     ax.set_xlabel("Median train + predict time per 1K spectra (s)")
     ax.set_ylabel(label)
