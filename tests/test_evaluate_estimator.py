@@ -12,6 +12,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.linear_model import LogisticRegression
 
 from raman_bench.evaluate import protocol_commands
 
@@ -103,3 +104,41 @@ def test_evaluate_estimator_end_to_end(tmp_path):
     lb = compare(results_dir, tasks="own", bootstrap_rounds=5)["all"].leaderboard
     assert "TEST-EST" in lb.index
     assert lb.loc["TEST-EST", "preprocessing"] == "snv"
+
+
+_SEEN_GROUPS: dict[str, list] = {"fit": [], "predict": []}
+
+
+class GroupsLR(LogisticRegression):
+    """Module level so AutoGluon can pickle it."""
+
+    def fit(self, X, y, groups=None):
+        _SEEN_GROUPS["fit"].append(None if groups is None else (len(groups), len(set(groups))))
+        return super().fit(X, y)
+
+    def predict_proba(self, X, groups=None):
+        _SEEN_GROUPS["predict"].append(None if groups is None else len(groups))
+        return super().predict_proba(X)
+
+
+def test_estimator_with_a_groups_argument_gets_the_group_ids_on_grouped_tasks(tmp_path):
+    """The hosted TabPFN takes ``groups`` in fit/predict; evaluate_estimator hands them over on grouped tasks only."""
+    pytest.importorskip("tabarena")
+    pytest.importorskip("bencheval")
+    from raman_data import TASK_TYPE
+
+    from raman_bench.evaluate import evaluate_estimator
+    from raman_bench.splitting import GROUP_COL
+
+    df = _spectra(60, True)
+    grouped = pd.concat([df.drop(columns="target"), pd.Series(np.arange(60) // 3, name=GROUP_COL), df["target"]], axis=1)
+    fakes = {CLF_TASK.split("__")[0]: _FakeDataset(TASK_TYPE.Classification, grouped)}
+    _SEEN_GROUPS["fit"].clear()
+    _SEEN_GROUPS["predict"].clear()
+    with patch("raman_bench.benchmark.RamanBenchmark._load_raman_dataset", lambda self, name: fakes[name]):
+        evaluate_estimator(
+            "GROUPS-EST", classifier=GroupsLR(max_iter=500), tasks=[CLF_TASK],
+            results_dir=str(tmp_path / "results"), cache_dir=str(tmp_path / "cache"),
+        )
+    assert _SEEN_GROUPS["fit"] and all(g is not None and g[1] > 1 for g in _SEEN_GROUPS["fit"])
+    assert _SEEN_GROUPS["predict"] and all(p is not None for p in _SEEN_GROUPS["predict"])

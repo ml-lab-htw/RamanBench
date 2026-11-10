@@ -19,6 +19,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- **`evaluate_estimator` hands group ids to estimators that take them.** On tasks with a group column, an estimator
+  whose `fit` / `predict` / `predict_proba` has a `groups` argument now receives the group ids
+  (`models/sklearn_estimator.py`); other estimators are called as before. The hosted TabPFN thinking runner
+  (`scripts/run_tabpfn_thinking.py`) sends them to the API (`use_groups=True`), so its results are a grouped
+  variant that the other v1 models do not have.
 - **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
   features; the 18 targets above that (54 folds) were skipped. Their spectra are now averaged in runs of
   neighbouring columns down to 4,000 (`raman_bench.preprocessing.raman_preprocessing.bin_columns`, applied
