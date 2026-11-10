@@ -295,14 +295,14 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, strict=F
     # Arrow towards the better corner (high scores / low times for higher-is-better metrics).
     y_tip, y_tail = (0.95, 0.83) if higher_is_better else (0.05, 0.17)
     ax.add_patch(matplotlib.patches.FancyArrowPatch(
-        (0.10, y_tail), (0.025, y_tip), transform=ax.transAxes, zorder=5,
+        (0.09, y_tail), (0.015, y_tip), transform=ax.transAxes, zorder=5,
         connectionstyle=f"arc3,rad={-0.2 if higher_is_better else 0.2}",
         arrowstyle="simple,head_width=11,head_length=13,tail_width=3.2", mutation_scale=1,
         facecolor="#6f8fb3", edgecolor="white", linewidth=0.9, alpha=0.85,
     ))
     ax.text(
-        0.03, y_tail - (0.06 if higher_is_better else -0.06), "better", transform=ax.transAxes,
-        ha="left", va="center", fontsize=9, fontweight="bold", fontstyle="italic", color="#4a6785", zorder=5,
+        0.06, y_tail + (0.07 if higher_is_better else 0.06), "better", transform=ax.transAxes,
+        ha="left", va="center", fontsize=11, fontweight="bold", fontstyle="italic", color="#4a6785", zorder=10,
     )
     # Labels are placed in display space, so the caller adds them once the layout is final.
     return lambda: _label_points(ax, shown, x, metric, highlight, avoid=df)
