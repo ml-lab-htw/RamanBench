@@ -12,6 +12,16 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
+  features; the 18 targets above that (54 folds) were skipped. Their spectra are now averaged in runs of
+  neighbouring columns down to 4,000 (`raman_bench.preprocessing.raman_preprocessing.bin_columns`, applied
+  after the preprocessing recipe in `RamanPreprocessingMixin._bin_to_feature_cap`). The binning depends only on
+  the column count, so training and test rows are treated alike and no label is used. Targets at or below
+  the cap are untouched. `wrapped_models.MAX_FEATURES_MODELS` and the skip in `run_experiment.py` are gone:
+  the cap is the class attribute `_max_input_features`. The TabPFN thinking runner uses the same helper.
+
 ## [1.5.0] — 2026-11-10
 
 ### Added

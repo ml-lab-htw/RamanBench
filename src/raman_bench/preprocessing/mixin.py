@@ -101,6 +101,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     augment_spectra,
     baseline_correction_airpls,
     baseline_correction_arpls,
+    bin_columns,
     cosmic_ray_removal,
     crop_spectra,
     crop_spectra_physical,
@@ -518,6 +519,8 @@ class RamanPreprocessingMixin:
 
     _optimize_preprocessing: bool = False
     _supports_augmentation: bool = False
+    # Set on models that take at most this many features (TabSTAR-v1.1): wider input is binned down to it.
+    _max_input_features: int | None = None
 
     # AutoGluon's `drop_unique` auxiliary param (default True) drops columns
     # that are constant within the exact X a bagged fold child's `fit()`
@@ -1311,9 +1314,11 @@ class RamanPreprocessingMixin:
         # RamanBenchTaskWrapper.keep_group_col): it is needed by TabArena's splitter, not as a feature.
         if isinstance(X, pd.DataFrame) and GROUP_COL in X.columns:
             X = X.drop(columns=[GROUP_COL])
+        if isinstance(X, pd.DataFrame) and X.shape[1] == getattr(self, "_prep_binned_width", None):
+            return super()._preprocess(X, **kwargs)  # already binned by an earlier call
         recipe = getattr(self, "_prep_recipe", None)
         if recipe is None or not isinstance(X, pd.DataFrame):
-            return super()._preprocess(X, **kwargs)
+            return super()._preprocess(self._bin_to_feature_cap(X), **kwargs)
 
         ensemble_enabled = recipe.get("prep_ensemble_enabled", False) and recipe.get(
             "prep_ensemble_blocks"
@@ -1322,7 +1327,7 @@ class RamanPreprocessingMixin:
             recipe.get(k, False) for k in _TRANSFORM_ENABLED_PARAMS
         )
         if not transform_on:
-            return super()._preprocess(X, **kwargs)
+            return super()._preprocess(self._bin_to_feature_cap(X), **kwargs)
 
         # Already-transformed guard (shape-changing recipes only — for shape-
         # preserving ones the pipeline applies the transform exactly once per
@@ -1330,7 +1335,7 @@ class RamanPreprocessingMixin:
         n_out = getattr(self, "_prep_n_features_out", None)
         n_in = getattr(self, "_prep_n_features_in", None)
         if n_out is not None and n_out != n_in and X.shape[1] == n_out:
-            return super()._preprocess(X, **kwargs)
+            return super()._preprocess(self._bin_to_feature_cap(X), **kwargs)
 
         logger.info(
             "Apply preprocessing — %d spectra (%s)", len(X), self.__class__.__name__
@@ -1346,7 +1351,22 @@ class RamanPreprocessingMixin:
             columns=_output_feature_cols(feature_cols, X_np.shape[1]),
             index=X.index,
         )
-        return super()._preprocess(X, **kwargs)
+        return super()._preprocess(self._bin_to_feature_cap(X), **kwargs)
+
+    def _bin_to_feature_cap(self, X):
+        """Average neighbouring columns of *X* down to ``_max_input_features`` when it is wider.
+
+        For models that cannot take more features than a cap (TabSTAR-v1.1: 4,000). Runs after the recipe,
+        on its output, so the recipe still sees the full spectrum. Stateless (see ``bin_columns``), so
+        fit and predict bin alike.
+        """
+        cap = self._max_input_features
+        if cap is None or not isinstance(X, pd.DataFrame) or X.shape[1] <= cap:
+            return X
+        logger.info("Binning %d features to %d (%s)", X.shape[1], cap, self.__class__.__name__)
+        self._prep_binned_width = cap
+        X_np = bin_columns(X.values.astype(np.float64), cap)
+        return pd.DataFrame(X_np, columns=_output_feature_cols(X.columns.tolist(), cap), index=X.index)
 
     def _predict_proba(self, X, **kwargs):
         # Thin wrapper: the recipe transform runs in _preprocess now, so this

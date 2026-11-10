@@ -1284,3 +1284,16 @@ def augment_spectra_torch(
         X_aug = X_aug + noise
 
     return X_aug, y_aug
+
+
+def bin_columns(X, n_bins):
+    """Average runs of neighbouring columns (spectral bins) down to *n_bins*.
+
+    Stateless: it depends only on the column count, so training and test rows are transformed
+    identically and the labels are never used. Returns *X* unchanged when it has *n_bins* columns or fewer.
+    """
+    X = np.asarray(X)
+    if X.shape[1] <= n_bins:
+        return X
+    edges = np.linspace(0, X.shape[1], n_bins + 1).round().astype(int)
+    return np.stack([X[:, a:b].mean(axis=1) for a, b in zip(edges[:-1], edges[1:])], axis=1)
