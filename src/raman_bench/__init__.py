@@ -36,7 +36,7 @@ Quick Start
 
 import importlib
 
-__version__ = "1.4.1"
+__version__ = "1.5.0"
 __author__ = "Mario Koddenbrock (HTW Berlin), Christoph Lange (TU Berlin)"
 
 _public_map = {
