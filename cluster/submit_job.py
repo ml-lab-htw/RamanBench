@@ -1028,8 +1028,11 @@ def submit_jobs_k8s(
             ["kubectl", "apply", "--validate=false", "-f", "-"], input=cm_yaml, text=True, check=True,
         )
         # Jobs go through the per-user queue (`kq submit`), never `kubectl apply`.
+        # RB_KQ_AFTER ("job-a,job-b") holds the Job until those succeeded: chains submissions into lanes,
+        # so a long list of models runs a few pods at a time (kq alone only limits the Jobs waiting for a node).
+        after = os.environ.get("RB_KQ_AFTER")
         subprocess.run(
-            ["kq", "submit", "-n", namespace, "-"],
+            ["kq", "submit", "-n", namespace, *(["--after", after] if after else []), "-"],
             input=yaml.safe_dump(job_manifest), text=True, check=True,
         )
         job_names.append(job_name)
