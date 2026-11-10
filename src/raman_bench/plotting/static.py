@@ -283,14 +283,17 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, n_tasks,
     ax.set_ylabel(label)
     ax.set_title(f"{title} (N={n_tasks})")
     # Arrow towards the better corner (high scores / low times for higher-is-better metrics).
-    y_tip, y_tail = (0.95, 0.80) if higher_is_better else (0.05, 0.20)
-    ax.annotate(
-        "", xy=(0.03, y_tip), xytext=(0.12, y_tail), xycoords="axes fraction", textcoords="axes fraction",
-        arrowprops=dict(arrowstyle="-|>", color="#555555", lw=1.4), zorder=5,
-    )
+    y_tip, y_tail = (0.95, 0.78) if higher_is_better else (0.05, 0.22)
+    ax.add_patch(matplotlib.patches.FancyArrowPatch(
+        (0.14, y_tail), (0.035, y_tip), transform=ax.transAxes, zorder=5,
+        connectionstyle=f"arc3,rad={-0.25 if higher_is_better else 0.25}",
+        arrowstyle="simple,head_width=13,head_length=15,tail_width=4", mutation_scale=1,
+        facecolor="#6f8fb3", edgecolor="white", linewidth=1.2, alpha=0.8,
+    ))
     ax.text(
-        0.10, (y_tip + y_tail) / 2 + (0.035 if higher_is_better else -0.035), "better", transform=ax.transAxes,
-        ha="center", va="center", fontsize=9, color="#555555", rotation=45 if higher_is_better else -45, zorder=5,
+        0.115, (y_tip + y_tail) / 2 + (0.05 if higher_is_better else -0.05), "better", transform=ax.transAxes,
+        ha="center", va="center", fontsize=10, fontweight="bold", fontstyle="italic", color="#4a6785",
+        rotation=40 if higher_is_better else -40, zorder=5,
     )
     # Labels are placed in display space, so the caller adds them once the layout is final.
     return lambda: _label_points(ax, shown, x, metric, highlight, avoid=df)
