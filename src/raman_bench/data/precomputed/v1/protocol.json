@@ -1,6 +1,6 @@
 {
  "version": "v1",
- "created": "2026-10-14",
+ "created": "2026-11-10",
  "n_splits": 3,
  "num_bag_folds": 3,
  "time_limit": 600,
@@ -11,12 +11,14 @@
  "max_train_samples_overrides": {
   "mlrod": 10000,
   "wheat_lines": 10000,
-  "bacteria_identification": 10000
+  "bacteria_identification": 10000,
+  "glioma_idh": 10000
  },
  "model_max_train_samples_overrides": {
   "ORIONMSP": {
    "mlrod": 2000,
-   "wheat_lines": 2000
+   "wheat_lines": 2000,
+   "glioma_idh": 2000
   },
   "LIMIX": {
    "bacteria_identification": 5000,
@@ -25,7 +27,8 @@
    "serum_prostate_cancer": 5000,
    "sugar_mixtures_low_snr": 5000,
    "wheat_lines": 5000,
-   "mlrod": 2000
+   "mlrod": 2000,
+   "glioma_idh": 5000
   },
   "PERPETUAL_BOOSTER": 3000,
   "MITRA": 3000,
@@ -65,6 +68,7 @@
   "LIMIX2",
   "LR",
   "MITRA",
+  "MLP-A",
   "MODERNNCA",
   "NN_TORCH",
   "NORI",
@@ -85,19 +89,25 @@
   "ROCKET",
   "SANET",
   "SAP_RPT_OSS",
+  "SELDON",
+  "SELDON-MINI",
   "TA-EXAONE-TABULAR",
   "TA-MITRA-V2",
+  "TABABAX",
   "TABDPT",
   "TABDPT-V1.3",
   "TABFM",
   "TABFM-PLUS",
+  "TABH2O",
   "TABICLV2",
   "TABLDM",
   "TABM",
+  "TABM-A",
   "TABPFN-V3",
   "TABPFN-V3.5",
   "TABPFN-V3.5-FAST",
   "TABPFN-WIDE",
+  "TABSTAR_V1P1",
   "TABSWIFT",
   "XGB",
   "XRFM",
@@ -131,6 +141,7 @@
   "LIMIX2": "none",
   "LR": "baseline_correction, snv",
   "MITRA": "none",
+  "MLP-A": "none",
   "MODERNNCA": "none",
   "NN_TORCH": "none",
   "NORI": "none",
@@ -151,36 +162,31 @@
   "ROCKET": "none",
   "SANET": "augmentation",
   "SAP_RPT_OSS": "none",
+  "SELDON": "none",
+  "SELDON-MINI": "none",
   "TA-EXAONE-TABULAR": "none",
   "TA-MITRA-V2": "none",
+  "TABABAX": "none",
   "TABDPT": "none",
   "TABDPT-V1.3": "none",
   "TABFM": "none",
   "TABFM-PLUS": "none",
+  "TABH2O": "none",
   "TABICLV2": "none",
   "TABLDM": "none",
   "TABM": "none",
+  "TABM-A": "none",
   "TABPFN-V3": "none",
   "TABPFN-V3.5": "none",
   "TABPFN-V3.5-FAST": "none",
   "TABPFN-WIDE": "none",
+  "TABSTAR_V1P1": "none",
   "TABSWIFT": "none",
   "XGB": "none",
   "XRFM": "none",
   "XT": "none"
  },
  "tasks": [
-  {
-   "task": "alzheimer__0",
-   "dataset": "alzheimer",
-   "target_idx": 0,
-   "target_name": "target",
-   "problem_type": "classification",
-   "metric": "roc_auc",
-   "num_instances": 1151,
-   "n_repeats": 1,
-   "n_folds": 3
-  },
   {
    "task": "cancer_cell_cooh__0",
    "dataset": "cancer_cell_cooh",
@@ -211,28 +217,6 @@
    "problem_type": "classification",
    "metric": "roc_auc",
    "num_instances": 230,
-   "n_repeats": 1,
-   "n_folds": 3
-  },
-  {
-   "task": "comfile_stroke__0",
-   "dataset": "comfile_stroke",
-   "target_idx": 0,
-   "target_name": "target",
-   "problem_type": "classification",
-   "metric": "roc_auc",
-   "num_instances": 4020,
-   "n_repeats": 1,
-   "n_folds": 3
-  },
-  {
-   "task": "covid19_salvia__0",
-   "dataset": "covid19_salvia",
-   "target_idx": 0,
-   "target_name": "target",
-   "problem_type": "classification",
-   "metric": "log_loss",
-   "num_instances": 2501,
    "n_repeats": 1,
    "n_folds": 3
   },
@@ -281,17 +265,6 @@
    "n_folds": 3
   },
   {
-   "task": "parkinson__0",
-   "dataset": "parkinson",
-   "target_idx": 0,
-   "target_name": "target",
-   "problem_type": "classification",
-   "metric": "roc_auc",
-   "num_instances": 1476,
-   "n_repeats": 1,
-   "n_folds": 3
-  },
-  {
    "task": "wheat_lines__0",
    "dataset": "wheat_lines",
    "target_idx": 0,
@@ -299,28 +272,6 @@
    "problem_type": "classification",
    "metric": "log_loss",
    "num_instances": 53134,
-   "n_repeats": 1,
-   "n_folds": 3
-  },
-  {
-   "task": "serum_alzheimer_disease__0",
-   "dataset": "serum_alzheimer_disease",
-   "target_idx": 0,
-   "target_name": "target",
-   "problem_type": "classification",
-   "metric": "log_loss",
-   "num_instances": 3417,
-   "n_repeats": 1,
-   "n_folds": 3
-  },
-  {
-   "task": "serum_prostate_cancer__0",
-   "dataset": "serum_prostate_cancer",
-   "target_idx": 0,
-   "target_name": "target",
-   "problem_type": "classification",
-   "metric": "log_loss",
-   "num_instances": 12601,
    "n_repeats": 1,
    "n_folds": 3
   },

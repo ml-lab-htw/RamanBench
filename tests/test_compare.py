@@ -26,8 +26,8 @@ def test_protocol_matches_the_published_sweep():
     assert (p["n_splits"], p["num_bag_folds"], p["time_limit"], p["num_random_configs"]) == (3, 3, 600, 0)
     assert p["time_limit_overrides"]["mlrod"] == 10800
     assert p["max_train_samples_overrides"]["wheat_lines"] == 10000
-    assert len(p["tasks"]) == 135
-    assert sum(t["problem_type"] == "classification" for t in p["tasks"]) == 21
+    assert len(p["tasks"]) == 129
+    assert sum(t["problem_type"] == "classification" for t in p["tasks"]) == 15
     # Every leaderboard model has its preprocessing recorded.
     assert set(p["preprocessing"]) == set(p["models"])
     assert p["preprocessing"]["PLS"] == "baseline_correction, denoising, snv"
@@ -97,8 +97,10 @@ def test_compare_ranks_a_copy_of_rf_like_rf(scored_copy):
 
 def test_compare_reproduces_the_published_ranking(scored_copy):
     lb = scored_copy["all"].leaderboard.drop(index="MINE")
-    top = lb.sort_values("elo", ascending=False).index[:3].tolist()
-    assert top[0] == "KUMO-TABULAR"
+    # Models that run one task type only are ranked on that subset (their Elo can be higher); the
+    # ranking over all tasks is led by Kumo-Tabular.
+    on_all = lb[lb["evaluated_on"] == "all"]
+    assert on_all.sort_values("elo", ascending=False).index[0] == "KUMO-TABULAR"
     assert len(lb) == len(load_protocol()["models"]) - 1  # DUMMY is left out
 
 

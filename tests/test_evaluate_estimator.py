@@ -21,7 +21,7 @@ REG_TASK = "tg_ecoli_fermentation__2"
 
 def test_protocol_commands_carry_the_protocol_settings():
     cmds = protocol_commands("MY_MODEL")
-    assert len(cmds) == 135 * 3
+    assert len(cmds) == 129 * 3
     mlrod = [shlex.split(c) for c in protocol_commands("MY_MODEL", tasks=["mlrod"])]
     assert [a[a.index("--fold") + 1] for a in mlrod] == ["0", "1", "2"]
     args = mlrod[0]
@@ -31,7 +31,7 @@ def test_protocol_commands_carry_the_protocol_settings():
     small = shlex.split(protocol_commands("MY_MODEL", tasks=[REG_TASK])[0])
     assert small[small.index("--time-limit") + 1] == "600"
     assert "--max-train-samples" not in small
-    assert len(protocol_commands("X", task_type="classification")) == 21 * 3
+    assert len(protocol_commands("X", task_type="classification")) == 15 * 3
 
 
 class _FakeDataset:

@@ -12,7 +12,7 @@
 
 RamanBench collects 74 public Raman datasets (163 prediction targets, four
 application domains: Material Science, Biological, Medical, Chemical) behind one
-evaluation protocol, and ships the v1 results of 61 models on its 135 benchmark tasks.
+evaluation protocol, and ships the v1 results of 68 models on its 129 benchmark tasks.
 You can score a new model against those baselines without re-running the
 experiments. The baselines cover classical chemometrics, gradient boosting,
 tabular foundation models, and deep networks built for spectra.
@@ -47,7 +47,7 @@ pip install raman-bench
 This is enough to:
 
 - load every dataset (via `raman-data`)
-- read the per-fold v1 results of all 55 leaderboard models (and the two AutoGluon reference systems), which ship with the
+- read the per-fold v1 results of all 68 leaderboard models (and the two AutoGluon reference systems), which ship with the
   package (`raman_bench.compare.load_reference()`, works offline)
 
 With `pip install "raman-bench[plots]"` you can also score them and rank your own
@@ -228,7 +228,7 @@ precomputed baselines used.
 
 ### Browse the v1 leaderboard
 
-The per-fold results of all 55 leaderboard models (and the two AutoGluon reference systems) on all 135 tasks ship with the
+The per-fold results of all 68 leaderboard models (and the two AutoGluon reference systems) on all 129 tasks ship with the
 package (`src/raman_bench/data/precomputed/v1/`). `leaderboard()` scores them like the
 [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) does
 (needs `pip install "raman-bench[plots]"`):
@@ -243,7 +243,7 @@ load_reference()                             # one row per (task, fold, model)
 
 ### Compare your model against the v1 leaderboard
 
-You only run your own model: on the same 135 tasks, the same 3 outer folds, with
+You only run your own model: on the same 129 tasks, the same 3 outer folds, with
 3-fold bagging, the same 600 s budget and the same 10,000-spectrum sample of the largest
 datasets (`raman_bench.compare.load_protocol()`). Then `compare` ranks it among the 55
 leaderboard models.
@@ -321,8 +321,8 @@ To run the protocol outside RamanBench (in aeon, scikit-learn, or your own harne
 take the outer cross-validation folds as plain spectrum ids:
 
 ```bash
-raman-bench folds raman_bench_v1_folds.parquet                      # all 135 tasks
-raman-bench folds clf_folds.csv --task-type classification          # the 21 classification tasks
+raman-bench folds raman_bench_v1_folds.parquet                      # all 129 tasks
+raman-bench folds clf_folds.csv --task-type classification          # the 15 classification tasks
 ```
 
 ```python

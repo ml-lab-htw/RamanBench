@@ -12,6 +12,38 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-11-10
+
+### Added
+
+- **v1 reference results of the seven 1.5.0 models**: TabH2O, Seldon, Seldon-Mini, TabAbax, MLP-A, TabM-A and
+  TabSTAR-v1.1 are in the bundled reference (`data/precomputed/v1/`, 71 models), so `compare()` and `leaderboard()` rank
+  against them. Seldon and Seldon-Mini have all 63 classification folds, TabAbax, TabSTAR-v1.1, MLP-A, TabM-A and TabH2O
+  all 405 (see Fixed and Changed).
+
+### Changed
+
+- **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
+  features; the 18 targets above that (54 folds) were skipped. Their spectra are now averaged in runs of
+  neighbouring columns down to 4,000 (`raman_bench.preprocessing.raman_preprocessing.bin_columns`, applied
+  after the preprocessing recipe in `RamanPreprocessingMixin._bin_to_feature_cap`). The binning depends only on
+  the column count, so training and test rows are treated alike and no label is used. Targets at or below
+  the cap are untouched. `wrapped_models.MAX_FEATURES_MODELS` and the skip in `run_experiment.py` are gone:
+  the cap is the class attribute `_max_input_features`. The TabPFN thinking runner uses the same helper.
+- **The bundled reference has 129 tasks, not 135.** `alzheimer`, `parkinson`, `covid19_salvia`, `comfile_stroke`,
+  `serum_alzheimer_disease` and `serum_prostate_cancer` are left out. The HF mirror gained their subject groups on
+  2026-10-29 (#160), which made their outer folds group-aware; the results of the models that ran before that use the
+  old ungrouped folds, and only the seven new models ran on the new ones. The six tasks stay in `configs/v1/`; they
+  return to the reference once the older models are rerun on them.
+
+### Fixed
+
+- **TabAbax** (15 classification folds: `cancer_cell_cooh`, `cancer_cell_nh2`, `rruff_mineral_raw`, `mlrod`,
+  `bacteria_identification`) failed with a device mismatch in upstream's `_predict_hierarchical`; fixed upstream in
+  tababax-research/TabAbax#1 and verified on these folds with the patched code. The other upstream releases are unchanged.
+- Seldon's `mlrod`, `bacteria_identification` and `cancer_cell_cooh` folds, which hit time limits on A100/H100 nodes in
+  1.5.0, ran on a B200 node and are complete.
+
 ### Changed
 
 - **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
