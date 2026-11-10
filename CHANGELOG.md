@@ -12,8 +12,24 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-11-10
+
 ### Added
 
+- **Seven models from upstream TabArena**, with v1 results: TabH2O (`TABH2O`, non-commercial
+  weights), Seldon (`SELDON`) and Seldon-Mini (`SELDON-MINI`), TabAbax (`TABABAX`), MLP-A
+  (`MLP-A`), TabM-A (`TABM-A`), and TabSTAR-v1.1 (`TABSTAR_V1P1`, replaces `TABSTAR`, see Changed).
+  Seldon and Seldon-Mini are classification-only; the others cover binary, multiclass and
+  regression. Gaps in the v1 results, all documented limits and not silent failures:
+  - TabSTAR-v1.1 skips the 18 targets with more than 4,000 features (351 of 405 folds).
+  - TabAbax fails on 15 classification folds from a device mismatch in upstream's
+    `_predict_hierarchical` (390 of 405).
+  - Seldon runs out of its time limit on `mlrod` (10800 s per fold) and on fold 2 of
+    `cancer_cell_cooh` (3600 s). `bacteria_identification` was still running at release time.
+  - Seldon-Mini, MLP-A, TabM-A and TabH2O have all 405 folds (Seldon-Mini 63 of 63 classification folds).
+- TabSTAR-v1.1, TabH2O, MLP-A, TabM-A and Seldon need images other than the main one (transformers 4,
+  Python 3.12, neuralk-oss 0.2.3); the BHT profile pins them by digest through `image_overrides`.
+- Plot metadata for the new models, and `--highlight` in `plot_results.py` to colour only a given list of models.
 - **`scripts/run_tabpfn_thinking.py`** runs the hosted TabPFN thinking model on every v1 task through
   `evaluate_estimator` (effort is a required argument, groups are off). The API wrapper keeps to the
   API's limit of 10 thinking fits per minute, retries its "Retry in N s" refusals up to 3 times, and
@@ -28,6 +44,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- **TabArena is pinned to upstream `autogluon/tabarena` main** (`0642914d`) instead of a personal fork;
+  everything the fork carried has merged upstream. `TABSTAR` (tabstar 1.1.15) is replaced by
+  `TABSTAR_V1P1` (tabstar 1.2.0), with the 4,000-feature cap carried over. `perpetual>=2.2.0` (2.1.0 has the
+  host-RAM OOM of perpetual#91).
+- Kubernetes submissions create their Jobs with `kq submit` instead of `kubectl apply`.
 - **Group-aware inner bagging folds are on by default for benchmark v1** (issue #162). On grouped
   tasks, the inner folds that bagging builds inside each training split keep each group on one side.
   `build_task`, `bag_experiment_kwargs` and `run_experiment.py` default to it. `--no-inner-group-folds`
@@ -37,6 +58,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Fixed
 
+- The `prep_*` hyperparameters are also hidden from the wrapped model at predict time (before: only at
+  fit time), which broke models that validate their parameters at predict (Seldon).
 - **Torch models are reproducible** (issue #171): the Raman deep models (DeepCNN, ReZeroNet, CoAtNet,
   FCResNeXt, RamanFormer, RamanNet, RamanTransformer, SANet) and RamanPFN drew weight init, shuffling
   and augmentation from unseeded numpy and torch generators. Each fit now seeds them from its
