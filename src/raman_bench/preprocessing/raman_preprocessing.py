@@ -847,6 +847,52 @@ def vector_normalize(X):
     return X / norms
 
 
+def avg_pool_spectra(X, size=5):
+    """Average pooling along the spectral axis: the mean of each run of ``size`` neighbouring
+    points (non-overlapping windows, stride = ``size``).
+
+    Trailing points that do not fill a window are dropped, so the output has
+    ``n_features // size`` columns. Stateless, row by row.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+    size : int
+        Window length and stride in points.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features // size)
+    """
+    n_out = X.shape[1] // size
+    if size < 1 or n_out < 1:
+        raise ValueError(f"cannot pool {X.shape[1]} features with window {size}")
+    return X[:, : n_out * size].reshape(X.shape[0], n_out, size).mean(axis=2)
+
+
+def decimate_spectra(X, step=5):
+    """Keep every ``step``-th point along the spectral axis (points 0, step, 2*step, ...), no
+    averaging.
+
+    Uses the same truncated range as :func:`avg_pool_spectra`, so both give
+    ``n_features // step`` columns and differ only in averaging. Stateless, row by row.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples, n_features)
+    step : int
+        Distance between kept points.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features // step)
+    """
+    n_out = X.shape[1] // step
+    if step < 1 or n_out < 1:
+        raise ValueError(f"cannot decimate {X.shape[1]} features with step {step}")
+    return X[:, : n_out * step : step]
+
+
 def gcu_fit(X, rho=16, random_state=None, max_iter=500):
     """Global Compositional Unmixing (GCU) — fit on training data.
 
