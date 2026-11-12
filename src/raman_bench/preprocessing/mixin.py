@@ -53,6 +53,9 @@ Preprocessing order (when enabled) — matches the sequential wiring in
 13. Vector normalization (L2) — alongside SNV/scaling, since like them it is
     a per-spectrum normalization step best applied once the spectrum shape
     has been fully cleaned up.
+13b. Average pooling or decimation (``avgpool`` / ``decimate``) — shrink the
+    spectral axis by a factor (mean of each window, or every k-th point) once
+    the spectrum is normalised. Stateless; at most one of the two per recipe.
 14. Standard scaling
 15. Augmentation (training only)
 
@@ -98,11 +101,13 @@ from raman_bench.preprocessing.raman_preprocessing import (
 )
 from raman_bench.preprocessing.raman_preprocessing import (
     augment_spectra,
+    avg_pool_spectra,
     baseline_correction_airpls,
     baseline_correction_arpls,
     cosmic_ray_removal,
     crop_spectra,
     crop_spectra_physical,
+    decimate_spectra,
     denoise_savgol,
     emsc_fit,
     emsc_transform,
@@ -325,6 +330,28 @@ _PREP_STEP_DEFINITIONS = {
             "prep_vecnorm_enabled": False,
         },
     },
+    # Average pooling / decimation along the spectral axis (step 13b). Both shrink the width to
+    # n_features // size; avgpool averages each window, decimate keeps its first point.
+    "avgpool": {
+        "search_params": {
+            "prep_avgpool_enabled": space.Categorical(True, False),
+            "prep_avgpool_size": space.Categorical(2, 3, 5, 8),
+        },
+        "defaults": {
+            "prep_avgpool_enabled": False,
+            "prep_avgpool_size": 5,
+        },
+    },
+    "decimate": {
+        "search_params": {
+            "prep_decimate_enabled": space.Categorical(True, False),
+            "prep_decimate_step": space.Categorical(2, 3, 5, 8),
+        },
+        "defaults": {
+            "prep_decimate_enabled": False,
+            "prep_decimate_step": 5,
+        },
+    },
     "gcu": {
         "search_params": {
             "prep_gcu_enabled": space.Categorical(True, False),
@@ -382,6 +409,8 @@ _TRANSFORM_ENABLED_PARAMS = [
     "prep_deriv_enabled",
     "prep_snv_enabled",
     "prep_vecnorm_enabled",
+    "prep_avgpool_enabled",
+    "prep_decimate_enabled",
     "prep_scaling_enabled",
     "prep_gcu_enabled",
     "prep_lvse_enabled",
@@ -578,6 +607,23 @@ class RamanPreprocessingMixin:
         searchspace.update(build_restricted_searchspace(restriction))
         return searchspace
 
+    @staticmethod
+    def _pool_spectral_axis(X: np.ndarray, params: dict, phase: str) -> np.ndarray:
+        """Average pooling or decimation (step 13b), shared by fit and transform. Stateless."""
+        pool = params.get("prep_avgpool_enabled", False)
+        decimate = params.get("prep_decimate_enabled", False)
+        if pool and decimate:
+            raise ValueError("prep_avgpool_enabled and prep_decimate_enabled are mutually exclusive")
+        if pool:
+            size = params.get("prep_avgpool_size", 5)
+            logger.debug(f"{phase} — average pooling: size=%s", size)
+            return avg_pool_spectra(X, size=size)
+        if decimate:
+            step = params.get("prep_decimate_step", 5)
+            logger.debug(f"{phase} — decimation: step=%s", step)
+            return decimate_spectra(X, step=step)
+        return X
+
     def _preprocess_fit(self, X: np.ndarray) -> np.ndarray:
         """Fit stateful preprocessing and transform training data.
 
@@ -745,6 +791,8 @@ class RamanPreprocessingMixin:
         if params.get("prep_vecnorm_enabled", False):
             logger.debug("Fit — vector normalization: applying L2 normalization")
             X = vector_normalize(X)
+
+        X = self._pool_spectral_axis(X, params, "Fit")
 
         if params.get("prep_scaling_enabled", False):
             from sklearn.preprocessing import StandardScaler
@@ -982,6 +1030,8 @@ class RamanPreprocessingMixin:
         if params.get("prep_vecnorm_enabled", False):
             logger.debug("Transform — vector normalization: applying L2 normalization")
             X = vector_normalize(X)
+
+        X = self._pool_spectral_axis(X, params, "Transform")
 
         if params.get("prep_scaling_enabled", False) and hasattr(self, "scaler"):
             logger.debug("Transform — standard scaling: applying fitted StandardScaler")
