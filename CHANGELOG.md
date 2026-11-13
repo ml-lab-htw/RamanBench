@@ -14,6 +14,10 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **TabOmics** (`TABOMICS`): a tabular foundation model for wide omics tables (Bote-Curiel, GPL-3.0-or-later),
+  classification only, up to 10 classes natively and output-coded above that, as TabPFN-Wide is. Install with
+  `pip install -r requirements-tabomics-git.txt`; the weights (`lbotecur/tabomics-v2.5`) download from Hugging Face.
+  Registered for runs; not in `configs/v1/scope_default.json`, so not on the leaderboard until it is added there.
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
   so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
 

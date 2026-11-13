@@ -1,0 +1,10 @@
+# TabOmics (Prep_TABOMICS), a tabular foundation model for wide omics tables (GPL-3.0-or-later).
+# PyPI forbids git dependencies, so it is not a pyproject extra. Its dependencies (torch>=2.4,
+# scikit-learn>=1.4, schedulefree, safetensors, huggingface_hub) are ranges the image already satisfies,
+# except schedulefree, so install it with its dependencies:
+#
+#     pip install -r requirements-tabomics-git.txt
+#
+# The weights (lbotecur/tabomics-v2.5, public) are downloaded from Hugging Face on first use. Bump the
+# commit deliberately: a published model name points to a fixed weights revision, the code does not.
+tabomics @ git+https://github.com/lbotecur/tabomics.git@0a8984fa0c47a2ecdcbbc80fdf4c4a92a456d712
