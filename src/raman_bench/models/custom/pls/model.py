@@ -19,7 +19,7 @@ class PLSModel(BaseEstimator):
         https://doi.org/10.1137/0905052
     """
 
-    def __init__(self, n_components=10, max_iter=500, scale=True, tol=1e-6):
+    def __init__(self, n_components=10, max_iter=500, scale=False, tol=1e-6):
         self.n_components = n_components
         self.max_iter = max_iter
         self.scale = scale
