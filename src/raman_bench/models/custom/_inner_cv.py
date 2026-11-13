@@ -92,7 +92,7 @@ def select_pls(X: np.ndarray, y: np.ndarray, classes: np.ndarray | None, max_ite
     folds = inner_splits(y, classes is not None)
     k_max = int(max(1, min(PLS_MAX_COMPONENTS, X.shape[1], min(len(tr) for tr, _ in folds) - 1)))
     errors = {}
-    for scale in (False, True):
+    for scale in (False,):  # RamanPreprocessing: PLS centres only (no autoscaling), 2026-11-13
         per_k = np.zeros(k_max)
         for tr, va in folds:
             m = PLSRegression(n_components=k_max, scale=scale, max_iter=max_iter, tol=tol).fit(X[tr], Y[tr])
