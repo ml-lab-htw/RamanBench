@@ -68,6 +68,7 @@ def generate_all(
     *,
     variant: str = "default",
     focus_top_k: int | None = 2,
+    highlight: tuple[str, ...] | None = None,
     formats: tuple[str, ...] = ("png", "pdf"),
     make_interactive: bool = True,
     include_plotlyjs: str | bool = "cdn",
@@ -82,7 +83,9 @@ def generate_all(
     """Score *hpo_results* and write leaderboards, static and interactive figures.
 
     ``focus_top_k`` models per category (by Elo) are drawn in colour, the rest
-    in grey; ``None``/``0`` colours every model. ``dataset_figures`` adds Figures 1-3
+    in grey; ``None``/``0`` colours every model. ``highlight`` (model keys) replaces that
+    selection: only the listed models are coloured, everything else (Pareto-optimal models
+    and record holders included) is grey. ``dataset_figures`` adds Figures 1-3
     (:mod:`raman_bench.plotting.overview`), which read dataset metadata from raman_data
     and the RamanBench mirror. Returns ``{figure: [paths]}``.
     """
@@ -94,6 +97,7 @@ def generate_all(
         out_dir,
         variant=variant,
         focus_top_k=focus_top_k,
+        highlight=highlight,
         formats=formats,
         make_interactive=make_interactive,
         include_plotlyjs=include_plotlyjs,
@@ -110,6 +114,7 @@ def generate_from_results(
     *,
     variant: str = "default",
     focus_top_k: int | None = 2,
+    highlight: tuple[str, ...] | None = None,
     formats: tuple[str, ...] = ("png", "pdf"),
     make_interactive: bool = True,
     include_plotlyjs: str | bool = "cdn",
@@ -132,9 +137,15 @@ def generate_from_results(
             max_imputed_pct=max_imputed_pct,
             bootstrap_rounds=bootstrap_rounds,
         )
-    focus = {g: select_focus(s.leaderboard, focus_top_k) for g, s in scores.items()}
-    # The Elo ranking and the efficiency overview list every model by name, so nothing is greyed out.
-    everyone = {g: set(s.leaderboard.index) for g, s in scores.items()}
+    strict = bool(highlight)
+    if strict:
+        wanted = {m.upper() for m in highlight}
+        focus = {g: {m for m in s.leaderboard.index if m.upper() in wanted} for g, s in scores.items()}
+    else:
+        focus = {g: select_focus(s.leaderboard, focus_top_k) for g, s in scores.items()}
+    # The Elo ranking and the efficiency overview list every model by name, so nothing is greyed out,
+    # unless an explicit highlight list is given.
+    everyone = focus if strict else {g: set(s.leaderboard.index) for g, s in scores.items()}
     written: dict[str, list[Path]] = {}
 
     lb_dir = out_dir / "leaderboards"
@@ -156,20 +167,20 @@ def generate_from_results(
         ("improvability", "improvability_vs_time"),
         ("elo", "elo_vs_time"),
     ):
-        written[stem] = static.plot_tradeoff(scores, focus, st, formats, metric, stem)
-    written["elo_vs_time"] += static.plot_tradeoff_per_group(scores, focus, st, formats, "elo", "elo_vs_time")
+        written[stem] = static.plot_tradeoff(scores, focus, st, formats, metric, stem, strict=strict)
+    written["elo_vs_time"] += static.plot_tradeoff_per_group(scores, focus, st, formats, "elo", "elo_vs_time", strict=strict)
     # Same plots with the best model per category and the new models (models.NEW_MODELS) in colour
     # (Pareto-optimal models always are).
-    new_focus = {
+    new_focus = focus if strict else {
         g: select_focus(s.leaderboard, 1, always=tuple(m for m in s.leaderboard.index if model_info.is_new(m)))
         for g, s in scores.items()
     }
-    written["elo_vs_time_new"] = static.plot_tradeoff(scores, new_focus, st, formats, "elo", "elo_vs_time_new")
+    written["elo_vs_time_new"] = static.plot_tradeoff(scores, new_focus, st, formats, "elo", "elo_vs_time_new", strict=strict)
     written["elo_vs_time_new"] += static.plot_tradeoff_per_group(
-        scores, new_focus, st, formats, "elo", "elo_vs_time_new"
+        scores, new_focus, st, formats, "elo", "elo_vs_time_new", strict=strict
     )
     written["elo_vs_release_date"] = static.plot_elo_vs_release_date(
-        scores["all"], focus["all"], st, formats, "elo_vs_release_date"
+        scores["all"], focus["all"], st, formats, "elo_vs_release_date", strict=strict
     )
     all_models = list(split_references(scores["all"].leaderboard)[0].index)
     # Pareto/near-Pareto models plus the top-k per category by Elo over all tasks.
@@ -197,10 +208,10 @@ def generate_from_results(
         figs = {
             "elo_ranking_combined": interactive.elo_ranking(scores, everyone, None, groups or ["all"]),
             "elo_ranking": interactive.elo_ranking(scores, everyone, None, ["all"]),
-            "metrics_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "normalized_score"),
-            "improvability_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "improvability"),
-            "elo_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "elo"),
-            "elo_vs_release_date": interactive.elo_vs_release_date(scores["all"], focus["all"], focus_top_k),
+            "metrics_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "normalized_score", strict),
+            "improvability_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "improvability", strict),
+            "elo_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "elo", strict),
+            "elo_vs_release_date": interactive.elo_vs_release_date(scores["all"], focus["all"], focus_top_k, strict),
             "pairwise_win_rates": interactive.winrate_matrix(
                 scores["all"], pareto_models, captions["pairwise_win_rates"]
             ),

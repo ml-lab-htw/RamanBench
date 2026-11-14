@@ -35,6 +35,10 @@ def main() -> None:
         "--focus-top-k", type=int, default=2,
         help="Models per category drawn in colour (by Elo); the rest are grey. 0 colours all.",
     )
+    parser.add_argument(
+        "--highlight", nargs="+", default=None, metavar="MODEL",
+        help="Colour only these models (leaderboard, Pareto and progress plots); all others are grey. Overrides --focus-top-k.",
+    )
     parser.add_argument("--formats", nargs="+", default=["png", "pdf"], help="Static figure formats")
     parser.add_argument("--no-interactive", action="store_true", help="Skip the HTML figures")
     parser.add_argument(
@@ -66,6 +70,7 @@ def main() -> None:
         args.output_dir,
         variant=args.variant,
         focus_top_k=args.focus_top_k or None,
+        highlight=tuple(args.highlight) if args.highlight else None,
         formats=tuple(args.formats),
         make_interactive=not args.no_interactive,
         include_plotlyjs=True if args.inline_plotlyjs else "cdn",

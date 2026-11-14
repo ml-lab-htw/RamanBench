@@ -47,7 +47,7 @@ mem_tiers:
   TABDPT: "128G"
   TABFM: "128G"
   TABSWIFT: "128G"
-  TABSTAR: "128G"     # capped at max_features=4000 (see wrapped_models.py); this
+  TABSTAR_V1P1: "128G"     # capped at max_features=4000 (see wrapped_models.py); this
                        # tier is headroom for the sub-cap-but-still-large remainder
   ORIONMSP: "128G"    # own upstream docstring flags a real memory cost on wide
                        # data; confirmed via a real local run that also OOM'd

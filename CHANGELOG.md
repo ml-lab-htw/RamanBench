@@ -14,6 +14,105 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
+  so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
+
+### Changed
+
+- **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
+  features; the 18 targets above that (54 folds) were skipped. Their spectra are now averaged in runs of
+  neighbouring columns down to 4,000 (`raman_bench.preprocessing.raman_preprocessing.bin_columns`, applied
+  after the preprocessing recipe in `RamanPreprocessingMixin._bin_to_feature_cap`). The binning depends only on
+  the column count, so training and test rows are treated alike and no label is used. Targets at or below
+  the cap are untouched. `wrapped_models.MAX_FEATURES_MODELS` and the skip in `run_experiment.py` are gone:
+  the cap is the class attribute `_max_input_features`. The TabPFN thinking runner uses the same helper.
+
+## [1.5.0] — 2026-11-10
+
+### Added
+
+- **Seven models from upstream TabArena**, with v1 results: TabH2O (`TABH2O`, non-commercial
+  weights), Seldon (`SELDON`) and Seldon-Mini (`SELDON-MINI`), TabAbax (`TABABAX`), MLP-A
+  (`MLP-A`), TabM-A (`TABM-A`), and TabSTAR-v1.1 (`TABSTAR_V1P1`, replaces `TABSTAR`, see Changed).
+  Seldon and Seldon-Mini are classification-only; the others cover binary, multiclass and
+  regression. Gaps in the v1 results, all documented limits and not silent failures:
+  - TabSTAR-v1.1 skips the 18 targets with more than 4,000 features (351 of 405 folds).
+  - TabAbax fails on 15 classification folds from a device mismatch in upstream's
+    `_predict_hierarchical` (390 of 405).
+  - Seldon and Seldon-Mini have all 63 classification folds. Seldon first timed out on `mlrod`,
+    `bacteria_identification` and fold 2 of `cancer_cell_cooh` on A100 and H100 nodes (time limits of 10800 s,
+    600 s and 3600 s); on a B200 node every fold took about 5 minutes, so the rerun completed them all.
+  - MLP-A, TabM-A and TabH2O have all 405 folds.
+- TabSTAR-v1.1, TabH2O, MLP-A, TabM-A and Seldon need images other than the main one (transformers 4,
+  Python 3.12, neuralk-oss 0.2.3); the BHT profile pins them by digest through `image_overrides`.
+- Plot metadata for the new models, and `--highlight` in `plot_results.py` to colour only a given list of models.
+- **`scripts/run_tabpfn_thinking.py`** runs the hosted TabPFN thinking model on every v1 task through
+  `evaluate_estimator` (effort is a required argument, groups are off). The API wrapper keeps to the
+  API's limit of 10 thinking fits per minute, retries its "Retry in N s" refusals up to 3 times, and
+  takes `--max-columns` for the spectral binning width (default 20000, the server ceiling). The daily
+  and monthly token limits are not retried: rerun the script, finished folds are skipped.
+- **Group-aware inner bagging folds** (`build_task(inner_group_folds=True)`, `run_experiment.py
+  --inner-group-folds`): on grouped tasks, the inner folds that bagging builds inside each training
+  split keep each group on one side, so inner validation scores are no longer inflated by replicate
+  spectra. On by default (see Changed below). Every model drops the group column itself
+  (`RamanPreprocessingMixin._preprocess`).
+- `data-foundry` in the `benchmark` extra: TabArena's grouped splitter imports it.
+
+### Changed
+
+- **TabArena is pinned to upstream `autogluon/tabarena` main** (`0642914d`) instead of a personal fork;
+  everything the fork carried has merged upstream. `TABSTAR` (tabstar 1.1.15) is replaced by
+  `TABSTAR_V1P1` (tabstar 1.2.0), with the 4,000-feature cap carried over. `perpetual>=2.2.0` (2.1.0 has the
+  host-RAM OOM of perpetual#91).
+- Kubernetes submissions create their Jobs with `kq submit` instead of `kubectl apply`.
+- **Group-aware inner bagging folds are on by default for benchmark v1** (issue #162). On grouped
+  tasks, the inner folds that bagging builds inside each training split keep each group on one side.
+  `build_task`, `bag_experiment_kwargs` and `run_experiment.py` default to it. `--no-inner-group-folds`
+  gives the old plain folds. **This changes the v1 results of every grouped task.** Results computed
+  before this change are not comparable with results computed after it, and the bundled v1 reference
+  (`data/precomputed/v1/`) still holds the old numbers until those tasks are rerun.
+
+### Fixed
+
+- The `prep_*` hyperparameters are also hidden from the wrapped model at predict time (before: only at
+  fit time), which broke models that validate their parameters at predict (Seldon).
+- **Torch models are reproducible** (issue #171): the Raman deep models (DeepCNN, ReZeroNet, CoAtNet,
+  FCResNeXt, RamanFormer, RamanNet, RamanTransformer, SANet) and RamanPFN drew weight init, shuffling
+  and augmentation from unseeded numpy and torch generators. Each fit now seeds them from its
+  AutoGluon child seed, and RamanPFN takes that seed as its `random_state`. Two fits of the same cell
+  now give identical predictions (before: differences up to 0.2 in the probabilities of one cell).
+  **This changes the numbers of these models.** Existing v1 results of these models stay as they are
+  until they are refitted. Non-torch models that draw from numpy's global generator also become
+  deterministic; their numbers can change too.
+
+## [1.4.1] — 2026-11-06
+
+### Added
+
+- **`mirror_revision`** for `RamanBenchmark`, `configure_benchmark` and `load_dataframe`: the
+  branch, tag or commit hash of the HF mirror, passed to every mirror download. The default,
+  `main`, keeps the current behaviour. A commit hash makes a run reproducible, and with that
+  commit's files already in the Hugging Face cache at `<cache_dir>/datasets_mirror` it loads
+  without contacting the Hub.
+- **`fallback_to_source`** for the same three: `False` raises the mirror's error instead of
+  falling back to the original source. It also raises when `metadata.json` cannot be read
+  (instead of using the parquet column names as targets) and in `get_target_names` (instead
+  of returning `[]`). The default, `True`, keeps the current behaviour.
+- **Batch runner** (`scripts/run_experiment_batch.py`): runs a JSON Lines jobspec of
+  `run_experiment.py` jobs in one process, so imports, CUDA start-up, dataset loading and model
+  checkpoints are paid once per process instead of once per fit. Results go where
+  `run_experiment.py` writes them. Several runners can share one GPU and one jobspec
+  (`--claim-dir`, `--worker-index`/`--n-workers`); `--exclusive-models` runs memory-hungry
+  models alone on the GPU. Per-stage timings per job with `--timings-out`. Exit code 2 means
+  some jobs failed and the rest ran.
+- **Per-spectrum preprocessing cache** (`raman_bench.preprocessing.spectrum_cache`): the
+  row-wise recipe steps (crop, cosmic-ray removal, Savitzky-Golay, wavelet, AsLS/airPLS/arPLS,
+  rubberband) are computed once per spectrum and parameter set, in memory. Off unless the
+  runner switches it on.
+- **`--prep-workers`** (`raman_bench.preprocessing.parallel`): runs the row-wise steps in a
+  process pool. Results equal the serial ones, except Savitzky-Golay, which can differ in the
+  last bits.
+
 - **Branch model for benchmark v2** (RELEASING.md, "Branches"): `main` stays benchmark v1 and
   gets new models; the long-lived `v2` branch gets new datasets. `main` is merged into `v2`,
   never the other way.
@@ -43,6 +142,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
   only the models that changed. The tables are identical to those of a run without either. On the 88k results of
   the 2026-11-13 aggregation, reading took 35 min cold and 12 min from the cache; the fold check and TabArena's
   aggregation (about 60 min) are unchanged.
+- The fallback from a failed mirror load to the original source logs a warning, not a debug
+  message.
 - **raman-data ≥ 1.6.6**, which adds the glioma datasets `glioma_methylation` and `glioma_idh`
   (Lita et al. 2024; 257,904 tumour spectra from 46 patients). They are on the HF mirror for
   test runs but not in `configs/v1/target_list.json`, so the leaderboard is unchanged.

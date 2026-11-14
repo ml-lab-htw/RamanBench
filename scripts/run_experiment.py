@@ -176,6 +176,7 @@ def run_one(
     scratch_dir: str | None = None,
     min_samples_per_class: int = 9,
     min_groups_per_class: int = 0,
+    inner_group_folds: bool = True,
     filter_unlabeled: bool = True,
     recipe_config: str | None = None,
     max_train_samples: int | None = None,
@@ -188,9 +189,7 @@ def run_one(
     ``RamanBenchmark`` silently excluded such keys from the benchmark), if
     every row for this target has a missing (NaN) label, if ``model_key`` only
     supports the other problem type (``wrapped_models.CLASSIFICATION_ONLY_MODELS``/
-    ``REGRESSION_ONLY_MODELS``), if ``model_key`` is capped below this dataset's
-    feature count (``wrapped_models.MAX_FEATURES_MODELS``, e.g. TABSTAR), or if
-    ``model_key`` is predicted to exceed its VRAM budget on this dataset's
+    ``REGRESSION_ONLY_MODELS``), if ``model_key`` is predicted to exceed its VRAM budget on this dataset's
     feature-count/row-count combination (``wrapped_models.VRAM_CAPPED_MODELS``,
     e.g. ORIONMSP).
 
@@ -234,7 +233,6 @@ def run_one(
     from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
     from raman_bench.preprocessing.wrapped_models import (
         CLASSIFICATION_ONLY_MODELS,
-        MAX_FEATURES_MODELS,
         REGRESSION_ONLY_MODELS,
         VRAM_CAPPED_MODELS,
     )
@@ -256,8 +254,7 @@ def run_one(
 
     # Model/dataset compatibility checks that AutoGluon itself would also
     # reject (via a clean `ConstraintViolationError` skip -- see
-    # `wrapped_models.CLASSIFICATION_ONLY_MODELS`/`REGRESSION_ONLY_MODELS`/
-    # `MAX_FEATURES_MODELS`'s own docstrings), but RamanBench's own cluster
+    # `wrapped_models.CLASSIFICATION_ONLY_MODELS`/`REGRESSION_ONLY_MODELS`), but RamanBench's own cluster
     # jobs always fit exactly one model per `TabularPredictor.fit()` call, with
     # no other model for AutoGluon to fall back on -- so its own
     # `raise_on_no_models_fitted=True` default turns that same clean skip into
@@ -285,24 +282,9 @@ def run_one(
             model_key,
         )
         return None
-    if model_key_upper in MAX_FEATURES_MODELS:
-        max_features = MAX_FEATURES_MODELS[model_key_upper]
-        n_features = df.shape[1] - 1  # exclude label_col; group_id (if any) isn't added yet here
-        if n_features > max_features:
-            logger.info(
-                "Skipping %s target %d: %s is capped at max_features=%d, but this "
-                "dataset has %d features",
-                dataset_name,
-                target_idx,
-                model_key,
-                max_features,
-                n_features,
-            )
-            return None
     if model_key_upper in VRAM_CAPPED_MODELS:
-        # Joint (features AND rows) counterpart to the MAX_FEATURES_MODELS check
-        # above -- see wrapped_models.VRAM_CAPPED_MODELS's own docstring for why
-        # a single max_features number can't express this model's real
+        # Joint (features AND rows) check -- see wrapped_models.VRAM_CAPPED_MODELS's
+        # own docstring for why a single max_features number can't express this model's real
         # constraint. `n_rows` mirrors the outer-CV train partition size this
         # job will actually fit on (n_splits-1/n_splits of the full dataset,
         # BEFORE any rare-class/NaN-label filtering below -- a slight
@@ -338,6 +320,7 @@ def run_one(
         min_samples_per_class=min_samples_per_class,
         min_groups_per_class=min_groups_per_class,
         filter_unlabeled=filter_unlabeled,
+        inner_group_folds=inner_group_folds,
     )
     if task_wrapper is None:
         return None
@@ -418,6 +401,7 @@ def run_one(
         time_limit=time_limit,
         num_bag_folds=effective_num_bag_folds,
         scratch_dir=scratch_dir,
+        task_specific_validation=inner_group_folds,
     )
     if extra_model_hyperparameters:
         generate_kwargs["extra_model_hyperparameters"] = extra_model_hyperparameters
@@ -556,6 +540,14 @@ def main():
         "(needs group ids). 0 (default, benchmark v1) disables it; benchmark v2 uses 3.",
     )
     parser.add_argument(
+        "--inner-group-folds",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Build group-disjoint inner bagging folds on grouped tasks (issue #162). On by "
+        "default for benchmark v1 and v2; --no-inner-group-folds reproduces the old plain "
+        "inner folds (results from before the change are not comparable).",
+    )
+    parser.add_argument(
         "--min-samples-per-class",
         type=int,
         default=9,
@@ -595,6 +587,7 @@ def main():
         scratch_dir=args.scratch_dir,
         min_samples_per_class=args.min_samples_per_class,
         min_groups_per_class=args.min_groups_per_class,
+        inner_group_folds=args.inner_group_folds,
         filter_unlabeled=not args.keep_unlabeled,
         recipe_config=args.recipe_config,
         max_train_samples=args.max_train_samples,

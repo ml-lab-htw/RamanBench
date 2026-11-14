@@ -12,8 +12,8 @@ actually comparable.
 
 ``build_task`` takes an already-loaded dataframe/dataset rather than loading one itself:
 ``run_one`` needs the raw dataframe's shape *before* splitting to run its own
-model-specific compatibility checks (``MAX_FEATURES_MODELS``/``VRAM_CAPPED_MODELS``,
-which don't apply to the model-agnostic AutoGluon baseline runner at all) --
+model-specific compatibility checks (``VRAM_CAPPED_MODELS``,
+which doesn't apply to the model-agnostic AutoGluon baseline runner at all) --
 threading those checks through this helper would couple it back to
 ``model_key``-specific concerns it's deliberately free of. Loading itself is the
 separate :func:`load_dataframe`.
@@ -176,6 +176,7 @@ def build_task(
     min_samples_per_class: int = 9,
     filter_unlabeled: bool = True,
     min_groups_per_class: int = 0,
+    inner_group_folds: bool = True,
 ) -> tuple[str, RamanBenchTaskWrapper] | tuple[None, None]:
     """Clean and split an already-loaded (dataset, target) dataframe into a TabArena task.
 
@@ -218,7 +219,7 @@ def build_task(
         n_splits=n_splits,
         group_col=GROUP_COL if GROUP_COL in df.columns else None,
     )
-    task_wrapper = RamanBenchTaskWrapper(task=task_obj)
+    task_wrapper = RamanBenchTaskWrapper(task=task_obj, keep_group_col=inner_group_folds)
     return task_name, task_wrapper
 
 
@@ -230,6 +231,8 @@ def load_dataframe(
     cache_dir: str = ".cache_v1",
     use_mirror: bool = True,
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
+    mirror_revision: str = "main",
+    fallback_to_source: bool = True,
 ):
     """Load one (dataset, target) as a dataframe, the way every v1 runner does.
 
@@ -240,7 +243,8 @@ def load_dataframe(
     :func:`build_task`.
 
     Uses ``RamanBenchmark``'s mirror-first loading (with fallback to the original
-    source); ``use_mirror=False`` forces the original source.
+    source unless ``fallback_to_source=False``); ``use_mirror=False`` forces the
+    original source. *mirror_revision* is the mirror's branch, tag or commit hash.
     """
     from raman_data import TASK_TYPE
 
@@ -252,6 +256,8 @@ def load_dataframe(
         cache_dir=cache_dir,
         use_mirror=use_mirror,
         mirror_repo=mirror_repo,
+        mirror_revision=mirror_revision,
+        fallback_to_source=fallback_to_source,
     )
     dataset = bench._load_raman_dataset(dataset_name)
     if dataset is None:
@@ -279,6 +285,7 @@ def bag_experiment_kwargs(
     num_bag_folds: int,
     scratch_dir: str | None = None,
     verbosity: int | None = None,
+    task_specific_validation: bool = True,
 ) -> dict:
     """Keyword arguments for ``ConfigGenerator.generate_all_bag_experiments``.
 
@@ -287,6 +294,10 @@ def bag_experiment_kwargs(
     - TabArena's ``AGModelBagExperiment`` takes the bagging count from a
       ``ValidationProtocol``; ``num_bag_folds`` stays at the configured value
       regardless of dataset size (2026-09-25 decision, no small-dataset scaling).
+    - ``task_specific_validation`` is off for v1, so the inner bagging folds are plain
+      stratified folds and results stay reproducible. Benchmark v2 turns it on, which
+      builds group-disjoint inner folds on grouped tasks (issue #162). It must go with
+      ``build_task(inner_group_folds=True)``, which keeps the group column for the splitter.
     - ``require_warmup=False``: TabArena's pre-flight "dummy fit" fails for every
       RamanBench custom model (they are not in the model registry TabArena's warm-up
       was built against), so it is disabled.
@@ -304,7 +315,10 @@ def bag_experiment_kwargs(
     kwargs = dict(
         num_random_configs=num_random_configs,
         time_limit=time_limit,
-        validation_protocol=ValidationProtocol(num_bag_folds=num_bag_folds),
+        validation_protocol=ValidationProtocol(
+            num_bag_folds=num_bag_folds,
+            task_specific_validation=task_specific_validation,
+        ),
         fold_fitting_strategy="sequential_local",
         experiment_kwargs={"require_warmup": False},
         add_seed="fold-config-wise",

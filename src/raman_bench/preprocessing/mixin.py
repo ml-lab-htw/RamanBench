@@ -79,6 +79,7 @@ step within the sequence. See ``_preprocess_fit_ensemble`` /
 ``_preprocess_transform_ensemble``.
 """
 
+import contextlib
 import logging
 
 import numpy as np
@@ -100,6 +101,7 @@ from raman_bench.preprocessing.raman_preprocessing import (
     augment_spectra,
     baseline_correction_airpls,
     baseline_correction_arpls,
+    bin_columns,
     cosmic_ray_removal,
     crop_spectra,
     crop_spectra_physical,
@@ -118,6 +120,8 @@ from raman_bench.preprocessing.raman_preprocessing import (
     vector_normalize,
     wavelet_denoise,
 )
+from raman_bench.seeding import model_seed, seed_global_rngs
+from raman_bench.splitting import GROUP_COL
 
 logger = logging.getLogger(__name__)
 
@@ -515,6 +519,8 @@ class RamanPreprocessingMixin:
 
     _optimize_preprocessing: bool = False
     _supports_augmentation: bool = False
+    # Set on models that take at most this many features (TabSTAR-v1.1): wider input is binned down to it.
+    _max_input_features: int | None = None
 
     # AutoGluon's `drop_unique` auxiliary param (default True) drops columns
     # that are constant within the exact X a bagged fold child's `fit()`
@@ -578,19 +584,14 @@ class RamanPreprocessingMixin:
         searchspace.update(build_restricted_searchspace(restriction))
         return searchspace
 
-    def _preprocess_fit(self, X: np.ndarray) -> np.ndarray:
-        """Fit stateful preprocessing and transform training data.
-
-        Parameters
-        ----------
-        X : np.ndarray, shape (n_samples, n_features)
-
-        Returns
-        -------
-        np.ndarray, shape (n_samples, n_features)
+    def _apply_spectrumwise_steps(self, X: np.ndarray, params: dict, phase: str) -> np.ndarray:
+        """Crop, cosmic-ray removal, smoothing and baseline correction: the leading steps that
+        act on each spectrum alone, with no state fitted on the training fold. Shared by
+        ``_preprocess_fit`` and ``_preprocess_transform`` (identical there before 2026-11-05,
+        apart from log text); ``phase`` only labels the log lines. Because each output row
+        depends only on its input row and ``params``, ``_spectrumwise`` may serve rows from
+        :mod:`raman_bench.preprocessing.spectrum_cache` instead of recomputing them.
         """
-        params = self._get_model_params()
-
         if params.get("prep_crop_physical_enabled", False):
             if getattr(self, "_wavenumbers", None) is None:
                 raise ValueError(
@@ -606,7 +607,7 @@ class RamanPreprocessingMixin:
                 )
             start_cm = params.get("prep_crop_physical_start_cm", 400.0)
             end_cm = params.get("prep_crop_physical_end_cm", 1800.0)
-            if params.get("prep_crop_enabled", False):
+            if phase == "Fit" and params.get("prep_crop_enabled", False):
                 logger.warning(
                     "Both prep_crop_physical_enabled and prep_crop_enabled (fractional) "
                     "are True; crop_physical runs first (it needs the original, "
@@ -616,7 +617,7 @@ class RamanPreprocessingMixin:
                     "forbidden."
                 )
             logger.debug(
-                "Fit — crop_physical (true wavenumber axis): start_cm=%s, end_cm=%s",
+                f"{phase} — crop_physical (true wavenumber axis): start_cm=%s, end_cm=%s",
                 start_cm,
                 end_cm,
             )
@@ -626,7 +627,7 @@ class RamanPreprocessingMixin:
             start_frac = params.get("prep_crop_start_frac", 0.15)
             end_frac = params.get("prep_crop_end_frac", 0.75)
             logger.debug(
-                "Fit — crop (fingerprint-region proxy): start_frac=%s, end_frac=%s",
+                f"{phase} — crop (fingerprint-region proxy): start_frac=%s, end_frac=%s",
                 start_frac,
                 end_frac,
             )
@@ -636,7 +637,7 @@ class RamanPreprocessingMixin:
             threshold = params.get("prep_crr_threshold", 6)
             kernel_size = params.get("prep_crr_kernel_size", 3)
             logger.debug(
-                "Fit — cosmic ray removal: threshold=%s, kernel_size=%s",
+                f"{phase} — cosmic ray removal: threshold=%s, kernel_size=%s",
                 threshold,
                 kernel_size,
             )
@@ -646,7 +647,7 @@ class RamanPreprocessingMixin:
             window_length = params.get("prep_denoise_wl", 9)
             polyorder = params.get("prep_denoise_po", 3)
             logger.debug(
-                "Fit — denoising (Savitzky-Golay): window_length=%s, polyorder=%s",
+                f"{phase} — denoising (Savitzky-Golay): window_length=%s, polyorder=%s",
                 window_length,
                 polyorder,
             )
@@ -656,7 +657,7 @@ class RamanPreprocessingMixin:
             wavelet_name = params.get("prep_wavelet_name", "sym7")
             wavelet_level = params.get("prep_wavelet_level", 4)
             logger.debug(
-                "Fit — denoising (wavelet threshold): wavelet=%s, level=%s",
+                f"{phase} — denoising (wavelet threshold): wavelet=%s, level=%s",
                 wavelet_name,
                 wavelet_level,
             )
@@ -667,7 +668,7 @@ class RamanPreprocessingMixin:
             p = params.get("prep_bl_p", 0.01)
             if lam > 0 and 0 < p < 1:
                 logger.debug(
-                    "Fit — baseline correction (ASLS): lam=%s, p=%s",
+                    f"{phase} — baseline correction (ASLS): lam=%s, p=%s",
                     lam,
                     p,
                 )
@@ -678,7 +679,7 @@ class RamanPreprocessingMixin:
             max_iter = params.get("prep_airpls_max_iter", 15)
             tol = params.get("prep_airpls_tol", 1e-3)
             logger.debug(
-                "Fit — baseline correction (airPLS): lam=%s, max_iter=%s, tol=%s",
+                f"{phase} — baseline correction (airPLS): lam=%s, max_iter=%s, tol=%s",
                 lam,
                 max_iter,
                 tol,
@@ -689,15 +690,54 @@ class RamanPreprocessingMixin:
             lam = params.get("prep_arpls_lam", 1e5)
             max_iter = params.get("prep_arpls_max_iter", 15)
             logger.debug(
-                "Fit — baseline correction (arPLS): lam=%s, max_iter=%s",
+                f"{phase} — baseline correction (arPLS): lam=%s, max_iter=%s",
                 lam,
                 max_iter,
             )
             X = baseline_correction_arpls(X, lam=lam, max_iter=max_iter)
 
         if params.get("prep_rubberband_enabled", False):
-            logger.debug("Fit — baseline correction (rubberband / convex hull)")
+            logger.debug(f"{phase} — baseline correction (rubberband / convex hull)")
             X = rubberband_correction(X)
+        return X
+
+    def _spectrumwise(self, X: np.ndarray, params: dict, phase: str) -> np.ndarray:
+        """Apply :meth:`_apply_spectrumwise_steps`, through the spectrum cache if enabled and
+        in row chunks across worker processes if :mod:`raman_bench.preprocessing.parallel` is
+        configured. Rows computed while ``_fit`` transforms an augmented training set are not
+        stored in the cache (fresh random copies, never requested again)."""
+        from raman_bench.preprocessing import parallel
+        from raman_bench.preprocessing.spectrum_cache import get_cache, step_key
+
+        wavenumbers = getattr(self, "_wavenumbers", None)
+
+        def compute(Z: np.ndarray) -> np.ndarray:
+            if parallel.use_rows(len(Z)):
+                return parallel.spectrumwise_rows(Z, params, phase, wavenumbers)
+            return self._apply_spectrumwise_steps(Z, params, phase)
+
+        key = step_key(params, wavenumbers)
+        cache = get_cache()
+        if key is None or cache is None:
+            return compute(X)
+        return cache.apply(
+            X, key, compute, store=not getattr(self, "_prep_fitting_augmented", False)
+        )
+
+    def _preprocess_fit(self, X: np.ndarray) -> np.ndarray:
+        """Fit stateful preprocessing and transform training data.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_features)
+
+        Returns
+        -------
+        np.ndarray, shape (n_samples, n_features)
+        """
+        params = self._get_model_params()
+
+        X = self._spectrumwise(X, params, "Fit")
 
         if params.get("prep_msc_enabled", False):
             start_frac = params.get("prep_msc_start_frac", 0.0)
@@ -837,104 +877,7 @@ class RamanPreprocessingMixin:
         if params is None:
             params = self._get_model_params()
 
-        if params.get("prep_crop_physical_enabled", False):
-            if getattr(self, "_wavenumbers", None) is None:
-                raise ValueError(
-                    "prep_crop_physical_enabled=True but self._wavenumbers is unset. "
-                    "Physical-axis cropping requires the true wavenumber (cm^-1) value "
-                    "for every input column, captured from X.columns at fit time (see "
-                    "RamanPreprocessingMixin._fit). This is missing here, which means "
-                    "either the input DataFrame's columns were not the true wavenumber "
-                    "axis (e.g. positional/generic column labels), or preprocessing ran "
-                    "through a code path that never captured them. Refusing to silently "
-                    "fall back to fractional-index cropping, since that would produce an "
-                    "uncalibrated crop while claiming to be a physical-axis one."
-                )
-            start_cm = params.get("prep_crop_physical_start_cm", 400.0)
-            end_cm = params.get("prep_crop_physical_end_cm", 1800.0)
-            logger.debug(
-                "Transform — crop_physical (true wavenumber axis): start_cm=%s, end_cm=%s",
-                start_cm,
-                end_cm,
-            )
-            X = crop_spectra_physical(X, self._wavenumbers, start_cm=start_cm, end_cm=end_cm)
-
-        if params.get("prep_crop_enabled", False):
-            start_frac = params.get("prep_crop_start_frac", 0.15)
-            end_frac = params.get("prep_crop_end_frac", 0.75)
-            logger.debug(
-                "Transform — crop (fingerprint-region proxy): start_frac=%s, end_frac=%s",
-                start_frac,
-                end_frac,
-            )
-            X = crop_spectra(X, start_frac=start_frac, end_frac=end_frac)
-
-        if params.get("prep_crr_enabled", False):
-            threshold = params.get("prep_crr_threshold", 6)
-            kernel_size = params.get("prep_crr_kernel_size", 3)
-            logger.debug(
-                "Transform — cosmic ray removal: threshold=%s, kernel_size=%s",
-                threshold,
-                kernel_size,
-            )
-            X = cosmic_ray_removal(X, threshold=threshold, kernel_size=kernel_size)
-
-        if params.get("prep_denoise_enabled", False):
-            window_length = params.get("prep_denoise_wl", 9)
-            polyorder = params.get("prep_denoise_po", 3)
-            logger.debug(
-                "Transform — denoising (Savitzky-Golay): window_length=%s, polyorder=%s",
-                window_length,
-                polyorder,
-            )
-            X = denoise_savgol(X, window_length=window_length, polyorder=polyorder)
-
-        if params.get("prep_wavelet_enabled", False):
-            wavelet_name = params.get("prep_wavelet_name", "sym7")
-            wavelet_level = params.get("prep_wavelet_level", 4)
-            logger.debug(
-                "Transform — denoising (wavelet threshold): wavelet=%s, level=%s",
-                wavelet_name,
-                wavelet_level,
-            )
-            X = wavelet_denoise(X, wavelet=wavelet_name, level=wavelet_level)
-
-        if params.get("prep_bl_enabled", False):
-            lam = params.get("prep_bl_lam", 1e5)
-            p = params.get("prep_bl_p", 0.01)
-            if lam > 0 and 0 < p < 1:
-                logger.debug(
-                    "Transform — baseline correction (ASLS): lam=%s, p=%s",
-                    lam,
-                    p,
-                )
-                X = baseline_correction_asls(X, lam=lam, p=p)
-
-        if params.get("prep_airpls_enabled", False):
-            lam = params.get("prep_airpls_lam", 1e5)
-            max_iter = params.get("prep_airpls_max_iter", 15)
-            tol = params.get("prep_airpls_tol", 1e-3)
-            logger.debug(
-                "Transform — baseline correction (airPLS): lam=%s, max_iter=%s, tol=%s",
-                lam,
-                max_iter,
-                tol,
-            )
-            X = baseline_correction_airpls(X, lam=lam, max_iter=max_iter, tol=tol)
-
-        if params.get("prep_arpls_enabled", False):
-            lam = params.get("prep_arpls_lam", 1e5)
-            max_iter = params.get("prep_arpls_max_iter", 15)
-            logger.debug(
-                "Transform — baseline correction (arPLS): lam=%s, max_iter=%s",
-                lam,
-                max_iter,
-            )
-            X = baseline_correction_arpls(X, lam=lam, max_iter=max_iter)
-
-        if params.get("prep_rubberband_enabled", False):
-            logger.debug("Transform — baseline correction (rubberband / convex hull)")
-            X = rubberband_correction(X)
+        X = self._spectrumwise(X, params, "Transform")
 
         if params.get("prep_msc_enabled", False) and hasattr(self, "_msc_reference"):
             start_frac = params.get("prep_msc_start_frac", 0.0)
@@ -1167,6 +1110,8 @@ class RamanPreprocessingMixin:
     # consistent, and ``self.features`` is never touched.
 
     def _fit(self, X, y, **kwargs):
+        # Seed before the augmentation below draws its noise (issue #171).
+        seed_global_rngs(model_seed(self))
         # Pop _prep_restriction so it doesn't reach underlying library constructors.
         prep_restriction = self.params.pop("_prep_restriction", None)
         if prep_restriction is not None:
@@ -1324,19 +1269,33 @@ class RamanPreprocessingMixin:
                     X = pd.DataFrame(X_aug, columns=X.columns, index=range(len(X_aug)))
                     y_name = y.name if hasattr(y, "name") else "target"
                     y = pd.Series(y_np, name=y_name, index=X.index)
+                    # The wrapped model now fits on fresh random copies: _spectrumwise must
+                    # not store them in the spectrum cache. Reset after super()._fit below.
+                    self._prep_fitting_augmented = True
 
-        # Strip prep_* params before forwarding to the underlying library
-        # constructor (e.g. CatBoostClassifier raises on unknown kwargs).
-        # They are restored in `finally` so _get_model_params() still works
-        # during predict(). _preprocess reads self._prep_recipe instead.
-        prep_keys = [k for k in list(self.params.keys()) if k.startswith("prep_")]
-        prep_params_backup = {k: self.params.pop(k) for k in prep_keys}
         try:
-            result = super()._fit(X, y, **kwargs)
+            with self._prep_params_stripped():
+                result = super()._fit(X, y, **kwargs)
             logger.info("Fitted Model — %s", self.__class__.__name__)
             return result
         finally:
-            self.params.update(prep_params_backup)
+            self._prep_fitting_augmented = False
+
+    @contextlib.contextmanager
+    def _prep_params_stripped(self):
+        """Hide the ``prep_*`` params from the wrapped model while it runs.
+
+        Some wrapped models forward every hyperparameter to a library call (a constructor in
+        ``_fit``, e.g. CatBoostClassifier, or ``classify()`` in ``_predict_proba``, e.g. TabH2O),
+        and those raise on unknown kwargs. The params are restored on exit so
+        ``_get_model_params()`` still works elsewhere; ``_preprocess`` reads ``self._prep_recipe``.
+        """
+        prep_keys = [k for k in list(self.params.keys()) if k.startswith("prep_")]
+        backup = {k: self.params.pop(k) for k in prep_keys}
+        try:
+            yield
+        finally:
+            self.params.update(backup)
 
     def _preprocess(self, X, **kwargs):
         """Apply the fitted Raman preprocessing recipe.
@@ -1351,9 +1310,15 @@ class RamanPreprocessingMixin:
         validation scoring) and the case where the recipe has already been
         applied to this X are passed through untouched.
         """
+        # The group id is only present in benchmark v2's inner group folds (see
+        # RamanBenchTaskWrapper.keep_group_col): it is needed by TabArena's splitter, not as a feature.
+        if isinstance(X, pd.DataFrame) and GROUP_COL in X.columns:
+            X = X.drop(columns=[GROUP_COL])
+        if isinstance(X, pd.DataFrame) and X.shape[1] == getattr(self, "_prep_binned_width", None):
+            return super()._preprocess(X, **kwargs)  # already binned by an earlier call
         recipe = getattr(self, "_prep_recipe", None)
         if recipe is None or not isinstance(X, pd.DataFrame):
-            return super()._preprocess(X, **kwargs)
+            return super()._preprocess(self._bin_to_feature_cap(X), **kwargs)
 
         ensemble_enabled = recipe.get("prep_ensemble_enabled", False) and recipe.get(
             "prep_ensemble_blocks"
@@ -1362,7 +1327,7 @@ class RamanPreprocessingMixin:
             recipe.get(k, False) for k in _TRANSFORM_ENABLED_PARAMS
         )
         if not transform_on:
-            return super()._preprocess(X, **kwargs)
+            return super()._preprocess(self._bin_to_feature_cap(X), **kwargs)
 
         # Already-transformed guard (shape-changing recipes only — for shape-
         # preserving ones the pipeline applies the transform exactly once per
@@ -1370,7 +1335,7 @@ class RamanPreprocessingMixin:
         n_out = getattr(self, "_prep_n_features_out", None)
         n_in = getattr(self, "_prep_n_features_in", None)
         if n_out is not None and n_out != n_in and X.shape[1] == n_out:
-            return super()._preprocess(X, **kwargs)
+            return super()._preprocess(self._bin_to_feature_cap(X), **kwargs)
 
         logger.info(
             "Apply preprocessing — %d spectra (%s)", len(X), self.__class__.__name__
@@ -1386,13 +1351,29 @@ class RamanPreprocessingMixin:
             columns=_output_feature_cols(feature_cols, X_np.shape[1]),
             index=X.index,
         )
-        return super()._preprocess(X, **kwargs)
+        return super()._preprocess(self._bin_to_feature_cap(X), **kwargs)
+
+    def _bin_to_feature_cap(self, X):
+        """Average neighbouring columns of *X* down to ``_max_input_features`` when it is wider.
+
+        For models that cannot take more features than a cap (TabSTAR-v1.1: 4,000). Runs after the recipe,
+        on its output, so the recipe still sees the full spectrum. Stateless (see ``bin_columns``), so
+        fit and predict bin alike.
+        """
+        cap = self._max_input_features
+        if cap is None or not isinstance(X, pd.DataFrame) or X.shape[1] <= cap:
+            return X
+        logger.info("Binning %d features to %d (%s)", X.shape[1], cap, self.__class__.__name__)
+        self._prep_binned_width = cap
+        X_np = bin_columns(X.values.astype(np.float64), cap)
+        return pd.DataFrame(X_np, columns=_output_feature_cols(X.columns.tolist(), cap), index=X.index)
 
     def _predict_proba(self, X, **kwargs):
         # Thin wrapper: the recipe transform runs in _preprocess now, so this
         # only adds an observability log line (parity with "Fitted Model —").
         n_spectra = len(X) if hasattr(X, "__len__") else None
-        result = super()._predict_proba(X, **kwargs)
+        with self._prep_params_stripped():
+            result = super()._predict_proba(X, **kwargs)
         if n_spectra is not None:
             logger.info("Predicted %d spectra (%s)", n_spectra, self.__class__.__name__)
         return result

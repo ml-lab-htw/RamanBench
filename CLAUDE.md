@@ -2,7 +2,7 @@
 
 Guidance for Claude Code when working with this repository.
 
-## Current State (as of v1.4.0)
+## Current State (as of v1.5.0)
 
 **Status**: since v2.0.0 (2026-09-18; renumbered to the 1.x line in v1.2.0) — the legacy v0.1-era execution pipeline
 (`raman_bench.model.AutoGluonModel`, `raman_bench.predictions`,
@@ -19,7 +19,7 @@ feature independent of the removed execution pipeline, not part of it.
 - Main branch contains the completed v1 refactor (TabArena integration, k-fold CV, new preprocessing)
 - Cluster support now includes both SLURM (HTW/TU) and Kubernetes backends
   (`cluster/submit_job.py`'s backend dispatch)
-- `tabarena` is pinned to a commit of our fork (`mario-koddenbrock/tabarena`), not a PyPI
+- `tabarena` is pinned to a commit of upstream `autogluon/tabarena` main, not a PyPI
   release: PyPI forbids git dependencies, so it is installed from
   `requirements-tabarena-git.txt`, whose comments give the pin history and why
 
@@ -60,7 +60,7 @@ This is a real architectural dependency, not a style reference. If you need to:
 | `src/raman_bench/evaluate.py` | `evaluate_estimator()` runs any scikit-learn estimator on the v1 protocol; `protocol_commands()` gives `run_experiment.py` calls for a registered model |
 | `src/raman_bench/experiment_utils.py` | Shared by every v1 runner: `build_task`, `load_dataframe`, `bag_experiment_kwargs`, `run_cached` |
 | `scripts/build_reference_results.py` | Rebuilds the bundled reference results after a sweep (see `data/precomputed/v1/README.md`) |
-| `pyproject.toml` | Version (currently 1.4.0), dependencies (including `tabarena`), package metadata |
+| `pyproject.toml` | Version (currently 1.5.0), dependencies (including `tabarena`), package metadata |
 | `CHANGELOG.md` | Release notes; update this for every release (move "Unreleased" → version section) |
 
 ## Datasets & The Mirror
@@ -102,7 +102,7 @@ starts at `2.1.0`.
    every single time it ran, on every release from v1.0.0 through v2.0.1, harmlessly racing the real
    `publish.yml` publish and always losing).
 
-**Current version**: 1.4.0
+**Current version**: 1.5.0
 
 ## Testing
 
@@ -143,7 +143,7 @@ Cluster runs (SLURM or Kubernetes) use `cluster/submit_job.py`,
 
 ## Important: No Half-Done State
 
-This codebase is currently in a released state (v1.4.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
+This codebase is currently in a released state (v1.5.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
 
 If you're about to start significant work, create a feature branch, but assume main is stable.
 
@@ -167,5 +167,5 @@ If you're about to start significant work, create a feature branch, but assume m
 - PyPI: https://pypi.org/project/raman-bench/
 - Paper: https://arxiv.org/abs/2605.02003 (accepted at NeurIPS 2026)
 - Leaderboard: https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench
-- Upstream TabArena: https://github.com/autogluon/tabarena (the pin is on our fork, https://github.com/mario-koddenbrock/tabarena)
+- Upstream TabArena: https://github.com/autogluon/tabarena 
 - raman_data: https://github.com/ml-lab-htw/raman_data

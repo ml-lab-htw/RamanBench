@@ -3,15 +3,10 @@ verification of the 14-model TabArena onboarding effort:
 
 1. TabSTAR OOMs on RamanBench's widest spectra (memory scales with feature
    count, not row count -- confirmed real: OOM-killed on an 11,084-feature
-   dataset even on a ~36GB machine). Fixed with a ``max_features`` cap
-   (``wrapped_models._TABSTAR_MAX_FEATURES``) plus a job-level clean skip
-   (``wrapped_models.MAX_FEATURES_MODELS``, consumed by
-   ``scripts/run_experiment.py::run_one()``) -- AutoGluon's own
-   ``ConstraintViolationError`` skip alone isn't enough here since RamanBench's
-   cluster jobs always fit exactly one model, and
-   ``raise_on_no_models_fitted=True`` turns "no models fit" into a job-crashing
-   ``RuntimeError`` with nothing else in the hyperparameters dict to fall back
-   on.
+   dataset even on a ~36GB machine). Fixed by binning wider spectra down to
+   a cap (``wrapped_models._TABSTAR_MAX_FEATURES``, applied by
+   ``RamanPreprocessingMixin._bin_to_feature_cap``); AutoGluon's own
+   ``max_features`` constraint is lifted so it does not reject the raw width.
 2. EBM's default ``interactions="3x"`` triggers an ``interpret``-internal FAST
    interaction-ranking pre-scan that is NOT bounded by ``time_limit`` and
    scales combinatorially with feature count -- confirmed real (millions of
@@ -41,11 +36,11 @@ verification of the 14-model TabArena onboarding effort:
    than the dataset that triggered this investigation). Fixed with a joint
    ``(n_features, n_rows) -> bool`` predicate
    (``wrapped_models.VRAM_CAPPED_MODELS``), the row-and-feature-aware
-   counterpart to ``MAX_FEATURES_MODELS``, consumed the same way by
+   counterpart to the feature cap, consumed by
    ``scripts/run_experiment.py::run_one()``.
 
 See ``wrapped_models.py``'s own comment blocks (``_TABSTAR_MAX_FEATURES``,
-``Prep_EBM._fit``, ``MAX_FEATURES_MODELS``, ``VRAM_CAPPED_MODELS``) and
+``Prep_EBM._fit``, ``VRAM_CAPPED_MODELS``) and
 ``cluster/opportunistic_scheduler.py::effective_time_limit`` for the full
 evidence/reasoning behind each fix -- this file only locks the resulting
 behavior in.
@@ -53,6 +48,7 @@ behavior in.
 
 from __future__ import annotations
 
+import numpy as np
 import importlib.util
 import sys
 from pathlib import Path
@@ -66,33 +62,21 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_tabstar_max_features_cap():
-    """Prep_TABSTAR must reject (via AutoGluon's own ag.max_features constraint,
-    which produces a clean ConstraintViolationError skip, not a crash) any
-    dataset wider than the confirmed-safe cap."""
+    """Prep_TABSTAR_V1P1 bins wider spectra down to the cap, so AutoGluon's own
+    ``max_features`` constraint (which would reject the raw width) is lifted."""
     from raman_bench.preprocessing.wrapped_models import (
         _TABSTAR_MAX_FEATURES,
-        Prep_TABSTAR,
+        Prep_TABSTAR_V1P1,
     )
 
-    if Prep_TABSTAR is None:
+    if Prep_TABSTAR_V1P1 is None:
         pytest.skip("TabSTARModel unavailable in this tabarena build")
 
     assert _TABSTAR_MAX_FEATURES > 0
-    model = Prep_TABSTAR(problem_type="regression")
+    model = Prep_TABSTAR_V1P1(problem_type="regression")
     aux = model._get_default_auxiliary_params()
-    assert aux["max_features"] == _TABSTAR_MAX_FEATURES
-
-
-def test_max_features_models_registry():
-    """MAX_FEATURES_MODELS is the job-level mirror of the AutoGluon-level cap --
-    keeps scripts/run_experiment.py's clean skip in sync with the real cap
-    value rather than a second hardcoded number."""
-    from raman_bench.preprocessing.wrapped_models import (
-        _TABSTAR_MAX_FEATURES,
-        MAX_FEATURES_MODELS,
-    )
-
-    assert MAX_FEATURES_MODELS["TABSTAR"] == _TABSTAR_MAX_FEATURES
+    assert aux["max_features"] is None
+    assert Prep_TABSTAR_V1P1._max_input_features == _TABSTAR_MAX_FEATURES
 
 
 def test_ebm_interactions_always_disabled_regardless_of_feature_count():
@@ -250,6 +234,7 @@ class _FakeDataset:
     def __init__(self, task_type, df):
         self.task_type = task_type
         self._df = df
+        self.targets = np.zeros((len(df), 1))  # read by TabArena's task build
 
     def to_dataframe(self, target_idx):
         return self._df.copy()
@@ -417,25 +402,37 @@ def test_run_one_does_not_skip_orionmsp_below_vram_budget(run_experiment):
     assert reached_fit["called"], "run_one() should have reached the real _fit call, not skipped"
 
 
-def test_run_one_skips_tabstar_above_max_features(run_experiment):
+def test_run_one_fits_tabstar_above_max_features(run_experiment):
+    """A dataset wider than TabSTAR's cap is no longer skipped: run_one reaches the model's fit."""
     from raman_data import TASK_TYPE
 
-    from raman_bench.preprocessing.wrapped_models import MAX_FEATURES_MODELS
+    from raman_bench.preprocessing.wrapped_models import _TABSTAR_MAX_FEATURES, Prep_TABSTAR_V1P1
 
-    if "TABSTAR" not in MAX_FEATURES_MODELS:
+    if Prep_TABSTAR_V1P1 is None:
         pytest.skip("TABSTAR unavailable in this tabarena build")
+    pytest.importorskip("tabstar.tabstarv1p1")
 
-    n_features = MAX_FEATURES_MODELS["TABSTAR"] + 1
-    df = _make_df(n_features=n_features, n_rows=4)
+    df = _make_df(n_features=_TABSTAR_MAX_FEATURES + 1, n_rows=12)
     fake = _FakeDataset(TASK_TYPE.Regression, df)
+    reached_fit = {"called": False}
 
-    with patch("raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake):
-        out = run_experiment.run_one(
+    def _fake_fit(self, X, y, **kwargs):
+        reached_fit["called"] = True
+        assert X.shape[1] == _TABSTAR_MAX_FEATURES, "the model must see the binned width"
+        raise RuntimeError("stop before any real (CUDA/CPU) model work")
+
+    with (
+        patch("raman_bench.benchmark.RamanBenchmark._load_raman_dataset", return_value=fake),
+        patch("raman_bench.preprocessing.wrapped_models.TabSTARv1p1Model._fit", _fake_fit),
+        pytest.raises(RuntimeError, match="stop before any real"),
+    ):
+        run_experiment.run_one(
             dataset_name="fake_wide_dataset",
             target_idx=0,
-            model_key="TABSTAR",
+            model_key="TABSTAR_V1P1",
             repeat=0,
             fold=0,
             config_index=0,
+            num_random_configs=1,
         )
-    assert out is None
+    assert reached_fit["called"]
