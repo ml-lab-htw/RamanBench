@@ -19,6 +19,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **TabOmics** (`TABOMICS`): a tabular foundation model for wide omics tables (Bote-Curiel, GPL-3.0-or-later),
+  classification only, up to 10 classes natively and output-coded above that, as TabPFN-Wide is. Install with
+  `pip install -r requirements-tabomics-git.txt`; the weights (`lbotecur/tabomics-v2.5`) download from Hugging Face.
+  On the leaderboard (`configs/v1/scope_default.json`) with the 21 classification tasks, as classification only (Elo 1174
+  on the all-tasks scale, Random Forest = 1000).
 - **Chakra-Tab through YHat Labs' library** (`CHAKRA_TAB_SDK=1`, `raman_bench.systems._chakra_tab_sdk`): the library sends
   tables past the API's direct size as an async job and waits for it, which the plain `requests` client cannot, and
   spectra have hundreds of columns. Tables above 8 MB as parquet are sent in the request body (`_refs={}`), since the
