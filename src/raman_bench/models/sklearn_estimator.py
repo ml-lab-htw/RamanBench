@@ -9,15 +9,36 @@ steps on.
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
+import pandas as pd
 
 from raman_bench.preprocessing.bridge_bases import SklearnAutoGluonBridge, _NoAugBase
+from raman_bench.splitting import GROUP_COL
+
+
+def row_groups(X) -> np.ndarray | None:
+    """The group id of every row of *X*, or ``None`` when the task has no group column.
+
+    The column is in X when it reaches the model (``RamanBenchTaskWrapper(keep_group_col=True)``); the
+    preprocessing drops it, so it has to be read first.
+    """
+    if isinstance(X, pd.DataFrame) and GROUP_COL in X.columns:
+        return X[GROUP_COL].to_numpy()
+    return None
+
+
+def accepts_groups(method) -> bool:
+    """Whether the estimator method has a ``groups`` parameter, so it can use the replicate structure."""
+    return "groups" in inspect.signature(method).parameters
 
 
 class _EstimatorBridge(SklearnAutoGluonBridge):
     def _fit(self, X, y, time_limit=None, **kwargs):
         from sklearn.base import clone
 
+        groups = row_groups(X)
         X = self.preprocess(X, y=y)
         X_np = X.values.astype(np.float32) if hasattr(X, "values") else np.asarray(X, dtype=np.float32)
         y_arr = y.values if hasattr(y, "values") else np.asarray(y)
@@ -26,10 +47,24 @@ class _EstimatorBridge(SklearnAutoGluonBridge):
         if estimator is None:
             raise ValueError(f"No {key} given for a {self.problem_type} task")
         self._estimator = clone(estimator)
-        self._estimator.fit(X_np, y_arr)
+        # An estimator with a ``groups`` argument in fit/predict (the hosted TabPFN) gets the replicate
+        # structure on the grouped tasks; every other estimator is called as before.
+        if groups is not None and accepts_groups(self._estimator.fit):
+            self._estimator.fit(X_np, y_arr, groups=groups)
+        else:
+            self._estimator.fit(X_np, y_arr)
 
     def _predict_proba(self, X, **kwargs):
-        pred = super()._predict_proba(X, **kwargs)
+        groups = row_groups(X)
+        method = self._estimator.predict if self.problem_type == "regression" else self._estimator.predict_proba
+        if groups is None or not accepts_groups(method):
+            pred = super()._predict_proba(X, **kwargs)
+        else:
+            Xp = self.preprocess(X, **kwargs)
+            X_np = Xp.values.astype(np.float32) if hasattr(Xp, "values") else np.asarray(Xp, dtype=np.float32)
+            pred = method(X_np, groups=groups)
+            if self.problem_type == "binary":
+                pred = pred[:, 1] if pred.ndim == 2 else pred
         # Some regressors (e.g. PLSRegression) predict a column vector.
         return np.asarray(pred).ravel() if self.problem_type == "regression" else pred
 

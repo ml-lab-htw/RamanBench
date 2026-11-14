@@ -5,8 +5,9 @@ The fits run on Prior Labs' servers (``tabpfn-client``), so every task's trainin
 is uploaded and each thinking fit draws from the account's token budget. Needs ``TABPFN_TOKEN``
 (read from the environment or a ``.env`` file).
 
-Groups are not sent to the API (``use_groups=False``), matching the protocol every other model
-runs. Thinking mode bins spectra wider than 2000 columns (``THINKING_MAX_COLUMNS``), see
+On the grouped tasks the group ids are sent to the API (``group_col``, ``use_groups=True``), which
+the other v1 models do not get: those results are a different variant (grouped), not the plain protocol.
+Thinking mode bins spectra wider than 2000 columns (``THINKING_MAX_COLUMNS``), see
 ``raman_bench.models.api.tabpfn_api``.
 
     python scripts/run_tabpfn_thinking.py --effort mini --tasks acetic_acid_species
@@ -43,11 +44,11 @@ def main() -> None:
         NAME,
         classifier=TabPFNAPIClassifier(
             thinking=True, thinking_effort=args.effort, thinking_timeout_s=args.timeout_s,
-            use_groups=False, max_columns=args.max_columns,
+            use_groups=True, max_columns=args.max_columns,
         ),
         regressor=TabPFNAPIRegressor(
             thinking=True, thinking_effort=args.effort, thinking_timeout_s=args.timeout_s,
-            use_groups=False, max_columns=args.max_columns,
+            use_groups=True, max_columns=args.max_columns,
         ),
         tasks=args.tasks,
         results_dir=args.results_dir,
