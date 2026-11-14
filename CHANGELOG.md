@@ -151,6 +151,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- **`scripts/aggregate_results.py` and `scripts/compute_fold_metrics.py` read the result files with threads**
+  (`--workers`, default 16), and `aggregate_results.py --scan-cache-dir DIR` keeps each model's loaded results
+  in one pickle, keyed by the paths, sizes and modification times of its result files, so a later run re-reads
+  only the models that changed. The tables are identical to those of a run without either. On the 88k results of
+  the 2026-11-13 aggregation, reading took 35 min cold and 12 min from the cache; the fold check and TabArena's
+  aggregation (about 60 min) are unchanged.
 - The fallback from a failed mirror load to the original source logs a warning, not a debug
   message.
 - **raman-data ≥ 1.6.6**, which adds the glioma datasets `glioma_methylation` and `glioma_idh`
