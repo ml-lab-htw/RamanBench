@@ -37,7 +37,7 @@ The full rules are in [RELEASING.md](RELEASING.md).
 ### Added
 
 - **v1 reference results of the seven 1.5.0 models**: TabH2O, Seldon, Seldon-Mini, TabAbax, MLP-A, TabM-A and
-  TabSTAR-v1.1 are in the bundled reference (`data/precomputed/v1/`, 71 models), so `compare()` and `leaderboard()` rank
+  TabSTAR-v1.1 are in the bundled reference (`data/precomputed/v1/`, 72 models with TabOmics), so `compare()` and `leaderboard()` rank
   against them. Seldon and Seldon-Mini have all 63 classification folds, TabAbax, TabSTAR-v1.1, MLP-A, TabM-A and TabH2O
   all 405 (see Fixed and Changed). The reference covers all 135 tasks and is built from the aggregate of 2026-11-13: the six
   subject-grouped tasks (`alzheimer`, `parkinson`, `covid19_salvia`, `comfile_stroke`, `serum_alzheimer_disease`,
