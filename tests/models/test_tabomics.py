@@ -9,6 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+pytest.importorskip("autogluon")  # the model registry imports the wrapped models
+
 from raman_bench.models.discover import discover_custom_models
 from raman_bench.preprocessing.wrapped_models import CLASSIFICATION_ONLY_MODELS
 
