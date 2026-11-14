@@ -32,6 +32,18 @@ The full rules are in [RELEASING.md](RELEASING.md).
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
   so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
 
+## [1.5.1] — 2026-11-14
+
+### Added
+
+- **v1 reference results of the seven 1.5.0 models**: TabH2O, Seldon, Seldon-Mini, TabAbax, MLP-A, TabM-A and
+  TabSTAR-v1.1 are in the bundled reference (`data/precomputed/v1/`, 72 models with TabOmics), so `compare()` and `leaderboard()` rank
+  against them. Seldon and Seldon-Mini have all 63 classification folds, TabAbax, TabSTAR-v1.1, MLP-A, TabM-A and TabH2O
+  all 405 (see Fixed and Changed). The reference covers all 135 tasks and is built from the aggregate of 2026-11-13: the six
+  subject-grouped tasks (`alzheimer`, `parkinson`, `covid19_salvia`, `comfile_stroke`, `serum_alzheimer_disease`,
+  `serum_prostate_cancer`) were rerun for every model on their group-aware folds, and Chakra-Tab full's six folds that had
+  failed with HTTP 422 were rerun (#201).
+
 ### Changed
 
 - **`evaluate_estimator` hands group ids to estimators that take them.** On tasks with a group column, an estimator
@@ -46,6 +58,14 @@ The full rules are in [RELEASING.md](RELEASING.md).
   the column count, so training and test rows are treated alike and no label is used. Targets at or below
   the cap are untouched. `wrapped_models.MAX_FEATURES_MODELS` and the skip in `run_experiment.py` are gone:
   the cap is the class attribute `_max_input_features`. The TabPFN thinking runner uses the same helper.
+
+### Fixed
+
+- **TabAbax** (15 classification folds: `cancer_cell_cooh`, `cancer_cell_nh2`, `rruff_mineral_raw`, `mlrod`,
+  `bacteria_identification`) failed with a device mismatch in upstream's `_predict_hierarchical`; fixed upstream in
+  tababax-research/TabAbax#1 and verified on these folds with the patched code. The other upstream releases are unchanged.
+- Seldon's `mlrod`, `bacteria_identification` and `cancer_cell_cooh` folds, which hit time limits on A100/H100 nodes in
+  1.5.0, ran on a B200 node and are complete.
 
 ## [1.5.0] — 2026-11-10
 
@@ -795,7 +815,6 @@ reference results. The benchmark protocol is unchanged, so earlier scores stay c
   (`configs/v1/scope_default.json`) — same flat 10000-row cap already applied to `mlrod`,
   after the identical `TimeLimitExceeded` pattern was confirmed live for these two other
   row-count outliers in `large_datasets` (COATNET, SANET, ROCKET, TABICLV2, all on GPU).
-
 
 - **`RAMANTRANSFORMER` briefly excluded, then restored the same day** (still 43
   models in `configs/v1/scope_default.json`) — initially removed as the

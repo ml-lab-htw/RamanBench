@@ -12,7 +12,7 @@
 
 RamanBench collects 74 public Raman datasets (163 prediction targets, four
 application domains: Material Science, Biological, Medical, Chemical) behind one
-evaluation protocol, and ships the v1 results of 61 models on its 135 benchmark tasks.
+evaluation protocol, and ships the v1 results of 69 models on its 135 benchmark tasks.
 You can score a new model against those baselines without re-running the
 experiments. The baselines cover classical chemometrics, gradient boosting,
 tabular foundation models, and deep networks built for spectra.
@@ -47,7 +47,7 @@ pip install raman-bench
 This is enough to:
 
 - load every dataset (via `raman-data`)
-- read the per-fold v1 results of all 55 leaderboard models (and the two AutoGluon reference systems), which ship with the
+- read the per-fold v1 results of all 69 leaderboard models (and the two AutoGluon reference systems), which ship with the
   package (`raman_bench.compare.load_reference()`, works offline)
 
 With `pip install "raman-bench[plots]"` you can also score them and rank your own
@@ -228,7 +228,7 @@ precomputed baselines used.
 
 ### Browse the v1 leaderboard
 
-The per-fold results of all 55 leaderboard models (and the two AutoGluon reference systems) on all 135 tasks ship with the
+The per-fold results of all 69 leaderboard models (and the two AutoGluon reference systems) on all 135 tasks ship with the
 package (`src/raman_bench/data/precomputed/v1/`). `leaderboard()` scores them like the
 [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) does
 (needs `pip install "raman-bench[plots]"`):

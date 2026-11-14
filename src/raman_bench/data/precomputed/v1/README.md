@@ -6,7 +6,7 @@ the leaderboard without rerunning it (`raman_bench.compare`).
 
 | File | Contents |
 |---|---|
-| `reference_results.parquet` | One row per (task, fold, model): 64 models (incl. the `DUMMY` baseline and two AutoGluon reference systems) x 135 tasks x 3 folds, 24,317 rows |
+| `reference_results.parquet` | One row per (task, fold, model): 72 models (incl. the `DUMMY` baseline and two AutoGluon reference systems) x 135 tasks x 3 folds, 26,496 rows |
 | `protocol.json` | Folds, bagging, time budget, row caps, the task list and each model's enabled preprocessing |
 
 ## `reference_results.parquet`
@@ -72,6 +72,10 @@ tasks. When the raw results live elsewhere (e.g. on a cluster volume), write
 `raman_bench.aggregation.preprocessing_by_model(results_dir)` to JSON there and pass it as
 `--preprocessing-json`.
 
-This build (2026-10-14, release 1.4.0): `scope_default.json` without TabSTAR (later
-release), i.e. the 2026-10-09 rebuild plus LightPFN, PrismBoost, TabFM+, Chakra-Tab
-(medium and full) and HIVE-COTE 2.
+This build (2026-11-14, release 1.5.1): `scope_default.json`, i.e. the 1.4.0 build plus TabH2O, Seldon, Seldon-Mini,
+TabAbax, MLP-A, TabM-A, TabSTAR-v1.1 and TabOmics (classification only, 21 tasks), built from the aggregate `aggregated_20261113_final2` (all 135 tasks). The six
+subject-grouped tasks `alzheimer`, `parkinson`, `covid19_salvia`, `comfile_stroke`, `serum_alzheimer_disease` and
+`serum_prostate_cancer` (target 0) are back: the HF mirror gained their subject `_group_id` on 2026-10-29 (#160), which made
+their canonical folds group-aware, and every model in the scope was rerun on them (the fold check finds no result on the
+old folds). Chakra-Tab full's six folds on `comfile_stroke` and `serum_alzheimer_disease`, which had failed with HTTP 422,
+were rerun and are included.
