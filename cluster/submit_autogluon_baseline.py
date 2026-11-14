@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -181,8 +182,11 @@ def main():
         text=True,
         check=True,
     )
+    # Jobs go through the per-user queue (`kq submit`), never `kubectl apply`. RB_KQ_AFTER ("job-a,job-b") holds the
+    # Job until those succeeded (see cluster/submit_job.py).
+    after = os.environ.get("RB_KQ_AFTER")
     subprocess.run(
-        ["kubectl", "apply", "--validate=false", "-f", "-"],
+        ["kq", "submit", "-n", namespace, *(["--after", after] if after else []), "-"],
         input=yaml.safe_dump(job_manifest),
         text=True,
         check=True,

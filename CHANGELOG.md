@@ -12,8 +12,18 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- `cluster/submit_autogluon_baseline.py` creates its Job with `kq submit` instead of `kubectl apply`, and takes
+  `RB_KQ_AFTER` like `submit_job.py`.
+
 ### Added
 
+- **Chakra-Tab through YHat Labs' library** (`CHAKRA_TAB_SDK=1`, `raman_bench.systems._chakra_tab_sdk`): the library sends
+  tables past the API's direct size as an async job and waits for it, which the plain `requests` client cannot, and
+  spectra have hundreds of columns. Tables above 8 MB as parquet are sent in the request body (`_refs={}`), since the
+  library's upload reference made `/v1/table/predict` answer 422 for them. `yhatlabs` is not a dependency; install it
+  to use this path.
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
   so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
 
@@ -28,6 +38,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- **`evaluate_estimator` hands group ids to estimators that take them.** On tasks with a group column, an estimator
+  whose `fit` / `predict` / `predict_proba` has a `groups` argument now receives the group ids
+  (`models/sklearn_estimator.py`); other estimators are called as before. The hosted TabPFN thinking runner
+  (`scripts/run_tabpfn_thinking.py`) sends them to the API (`use_groups=True`), so its results are a grouped
+  variant that the other v1 models do not have.
 - **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
   features; the 18 targets above that (54 folds) were skipped. Their spectra are now averaged in runs of
   neighbouring columns down to 4,000 (`raman_bench.preprocessing.raman_preprocessing.bin_columns`, applied
