@@ -5,7 +5,11 @@ from __future__ import annotations
 import os
 import pickle
 
-from raman_bench.aggregation import scan_cached_results
+import pytest
+
+pytest.importorskip("tabarena")
+
+from raman_bench.aggregation import scan_cached_results  # noqa: E402
 
 
 def _write(root, model, task, fold, value):
