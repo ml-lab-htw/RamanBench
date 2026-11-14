@@ -14,6 +14,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **Chakra-Tab through YHat Labs' library** (`CHAKRA_TAB_SDK=1`, `raman_bench.systems._chakra_tab_sdk`): the library sends
+  tables past the API's direct size as an async job and waits for it, which the plain `requests` client cannot, and
+  spectra have hundreds of columns. Tables above 8 MB as parquet are sent in the request body (`_refs={}`), since the
+  library's upload reference made `/v1/table/predict` answer 422 for them. `yhatlabs` is not a dependency; install it
+  to use this path.
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
   so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
 
