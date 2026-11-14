@@ -26,8 +26,8 @@ def test_protocol_matches_the_published_sweep():
     assert (p["n_splits"], p["num_bag_folds"], p["time_limit"], p["num_random_configs"]) == (3, 3, 600, 0)
     assert p["time_limit_overrides"]["mlrod"] == 10800
     assert p["max_train_samples_overrides"]["wheat_lines"] == 10000
-    assert len(p["tasks"]) == 129
-    assert sum(t["problem_type"] == "classification" for t in p["tasks"]) == 15
+    assert len(p["tasks"]) == 135
+    assert sum(t["problem_type"] == "classification" for t in p["tasks"]) == 21
     # Every leaderboard model has its preprocessing recorded.
     assert set(p["preprocessing"]) == set(p["models"])
     assert p["preprocessing"]["PLS"] == "baseline_correction, denoising, snv"

@@ -1,6 +1,6 @@
 {
  "version": "v1",
- "created": "2026-11-10",
+ "created": "2026-11-14",
  "n_splits": 3,
  "num_bag_folds": 3,
  "time_limit": 600,
@@ -188,6 +188,17 @@
  },
  "tasks": [
   {
+   "task": "alzheimer__0",
+   "dataset": "alzheimer",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "roc_auc",
+   "num_instances": 1151,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
    "task": "cancer_cell_cooh__0",
    "dataset": "cancer_cell_cooh",
    "target_idx": 0,
@@ -217,6 +228,28 @@
    "problem_type": "classification",
    "metric": "roc_auc",
    "num_instances": 230,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "comfile_stroke__0",
+   "dataset": "comfile_stroke",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "roc_auc",
+   "num_instances": 4020,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "covid19_salvia__0",
+   "dataset": "covid19_salvia",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "log_loss",
+   "num_instances": 2501,
    "n_repeats": 1,
    "n_folds": 3
   },
@@ -265,6 +298,17 @@
    "n_folds": 3
   },
   {
+   "task": "parkinson__0",
+   "dataset": "parkinson",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "roc_auc",
+   "num_instances": 1476,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
    "task": "wheat_lines__0",
    "dataset": "wheat_lines",
    "target_idx": 0,
@@ -272,6 +316,28 @@
    "problem_type": "classification",
    "metric": "log_loss",
    "num_instances": 53134,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "serum_alzheimer_disease__0",
+   "dataset": "serum_alzheimer_disease",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "log_loss",
+   "num_instances": 3417,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "serum_prostate_cancer__0",
+   "dataset": "serum_prostate_cancer",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "log_loss",
+   "num_instances": 12601,
    "n_repeats": 1,
    "n_folds": 3
   },

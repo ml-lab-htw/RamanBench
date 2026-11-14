@@ -27,14 +27,17 @@ The full rules are in [RELEASING.md](RELEASING.md).
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
   so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
 
-## [1.5.1] — 2026-11-10
+## [1.5.1] — 2026-11-14
 
 ### Added
 
 - **v1 reference results of the seven 1.5.0 models**: TabH2O, Seldon, Seldon-Mini, TabAbax, MLP-A, TabM-A and
   TabSTAR-v1.1 are in the bundled reference (`data/precomputed/v1/`, 71 models), so `compare()` and `leaderboard()` rank
   against them. Seldon and Seldon-Mini have all 63 classification folds, TabAbax, TabSTAR-v1.1, MLP-A, TabM-A and TabH2O
-  all 405 (see Fixed and Changed).
+  all 405 (see Fixed and Changed). The reference covers all 135 tasks and is built from the aggregate of 2026-11-13: the six
+  subject-grouped tasks (`alzheimer`, `parkinson`, `covid19_salvia`, `comfile_stroke`, `serum_alzheimer_disease`,
+  `serum_prostate_cancer`) were rerun for every model on their group-aware folds, and Chakra-Tab full's six folds that had
+  failed with HTTP 422 were rerun (#201).
 
 ### Changed
 
@@ -50,11 +53,6 @@ The full rules are in [RELEASING.md](RELEASING.md).
   the column count, so training and test rows are treated alike and no label is used. Targets at or below
   the cap are untouched. `wrapped_models.MAX_FEATURES_MODELS` and the skip in `run_experiment.py` are gone:
   the cap is the class attribute `_max_input_features`. The TabPFN thinking runner uses the same helper.
-- **The bundled reference has 129 tasks, not 135.** `alzheimer`, `parkinson`, `covid19_salvia`, `comfile_stroke`,
-  `serum_alzheimer_disease` and `serum_prostate_cancer` are left out. The HF mirror gained their subject groups on
-  2026-10-29 (#160), which made their outer folds group-aware; the results of the models that ran before that use the
-  old ungrouped folds, and only the seven new models ran on the new ones. The six tasks stay in `configs/v1/`; they
-  return to the reference once the older models are rerun on them.
 
 ### Fixed
 
