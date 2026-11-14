@@ -208,31 +208,37 @@ def metrics_from_result(result: dict) -> dict[str, float]:
     return out
 
 
-def fold_metrics(results_dir: str | os.PathLike) -> pd.DataFrame:
+def _row(path: str) -> dict | None:
+    """The ``fold_metrics`` row of one results.pkl, or ``None`` (logged) when it has no metrics."""
+    from tabarena.utils.pickle_utils import load_pickle
+
+    try:
+        result = load_pickle(path)
+        values = metrics_from_result(result)
+    except Exception as e:
+        logger.warning("No metrics for %s: %s", path, e)
+        return None
+    tm = result["task_metadata"]
+    framework = result.get("framework") or path.split(os.sep)[-4]
+    return {
+        "ta_name": framework.removesuffix("_c1_BAG_L1"),
+        "dataset": tm["name"],
+        "fold": int(tm.get("split_idx", tm["fold"])),
+        **values,
+    }
+
+
+def fold_metrics(results_dir: str | os.PathLike, *, workers: int = 16) -> pd.DataFrame:
     """One row per cached result under *results_dir*: ``ta_name``, ``dataset``, ``fold`` and every metric.
 
     ``ta_name`` is the result directory's model name without the ``_c1_BAG_L1`` suffix
     (the ``ta_name`` of ``hpo_results.csv``); ``fold`` is the split index, as there.
     Results without stored test predictions (e.g. the AutoGluon reference runs) are skipped.
+    The files are read by *workers* threads.
     """
-    from tabarena.utils.pickle_utils import load_pickle
+    from concurrent.futures import ThreadPoolExecutor
 
-    rows = []
-    for path in sorted(glob(os.path.join(results_dir, "*", "*", "*", "results.pkl"))):
-        try:
-            result = load_pickle(path)
-            values = metrics_from_result(result)
-        except Exception as e:
-            logger.warning("No metrics for %s: %s", path, e)
-            continue
-        tm = result["task_metadata"]
-        framework = result.get("framework") or path.split(os.sep)[-4]
-        rows.append(
-            {
-                "ta_name": framework.removesuffix("_c1_BAG_L1"),
-                "dataset": tm["name"],
-                "fold": int(tm.get("split_idx", tm["fold"])),
-                **values,
-            }
-        )
+    paths = sorted(glob(os.path.join(results_dir, "*", "*", "*", "results.pkl")))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        rows = [r for r in pool.map(_row, paths) if r is not None]
     return pd.DataFrame(rows, columns=["ta_name", "dataset", "fold", *METRIC_COLUMNS])

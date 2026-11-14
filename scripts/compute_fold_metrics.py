@@ -24,10 +24,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", required=True)
     parser.add_argument("--output", required=True, help=".parquet or .csv")
+    parser.add_argument("--workers", type=int, default=16, help="Threads reading the result files (default 16).")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    table = fold_metrics(args.results_dir)
+    table = fold_metrics(args.results_dir, workers=args.workers)
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.suffix == ".csv":
