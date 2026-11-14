@@ -12,6 +12,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
+  so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
+
 ## [1.5.1] — 2026-11-10
 
 ### Added
@@ -43,16 +48,6 @@ The full rules are in [RELEASING.md](RELEASING.md).
   tababax-research/TabAbax#1 and verified on these folds with the patched code. The other upstream releases are unchanged.
 - Seldon's `mlrod`, `bacteria_identification` and `cancer_cell_cooh` folds, which hit time limits on A100/H100 nodes in
   1.5.0, ran on a B200 node and are complete.
-
-### Changed
-
-- **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
-  features; the 18 targets above that (54 folds) were skipped. Their spectra are now averaged in runs of
-  neighbouring columns down to 4,000 (`raman_bench.preprocessing.raman_preprocessing.bin_columns`, applied
-  after the preprocessing recipe in `RamanPreprocessingMixin._bin_to_feature_cap`). The binning depends only on
-  the column count, so training and test rows are treated alike and no label is used. Targets at or below
-  the cap are untouched. `wrapped_models.MAX_FEATURES_MODELS` and the skip in `run_experiment.py` are gone:
-  the cap is the class attribute `_max_input_features`. The TabPFN thinking runner uses the same helper.
 
 ## [1.5.0] — 2026-11-10
 
@@ -796,7 +791,6 @@ reference results. The benchmark protocol is unchanged, so earlier scores stay c
   (`configs/v1/scope_default.json`) — same flat 10000-row cap already applied to `mlrod`,
   after the identical `TimeLimitExceeded` pattern was confirmed live for these two other
   row-count outliers in `large_datasets` (COATNET, SANET, ROCKET, TABICLV2, all on GPU).
-
 
 - **`RAMANTRANSFORMER` briefly excluded, then restored the same day** (still 43
   models in `configs/v1/scope_default.json`) — initially removed as the
