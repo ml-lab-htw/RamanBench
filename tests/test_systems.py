@@ -132,3 +132,48 @@ def test_chakra_tab_request_outlasts_the_fit_budget():
     assert _request_timeout(600) == 7200  # TabArena's own timeout covers the default budget
     assert _request_timeout(10800) == 14400  # mlrod: the fit budget plus an hour
     assert _request_timeout(None) == 7200
+
+
+def test_chakra_tab_sdk_path_runs_a_fold_through_the_library(monkeypatch, tmp_path):
+    """CHAKRA_TAB_SDK=1 swaps the plain POST for yhatlabs.Client.predict, which sends wide tables as async jobs."""
+    import sys
+    import types
+
+    from tabarena.benchmark.experiment.experiment_constructor import ExternalSystemExperiment
+
+    monkeypatch.setenv("CHAKRA_TAB_KEY", "test-key")
+    monkeypatch.setenv("CHAKRA_TAB_SDK", "1")
+    calls = []
+
+    class Client:
+        def __init__(self, api_key=None, timeout=None):
+            calls.append({"key": api_key})
+
+        def predict(self, train, target, test, *, task, preset, eval_metric, time_limit, seed, _refs):
+            calls.append({"task": task, "preset": preset, "n_train": len(train), "n_test": len(test),
+                          "target_in_train": target in train.columns, "target_in_test": target in test.columns, "refs": _refs})
+            classes = sorted(train[target].unique())
+            proba = np.full((len(test), len(classes)), 1 / len(classes))
+            return types.SimpleNamespace(
+                predictions=pd.Series([classes[0]] * len(test)), fit={"version": "fake", "fit_s": 2.5},
+                probabilities=pd.DataFrame(proba, columns=[f"p_{c}" for c in classes]), classes=classes,
+            )
+
+    monkeypatch.setitem(sys.modules, "yhatlabs", types.SimpleNamespace(Client=Client))
+    system = get_system("chakra-tab")
+    task_name, task = _task("classification")
+    experiment = ExternalSystemExperiment(
+        name=system.result_dir,
+        system_cls=system.load_cls(),
+        system_hyperparameters=dict(system.hyperparameters),
+        method_kwargs={"fit_kwargs": {"time_limit": 600, "num_cpus": 1}},
+        experiment_kwargs={"require_warmup": False},
+    )
+    out = run_cached(experiment, task_name=task_name, task_wrapper=task, repeat=0, fold=1, results_dir=str(tmp_path))
+
+    assert calls[0] == {"key": "test-key"}
+    assert calls[1]["preset"] == "medium" and calls[1]["task"] == "multiclass"
+    assert calls[1]["target_in_train"] and not calls[1]["target_in_test"]
+    assert calls[1]["n_train"] + calls[1]["n_test"] == 60
+    assert calls[1]["refs"] == {}, "the table must go in the request body, not through /v1/uploads (422 above 8 MB)"
+    assert out["method_metadata"]["api_fit_s"] == 2.5
