@@ -14,6 +14,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- The `tabarena` pin moves from `0642914d` (2026-11-08) to `bfa8c50c` (2026-11-13). The 13 commits in between
+  change LightPFN (1.5: regression, a categorical adapter, faster GPU inference), the LimiX-2 inference
+  configuration for LimiX-2-1016, and Seldon (regression); no new model is added. The extras in
+  `requirements-tabarena-git.txt` all still exist at the new commit. Results already in `results/v1` were
+  produced with the old pin; rerunning LightPFN or LimiX-2 may give different numbers.
 - `cluster/submit_autogluon_baseline.py` creates its Job with `kq submit` instead of `kubectl apply`, and takes
   `RB_KQ_AFTER` like `submit_job.py`.
 
