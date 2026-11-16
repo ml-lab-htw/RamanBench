@@ -51,7 +51,7 @@ preprocessing steps; pass the same file to every job of a sweep::
 
     python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \\
         --model RF --repeat 0 --fold 0 --config-index 7 --num-random-configs 200 \\
-        --prep-search-config configs/prep_search_crr_sg_snv.json \\
+        --prep-search-config configs/prep_search/crr_sg_snv.json \\
         --results-dir results/v1/data
 """
 
