@@ -58,7 +58,7 @@ logger = logging.getLogger("run_experiment_batch")
 # run_one arguments a jobspec line may set; everything else comes from the command line.
 LINE_KEYS = {
     "dataset_name", "target_idx", "model_key", "repeat", "fold", "config_index", "recipe_config",
-    "n_repeats", "n_splits", "num_random_configs", "num_bag_folds", "time_limit",
+    "n_repeats", "n_splits", "num_random_configs", "num_bag_folds", "time_limit", "prep_search_config",
     "max_train_samples", "min_samples_per_class", "min_groups_per_class",
 }
 REQUIRED_KEYS = ("dataset_name", "model_key", "repeat", "fold")
@@ -173,6 +173,8 @@ def memoize_torch_load() -> None:
 def claim_name(job: dict) -> str:
     recipe = job.get("recipe_config")
     recipe = Path(recipe).stem if recipe else "default"
+    if job.get("prep_search_config"):
+        recipe = f"{recipe}+prepsearch_{Path(job['prep_search_config']).stem}"
     return (f"{job['model_key']}/{recipe}__{job['dataset_name']}__{job.get('target_idx', 0)}"
             f"__{job['repeat']}_{job['fold']}__c{job.get('config_index', 0)}")
 
@@ -261,6 +263,8 @@ def main() -> None:
     ap.add_argument("--num-random-configs", type=int, default=0)
     ap.add_argument("--num-bag-folds", type=int, default=rex.DEFAULT_NUM_BAG_FOLDS)
     ap.add_argument("--time-limit", type=float, default=rex.DEFAULT_TIME_LIMIT)
+    ap.add_argument("--prep-search-config", default=None,
+                    help="Default prep-search JSON for every line (run_experiment.py --prep-search-config)")
     ap.add_argument("--results-dir", default="results/v1/data")
     ap.add_argument("--cache-dir", default=".cache_v1")
     ap.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
@@ -315,7 +319,7 @@ def main() -> None:
         n_splits=args.n_splits, num_random_configs=args.num_random_configs,
         num_bag_folds=args.num_bag_folds, time_limit=args.time_limit,
         max_train_samples=args.max_train_samples, min_samples_per_class=args.min_samples_per_class,
-        min_groups_per_class=args.min_groups_per_class,
+        min_groups_per_class=args.min_groups_per_class, prep_search_config=args.prep_search_config,
     )
     fixed = dict(results_dir=args.results_dir, cache_dir=args.cache_dir, mirror_repo=args.mirror_repo,
                  use_mirror=args.use_mirror, use_gpu=args.use_gpu)

@@ -44,6 +44,15 @@ defaults to no recipe / model-class defaults, unrestricted, if omitted)::
         --model PLS --repeat 0 --fold 0 --config-index 0 \\
         --recipe-config /path/to/RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json \\
         --results-dir results/v1/data
+
+With preprocessing tuned jointly with the model (``--prep-search-config``, see
+:mod:`raman_bench.prep_search`): every random config ``rK`` also samples the listed
+preprocessing steps; pass the same file to every job of a sweep::
+
+    python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \\
+        --model RF --repeat 0 --fold 0 --config-index 7 --num-random-configs 200 \\
+        --prep-search-config configs/prep_search_crr_sg_snv.json \\
+        --results-dir results/v1/data
 """
 
 from __future__ import annotations
@@ -181,6 +190,7 @@ def run_one(
     recipe_config: str | None = None,
     max_train_samples: int | None = None,
     force_recompute: bool = False,
+    prep_search_config: str | None = None,
 ) -> dict | None:
     """Run exactly one (model, dataset, target, repeat, fold, config) job and cache the result.
 
@@ -221,6 +231,13 @@ def run_one(
     for any other model class the recipe is ignored with a warning, matching how
     ``create_preprocessed_hyperparameters`` silently passes such models through with no
     preprocessing hyperparameters at all.
+
+    ``prep_search_config`` (default ``None``) names a prep-search JSON file (see
+    :mod:`raman_bench.prep_search`): the model's config generator is wrapped so every random
+    config also samples the listed preprocessing steps, and every other step is pinned off in
+    all configs. Mutually exclusive with ``recipe_config`` (a recipe fixes preprocessing for
+    the whole job). Like ``recipe_config`` it only applies to ``RamanPreprocessingMixin``
+    subclasses, and it gets its own on-disk cache segment.
     """
     from raman_bench.experiment_utils import (
         bag_experiment_kwargs,
@@ -354,6 +371,29 @@ def run_one(
     model_cls = infer_model_cls(model_key)
     gen = _import_generator(model_key)
 
+    if prep_search_config is not None and recipe_config is not None:
+        raise ValueError(
+            "prep_search_config and recipe_config are mutually exclusive: a recipe fixes "
+            "preprocessing for the whole job, a prep search samples it per config."
+        )
+    if prep_search_config is not None:
+        if isinstance(model_cls, type) and issubclass(model_cls, RamanPreprocessingMixin):
+            from raman_bench.prep_search import load_prep_search_config, with_prep_search
+
+            prep_steps = load_prep_search_config(prep_search_config)
+            gen = with_prep_search(gen, prep_steps)
+            logger.info(
+                "%s: searching preprocessing steps %s jointly with the model (%s)",
+                model_key, sorted(prep_steps), prep_search_config,
+            )
+        else:
+            logger.warning(
+                "prep_search_config=%r ignored: %s (%s) is not a RamanPreprocessingMixin "
+                "subclass -- no prep_*_enabled hyperparameters to search.",
+                prep_search_config, model_key, model_cls,
+            )
+            prep_search_config = None
+
     # Apply the requested preprocessing recipe (§6.1 of
     # docs/kfold_priority_plan.md in the RamanPreprocessing repo -- this script previously had
     # no way to specify a recipe at all, only --config-index for model hyperparameters).
@@ -429,6 +469,10 @@ def run_one(
     if recipe_config is not None:
         recipe_slug = os.path.splitext(os.path.basename(recipe_config))[0]
         experiment_dir_name = f"{experiment.name}__recipe_{recipe_slug}"
+    if prep_search_config is not None:
+        from raman_bench.prep_search import prep_search_slug
+
+        experiment_dir_name = f"{experiment.name}__prepsearch_{prep_search_slug(prep_search_config)}"
     # An already-cached result stands as final unless force_recompute is set (see
     # run_cached and docs/internal/invalidating-results.md).
     return run_cached(
@@ -527,6 +571,15 @@ def main():
         "before this argument existed).",
     )
     parser.add_argument(
+        "--prep-search-config",
+        default=None,
+        help="Path to a prep-search JSON file ({\"preprocessing\": {\"cosmic_ray_removal\": true, "
+        "\"denoising\": true, \"snv\": true}}): every random config also samples these "
+        "preprocessing steps, every other step is pinned off (raman_bench.prep_search). Must be "
+        "identical across all jobs of a sweep, like --num-random-configs. Mutually exclusive "
+        "with --recipe-config. Default: None (preprocessing is not searched).",
+    )
+    parser.add_argument(
         "--scratch-dir",
         default=None,
         help="Deterministic path for AutoGluon's predictor artifacts (for cluster cleanup); "
@@ -592,6 +645,7 @@ def main():
         recipe_config=args.recipe_config,
         max_train_samples=args.max_train_samples,
         force_recompute=args.force_recompute,
+        prep_search_config=args.prep_search_config,
     )
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")

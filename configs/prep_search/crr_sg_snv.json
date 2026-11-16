@@ -1,0 +1,8 @@
+{
+  "_comment": "Prep search (scripts/run_experiment.py --prep-search-config): cosmic-ray removal, Savitzky-Golay denoising and SNV are sampled per random config, jointly with the model's hyperparameters; every other preprocessing step is pinned off. See raman_bench.prep_search.",
+  "preprocessing": {
+    "cosmic_ray_removal": true,
+    "denoising": true,
+    "snv": true
+  }
+}
