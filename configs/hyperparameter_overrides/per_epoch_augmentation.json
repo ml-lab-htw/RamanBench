@@ -1,0 +1,5 @@
+{
+    "_comment": "Raman DL models (REZERONET, FCRESNEXT, RAMANNET, ...): augment per epoch, so the aug_noise_sigma / aug_mixup_alpha their search spaces sample take effect (BaseRamanEstimator._run_training_loop -> augment_spectra_torch), instead of the mixin's fixed pre-fit noise copies (prep_aug_*, _RamanDLBase defaults), which are switched off.",
+    "per_epoch_augmentation": true,
+    "prep_aug_enabled": false
+}

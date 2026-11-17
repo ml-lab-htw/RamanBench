@@ -191,6 +191,7 @@ def run_one(
     max_train_samples: int | None = None,
     force_recompute: bool = False,
     prep_search_config: str | None = None,
+    hyperparameter_overrides: str | None = None,
 ) -> dict | None:
     """Run exactly one (model, dataset, target, repeat, fold, config) job and cache the result.
 
@@ -238,6 +239,13 @@ def run_one(
     all configs. Mutually exclusive with ``recipe_config`` (a recipe fixes preprocessing for
     the whole job). Like ``recipe_config`` it only applies to ``RamanPreprocessingMixin``
     subclasses, and it gets its own on-disk cache segment.
+
+    ``hyperparameter_overrides`` (default ``None``) names a JSON object of hyperparameters merged
+    into every config of the model, ``c1`` included (see :mod:`raman_bench.hyperparameter_overrides`),
+    for settings a sweep holds fixed outside the search space, e.g.
+    ``{"per_epoch_augmentation": true, "prep_aug_enabled": false}`` for the Raman DL models. A
+    key the model's own config already sets is rejected (by TabArena), as is a key the recipe
+    also sets. It gets its own on-disk cache segment (``__hp_<stem>-<digest>``).
     """
     from raman_bench.experiment_utils import (
         bag_experiment_kwargs,
@@ -434,6 +442,21 @@ def run_one(
                 model_cls,
             )
 
+    if hyperparameter_overrides is not None:
+        from raman_bench.hyperparameter_overrides import load_hyperparameter_overrides
+
+        overrides = load_hyperparameter_overrides(hyperparameter_overrides)
+        clash = sorted(set(overrides).intersection(extra_model_hyperparameters or {}))
+        if clash:
+            raise ValueError(
+                f"hyperparameter_overrides {hyperparameter_overrides!r} sets {clash}, which the "
+                f"recipe {recipe_config!r} also sets"
+            )
+        extra_model_hyperparameters = {**(extra_model_hyperparameters or {}), **overrides}
+        logger.info(
+            "%s: fixed hyperparameter overrides %s (%s)", model_key, overrides, hyperparameter_overrides
+        )
+
     # Shared with raman_bench.evaluate, see bag_experiment_kwargs for why each setting
     # is what it is (ValidationProtocol, require_warmup=False, fold-config-wise seeds).
     generate_kwargs = bag_experiment_kwargs(
@@ -473,6 +496,10 @@ def run_one(
         from raman_bench.prep_search import prep_search_slug
 
         experiment_dir_name = f"{experiment.name}__prepsearch_{prep_search_slug(prep_search_config)}"
+    if hyperparameter_overrides is not None:
+        from raman_bench.hyperparameter_overrides import hyperparameter_overrides_slug
+
+        experiment_dir_name = f"{experiment_dir_name}__hp_{hyperparameter_overrides_slug(hyperparameter_overrides)}"
     # An already-cached result stands as final unless force_recompute is set (see
     # run_cached and docs/internal/invalidating-results.md).
     return run_cached(
@@ -580,6 +607,14 @@ def main():
         "with --recipe-config. Default: None (preprocessing is not searched).",
     )
     parser.add_argument(
+        "--hyperparameter-overrides",
+        default=None,
+        help="Path to a JSON object of hyperparameters merged into every config of the model, "
+        "c1 included, e.g. {\"per_epoch_augmentation\": true, \"prep_aug_enabled\": false} "
+        "(raman_bench.hyperparameter_overrides). Keys the model config already sets are "
+        "rejected. Own cache segment. Default: None.",
+    )
+    parser.add_argument(
         "--scratch-dir",
         default=None,
         help="Deterministic path for AutoGluon's predictor artifacts (for cluster cleanup); "
@@ -646,6 +681,7 @@ def main():
         max_train_samples=args.max_train_samples,
         force_recompute=args.force_recompute,
         prep_search_config=args.prep_search_config,
+        hyperparameter_overrides=args.hyperparameter_overrides,
     )
     if out is None:
         logger.info("Target skipped (see the reason logged above) -- clean exit, not an error.")
