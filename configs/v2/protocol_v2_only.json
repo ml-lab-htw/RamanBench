@@ -406,6 +406,30 @@
    "n_classes": 6
   },
   {
+   "task": "slopp__0",
+   "dataset": "slopp",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "log_loss",
+   "num_instances": 148,
+   "n_repeats": 1,
+   "n_folds": 3,
+   "n_classes": 8
+  },
+  {
+   "task": "slopp_e__0",
+   "dataset": "slopp_e",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "log_loss",
+   "num_instances": 113,
+   "n_repeats": 1,
+   "n_folds": 3,
+   "n_classes": 4
+  },
+  {
    "task": "stroke_urine_sers_532__0",
    "dataset": "stroke_urine_sers_532",
    "target_idx": 0,

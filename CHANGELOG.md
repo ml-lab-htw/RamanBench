@@ -14,6 +14,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **Benchmark v2: `slopp` and `slopp_e`** (raman_data, Rochman Lab libraries of plastic particles, Munno et al. 2020),
+  two polymer-type classification tasks. After the 9-spectra and 3-groups-per-class rules `slopp` keeps 8 of its 15
+  classes (108 of 148 spectra; ABS drops out with 2 groups) and `slopp_e` 4 of its 20 (68 of 113). v2 now has 113
+  datasets and 69 v2-only targets, 43 of them run. Not swept yet, and not on the HF mirror: the download package
+  states no licence. `raman-data` needs the release that contains the two keys before the sweep.
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
   so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
 

@@ -91,6 +91,8 @@
  "serum_alzheimer_disease",
  "serum_prostate_cancer",
  "single_cell_prokaryotes",
+ "slopp",
+ "slopp_e",
  "streptococcus_thermophilus_fermentation_kaiser",
  "streptococcus_thermophilus_fermentation_timegate",
  "stroke_urine_sers_532",

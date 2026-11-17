@@ -2376,6 +2376,28 @@
     "is_core": false
   },
   {
+    "dataset": "slopp",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 148,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "since": "v2",
+    "is_core": false
+  },
+  {
+    "dataset": "slopp_e",
+    "target_idx": 0,
+    "target_name": "target",
+    "num_instances": 113,
+    "n_repeats": 1,
+    "excluded": false,
+    "exclusion_reason": null,
+    "since": "v2",
+    "is_core": false
+  },
+  {
     "dataset": "stroke_urine_sers_532",
     "target_idx": 0,
     "target_name": "target",
