@@ -14,11 +14,14 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
-- **Benchmark v2: `slopp` and `slopp_e`** (raman_data, Rochman Lab libraries of plastic particles, Munno et al. 2020),
-  two polymer-type classification tasks. After the 9-spectra and 3-groups-per-class rules `slopp` keeps 8 of its 15
-  classes (108 of 148 spectra; ABS drops out with 2 groups) and `slopp_e` 4 of its 20 (68 of 113). v2 now has 113
-  datasets and 69 v2-only targets, 43 of them run. Not swept yet, and not on the HF mirror: the download package
-  states no licence. `raman-data` needs the release that contains the two keys before the sweep.
+- **Benchmark v2: five more datasets** (raman_data 1.9.0): `slopp` and `slopp_e` (Rochman Lab libraries of plastic
+  particles, Munno et al. 2020), `soft_tissue_sarcoma` (RamanSTS, 8 tissue classes, 110 Raman maps as groups),
+  `vcl_pvcl_water` (3 concentration targets) and `citric_acid_citrates` (5 targets). After the 9-spectra and
+  3-groups-per-class rules `slopp` keeps 8 of its 15 classes (108 of 148 spectra; ABS drops out with 2 groups) and
+  `slopp_e` 4 of its 20 (68 of 113); all 8 RamanSTS classes stay. RamanSTS has 286,672 spectra and gets the 10,000-row
+  cap and the large-dataset pod. v2 now has 116 datasets and 78 v2-only targets, 52 of them run. All five are on the
+  HF mirror (the SLoPP download package states no licence). Not swept yet; `cluster/submit_v2_sweep.py` installs
+  raman-data 1.9.0 by default. The per-model row caps of the other large datasets are not set for RamanSTS yet.
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
   so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
 

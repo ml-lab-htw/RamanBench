@@ -7,14 +7,14 @@ Benchmark v2 lives on the long-lived `v2` branch; `main` stays benchmark v1 (see
 ## Files
 
 - `target_list.json`: all v2 targets. `since` says where a target comes from: `"v1"` (the 135
-  targets of `configs/v1/target_list.json`, unchanged) or `"v2"` (69, of which 43 run).
-- `datasets/v2_all.json`: all 113 datasets of v2 (the 70 of v1 plus the 43 below).
-- `datasets/v2_only.json`: the 43 datasets of the `since: "v2"` targets.
+  targets of `configs/v1/target_list.json`, unchanged) or `"v2"` (78, of which 52 run).
+- `datasets/v2_all.json`: all 116 datasets of v2 (the 70 of v1 plus the 46 below).
+- `datasets/v2_only.json`: the 46 datasets of the `since: "v2"` targets.
 - `exclusions.json`: v2-only targets that are not run, with a reason, in the format of
   `configs/v1/quality_exclusions.json`.
 - `scope_default.json`: the v1 scope plus `min_groups_per_class: 3`, `results/v2/data` and
   the large-dataset overrides of the new datasets.
-- `protocol_v2_only.json`: the 43 v2-only tasks with their metric, for
+- `protocol_v2_only.json`: the 52 v2-only tasks with their metric, for
   `scripts/run_system.py --protocol` (systems such as TABFM-PLUS).
 
 Rebuild the v2-only part of the target list after a dataset change:

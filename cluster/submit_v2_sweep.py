@@ -114,7 +114,7 @@ def main() -> None:
     parser.add_argument("--profile", required=True)
     parser.add_argument("--code-dir", required=True, help="Code snapshot on the PVC (absolute path in the pod)")
     parser.add_argument("--image", required=True, help="Pinned main image (registry/ramanbench@sha256:...)")
-    parser.add_argument("--raman-data", default="1.7.0", help="raman-data version installed in every pod")
+    parser.add_argument("--raman-data", default="1.9.0", help="raman-data version installed in every pod")
     parser.add_argument("--scope", default=str(REPO_ROOT / "configs" / "v2" / "scope_default.json"))
     parser.add_argument("--part", nargs="+", default=["models", "systems", "autogluon"],
                         choices=["models", "systems", "autogluon"])

@@ -85,6 +85,61 @@
    "n_classes": 4
   },
   {
+   "task": "citric_acid_citrates__0",
+   "dataset": "citric_acid_citrates",
+   "target_idx": 0,
+   "target_name": "Citric acid (CA) [mol/mol]",
+   "problem_type": "regression",
+   "metric": "rmse",
+   "num_instances": 45,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "citric_acid_citrates__1",
+   "dataset": "citric_acid_citrates",
+   "target_idx": 1,
+   "target_name": "Citrate 1 (CA-) [mol/mol]",
+   "problem_type": "regression",
+   "metric": "rmse",
+   "num_instances": 45,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "citric_acid_citrates__2",
+   "dataset": "citric_acid_citrates",
+   "target_idx": 2,
+   "target_name": "Citrate 2 (CA2-) [mol/mol]",
+   "problem_type": "regression",
+   "metric": "rmse",
+   "num_instances": 45,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "citric_acid_citrates__3",
+   "dataset": "citric_acid_citrates",
+   "target_idx": 3,
+   "target_name": "Citrate 3 (CA3-) [mol/mol]",
+   "problem_type": "regression",
+   "metric": "rmse",
+   "num_instances": 45,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "citric_acid_citrates__4",
+   "dataset": "citric_acid_citrates",
+   "target_idx": 4,
+   "target_name": "water [mol/mol]",
+   "problem_type": "regression",
+   "metric": "rmse",
+   "num_instances": 45,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
    "task": "cwa_dimp__0",
    "dataset": "cwa_dimp",
    "target_idx": 0,
@@ -430,6 +485,18 @@
    "n_classes": 4
   },
   {
+   "task": "soft_tissue_sarcoma__0",
+   "dataset": "soft_tissue_sarcoma",
+   "target_idx": 0,
+   "target_name": "target",
+   "problem_type": "classification",
+   "metric": "log_loss",
+   "num_instances": 286672,
+   "n_repeats": 1,
+   "n_folds": 3,
+   "n_classes": 8
+  },
+  {
    "task": "stroke_urine_sers_532__0",
    "dataset": "stroke_urine_sers_532",
    "target_idx": 0,
@@ -461,6 +528,39 @@
    "problem_type": "regression",
    "metric": "rmse",
    "num_instances": 70,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "vcl_pvcl_water__0",
+   "dataset": "vcl_pvcl_water",
+   "target_idx": 0,
+   "target_name": "H2O",
+   "problem_type": "regression",
+   "metric": "rmse",
+   "num_instances": 30,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "vcl_pvcl_water__1",
+   "dataset": "vcl_pvcl_water",
+   "target_idx": 1,
+   "target_name": "VCL",
+   "problem_type": "regression",
+   "metric": "rmse",
+   "num_instances": 30,
+   "n_repeats": 1,
+   "n_folds": 3
+  },
+  {
+   "task": "vcl_pvcl_water__2",
+   "dataset": "vcl_pvcl_water",
+   "target_idx": 2,
+   "target_name": "pVCL",
+   "problem_type": "regression",
+   "metric": "rmse",
+   "num_instances": 30,
    "n_repeats": 1,
    "n_folds": 3
   },

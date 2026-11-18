@@ -1815,6 +1815,61 @@
     "is_core": false
   },
   {
+      "dataset": "citric_acid_citrates",
+      "target_idx": 0,
+      "target_name": "Citric acid (CA) [mol/mol]",
+      "num_instances": 45,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
+  },
+  {
+      "dataset": "citric_acid_citrates",
+      "target_idx": 1,
+      "target_name": "Citrate 1 (CA-) [mol/mol]",
+      "num_instances": 45,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
+  },
+  {
+      "dataset": "citric_acid_citrates",
+      "target_idx": 2,
+      "target_name": "Citrate 2 (CA2-) [mol/mol]",
+      "num_instances": 45,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
+  },
+  {
+      "dataset": "citric_acid_citrates",
+      "target_idx": 3,
+      "target_name": "Citrate 3 (CA3-) [mol/mol]",
+      "num_instances": 45,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
+  },
+  {
+      "dataset": "citric_acid_citrates",
+      "target_idx": 4,
+      "target_name": "water [mol/mol]",
+      "num_instances": 45,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
+  },
+  {
     "dataset": "cwa_dimp",
     "target_idx": 0,
     "target_name": "target",
@@ -2398,6 +2453,17 @@
     "is_core": false
   },
   {
+      "dataset": "soft_tissue_sarcoma",
+      "target_idx": 0,
+      "target_name": "target",
+      "num_instances": 286672,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
+  },
+  {
     "dataset": "stroke_urine_sers_532",
     "target_idx": 0,
     "target_name": "target",
@@ -2462,6 +2528,39 @@
     "exclusion_reason": "too_few_classes",
     "since": "v2",
     "is_core": false
+  },
+  {
+      "dataset": "vcl_pvcl_water",
+      "target_idx": 0,
+      "target_name": "H2O",
+      "num_instances": 30,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
+  },
+  {
+      "dataset": "vcl_pvcl_water",
+      "target_idx": 1,
+      "target_name": "VCL",
+      "num_instances": 30,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
+  },
+  {
+      "dataset": "vcl_pvcl_water",
+      "target_idx": 2,
+      "target_name": "pVCL",
+      "num_instances": 30,
+      "n_repeats": 1,
+      "excluded": false,
+      "exclusion_reason": null,
+      "since": "v2",
+      "is_core": false
   },
   {
     "dataset": "water_quality_ions",
