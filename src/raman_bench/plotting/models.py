@@ -116,6 +116,10 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "TABABAX": ("TabAbax", "Tabular Foundation", 2026 + 11 / 12),
     "MLP-A": ("MLP-A", "Deep Learning", 2026 + 11 / 12),
     "TABM-A": ("TabM-A", "Deep Learning", 2026 + 11 / 12),
+    "INPRIORA": ("Inpriora", "Tabular Foundation", 2026 + 11 / 12),  # 2026-11-16
+    "TABPACK": ("TabPack", "Deep Learning", 2026 + 6 / 12),  # arXiv 2026-07-06
+    "LATTICE": ("Lattice", "Tabular Foundation", 2026 + 11 / 12),  # 2026-11
+    "LATTICE-TINY": ("Lattice-tiny", "Tabular Foundation", 2026 + 11 / 12),  # 2026-11
     "MITRA": ("Mitra", "Tabular Foundation", 2025 + 6 / 12),  # 2025-07
     "LIMIX": ("LimiX", "Tabular Foundation", 2025 + 8 / 12),  # 2025-09
     "TABPFN-WIDE": ("TabPFN-Wide", "Tabular Foundation", 2025 + 9 / 12),  # 2025-10
