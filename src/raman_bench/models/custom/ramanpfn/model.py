@@ -141,7 +141,8 @@ class RamanPFNModel(BaseEstimator):
     n_estimators : int
         Forwarded to ``TabPFNClassifier``/``TabPFNRegressor``.
     random_state : int | None
-        Forwarded to ``gcu_fit`` and to both TabPFN backbones.
+        Forwarded to ``gcu_fit`` and to both TabPFN backbones. Default 0, as TabPFN's own default; ``None``
+        makes repeated fits differ. In the benchmark the AutoGluon bridge sets each bag child's seed.
     device : str
         Forwarded to ``TabPFNClassifier``/``TabPFNRegressor`` (``"auto"``
         picks GPU when available).
@@ -166,7 +167,7 @@ class RamanPFNModel(BaseEstimator):
         k_per_region=4,
         lam=0.75,
         n_estimators=8,
-        random_state=None,
+        random_state=0,
         device="auto",
         ignore_pretraining_limits=False,
     ):

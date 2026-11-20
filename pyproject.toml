@@ -48,6 +48,9 @@ dependencies = [
     "python-dotenv>=1.0",
     # Reads the bundled v1 reference results.
     "pyarrow>=12",
+    # The wavelet_denoise step of the preprocessing (wavelet_bc_snv), part of the core install so that every
+    # named recipe runs without the extras.
+    "PyWavelets>=1.4",
 ]
 
 [project.optional-dependencies]
@@ -59,8 +62,6 @@ autogluon = [
     "autogluon.core>=1.6.3b20260917,!=1.6.3",
     "autogluon.features>=1.6.3b20260917,!=1.6.3",
     "autogluon.tabular>=1.6.3b20260917,!=1.6.3",
-    # For the wavelet_denoise step of the preprocessing pipeline.
-    "PyWavelets>=1.4",
 ]
 benchmark = [
     "bencheval>=0.1.0",

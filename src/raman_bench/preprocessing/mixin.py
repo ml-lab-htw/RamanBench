@@ -360,6 +360,8 @@ _PREP_STEP_DEFINITIONS = {
         "defaults": {
             "prep_gcu_enabled": False,
             "prep_gcu_rho": 16,
+            # Seed of the NMF's randomized-SVD initialisation; fixed, not tuned.
+            "prep_gcu_random_state": 0,
         },
     },
     "lvse": {
@@ -875,8 +877,9 @@ class RamanPreprocessingMixin:
         gcu_out = None
         if gcu_enabled:
             rho = params.get("prep_gcu_rho", 16)
-            logger.debug("Fit — GCU: rho=%s", rho)
-            self._gcu_shift, self._gcu_nmf, gcu_out = gcu_fit(X, rho=rho)
+            seed = params.get("prep_gcu_random_state", 0)
+            logger.debug("Fit — GCU: rho=%s, random_state=%s", rho, seed)
+            self._gcu_shift, self._gcu_nmf, gcu_out = gcu_fit(X, rho=rho, random_state=seed)
 
         lvse_out = None
         if lvse_enabled:

@@ -14,6 +14,13 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- GCU is seeded everywhere: the mixin passes `prep_gcu_random_state` (new, default 0, not tuned) to `gcu_fit`
+  (before, it relied on `gcu_fit`'s default 0, which could not be changed), the `GCU` transformer takes
+  `random_state` (default 0), and `RamanPFNModel` defaults to `random_state=0` instead of `None` (TabPFN's own
+  default; `None` left GCU and both TabPFN backbones unseeded when the model is used outside the benchmark,
+  where the AutoGluon bridge sets each bag child's seed). Benchmark results are unchanged.
+- `PyWavelets` moves from the `autogluon` extra to the core dependencies, so every named recipe (`wavelet_bc_snv`
+  among them) runs with the core install.
 - `raman_bench.preprocessing.mixin` imports AutoGluon and TabArena only where they are used (HPO search space,
   AutoGluon's auxiliary params, the group column), so the preprocessing runs with the core install. The
   `search_params` of `_PREP_STEP_DEFINITIONS` are now functions of `autogluon.common.space`.
@@ -29,6 +36,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- Named preprocessing recipes (`raman_bench.preprocessing.recipes`, also importable from
+  `raman_bench.preprocessing`): the 26 recipes of RamanBench's preprocessing study (`none`, `snv`, `msc`, `emsc`,
+  `bc_sg_snv`, `airpls_snv`, `sg_d1_snv`, `bc_snv_avgpool`, `gcu_lvse`, `prep_ensemble`, ...). `recipe(name)` gives
+  a `RamanPreprocessor`, `recipe_hyperparameters(name)` the `prep_*` hyperparameters of a benchmark model,
+  `recipe_steps`/`recipe_description` the steps in the order they run (`STEP_ORDER`, checked against the code by
+  chaining the one-step transformers).
 - scikit-learn transformers for the preprocessing (`raman_bench.preprocessing.transformers`, also importable
   from `raman_bench.preprocessing`): `RamanPreprocessor` applies a recipe given in the recipe-config schema
   with the mixin's own fit/transform code, and one transformer per step (`SNV`, `MSC`, `EMSC`, `AsLSBaseline`,

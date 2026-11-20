@@ -428,6 +428,26 @@ grid = GridSearchCV(pipe, {"savitzkygolayderivative__window_length": [9, 11, 15]
 Spectra are rows; a DataFrame whose column labels are the Raman shifts (cm^-1) also gives
 `PhysicalCrop` its axis (otherwise pass `wavenumbers=`).
 
+26 named recipes (from `none` and `snv` to `bc_snv_avgpool`, `gcu_lvse` and `prep_ensemble`) are
+available by name. A named recipe works as a transformer or as the `prep_*` hyperparameters of a
+benchmark model, and both give the same output:
+
+```python
+from raman_bench.preprocessing import recipe, recipe_names, recipe_description, recipe_hyperparameters
+
+recipe_names()                       # the 26 names
+recipe_description("bc_snv_avgpool") # 'AsLS baseline -> SNV -> average pooling'
+model = make_pipeline(recipe("bc_snv_avgpool"), PLSRegression(n_components=10))
+
+from raman_bench.evaluate import evaluate_estimator
+evaluate_estimator("MY-PLS-BSA", regressor=PLSRegression(n_components=10),
+                   hyperparameters=recipe_hyperparameters("bc_snv_avgpool"))
+```
+
+The steps of a recipe run in a fixed order (`raman_bench.preprocessing.recipes.STEP_ORDER`: crop,
+cosmic rays, smoothing, baseline, scatter correction, derivative, normalisation, pooling, scaling,
+GCU/LVSE), whatever order the name lists them in.
+
 ### Run the full benchmark pipeline
 
 Single-experiment runs use `scripts/run_experiment.py` (one process per
