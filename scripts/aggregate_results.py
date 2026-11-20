@@ -272,10 +272,19 @@ def main():
     parser.add_argument(
         "--cache-dir", default=".cache_v1", help="Dataset cache for the fold check (default .cache_v1)."
     )
+    parser.add_argument("--workers", type=int, default=16, help="Threads reading the result files (default 16).")
+    parser.add_argument(
+        "--scan-cache-dir",
+        default=None,
+        help=(
+            "Keep each model's loaded results here, so a later run reads only the models whose "
+            "result files changed. Delete the directory to start over."
+        ),
+    )
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
-    results_lst = scan_cached_results(args.results_dir)
+    results_lst = scan_cached_results(args.results_dir, workers=args.workers, cache_dir=args.scan_cache_dir)
     if not results_lst:
         logger.warning("No cached results found under %s", args.results_dir)
     elif not args.no_fold_check:

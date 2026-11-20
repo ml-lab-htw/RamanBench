@@ -12,7 +12,7 @@
 
 RamanBench collects 74 public Raman datasets (163 prediction targets, four
 application domains: Material Science, Biological, Medical, Chemical) behind one
-evaluation protocol, and ships the v1 results of 61 models on its 135 benchmark tasks.
+evaluation protocol, and ships the v1 results of 69 models on its 135 benchmark tasks.
 You can score a new model against those baselines without re-running the
 experiments. The baselines cover classical chemometrics, gradient boosting,
 tabular foundation models, and deep networks built for spectra.
@@ -47,7 +47,7 @@ pip install raman-bench
 This is enough to:
 
 - load every dataset (via `raman-data`)
-- read the per-fold v1 results of all 55 leaderboard models (and the two AutoGluon reference systems), which ship with the
+- read the per-fold v1 results of all 69 leaderboard models (and the two AutoGluon reference systems), which ship with the
   package (`raman_bench.compare.load_reference()`, works offline)
 
 With `pip install "raman-bench[plots]"` you can also score them and rank your own
@@ -228,7 +228,7 @@ precomputed baselines used.
 
 ### Browse the v1 leaderboard
 
-The per-fold results of all 55 leaderboard models (and the two AutoGluon reference systems) on all 135 tasks ship with the
+The per-fold results of all 69 leaderboard models (and the two AutoGluon reference systems) on all 135 tasks ship with the
 package (`src/raman_bench/data/precomputed/v1/`). `leaderboard()` scores them like the
 [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) does
 (needs `pip install "raman-bench[plots]"`):
@@ -391,6 +391,42 @@ tfm = TabPFNModel()
 tfm.fit(X, y)
 predictions = tfm.predict(X)
 ```
+
+### Preprocess spectra with scikit-learn transformers
+
+The preprocessing steps the benchmark models use are also scikit-learn transformers, with the same
+code, so a `Pipeline` with them applies exactly what a benchmark model with that recipe applies. They
+need only the core install (no AutoGluon). `RamanPreprocessor` takes a recipe in the recipe-config
+schema and runs its steps in the benchmark's fixed order; stateful steps (MSC/EMSC reference, standard
+scaling, GCU, LVSE) are fitted on the training spectra only:
+
+```python
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.pipeline import make_pipeline
+from raman_bench.preprocessing import RamanPreprocessor
+
+model = make_pipeline(
+    RamanPreprocessor({"baseline_correction": True, "snv": True, "avgpool": True}),
+    PLSRegression(n_components=10),
+)
+model.fit(X_train, y_train)
+```
+
+One transformer per step (`CosmicRayRemoval`, `AsLSBaseline`, `AirPLSBaseline`, `ArPLSBaseline`,
+`RubberbandBaseline`, `SavitzkyGolaySmoothing`, `WaveletDenoising`, `SavitzkyGolayDerivative`, `MSC`,
+`EMSC`, `SNV`, `VectorNormalization`, `AveragePooling`, `Decimation`, `Crop`, `PhysicalCrop`, `GCU`,
+`LVSE`) chains steps in any order and exposes their parameters to `GridSearchCV`:
+
+```python
+from sklearn.model_selection import GridSearchCV
+from raman_bench.preprocessing import SNV, SavitzkyGolayDerivative
+
+pipe = make_pipeline(SavitzkyGolayDerivative(order=1), SNV(), PLSRegression(n_components=10))
+grid = GridSearchCV(pipe, {"savitzkygolayderivative__window_length": [9, 11, 15]}).fit(X_train, y_train)
+```
+
+Spectra are rows; a DataFrame whose column labels are the Raman shifts (cm^-1) also gives
+`PhysicalCrop` its axis (otherwise pass `wavenumbers=`).
 
 ### Run the full benchmark pipeline
 

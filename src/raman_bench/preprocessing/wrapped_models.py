@@ -1532,10 +1532,11 @@ del _key, _info
 # continuous target as a backstop -- see its docstring.
 # HIVECOTEV2/STC/DRCIF/ARSENAL/TDE (aeon, models/custom/aeon/) are time-series
 # classifiers with no regression counterpart in HC2. LIGHTPFN is an in-context
-# classifier (TabArena's LightPFNModel supports binary/multiclass only).
+# classifier (TabArena's LightPFNModel supports binary/multiclass only). TABOMICS is an in-context
+# classifier for wide omics tables (classification only).
 CLASSIFICATION_ONLY_MODELS = {
     "TABPFN-WIDE", "ORIONMSP", "PCALDA", "HIVECOTEV2", "STC", "DRCIF", "ARSENAL", "TDE", "LIGHTPFN", "FTFM",
-    "SELDON", "SELDON-MINI",
+    "SELDON", "SELDON-MINI", "TABOMICS",
 }
 
 # Mirror of CLASSIFICATION_ONLY_MODELS: NORI (OrionMSPModel's opposite number in

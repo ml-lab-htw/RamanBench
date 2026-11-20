@@ -11,8 +11,14 @@ per-config runs into default/tuned/tuned+ensemble rows, so the scoring matches T
 from __future__ import annotations
 
 import glob
+import hashlib
 import logging
 import os
+import pickle
+import time
+from concurrent.futures import ThreadPoolExecutor
+from itertools import groupby
+from pathlib import Path
 
 import pandas as pd
 from tabarena.utils.pickle_utils import load_pickle
@@ -20,7 +26,24 @@ from tabarena.utils.pickle_utils import load_pickle
 logger = logging.getLogger(__name__)
 
 
-def scan_cached_results(results_dir: str) -> list[dict]:
+def _load_one(path: str) -> dict | None:
+    """One ``results.pkl``, or ``None`` (logged) when it cannot be read."""
+    try:
+        return load_pickle(path)
+    except Exception as e:
+        logger.warning("Failed to load %s: %s", path, e)
+        return None
+
+
+def _fingerprint(paths: list[str], pool: ThreadPoolExecutor) -> str:
+    """Hash of the paths, sizes and modification times of *paths*; changes when any result is added, removed or rewritten."""
+    h = hashlib.sha256()
+    for path, st in zip(paths, pool.map(os.stat, paths)):
+        h.update(f"{path}\0{st.st_size}\0{st.st_mtime_ns}\n".encode())
+    return h.hexdigest()[:16]
+
+
+def scan_cached_results(results_dir: str, *, workers: int = 16, cache_dir: str | None = None) -> list[dict]:
     """Load every cached results.pkl under results_dir.
 
     Uses ``tabarena``'s own ``load_pickle`` (rather than a raw ``pickle.load``)
@@ -28,15 +51,48 @@ def scan_cached_results(results_dir: str) -> list[dict]:
     of a later ``tabarena`` version than when this was first written;
     ``load_pickle`` transparently handles both compressed and uncompressed
     files (matching ``CacheFunctionPickle.load_cache``'s own read path).
+
+    The files are read by *workers* threads (reading thousands of small files from a network
+    volume is latency-bound, not CPU-bound). The result order is that of the sorted paths.
+
+    With *cache_dir*, the loaded results of each model directory (``*_c1_BAG_L1``) are kept
+    in one pickle there, keyed by the paths, sizes and modification times of that model's
+    result files. A later call re-reads only the models whose files changed; a stale cache
+    file of a model is deleted once it has been replaced. Delete *cache_dir* to start over.
     """
-    pattern = os.path.join(results_dir, "*", "*", "*", "results.pkl")
-    paths = sorted(glob.glob(pattern))
-    results_lst = []
-    for path in paths:
-        try:
-            results_lst.append(load_pickle(path))
-        except Exception as e:
-            logger.warning("Failed to load %s: %s", path, e)
+    paths = sorted(glob.glob(os.path.join(results_dir, "*", "*", "*", "results.pkl")))
+    by_model = [(model, sorted(group)) for model, group in groupby(paths, key=lambda p: Path(p).parts[-4])]
+    if cache_dir is not None:
+        os.makedirs(cache_dir, exist_ok=True)
+    results_lst: list[dict] = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for n, (model, model_paths) in enumerate(by_model, 1):
+            t0 = time.time()
+            cache_file = None
+            if cache_dir is not None:
+                cache_file = os.path.join(cache_dir, f"{model}.{_fingerprint(model_paths, pool)}.pkl")
+                if os.path.exists(cache_file):
+                    with open(cache_file, "rb") as f:
+                        loaded = pickle.load(f)
+                    logger.info(
+                        "[%d/%d] %s: %d result(s) from cache (%.0fs)", n, len(by_model), model, len(loaded), time.time() - t0
+                    )
+                    results_lst.extend(loaded)
+                    continue
+            loaded = [r for r in pool.map(_load_one, model_paths) if r is not None]
+            if cache_file is not None:
+                tmp = cache_file + ".tmp"
+                with open(tmp, "wb") as f:
+                    pickle.dump(loaded, f, protocol=pickle.HIGHEST_PROTOCOL)
+                os.replace(tmp, cache_file)
+                for old in glob.glob(os.path.join(cache_dir, f"{glob.escape(model)}.*.pkl")):
+                    if old != cache_file:
+                        os.remove(old)
+            logger.info(
+                "[%d/%d] %s: %d result(s) read (%.0fs)", n, len(by_model), model, len(loaded), time.time() - t0
+            )
+            results_lst.extend(loaded)
+    logger.info("Loaded %d result(s) of %d model(s)", len(results_lst), len(by_model))
     return results_lst
 
 
@@ -88,9 +144,9 @@ def build_task_metadata(results_lst: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def aggregate(results_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def aggregate(results_dir: str, *, workers: int = 16, cache_dir: str | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """``(model_results, hpo_results)`` of every cached result under *results_dir*."""
-    results_lst = scan_cached_results(results_dir)
+    results_lst = scan_cached_results(results_dir, workers=workers, cache_dir=cache_dir)
     if not results_lst:
         logger.warning("No cached results found under %s", results_dir)
         return pd.DataFrame(), pd.DataFrame()

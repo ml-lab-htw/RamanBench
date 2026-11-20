@@ -1,4 +1,4 @@
-# tabarena, pinned to a commit of autogluon/tabarena main (0642914d, 2026-11-08).
+# tabarena, pinned to a commit of autogluon/tabarena main (bfa8c50c, 2026-11-13).
 # PyPI forbids direct-URL requirements, so this cannot live in pyproject.toml.
 # Install after `pip install raman-bench[benchmark]` (or `[models]` / `[full]`):
 #     pip install -r requirements-tabarena-git.txt
@@ -16,7 +16,7 @@
 #                 requirements-models-git.txt.
 #   seldon        neuralk-oss needs a structured-data-models build that conflicts with
 #                 kumo_tabular. Use `pip install "tabarena[seldon]"` in its own env.
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm,tababax] @ git+https://github.com/autogluon/tabarena.git@0642914dade871dd71ee39c7aa95d3a632d052db#subdirectory=packages/tabarena
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm,tababax] @ git+https://github.com/autogluon/tabarena.git@bfa8c50c17885e5b722d75ce5bcb5db3822257a3#subdirectory=packages/tabarena
 
 # tabicl is pinned exactly: tabarena's extra is `tabicl>=2.0.0`, and a checkpoint with a key
 # an older build does not know either fails to load or silently changes the architecture.

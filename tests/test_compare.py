@@ -97,8 +97,10 @@ def test_compare_ranks_a_copy_of_rf_like_rf(scored_copy):
 
 def test_compare_reproduces_the_published_ranking(scored_copy):
     lb = scored_copy["all"].leaderboard.drop(index="MINE")
-    top = lb.sort_values("elo", ascending=False).index[:3].tolist()
-    assert top[0] == "KUMO-TABULAR"
+    # Models that run one task type only are ranked on that subset (their Elo can be higher); the
+    # ranking over all tasks is led by Kumo-Tabular.
+    on_all = lb[lb["evaluated_on"] == "all"]
+    assert on_all.sort_values("elo", ascending=False).index[0] == "KUMO-TABULAR"
     assert len(lb) == len(load_protocol()["models"]) - 1  # DUMMY is left out
 
 
