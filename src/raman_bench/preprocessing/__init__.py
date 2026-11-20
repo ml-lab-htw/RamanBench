@@ -121,7 +121,18 @@ _TRANSFORMERS = (
     "GCU",
     "LVSE",
 )
-__all__ += list(_TRANSFORMERS)
+# Named recipes (``raman_bench.preprocessing.recipes``), also imported on first use.
+_RECIPES = (
+    "RECIPES",
+    "STEP_ORDER",
+    "recipe",
+    "recipe_definition",
+    "recipe_description",
+    "recipe_hyperparameters",
+    "recipe_names",
+    "recipe_steps",
+)
+__all__ += list(_TRANSFORMERS) + list(_RECIPES)
 
 
 def __getattr__(name):
@@ -129,4 +140,8 @@ def __getattr__(name):
         from raman_bench.preprocessing import transformers
 
         return getattr(transformers, name)
+    if name in _RECIPES:
+        from raman_bench.preprocessing import recipes
+
+        return getattr(recipes, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
