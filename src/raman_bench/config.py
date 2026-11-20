@@ -48,6 +48,10 @@ _ALL_PREPROCESSING_STEPS = {
 # just not part of the "everything" default.
 _OPT_IN_ONLY_PREPROCESSING_STEPS = {
     "crop_physical": False,
+    # Average pooling and decimation change the spectrum width and exclude each other, so the
+    # "enable everything" shorthand (and the ``all`` recipe built from it) must not switch them on.
+    "avgpool": False,
+    "decimate": False,
 }
 
 _KNOWN_PREPROCESSING_STEP_KEYS = {**_ALL_PREPROCESSING_STEPS, **_OPT_IN_ONLY_PREPROCESSING_STEPS}

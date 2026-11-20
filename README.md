@@ -392,6 +392,42 @@ tfm.fit(X, y)
 predictions = tfm.predict(X)
 ```
 
+### Preprocess spectra with scikit-learn transformers
+
+The preprocessing steps the benchmark models use are also scikit-learn transformers, with the same
+code, so a `Pipeline` with them applies exactly what a benchmark model with that recipe applies. They
+need only the core install (no AutoGluon). `RamanPreprocessor` takes a recipe in the recipe-config
+schema and runs its steps in the benchmark's fixed order; stateful steps (MSC/EMSC reference, standard
+scaling, GCU, LVSE) are fitted on the training spectra only:
+
+```python
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.pipeline import make_pipeline
+from raman_bench.preprocessing import RamanPreprocessor
+
+model = make_pipeline(
+    RamanPreprocessor({"baseline_correction": True, "snv": True, "avgpool": True}),
+    PLSRegression(n_components=10),
+)
+model.fit(X_train, y_train)
+```
+
+One transformer per step (`CosmicRayRemoval`, `AsLSBaseline`, `AirPLSBaseline`, `ArPLSBaseline`,
+`RubberbandBaseline`, `SavitzkyGolaySmoothing`, `WaveletDenoising`, `SavitzkyGolayDerivative`, `MSC`,
+`EMSC`, `SNV`, `VectorNormalization`, `AveragePooling`, `Decimation`, `Crop`, `PhysicalCrop`, `GCU`,
+`LVSE`) chains steps in any order and exposes their parameters to `GridSearchCV`:
+
+```python
+from sklearn.model_selection import GridSearchCV
+from raman_bench.preprocessing import SNV, SavitzkyGolayDerivative
+
+pipe = make_pipeline(SavitzkyGolayDerivative(order=1), SNV(), PLSRegression(n_components=10))
+grid = GridSearchCV(pipe, {"savitzkygolayderivative__window_length": [9, 11, 15]}).fit(X_train, y_train)
+```
+
+Spectra are rows; a DataFrame whose column labels are the Raman shifts (cm^-1) also gives
+`PhysicalCrop` its axis (otherwise pass `wavenumbers=`).
+
 ### Run the full benchmark pipeline
 
 Single-experiment runs use `scripts/run_experiment.py` (one process per

@@ -14,6 +14,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- `raman_bench.preprocessing.mixin` imports AutoGluon and TabArena only where they are used (HPO search space,
+  AutoGluon's auxiliary params, the group column), so the preprocessing runs with the core install. The
+  `search_params` of `_PREP_STEP_DEFINITIONS` are now functions of `autogluon.common.space`.
 - The `raman-data` requirement rises from `>=1.6.6` to `>=1.9.0`, the first release with `soft_tissue_sarcoma`, `slopp`,
   `slopp_e`, `vcl_pvcl_water` and `citric_acid_citrates`. Benchmark v1 does not use these keys.
 - The `tabarena` pin moves from `0642914d` (2026-11-08) to `bfa8c50c` (2026-11-13). The 13 commits in between
@@ -26,6 +29,17 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- scikit-learn transformers for the preprocessing (`raman_bench.preprocessing.transformers`, also importable
+  from `raman_bench.preprocessing`): `RamanPreprocessor` applies a recipe given in the recipe-config schema
+  with the mixin's own fit/transform code, and one transformer per step (`SNV`, `MSC`, `EMSC`, `AsLSBaseline`,
+  `AirPLSBaseline`, `ArPLSBaseline`, `RubberbandBaseline`, `SavitzkyGolaySmoothing`, `WaveletDenoising`,
+  `SavitzkyGolayDerivative`, `CosmicRayRemoval`, `VectorNormalization`, `AveragePooling`, `Decimation`, `Crop`,
+  `PhysicalCrop`, `GCU`, `LVSE`). A test fits real `Prep_PLS` and `Prep_RF` models for 16 recipe forms and checks
+  that the transformer's parameters and output equal theirs.
+- Preprocessing steps `avgpool` and `decimate` (spectral-axis pooling; opt-in, after vector normalization and
+  before scaling and GCU/LVSE).
+- `max_train_samples` for `folds.task_folds` and `folds.export_folds` (as `fold_assignment` already had): `None`
+  gives the folds of all rows, for studies that ran the protocol's tasks without its row sample.
 - **TabOmics** (`TABOMICS`): a tabular foundation model for wide omics tables (Bote-Curiel, GPL-3.0-or-later),
   classification only, up to 10 classes natively and output-coded above that, as TabPFN-Wide is. Install with
   `pip install -r requirements-tabomics-git.txt`; the weights (`lbotecur/tabomics-v2.5`) download from Hugging Face.
