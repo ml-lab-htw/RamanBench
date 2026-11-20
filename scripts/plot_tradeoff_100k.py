@@ -38,9 +38,20 @@ def main() -> None:
     missing = set(args.highlight) - set(lb.index)
     assert not missing, f"not in the leaderboard: {sorted(missing)}"
 
+    # The figures are drawn by patching module globals of `static`; put them back afterwards, so that
+    # importing or running this script in a process that also uses `static` (the test suite) leaves it intact.
+    saved = {name: getattr(static, name) for name in ("TASK_TITLES", "_figure_footnotes", "TIME_COL", "save")}
+    plain_save = static.save
+    try:
+        _draw(args, lb, plain_save)
+    finally:
+        for name, value in saved.items():
+            setattr(static, name, value)
+
+
+def _draw(args, lb, plain_save) -> None:
     static.TASK_TITLES = {**static.TASK_TITLES, "all": args.title}
     static._figure_footnotes = lambda fig: None
-    plain_save = static.save
 
     for column, stem, xlabel in MEASURES:
         d = lb.copy()
@@ -64,7 +75,6 @@ def main() -> None:
             scores, {"all": set(args.highlight)}, args.output_dir, args.formats, "elo", stem, groups=["all"], strict=True
         )
         print("wrote", *paths, flush=True)
-    static.save = plain_save
     print(f"done: {len(MEASURES)} figures in {args.output_dir}", flush=True)
 
 

@@ -39,12 +39,16 @@ def _run(monkeypatch, *argv):
     runpy.run_path(str(SCRIPT), run_name="__main__")
 
 
-def test_writes_both_figures(tmp_path, monkeypatch):
+def test_writes_both_figures_and_leaves_static_unpatched(tmp_path, monkeypatch):
+    from raman_bench.plotting import static
+
+    before = {n: getattr(static, n) for n in ("TASK_TITLES", "_figure_footnotes", "TIME_COL", "save")}
     csv = _leaderboard(tmp_path / "lb.csv")
     _run(monkeypatch, "--leaderboard", str(csv), "--highlight", "XGB", "--output-dir", str(tmp_path / "out"))
     assert sorted(p.name for p in (tmp_path / "out").iterdir()) == [
         "elo_vs_time_100k_infer.png", "elo_vs_time_100k_train_infer.png",
     ]
+    assert {n: getattr(static, n) for n in before} == before  # no leak into later tests (test_plotting.py)
 
 
 def test_unknown_highlight_model_fails(tmp_path, monkeypatch):
