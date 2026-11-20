@@ -546,8 +546,8 @@ def wavelet_denoise(X, wavelet="sym7", level=4):
         import pywt
     except ImportError as exc:
         raise ImportError(
-            "wavelet_denoise requires PyWavelets. Install with: "
-            "pip install 'raman-bench[autogluon]'"
+            "wavelet_denoise requires PyWavelets (a core dependency of raman-bench). Install with: "
+            "pip install PyWavelets"
         ) from exc
 
     n_samples, n_features = X.shape
