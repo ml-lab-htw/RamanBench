@@ -29,6 +29,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- Named preprocessing recipes (`raman_bench.preprocessing.recipes`, also importable from
+  `raman_bench.preprocessing`): the 26 recipes of RamanBench's preprocessing study (`none`, `snv`, `msc`, `emsc`,
+  `bc_sg_snv`, `airpls_snv`, `sg_d1_snv`, `bc_snv_avgpool`, `gcu_lvse`, `prep_ensemble`, ...). `recipe(name)` gives
+  a `RamanPreprocessor`, `recipe_hyperparameters(name)` the `prep_*` hyperparameters of a benchmark model,
+  `recipe_steps`/`recipe_description` the steps in the order they run (`STEP_ORDER`, checked against the code by
+  chaining the one-step transformers).
 - scikit-learn transformers for the preprocessing (`raman_bench.preprocessing.transformers`, also importable
   from `raman_bench.preprocessing`): `RamanPreprocessor` applies a recipe given in the recipe-config schema
   with the mixin's own fit/transform code, and one transformer per step (`SNV`, `MSC`, `EMSC`, `AsLSBaseline`,
