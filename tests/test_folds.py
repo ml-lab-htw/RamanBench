@@ -184,3 +184,12 @@ def test_check_result_folds_flags_results_on_other_rows(capped_task):
         "extra_repeat",
     ]
     assert check["max_train_samples"].iloc[2] == 90
+
+
+def test_task_folds_without_the_row_sample(capped_task):
+    for cap in (None, 90):
+        table = folds_mod.task_folds("toy__0", max_train_samples=cap)
+        positions = folds_mod.fold_assignment("toy__0", max_train_samples=cap)[0]
+        assert table["spectrum_id"].nunique() == len(positions)
+        assert table["fold"].value_counts().sort_index().tolist() == np.bincount(positions).tolist()
+    assert folds_mod.task_folds("toy__0", max_train_samples=None)["spectrum_id"].nunique() > 90

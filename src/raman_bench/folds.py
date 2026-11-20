@@ -93,13 +93,22 @@ def _task_frame(
 def task_folds(
     task: str,
     *,
+    max_train_samples=_PROTOCOL_CAP,
     cache_dir: str = ".cache_v1",
     use_mirror: bool = True,
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
 ) -> pd.DataFrame:
-    """The outer folds of one protocol task (``"<dataset>__<target_idx>"``), columns :data:`FOLD_COLUMNS`."""
+    """The outer folds of one protocol task (``"<dataset>__<target_idx>"``), columns :data:`FOLD_COLUMNS`.
+
+    *max_train_samples* replaces the protocol's row sample of the dataset (``None``: all rows), for
+    studies that ran the protocol's tasks without it.
+    """
     spec, df, problem_type = _task_frame(
-        task, cache_dir=cache_dir, use_mirror=use_mirror, mirror_repo=mirror_repo
+        task,
+        cache_dir=cache_dir,
+        use_mirror=use_mirror,
+        mirror_repo=mirror_repo,
+        max_train_samples=max_train_samples,
     )
     dataset_name, target_idx = spec["dataset"], spec["target_idx"]
     n_splits = spec["n_folds"]
@@ -141,6 +150,7 @@ def export_folds(
     *,
     task_type: str | None = None,
     tasks: list[str] | None = None,
+    max_train_samples=_PROTOCOL_CAP,
     cache_dir: str = ".cache_v1",
     use_mirror: bool = True,
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
@@ -149,7 +159,8 @@ def export_folds(
     :func:`~raman_bench.compare.protocol_tasks`), written to *path* if given.
 
     *path* ending in ``.csv`` writes CSV, anything else parquet. Downloads each dataset
-    from the mirror on first use (cached in *cache_dir*).
+    from the mirror on first use (cached in *cache_dir*). *max_train_samples* as in
+    :func:`task_folds`.
     """
     selected = protocol_tasks(task_type=task_type, tasks=tasks)
     frames = []
@@ -157,7 +168,11 @@ def export_folds(
         logger.info("[%d/%d] %s", i, len(selected), spec["task"])
         frames.append(
             task_folds(
-                spec["task"], cache_dir=cache_dir, use_mirror=use_mirror, mirror_repo=mirror_repo
+                spec["task"],
+                max_train_samples=max_train_samples,
+                cache_dir=cache_dir,
+                use_mirror=use_mirror,
+                mirror_repo=mirror_repo,
             )
         )
     folds = pd.concat(frames, ignore_index=True)

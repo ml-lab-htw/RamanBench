@@ -36,6 +36,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
   that the transformer's parameters and output equal theirs.
 - Preprocessing steps `avgpool` and `decimate` (spectral-axis pooling; opt-in, after vector normalization and
   before scaling and GCU/LVSE).
+- `max_train_samples` for `folds.task_folds` and `folds.export_folds` (as `fold_assignment` already had): `None`
+  gives the folds of all rows, for studies that ran the protocol's tasks without its row sample.
 - **TabOmics** (`TABOMICS`): a tabular foundation model for wide omics tables (Bote-Curiel, GPL-3.0-or-later),
   classification only, up to 10 classes natively and output-coded above that, as TabPFN-Wide is. Install with
   `pip install -r requirements-tabomics-git.txt`; the weights (`lbotecur/tabomics-v2.5`) download from Hugging Face.
