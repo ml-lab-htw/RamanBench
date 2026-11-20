@@ -17,238 +17,50 @@ You can score a new model against those baselines without re-running the
 experiments. The baselines cover classical chemometrics, gradient boosting,
 tabular foundation models, and deep networks built for spectra.
 
----
-
 ## Ecosystem
-
-```
-raman-data   ──▶  raman-bench  ──▶  Live Leaderboard
-(datasets)        (this package)     HuggingFace Space
-PyPI / GitHub     PyPI / GitHub
-```
 
 | Resource                        | Link                                                                                               |
 |---------------------------------|----------------------------------------------------------------------------------------------------|
 | **raman-data** (dataset loader) | [GitHub](https://github.com/ml-lab-htw/raman_data) · [PyPI](https://pypi.org/project/raman-data/)  |
 | **raman-bench** (this package)  | [GitHub](https://github.com/ml-lab-htw/RamanBench) · [PyPI](https://pypi.org/project/raman-bench/) |
 | **Live Leaderboard**            | [huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) |
-| **Paper**                       | Accepted at NeurIPS 2026 · [arXiv:2605.02003](https://arxiv.org/abs/2605.02003)                                  |
+| **Paper**                       | Accepted at NeurIPS 2026 · [arXiv:2605.02003](https://arxiv.org/abs/2605.02003)                    |
 
----
-
-## Installation
-
-### Option 1 — Datasets + leaderboard (recommended starting point)
+## Install
 
 ```bash
-pip install raman-bench
+pip install raman-bench                # datasets, v1 results, preprocessing; works offline
+pip install "raman-bench[plots]"       # also score and rank results
+pip install "raman-bench[models]"      # also the built-in models
 ```
 
-This is enough to:
+Running a model on the benchmark protocol needs TabArena and AutoGluon. Versions, the git-only
+requirements and the full install are in [docs/installation.md](docs/installation.md). The
+package's major version is the benchmark version: every `raman-bench 1.x` release scores
+benchmark v1.
 
-- load every dataset (via `raman-data`)
-- read the per-fold v1 results of all 69 leaderboard models (and the two AutoGluon reference systems), which ship with the
-  package (`raman_bench.compare.load_reference()`, works offline)
+## Quick start
 
-With `pip install "raman-bench[plots]"` you can also score them and rank your own
-results against them (`raman_bench.compare`, see [Compare your model](#compare-your-model-against-the-v1-leaderboard)).
-Running a model on the benchmark protocol needs TabArena and AutoGluon (Option 3).
-
-**Versions.** The package's major version is the benchmark version: every `raman-bench 1.x`
-release runs and scores RamanBench v1. 2.0.0 and 2.0.1 predate that rule and are benchmark v1
-too (2.0.1 is yanked on PyPI). Pin the benchmark with `raman-bench>=1.2,<2`; the rules are in
-[RELEASING.md](RELEASING.md).
-
-### Option 2 — With all built-in models
-
-Adds all Raman-specific architectures and standalone tabular foundation models,
-all with a standard `fit(X, y)` / `predict(X)` interface:
-
-```bash
-pip install "raman-bench[models]"
-```
-
-This adds `torch`, `tabpfn`, `pytabkit`, `tabdpt`, `sktime`, `aeon`, and `ramanspy` to
-the core package. AutoGluon is not needed for this path.
-
-`tabarena` itself, and three wrapped models built on it — `Prep_TABFM`,
-`Prep_SAP_RPT_OSS`, `Prep_ORIONMSP` — have git-only upstreams and cannot ship
-in a PyPI package. Install them separately if you need them:
-
-```bash
-pip install -r requirements-tabarena-git.txt
-pip install -r requirements-models-git.txt
-```
-
-Until then, every `Prep_*` class that wraps a `tabarena.models.*` model
-(which is most of them) raises a clear "not available" error; the
-Raman-specific standalone architectures work without this step.
-
-### Option 3 — Full benchmark reproducibility
-
-The paper's benchmark runs all models through AutoGluon's automated
-preprocessing and HPO pipeline, on plain upstream AutoGluon (>=1.6.1, no fork):
-
-```bash
-git clone https://github.com/ml-lab-htw/RamanBench.git
-cd RamanBench
-pip install -e ".[models]"
-pip install -r requirements-tabarena-git.txt
-```
-
-RamanBench previously depended on a patched AutoGluon fork here to work around
-two limitations of AutoGluon 1.5:
-
-1. **Feature cap** — AutoGluon caps tabular foundation models (TabPFN v2,
-   TabICL, TabDPT, Mitra) at 500–2000 features (varies by model); Raman
-   spectra typically have 500–4000 wavenumber points. RamanBench now lifts
-   this cap itself, per model, using AutoGluon's own supported
-   `_default_auxiliary_params_extra` subclass extension point — see
-   `Prep_MITRA` / `Prep_TABDPT` / `Prep_TABICL` / `Prep_REALTABPFN_V2` /
-   `Prep_REALTABPFN_V25` in `preprocessing/wrapped_models.py`. No fork needed.
-   Datasets with more than 10 classes go through `tabpfn-extensions`'
-   output-coding `ManyClassClassifier`, as the fork did: RamanBench applies it
-   itself for the TabPFN v2/v2.5/v2.6 wrappers, and TabArena does for LightPFN
-   and TabFM+.
-2. **TabICL v2 regression** — AutoGluon 1.5 shipped TabICL v1 (classification
-   only). AutoGluon 1.6 upgraded to TabICL v2 natively, adding regression
-   support — no fork or override needed for this part anymore.
-
----
-
-## RamanBench v1
-
-The benchmark-running layer is built directly on
-[TabArena](https://github.com/autogluon/tabarena) (`tabarena` / `bencheval`)
-instead of on its own reimplementation of the same ideas.
-
-Each (dataset, target) pair becomes a TabArena `UserTask`. Splitting is real
-repeated k-fold cross-validation (`raman_bench.splitting`, with `n_repeats`
-scaled to dataset size, as TabArena documents). Each model's HPO search space is
-a TabArena `ConfigGenerator` config pool, and the default / tuned /
-tuned+ensemble results are read back from that pool without any re-training
-(`EndToEnd.from_raw(...).get_results(...)`).
-
-What RamanBench adds on top is small: datasets come from the raman-data HF
-mirror rather than OpenML, and about 13 Raman-specific architectures are
-registered alongside TabArena's own models.
-
-```bash
-git clone https://github.com/ml-lab-htw/RamanBench.git
-cd RamanBench
-uv pip install --prerelease=allow -e ".[models]"   # uv resolves bencheval automatically;
-                                                    # plain pip needs it installed first --
-                                                    # see the note in pyproject.toml
-pip install -r requirements-tabarena-git.txt       # tabarena is git-pinned, not on PyPI --
-                                                    # see requirements-tabarena-git.txt
-```
-
-Key entry points:
-- `scripts/run_experiment.py` — thin per-(model, dataset, target, repeat, fold,
-  config-index) job runner; reads datasets mirror-first by default
-  (`--use-mirror`/`--no-use-mirror` to opt out).
-- `raman_bench.models.registry.raman_bench_model_registry` — TabArena's full model
-  registry plus RamanBench's own architectures and Raman-preprocessing overrides.
-- `scripts/run_system.py` — runs a self-contained *system* (`raman_bench.systems`:
-  Chakra-Tab's hosted API, TabFM+) once per outer fold, on the same tasks, folds and
-  budgets; see [Run the full benchmark pipeline](#run-the-full-benchmark-pipeline).
-- `cluster/` — cluster-agnostic job submission for SLURM and Kubernetes (`submit_job.py`,
-  `run_experiment.sbatch`, `k8s_entrypoint.sh`, `detect_cluster.py`, `janitor.py`) driven
-  by a profile YAML; works locally too when no cluster is available.
-- `.claude/agents/` — Claude Code agents for routine maintenance, spread across
-  this repo and its siblings (see **Contributor Agents** below).
-
-New models are onboarded via a per-model directory —
-`raman_bench/models/custom/<key>/{model.py,hpo.py,info.py}`, auto-discovered into the
-registry — see `models/custom/ridge/` for the reference implementation and
-`.claude/agents/model-agent.md` for the full workflow.
-
-### What's changed since v0.1
-
-Full details in [CHANGELOG.md](CHANGELOG.md); short version:
-
-**Models**
-- Onboarded 30 TabArena-native models directly from TabArena's own registry (TabFM,
-  TabPFN-3, TabSwift, ModernNCA, EBM, PerpetualBooster, xRFM, ChimeraBoost, NORI,
-  SAP-RPT-OSS, OrionMSP, ILTM, LIMIX, TabSTAR, and more)
-- Added TabPFN v2.6, v3, and v3-Thinking
-- Added TabPFN-Wide (wide, few-sample classification) and RamanPFN (Pan et al., 2025)
-- Verified all 10 pre-existing custom Raman architectures against the new v1 pipeline
-
-**Benchmark methodology (v1)**
-- Migrated the model/metrics/splitting layer to depend directly on TabArena/`bencheval`
-  instead of reimplementing patterns "inspired by" them
-- Switched to real repeated k-fold CV with dataset-size-adaptive repeat counts,
-  replacing the old 3-independent-holdout-split scheme
-- Fixed AutoGluon bagging to a genuine, TabArena-matching `num_bag_folds=8` (v0.1 had
-  effectively no bagging for 27 of 28 models)
-- Added semi-supervised-aware splitting (unlabeled rows kept in train, never in test)
-- Ported TabArena's trivial-dataset filter into RamanBench itself as a first-class feature
-
-**Preprocessing**
-- 8 new steps: airPLS, arPLS, rubberband, EMSC, Savitzky-Golay derivative, wavelet
-  denoising, fingerprint-region crop, L2 vector normalization
-- New preprocessing-ensemble mechanism (parallel recipe blocks, concatenated) and
-  config-level `preprocessing_params` overrides
-
-**Datasets**
-- +4 datasets: `chlorinated_samples`, `locust_phase_hemolymph`, `cspp_serum_metabolites`,
-  `ait_glucose_blood_sers`
-- New `is_grouped` / `has_missing_labels` fields on `raman-data`'s `DatasetInfo`
-
-**Infrastructure**
-- Public, cluster-agnostic job-submission tooling plus a new opportunistic,
-  capacity-aware scheduler for routine full-benchmark sweeps
-- Dropped the patched AutoGluon fork; moved to upstream AutoGluon 1.6.1 with
-  RamanBench-local cap overrides
-- Automatic `.env` credential loading; `main` now requires PRs (no direct pushes)
-
-**Reliability fixes**
-- Atomic prediction/index writes to avoid concurrent-job races
-- Skip (not delete) mismatched predictions during metric computation
-- Guard R² against degenerate near-constant test folds
-
----
-
-## Quick Start
-
-### Load a dataset (Option 1 — core install only)
+Load a dataset:
 
 ```python
 from raman_data import raman_data
 
 ds = raman_data("amino_acids_glycine")
 print(ds.spectra.shape)      # (n_samples, n_wavenumbers)
-print(ds.targets.shape)      # (n_samples,)
 print(ds.raman_shifts[:5])   # wavenumber axis in cm⁻¹
 ```
 
-Every dataset loads this way, each with the same fixed train/test split the
-precomputed baselines used.
-
-### Browse the v1 leaderboard
-
-The per-fold results of all 69 leaderboard models (and the two AutoGluon reference systems) on all 135 tasks ship with the
-package (`src/raman_bench/data/precomputed/v1/`). `leaderboard()` scores them like the
-[live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) does
-(needs `pip install "raman-bench[plots]"`):
+Browse the v1 leaderboard (the per-fold results ship with the package):
 
 ```python
-from raman_bench.compare import leaderboard, load_reference
+from raman_bench.compare import leaderboard
 
-scores = leaderboard()                       # {"all", "classification", "regression"}
-scores["all"].leaderboard.head(10)           # Elo, win rate, times, preprocessing, ...
-load_reference()                             # one row per (task, fold, model)
+leaderboard()["all"].leaderboard.head(10)    # Elo, win rate, times, ...
 ```
 
-### Compare your model against the v1 leaderboard
-
-You only run your own model: on the same 135 tasks, the same 3 outer folds, with
-3-fold bagging, the same 600 s budget and the same 10,000-spectrum sample of the largest
-datasets (`raman_bench.compare.load_protocol()`). Then `compare` ranks it among the 55
-leaderboard models.
-
-**A scikit-learn estimator** (needs the Option 3 install):
+Score your own scikit-learn model on the same 135 tasks and rank it among the baselines (needs the
+full install):
 
 ```python
 from sklearn.cross_decomposition import PLSRegression
@@ -256,577 +68,59 @@ from sklearn.linear_model import LogisticRegression
 from raman_bench.evaluate import evaluate_estimator
 from raman_bench.compare import compare
 
-evaluate_estimator(
-    "MY-PLS",
-    classifier=LogisticRegression(max_iter=2000),    # needs predict_proba
-    regressor=PLSRegression(n_components=10),
-    results_dir="results/my_model",
-    # hyperparameters={"prep_snv_enabled": True},   # optional RamanBench preprocessing
-)
-scores = compare("results/my_model", out_dir="results/my_model_figures")
-scores["all"].leaderboard.head(15)
+evaluate_estimator("MY-PLS", classifier=LogisticRegression(max_iter=2000),
+                   regressor=PLSRegression(n_components=10), results_dir="results/my_model")
+compare("results/my_model")["all"].leaderboard.head(15)
 ```
 
-`evaluate_estimator` runs your estimator through the same TabArena/AutoGluon bagged
-experiment as the leaderboard models, caching one result per fold, so an interrupted run
-picks up where it stopped. Pass `tasks=[...]` for a quick look at a few tasks, and
-`compare(..., tasks="own")` to score every model on just those. That subset is not
-comparable with the published leaderboard.
+More: other metrics, the v1 folds as plain spectrum ids for use in another framework, and the
+v0.1 leaderboard are in [docs/compare-your-model.md](docs/compare-your-model.md).
 
-**A model registered in RamanBench** (`models/custom/<key>/`, see
-[Adding a New Model](#adding-a-new-model)) runs through `scripts/run_experiment.py`;
-`raman-bench protocol` prints one call per task and fold with the protocol settings:
+## Preprocessing
 
-```bash
-raman-bench protocol MY_MODEL --results-dir results/my_model > jobs.txt && bash jobs.txt
-raman-bench compare results/my_model --output-dir results/my_model_figures --top 10
-```
-
-A task your model has no result for gets Random Forest's result and counts as
-imputed (`imputed_pct`); a model more than 50% imputed is not ranked. The
-`preprocessing` column lists the RamanBench preprocessing steps each model ran with
-(`none` for most). Steps inside your own scikit-learn `Pipeline` don't appear there.
-`notebooks/02_benchmark_new_model.ipynb` walks through all of it.
-
-### Rank by another metric
-
-The leaderboard ranks classification by ROC AUC (binary) or log loss (multiclass) and
-regression by RMSE. Every result also stores its test predictions, so the bundled reference
-results carry more metrics per fold, and `compare` and `leaderboard` can rank by any of them:
-
-```python
-from raman_bench.compare import compare, leaderboard
-
-leaderboard(classification_metric="accuracy", regression_metric="r2")["classification"].leaderboard
-compare("results/my_model", classification_metric="balanced_accuracy", regression_metric="mae")
-```
-
-```bash
-raman-bench metrics                                   # what there is
-raman-bench compare results/my_model --classification-metric f1_macro --regression-metric rpd
-```
-
-| Classification | Regression |
-|---|---|
-| `accuracy`, `balanced_accuracy`, `f1_macro`, `f1_weighted`, `precision_macro`, `recall_macro`, `mcc`, `cohen_kappa`, `roc_auc`, `log_loss`, `brier` | `rmse`, `mae`, `median_ae`, `max_error`, `r2`, `explained_variance`, `pearson_r`, `spearman_r`, `rpd` |
-
-The predicted class is the most probable one. `rpd` is the standard deviation of the test
-targets over the RMSE. Your own results get these metrics when you pass a results directory
-(or a tidy DataFrame with the metric columns). Elo, win rate and rank are then computed on
-that metric exactly as for the default one.
-
-### Use the v1 folds in another framework
-
-To run the protocol outside RamanBench (in aeon, scikit-learn, or your own harness),
-take the outer cross-validation folds as plain spectrum ids:
-
-```bash
-raman-bench folds raman_bench_v1_folds.parquet                      # all 135 tasks
-raman-bench folds clf_folds.csv --task-type classification          # the 21 classification tasks
-```
-
-```python
-from raman_bench.experiment_utils import load_dataframe
-from raman_bench.folds import export_folds, train_test_ids
-
-folds = export_folds(task_type="classification")
-_, df, _, _ = load_dataframe("alzheimer", 0)   # the mirror's data; index = spectrum_id
-train, test = train_test_ids(folds, "alzheimer__0", fold=0)
-X = df.drop(columns=["target", "_group_id"], errors="ignore")
-X_train, y_train = X.loc[train], df.loc[train, "target"]
-X_test, y_test = X.loc[test], df.loc[test, "target"]
-```
-
-One row per task and spectrum: `task`, `dataset`, `target_idx`, `problem_type`,
-`repeat`, `spectrum_id` (the spectrum's row in the dataset as `raman_data` and the
-Hugging Face mirror store it) and `fold` (the outer fold whose test set holds it). The
-training set of fold `f` is every other listed spectrum of that task. Spectra a task
-doesn't use (a NaN in the spectrum, no label, a class with fewer than 9 spectra, or not
-drawn into the 10,000-row sample on mlrod, wheat_lines and bacteria_identification)
-aren't listed. Drop the `_group_id` column, if present, before fitting: it marks
-replicate groups and isn't a feature.
-
-These are the folds `scripts/run_experiment.py` builds, the same whatever scikit-learn
-version is installed. Score each fold with the task's metric from
-`load_protocol()["tasks"]` (ROC AUC for binary, log loss for multiclass, RMSE for
-regression) to compare with the leaderboard models' per-fold results. A few leaderboard
-models run on a smaller random sample of some datasets because of memory limits
-(`load_protocol()["model_max_train_samples_overrides"]`, e.g. PerpetualBooster and Mitra
-at 3,000 rows); their results on those datasets come from that sample, not these folds.
-
-<details>
-<summary>The v0.1 leaderboard</summary>
-
-The v0.1 results (29 models, one holdout split per seed) are still bundled and scored by
-the `Leaderboard` class. They use a different protocol, so don't compare them with v1
-numbers:
-
-```python
-from raman_bench import Leaderboard
-
-lb = Leaderboard.from_precomputed()
-print(lb.rank())
-```
-
-</details>
-
-### Use a built-in Raman model directly
-
-All built-in models expose a standard sklearn `fit` / `predict` API:
-
-```python
-import numpy as np
-from raman_bench.models.custom import DeepCNNModel, TabPFNModel, RocketModel
-
-X = np.random.randn(200, 512).astype("float32")  # 200 spectra, 512 wavenumbers
-y = np.random.randn(200)                          # regression targets
-
-# Raman-specific deep learning model
-model = DeepCNNModel(n_epochs=50)
-model.fit(X, y)
-predictions = model.predict(X)
-
-# Tabular foundation model (no feature-count limit)
-tfm = TabPFNModel()
-tfm.fit(X, y)
-predictions = tfm.predict(X)
-```
-
-### Preprocess spectra with scikit-learn transformers
-
-The preprocessing steps the benchmark models use are also scikit-learn transformers, with the same
-code, so a `Pipeline` with them applies exactly what a benchmark model with that recipe applies. They
-need only the core install (no AutoGluon). `RamanPreprocessor` takes a recipe in the recipe-config
-schema and runs its steps in the benchmark's fixed order; stateful steps (MSC/EMSC reference, standard
-scaling, GCU, LVSE) are fitted on the training spectra only:
+The benchmark's preprocessing is a scikit-learn interface: one transformer per step, a
+`RamanPreprocessor` that takes a recipe, and 26 named recipes from the RamanPreprocessing study.
+It needs only the core install, and a recipe gives the same output as a transformer and as the
+`prep_*` hyperparameters of a benchmark model.
 
 ```python
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.pipeline import make_pipeline
-from raman_bench.preprocessing import RamanPreprocessor
+from raman_bench.preprocessing import recipe
 
-model = make_pipeline(
-    RamanPreprocessor({"baseline_correction": True, "snv": True, "avgpool": True}),
-    PLSRegression(n_components=10),
-)
+model = make_pipeline(recipe("bc_snv_avgpool"), PLSRegression(n_components=10))
 model.fit(X_train, y_train)
 ```
 
-One transformer per step (`CosmicRayRemoval`, `AsLSBaseline`, `AirPLSBaseline`, `ArPLSBaseline`,
-`RubberbandBaseline`, `SavitzkyGolaySmoothing`, `WaveletDenoising`, `SavitzkyGolayDerivative`, `MSC`,
-`EMSC`, `SNV`, `VectorNormalization`, `AveragePooling`, `Decimation`, `Crop`, `PhysicalCrop`, `GCU`,
-`LVSE`) chains steps in any order and exposes their parameters to `GridSearchCV`:
+The interface, the recipes and how to add a step are documented in
+[docs/preprocessing.md](docs/preprocessing.md).
 
-```python
-from sklearn.model_selection import GridSearchCV
-from raman_bench.preprocessing import SNV, SavitzkyGolayDerivative
+## Documentation
 
-pipe = make_pipeline(SavitzkyGolayDerivative(order=1), SNV(), PLSRegression(n_components=10))
-grid = GridSearchCV(pipe, {"savitzkygolayderivative__window_length": [9, 11, 15]}).fit(X_train, y_train)
-```
-
-Spectra are rows; a DataFrame whose column labels are the Raman shifts (cm^-1) also gives
-`PhysicalCrop` its axis (otherwise pass `wavenumbers=`).
-
-26 named recipes (from `none` and `snv` to `bc_snv_avgpool`, `gcu_lvse` and `prep_ensemble`) are
-available by name. A named recipe works as a transformer or as the `prep_*` hyperparameters of a
-benchmark model, and both give the same output:
-
-```python
-from raman_bench.preprocessing import recipe, recipe_names, recipe_description, recipe_hyperparameters
-
-recipe_names()                       # the 26 names
-recipe_description("bc_snv_avgpool") # 'AsLS baseline -> SNV -> average pooling'
-model = make_pipeline(recipe("bc_snv_avgpool"), PLSRegression(n_components=10))
-
-from raman_bench.evaluate import evaluate_estimator
-evaluate_estimator("MY-PLS-BSA", regressor=PLSRegression(n_components=10),
-                   hyperparameters=recipe_hyperparameters("bc_snv_avgpool"))
-```
-
-The steps of a recipe run in a fixed order (`raman_bench.preprocessing.recipes.STEP_ORDER`: crop,
-cosmic rays, smoothing, baseline, scatter correction, derivative, normalisation, pooling, scaling,
-GCU/LVSE), whatever order the name lists them in.
-
-### Run the full benchmark pipeline
-
-Single-experiment runs use `scripts/run_experiment.py` (one process per
-`(model, dataset, target, repeat, fold, config-index)`), typically submitted
-via `cluster/submit_job.py`/`cluster/submit_full_benchmark.py` for a real
-cluster (SLURM or Kubernetes) sweep:
-
-```bash
-python scripts/run_experiment.py --dataset wheat_lines --target-idx 0 \
-    --model PLS --repeat 0 --fold 0 --config-index 0 \
-    --results-dir results/v1/data
-```
-
-See `cluster/submit_job.py --help` for submitting a real array/sweep.
-
-A *system* does its own validation and ensembling, so it isn't wrapped in AutoGluon's
-bagging: `scripts/run_system.py` fits it once per outer fold on the same tasks, folds,
-row sample and time budgets, into the same result cache (`raman_bench.systems` lists them):
-
-```bash
-python scripts/run_system.py --system TABFM-PLUS --tasks alzheimer__0 --folds 0
-export CHAKRA_TAB_KEY=...        # hosted API: every fold's data is sent to the provider
-python scripts/run_system.py --system CHAKRA-TAB --workers 4
-```
-
-### Leaderboard figures
-
-Once results exist, aggregate them and draw the leaderboard figures (needs
-`pip install "raman-bench[plots]"`):
-
-```bash
-python scripts/aggregate_results.py --results-dir results/v1/data --output-dir results/v1/aggregated
-python scripts/plot_results.py --input results/v1/aggregated/hpo_results.csv --output-dir results/v1/figures
-```
-
-Scores come from TabArena's own evaluator (`bencheval`): Elo with bootstrap
-CIs (Random Forest = 1000), win rate, improvability and the pairwise win-rate
-matrix. Every figure (benchmark overview, example spectra, composition, Elo
-ranking, score and improvability vs. time per 1K spectra, model progress over
-release date, win rates, efficiency, critical difference diagrams) is written as PNG and PDF
-under `static/` and as an interactive HTML page under `interactive/`, with an
-`index.html` linking them all. By default only the top 2 models per category
-are drawn in colour and the rest in grey (`--focus-top-k`, `0` colours all);
-the HTML pages can switch between both views. The dataset figures read
-metadata from raman_data and the RamanBench mirror on the Hugging Face Hub;
-`--no-dataset-figures` skips them offline.
-
-**Known contamination.** RamanPFN (Pan et al., 2026, arXiv:2608.02157) was
-developed and evaluated on the RamanBench v0.1 datasets and task splits, with
-no separate development data reported. Its TabPFN weights were not trained on
-RamanBench, but its fixed design choices may be tuned to these datasets, so its
-scores may be optimistic. It is ranked like every other model and marked with
-† in figures and tables (`raman_bench.plotting.models.KNOWN_CONTAMINATION`).
-Models behind a closed-source hosted API (Chakra-Tab) are marked with ‡: the
-model and its code are not public, so their results can't be reproduced
-independently (`raman_bench.plotting.models.CLOSED_API`).
-
-**Departures from the protocol.** Systems (Chakra-Tab, TabFM+) do their own validation
-and ensembling, so they are fit once per outer fold instead of through AutoGluon's
-bagging. HIVE-COTE 2 gets 21,600 s per fit instead of 600 s, because aeon turns the
-budget into its own time contract; it has no result on `mlrod`, which is imputed.
-
-### Notebooks
-
-| Notebook | Description |
+| Page | What it covers |
 |---|---|
-| [`01_quick_start.ipynb`](notebooks/01_quick_start.ipynb) | Load a dataset, look at the v1 leaderboard |
-| [`02_benchmark_new_model.ipynb`](notebooks/02_benchmark_new_model.ipynb) | Run your own model on the benchmark protocol and rank it against the 61 leaderboard models |
-| [`03_explore_results.ipynb`](notebooks/03_explore_results.ipynb) | Per-task results, task types, speed against accuracy, pairwise win rates |
-| [`04_contribute_dataset.ipynb`](notebooks/04_contribute_dataset.ipynb) | Adding a new dataset, step by step |
+| [Installation](docs/installation.md) | The three install levels, extra requirements files |
+| [Compare your model](docs/compare-your-model.md) | Score a model against the leaderboard, other metrics, the v1 folds |
+| [Preprocessing interface](docs/preprocessing.md) | Transformers and 26 named recipes |
+| [Models](docs/models.md) | The leaderboard models and the standalone scikit-learn wrappers |
+| [Protocol](docs/protocol.md) | Datasets, ranking protocol, departures from it |
+| [Architecture](docs/architecture.md) | How v1 is built on TabArena, repository structure |
+| [Running the benchmark](docs/running-the-benchmark.md) | Experiments, systems, cluster sweeps, figures |
+| [Contributor agents](docs/contributor-agents.md) | The Claude Code agents for model, dataset and cluster work |
 
----
-
-## Models
-
-### Paper baselines (28 models)
-
-All results in the paper were produced through the AutoGluon pipeline (Option 3 install).
-
-| Category | Models |
-|---|---|
-| Classical spectroscopy | PLS, KNN, LR |
-| Tree ensembles | GBM (LightGBM), XGB, CatBoost, RF, XT |
-| Tabular deep learning | NN_TORCH, FastAI, RealMLP |
-| Tabular foundation models | TabPFN v2, TabPFN v2.5, TabM, TabDPT, TabICL, MITRA |
-| Time-series classifiers | ROCKET, Arsenal |
-| Raman-specific DL | DeepCNN, RamanNet, SANet, RamanFormer, RamanTransformer, ReZeroNet, FC-ResNeXt, CoAtNet |
-| AutoGluon ensemble | AUTOGLUON |
-
-### Standalone sklearn wrappers (`raman-bench[models]`)
-
-`raman-bench[models]` provides sklearn-compatible (`fit` / `predict`) wrappers
-for many of the same algorithm families, usable directly without AutoGluon.  These are **not** the exact pipeline configurations from the paper
-(no AutoGluon preprocessing or HPO), but they use the same underlying
-algorithms, and are a convenient starting point for building a new model.
-
-| Class | Algorithm | Requires |
-|---|---|---|
-| `PLSModel` | Partial Least Squares | — |
-| `DeepCNNModel` | Raman-specific CNN | `torch` |
-| `RamanNetModel` | Raman-specific CNN | `torch` |
-| `SANetModel` | Spectral attention net | `torch` |
-| `RamanFormerModel` | Raman transformer | `torch` |
-| `RamanTransformerModel` | Raman transformer | `torch` |
-| `ReZeroNetModel` | ReZero CNN | `torch` |
-| `FCResNeXtModel` | FC-ResNeXt | `torch` |
-| `CoAtNetModel` | Conv + attention | `torch` |
-| `RocketModel` | ROCKET regression/classification | `sktime` |
-| `HydraModel` | Hydra + closed-form GPU ridge, regression/classification | `torch` |
-| `AeonClassifierModel` | HIVE-COTE 2 or one of its components (STC, DrCIF, Arsenal, TDE), classification only | `aeon` |
-| `TabPFNModel` | TabPFN v2 | `tabpfn` |
-| `RealMLPModel` | RealMLP-TD | `pytabkit` |
-| `TabMModel` | TabM-D | `pytabkit` |
-| `TabDPTModel` | TabDPT | `tabdpt` |
-
-All classes except `AeonClassifierModel` support classification and regression and
-auto-detect the task from `y`.  All package dependencies are included in `raman-bench[models]`.
-
----
-
-## Benchmark Composition
-
-### Datasets
-
-The 74 datasets span four application domains (Material Science, Biological,
-Medical, Chemical) and both task types. They range from a few dozen spectra to
-over 100,000, and from roughly 100 to 12,000 wavenumber points. The
-[raman-data catalog](https://github.com/ml-lab-htw/raman_data) lists every one
-with its source, task, size, and license.
-
-All datasets load via `pip install raman-data`:
-
-```python
-from raman_data import raman_data
-
-dataset = raman_data("amino_acids_glycine")
-X = dataset.spectra          # (n_samples, n_wavenumbers)
-y = dataset.targets          # regression targets or class labels
-w = dataset.raman_shifts     # wavenumber axis in cm⁻¹
-```
-
-**Dataset catalog:** [raman-data on GitHub](https://github.com/ml-lab-htw/raman_data)
-
----
-
-## Ranking Protocol
-
-Models are ranked on four metrics:
-
-| Metric | Description |
-|---|---|
-| **Elo** | Pairwise win-rate Elo calibrated to RF = 1000 (200-round bootstrap) |
-| **Score** | Normalised per-dataset score: best model = 1, median model = 0 |
-| **Avg Rank** | Average rank across all datasets and targets |
-| **Improvability** | % gap to the best model, averaged across datasets |
-
-Every v1 model runs the same protocol: 3-fold outer cross-validation per task
-(group-aware where a dataset has replicate groups), 3-fold bagging inside each training
-split, 600 s per fit (`mlrod`: 10,800 s) and each model's default configuration. The three
-largest datasets (mlrod, wheat_lines, bacteria_identification) are cut to a random sample
-of 10,000 spectra before splitting. A few models run on a smaller sample of some datasets
-because of memory limits (`model_max_train_samples_overrides`, e.g. PerpetualBooster and
-Mitra at 3,000 rows). The protocol ships with the package
-(`raman_bench.compare.load_protocol()`).
-
-Each fold is scored with the task's metric: ROC AUC for binary classification, log loss
-for multiclass classification, RMSE for regression (TabArena's evaluator, `bencheval`).
-Elo, score, rank and improvability are computed from those per-fold errors. To rank by
-accuracy, F1, R² or another metric instead, see [Rank by another metric](#rank-by-another-metric).
-
-See the [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) for
-interactive filtering by model category, task type, and dataset domain.
-
----
-
-## Repository Structure
-
-```
-RamanBench/
-├── src/raman_bench/
-│   ├── compare.py              # v1 reference results + protocol; rank your results against them
-│   ├── evaluate.py             # run a scikit-learn estimator (or print run_experiment calls) on the v1 protocol
-│   ├── aggregation.py          # cached results.pkl -> TabArena result tables (EndToEnd)
-│   ├── experiment_utils.py     # shared task building / experiment running for every v1 runner
-│   ├── leaderboard.py          # v0.1 Leaderboard (bundled v0.1 results)
-│   ├── benchmark.py            # Dataset loading (mirror-first) and cross-validation
-│   ├── model.py                # build_prep_model_hyperparameters (Prep_* hyperparameter builder)
-│   ├── config.py               # JSON config loader
-│   ├── splitting.py            # Repeated k-fold CV + TabArena UserTask construction
-│   ├── folds.py                # the v1 outer folds as plain spectrum ids (raman-bench folds)
-│   ├── fold_metrics.py         # per-fold metrics from stored test predictions
-│   ├── systems/                # self-contained systems (Chakra-Tab, TabFM+) for run_system.py
-│   ├── models/
-│   │   ├── registry.py         #   raman_bench_model_registry (TabArena's + ours)
-│   │   ├── discover.py         #   auto-discovery for models/custom/<key>/info.py
-│   │   ├── _model_info.py      #   lightweight per-model ModelInfo dataclass
-│   │   ├── generate/           #   per-model ConfigGenerator (HPO search space) modules
-│   │   └── custom/             # All built-in Raman models (sklearn API)
-│   │       ├── base.py         #   BaseRamanEstimator (shared training loop)
-│   │       ├── ridge/           #   reference implementation of the new per-directory
-│   │       │                    #   {model.py,hpo.py,info.py} onboarding convention
-│   │       ├── deepcnn.py, ramannet.py, sanet.py, ramanformer.py, ...
-│   │       │                    #   (older flat-file convention, still supported)
-│   │       └── tabular_foundation.py
-│   └── preprocessing/
-│       ├── mixin.py            #   RamanPreprocessingMixin (AutoGluon HPO)
-│       ├── bridge_bases.py     #   SklearnAutoGluonBridge + shared bases
-│       └── wrapped_models.py   #   Prep_* classes, PREPROCESSED_MODELS registry
-├── cluster/                    # v1: cluster-agnostic SLURM and Kubernetes submission
-│   ├── detect_cluster.py, submit_job.py, run_experiment.sbatch, k8s_entrypoint.sh, janitor.py
-│   └── profiles/                #   generic + example cluster profiles (no secrets)
-├── scripts/
-│   ├── run_experiment.py       # v1: per-(model,dataset,target,repeat,fold,config) job runner
-│   ├── run_system.py           # v1: one self-contained system per outer fold
-│   ├── compute_fold_metrics.py # v1: per-fold metrics for the reference results
-│   ├── build_target_list.py    # v1: builds the full-benchmark target list (mirror-first)
-│   ├── aggregate_results.py    # v1: recycles cached results into default/tuned/tuned+ensemble
-│   ├── build_reference_results.py  # v1: bundles the leaderboard results + protocol with the package
-│   └── plot_results.py         # v1: leaderboard figures (static PNG/PDF + interactive HTML)
-├── .claude/agents/              # model-agent, cluster-agent (see Contributor Agents)
-├── configs/                    # Benchmark configuration files
-├── src/raman_bench/data/precomputed/   # v1/: reference results + protocol; *.csv: v0.1 results
-├── notebooks/                  # Example Jupyter notebooks
-└── tests/                      # pytest test suite
-```
-
-### How the two paths share model code
-
-Custom models are written once as plain scikit-learn `BaseEstimator`
-subclasses, and the same classes serve both usage modes:
-
-```
-  Custom model (e.g. DeepCNNModel)
-  BaseEstimator — no AutoGluon dependency
-  fit(X, y) / predict(X)
-        │
-        ├─── Standalone path (pip install "raman-bench[models]")
-        │      CUSTOM_MODELS["DEEPCNN"] → DeepCNNModel().fit(X, y)
-        │
-        └─── AutoGluon pipeline path (pip install -e ".[models]" + TabArena)
-               SklearnAutoGluonBridge._fit() → DeepCNNModel(**params).fit(X_np, y_np)
-               Prep_DEEPCNN(_RamanDLBase, _DeepCNNBridge)
-```
-
-`SklearnAutoGluonBridge` (in `preprocessing/wrapped_models.py`) is the only file
-that imports AutoGluon; the model source files never do.
-
----
+Example notebooks are in [`notebooks/`](notebooks/). Release notes are in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
-New models and datasets are welcome.
-
-### Adding a New Model
-
-Only want to see where your model lands? You don't need to add it to the
-repository: run it with `evaluate_estimator` and `compare` (see
-[Compare your model](#compare-your-model-against-the-v1-leaderboard)). To put it on the
+New models and datasets are welcome. Only want to see where your model lands? You don't need to
+add it to the repository: run it with `evaluate_estimator` and `compare`. To put it on the
 leaderboard, open an issue or pull request with the model and its results directory.
 
-To add the model to RamanBench itself, open this repo in Claude Code and say:
-
-```
-Add my model to RamanBench, test it, and run it across the benchmark.
-```
-
-The `model-agent` implements it (or wires up an existing TabArena model if one
-already fits), tests it locally, asks whether to propose it upstream to
-TabArena, and runs it across the benchmark on a cluster or locally.
-`.claude/agents/model-agent.md` has the full workflow.
-
-<details>
-<summary>Manual steps (no agent)</summary>
-
-The simplest manual way to add a model is to implement it as a scikit-learn–compatible
-estimator and submit a pull request.  No AutoGluon knowledge is required.
-
-1. Create `src/raman_bench/models/custom/my_model.py`:
-
-```python
-import numpy as np
-from sklearn.base import BaseEstimator
-
-class MyModel(BaseEstimator):
-
-    def __init__(self, n_components=10, lr=1e-3):
-        self.n_components = n_components
-        self.lr = lr
-
-    def fit(self, X, y):
-        # X: np.ndarray (n_samples, n_features)
-        # y: np.ndarray — float → regression, int/str → classification
-        ...
-        return self
-
-    def predict(self, X):
-        ...  # return np.ndarray (n_samples,)
-
-    def predict_proba(self, X):
-        ...  # classification only, return (n_samples, n_classes)
-```
-
-For PyTorch-based models, inherit from `BaseRamanEstimator` in
-`models/custom/base.py` which provides a complete training loop with early
-stopping, cosine LR schedule, mixed-class augmentation, and batched inference.
-
-2. Register in `src/raman_bench/models/custom/__init__.py`:
-
-```python
-from raman_bench.models.custom.my_model import MyModel
-
-CUSTOM_MODELS["MYMODEL"] = MyModel
-```
-
-3. Add tests in `tests/models/test_my_model.py` following the patterns in
-   `tests/models/test_sanet.py`.
-
-4. Open a pull request — CI will run the full test suite automatically.
-
-The steps above cover the standalone sklearn-compatible path (Option 2). To also wire
-your model into the full RamanBench v1 benchmark pipeline (Raman preprocessing HPO,
-default/tuned/tuned+ensemble recycling, cluster submission), follow the per-model
-directory convention instead — `raman_bench/models/custom/<key>/{model.py,hpo.py,info.py}`,
-auto-discovered into `raman_bench_model_registry`. `models/custom/ridge/` is the reference
-implementation; `.claude/agents/model-agent.md` documents the full workflow end to end
-(implement → test → run across the benchmark, cluster or local).
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
-
-</details>
-
-### Adding a New Dataset
-
-Same idea, in Claude Code:
-
-```
-Add my dataset to RamanBench and make it benchmarkable.
-```
-
-The `dataset-agent` bootstraps a `raman_data` checkout if needed, picks the right
-loader, syncs the dataset to the HF mirror the benchmark reads from, and opens a
-`raman_data` PR. See `.claude/agents/dataset-agent.md` for the full workflow.
-
-<details>
-<summary>Manual steps (no agent)</summary>
-
-See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-new-dataset) and
-[NEW_DATASETS.md](NEW_DATASETS.md) for detailed instructions and examples.
-`.claude/agents/dataset-agent.md` (in the `raman-data` repo) documents the full
-onboarding workflow, including the HF mirror sync new datasets need to be discoverable
-through `run_experiment.py`'s mirror-first loading.
-
-</details>
-
----
-
-## Contributor Agents
-
-Six Claude Code agents handle routine maintenance across the three repos, so a
-contributor doesn't need any private tooling. Each is a `.claude/agents/*.md`
-file in the repo it works on:
-
-| Agent | Repo | Responsibility |
-|---|---|---|
-| `dataset-agent` | `raman_data` | Onboard a new dataset: pick the right loader, add a `DatasetInfo` entry, populate `group_ids`/`has_missing_labels` if applicable, sync to the HF mirror. |
-| `model-agent` | `RamanBench` (this repo) | Add a new model via the per-directory convention, test it, ask whether to also propose it upstream to TabArena, then run it across the benchmark (cluster or local). |
-| `cluster-agent` | `RamanBench` (public) + `raman_bench_paper` (private profiles) | Fleet management: submit job arrays, detect stalled/cancelled tasks and resubmit, run `cluster/janitor.py`'s disk-cleanup sweep. |
-| `leaderboard-agent` | `raman_bench_paper` | Regenerate leaderboard CSVs/figures from completed results; always shows a diff and asks permission before publishing to the live HF Space. |
-| `hf-frontend-agent` | `HF_spaces/RamanBench` | Frontend work on the public Gradio leaderboard Space. |
-| `docs-agent` | `RamanBench` (this repo) | Keeps README/CONTRIBUTING in sync across all repos as things change. |
-
-A typical handoff runs dataset-agent → model-agent (optional) → cluster-agent →
-leaderboard-agent (which asks before publishing) → hf-frontend-agent. docs-agent
-runs on its own after structural changes.
-
-The [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
-has its own "How to Contribute" section.
-
----
+To add a model or dataset to RamanBench itself, open this repo in Claude Code and say
+`Add my model to RamanBench, test it, and run it across the benchmark.` (or the same for a
+dataset); the [agents](docs/contributor-agents.md) do the work. The manual route is in
+[CONTRIBUTING.md](CONTRIBUTING.md) and [NEW_DATASETS.md](NEW_DATASETS.md).
 
 ## Citation
 
@@ -842,18 +136,11 @@ RamanBench has been accepted at NeurIPS 2026. If you use RamanBench in your rese
 }
 ```
 
----
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=ml-lab-htw/RamanBench&type=Date)](https://star-history.com/#ml-lab-htw/RamanBench&Date)
-
----
-
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
 
-Dataset licenses vary; see the [dataset catalog](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench)
-or [raman-data](https://github.com/ml-lab-htw/raman_data) for per-dataset license information.
-Most datasets are released under CC BY 4.0.
+Dataset licenses vary; see the [raman-data catalog](https://github.com/ml-lab-htw/raman_data) for
+per-dataset license information. Most datasets are released under CC BY 4.0.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ml-lab-htw/RamanBench&type=Date)](https://star-history.com/#ml-lab-htw/RamanBench&Date)
