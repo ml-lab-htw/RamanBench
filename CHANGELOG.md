@@ -42,6 +42,8 @@ with this release.
 
 ### Added
 
+- `scripts/plot_tradeoff_100k.py`: Elo vs. median time per 100K spectra (train + predict, and inference only), log
+  x-axis, with only the models given in `--highlight` coloured. Reads a `leaderboard_*.csv` from `plot_results.py`.
 - Named preprocessing recipes (`raman_bench.preprocessing.recipes`, also importable from
   `raman_bench.preprocessing`): the 26 recipes of RamanBench's preprocessing study (`none`, `snv`, `msc`, `emsc`,
   `bc_sg_snv`, `airpls_snv`, `sg_d1_snv`, `bc_snv_avgpool`, `gcu_lvse`, `prep_ensemble`, ...). `recipe(name)` gives
