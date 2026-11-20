@@ -85,6 +85,7 @@
         "bacteria_identification": 10000,
         "glioma_idh": 10000,
         "raman_mpi": 10000,
+        "soft_tissue_sarcoma": 10000,
         "stroke_urine_sers_532": 10000,
         "stroke_urine_sers_633": 10000
     },
@@ -136,6 +137,7 @@
         "mlrod",
         "raman_mpi",
         "serum_prostate_cancer",
+        "soft_tissue_sarcoma",
         "stroke_urine_sers_532",
         "stroke_urine_sers_633",
         "succinic_acid_species",
