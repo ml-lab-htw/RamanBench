@@ -73,6 +73,10 @@
         "TABABAX",
         "MLP-A",
         "TABM-A",
+        "INPRIORA",
+        "TABPACK",
+        "LATTICE",
+        "LATTICE-TINY",
         "AUTOGLUON-EXTREME-5M",
         "AUTOGLUON-EXTREME-1H",
         "AUTOGLUON-EXTREME-4H"

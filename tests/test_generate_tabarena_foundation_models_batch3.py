@@ -36,7 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # TABSTAR's is a plain ConfigGenerator with a real (6-knob, all-categorical)
 # autogluon.common.space search space -- both can generate additional random
 # configs.
-_NO_RANDOM_HPO = {"NORI", "SAP_RPT_OSS", "ORIONMSP", "LIMIX", "TABSTAR_V1P1", "TABH2O", "SELDON", "SELDON-MINI", "TABABAX"}
+_NO_RANDOM_HPO = {"NORI", "SAP_RPT_OSS", "ORIONMSP", "LIMIX", "TABSTAR_V1P1", "TABH2O", "SELDON", "SELDON-MINI", "TABABAX", "INPRIORA", "TABPACK", "LATTICE", "LATTICE-TINY"}
 
 TABARENA_BATCH3_KEYS = [
     "NORI",
@@ -51,6 +51,10 @@ TABARENA_BATCH3_KEYS = [
     "TABABAX",
     "MLP-A",
     "TABM-A",
+    "INPRIORA",
+    "TABPACK",
+    "LATTICE",
+    "LATTICE-TINY",
 ]
 
 # All six are pretrained/fine-tuned tabular foundation models -- unlike batch 2's
