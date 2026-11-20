@@ -12,6 +12,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-11-20
+
+The preprocessing as scikit-learn transformers, the 26 named recipes of the preprocessing study, spectral-axis
+pooling (`avgpool`, `decimate`), and GCU seeded everywhere. 1.5.1 was not published on PyPI; its changes ship
+with this release.
+
 ### Changed
 
 - GCU is seeded everywhere: the mixin passes `prep_gcu_random_state` (new, default 0, not tuned) to `gcu_fit`
