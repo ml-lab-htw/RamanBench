@@ -81,8 +81,13 @@ def test_memoized_loader_loads_once_and_returns_copies(monkeypatch):
 def test_memoized_torch_load_reads_once_and_copies(tmp_path, monkeypatch):
     import torch
 
+    import os
+    import time
+
     path = tmp_path / "ckpt.pt"
     torch.save({"w": torch.arange(4.0)}, path)
+    old = time.time_ns() - 3600 * 10**9  # a checkpoint that existed long before the job
+    os.utime(path, ns=(old, old))
     reads = []
     real = torch.load
 
@@ -99,10 +104,43 @@ def test_memoized_torch_load_reads_once_and_copies(tmp_path, monkeypatch):
     torch.load(str(path), map_location="cpu", weights_only=True)  # other kwargs: own entry
     assert len(reads) == 2
     torch.save({"w": torch.ones(2)}, path)  # changed file is read again
-    import os
-
     os.utime(path, ns=(1, 1))
     assert torch.load(str(path), map_location="cpu")["w"].shape == (2,) and len(reads) == 3
+
+
+def test_memoized_torch_load_keeps_nothing_a_job_wrote_itself(tmp_path, monkeypatch):
+    """AutoGluon saves each fitted model's tensors to model_tensors.pt and loads them back with
+    torch.load(path) within the same job; memoising those kept every fitted model alive."""
+    import os
+    import time
+
+    import torch
+
+    reads = []
+    real = torch.load
+
+    def counting(f, *a, **k):
+        reads.append(str(f))
+        return real(f, *a, **k)
+
+    monkeypatch.setattr(torch, "load", counting)
+    mark_job_start = rb.memoize_torch_load()
+    memo = next(c.cell_contents for c in torch.load.__closure__
+                if isinstance(c.cell_contents, dict))
+    mark_job_start()
+    path = tmp_path / "S1F1" / "model_tensors.pt"
+    path.parent.mkdir()
+    torch.save({"w": torch.arange(3.0)}, path)  # written during the job
+    torch.load(str(path), map_location="cpu")
+    torch.load(str(path), map_location="cpu")
+    assert len(reads) == 2 and memo == {}  # read from disk each time, nothing kept
+
+    old = time.time_ns() - 3600 * 10**9  # an older file is a checkpoint again: memoised
+    os.utime(path, ns=(old, old))
+    mark_job_start()
+    torch.load(str(path), map_location="cpu")
+    torch.load(str(path), map_location="cpu")
+    assert len(reads) == 3 and len(memo) == 1
 
 
 def test_rotate_starts_workers_at_different_jobs():
