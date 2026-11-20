@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "raman-bench"
-version = "1.5.0"
+version = "1.5.1"
 description = "A large-scale benchmark for machine learning on Raman spectroscopy data"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -41,8 +41,9 @@ dependencies = [
     "matplotlib>=3.5,<4.0",
     "seaborn>=0.12",
     "tqdm>=4.64,<5.0",
-    # >=1.6.6: earlier releases register two synthetic_organic_pigments datasets as regression (raman_data#44).
-    "raman-data>=1.6.6",
+    # >=1.9.0: adds the keys soft_tissue_sarcoma, slopp, slopp_e, vcl_pvcl_water and citric_acid_citrates that the v2 sweep needs.
+    # (>=1.6.6 fixed the two synthetic_organic_pigments datasets that earlier releases registered as regression, raman_data#44.)
+    "raman-data>=1.9.0",
     "torch>=2.0,<3.0",
     "python-dotenv>=1.0",
     # Reads the bundled v1 reference results.

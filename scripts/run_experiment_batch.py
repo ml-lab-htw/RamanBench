@@ -48,6 +48,7 @@ import sys
 import time
 import traceback
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -141,7 +142,12 @@ def memoize_load_dataframe() -> None:
     eu.load_dataframe = load
 
 
-def memoize_torch_load() -> None:
+# A file modified after (or this shortly before) the start of the current job counts as written
+# by the job itself; the margin absorbs clock skew between a node and a shared filesystem.
+_MEMO_MTIME_MARGIN_NS = 60 * 10**9
+
+
+def memoize_torch_load() -> Callable[[], None]:
     """Read each checkpoint file once per process; every caller gets its own deep copy.
 
     Foundation models (TabPFN, TabICL, RamanPFN) build a fresh estimator for every bag child
@@ -149,6 +155,15 @@ def memoize_torch_load() -> None:
     with a file path are memoised, keyed by the file's real path, modification time and size and
     the keyword arguments, so a changed file is read again. The copy keeps fits independent: no
     job can see weights another job modified.
+
+    Only files that already existed when the current job started are memoised -- the
+    checkpoints. A file the job writes and reads back itself is loaded from disk as before:
+    AutoGluon saves every fitted model's tensors to ``model_tensors.pt`` beside its pickle and
+    loads them with ``torch.load(path)``, at a path unique to the job, so memoising those reads
+    kept every model the process had fitted in memory (~240 GB host RAM after 45 large
+    ReZeroNet fits in one worker).
+
+    Returns ``mark_job_start``, which the batch loop calls before every job.
     """
     import copy
 
@@ -156,18 +171,25 @@ def memoize_torch_load() -> None:
 
     inner = torch.load
     memo: dict = {}
+    job_start_ns = [time.time_ns()]
+
+    def mark_job_start() -> None:
+        job_start_ns[0] = time.time_ns()
 
     @functools.wraps(inner)
     def load(f, *args, **kwargs):
         if args or not isinstance(f, (str, os.PathLike)) or not os.path.isfile(f):
             return inner(f, *args, **kwargs)
         st = os.stat(f)
+        if st.st_mtime_ns >= job_start_ns[0] - _MEMO_MTIME_MARGIN_NS:  # written by this job
+            return inner(f, **kwargs)
         key = (os.path.realpath(f), st.st_mtime_ns, st.st_size, repr(sorted(kwargs.items())))
         if key not in memo:
             memo[key] = inner(f, **kwargs)
         return copy.deepcopy(memo[key])
 
     torch.load = load
+    return mark_job_start
 
 
 def claim_name(job: dict) -> str:
@@ -297,8 +319,9 @@ def main() -> None:
     from raman_bench.preprocessing import spectrum_cache
 
     os.environ[spectrum_cache.ENV_MODE] = args.spectrum_cache
+    mark_job_start = None
     if not args.no_memo_checkpoints:
-        memoize_torch_load()  # before instrument(), so the timer measures the memoised load
+        mark_job_start = memoize_torch_load()  # before instrument(), so the timer measures the memoised load
     timer = StageTimer()
     instrument(timer)
     if not args.no_memo_data:
@@ -338,6 +361,8 @@ def main() -> None:
             scratch = Path(args.scratch_root) / f"{socket.gethostname()}_{os.getpid()}_{i}"
             scratch.mkdir(parents=True, exist_ok=True)
         timer.reset()
+        if mark_job_start is not None:
+            mark_job_start()
         t0 = time.perf_counter()
         status = "done"
         try:

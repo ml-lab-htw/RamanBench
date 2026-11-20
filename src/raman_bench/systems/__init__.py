@@ -12,6 +12,7 @@ the results directory its results land in (``results/v1/data/<result_dir>/``).
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
 
@@ -71,6 +72,10 @@ def with_test_artifacts(system_cls: type, key: str, name: str, hyperparameters: 
 
 
 def _chakra_tab_cls():
+    if os.environ.get("CHAKRA_TAB_SDK"):  # YHat's library: sends wide tables as async jobs (_chakra_tab_sdk)
+        from raman_bench.systems._chakra_tab_sdk import ChakraTabSdkSystemModel
+
+        return ChakraTabSdkSystemModel
     try:  # TabArena's own copy, once the pin includes autogluon/tabarena#654
         from tabarena.systems.chakra_tab.system import ChakraTabSystemModel
     except ImportError:

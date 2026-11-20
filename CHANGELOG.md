@@ -12,15 +12,68 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- `raman_bench.preprocessing.mixin` imports AutoGluon and TabArena only where they are used (HPO search space,
+  AutoGluon's auxiliary params, the group column), so the preprocessing runs with the core install. The
+  `search_params` of `_PREP_STEP_DEFINITIONS` are now functions of `autogluon.common.space`.
+- The `raman-data` requirement rises from `>=1.6.6` to `>=1.9.0`, the first release with `soft_tissue_sarcoma`, `slopp`,
+  `slopp_e`, `vcl_pvcl_water` and `citric_acid_citrates`. Benchmark v1 does not use these keys.
+- The `tabarena` pin moves from `0642914d` (2026-11-08) to `bfa8c50c` (2026-11-13). The 13 commits in between
+  change LightPFN (1.5: regression, a categorical adapter, faster GPU inference), the LimiX-2 inference
+  configuration for LimiX-2-1016, and Seldon (regression); no new model is added. The extras in
+  `requirements-tabarena-git.txt` all still exist at the new commit. Results already in `results/v1` were
+  produced with the old pin; rerunning LightPFN or LimiX-2 may give different numbers.
+- `cluster/submit_autogluon_baseline.py` creates its Job with `kq submit` instead of `kubectl apply`, and takes
+  `RB_KQ_AFTER` like `submit_job.py`.
+
 ### Added
 
 - `scripts/plot_tradeoff_100k.py`: Elo vs. median time per 100K spectra (train + predict, and inference only), log
   x-axis, with only the models given in `--highlight` coloured. Reads a `leaderboard_*.csv` from `plot_results.py`.
+- scikit-learn transformers for the preprocessing (`raman_bench.preprocessing.transformers`, also importable
+  from `raman_bench.preprocessing`): `RamanPreprocessor` applies a recipe given in the recipe-config schema
+  with the mixin's own fit/transform code, and one transformer per step (`SNV`, `MSC`, `EMSC`, `AsLSBaseline`,
+  `AirPLSBaseline`, `ArPLSBaseline`, `RubberbandBaseline`, `SavitzkyGolaySmoothing`, `WaveletDenoising`,
+  `SavitzkyGolayDerivative`, `CosmicRayRemoval`, `VectorNormalization`, `AveragePooling`, `Decimation`, `Crop`,
+  `PhysicalCrop`, `GCU`, `LVSE`). A test fits real `Prep_PLS` and `Prep_RF` models for 16 recipe forms and checks
+  that the transformer's parameters and output equal theirs.
+- Preprocessing steps `avgpool` and `decimate` (spectral-axis pooling; opt-in, after vector normalization and
+  before scaling and GCU/LVSE).
+- `max_train_samples` for `folds.task_folds` and `folds.export_folds` (as `fold_assignment` already had): `None`
+  gives the folds of all rows, for studies that ran the protocol's tasks without its row sample.
+- **TabOmics** (`TABOMICS`): a tabular foundation model for wide omics tables (Bote-Curiel, GPL-3.0-or-later),
+  classification only, up to 10 classes natively and output-coded above that, as TabPFN-Wide is. Install with
+  `pip install -r requirements-tabomics-git.txt`; the weights (`lbotecur/tabomics-v2.5`) download from Hugging Face.
+  On the leaderboard (`configs/v1/scope_default.json`) with the 21 classification tasks, as classification only (Elo 1174
+  on the all-tasks scale, Random Forest = 1000).
+- **Chakra-Tab through YHat Labs' library** (`CHAKRA_TAB_SDK=1`, `raman_bench.systems._chakra_tab_sdk`): the library sends
+  tables past the API's direct size as an async job and waits for it, which the plain `requests` client cannot, and
+  spectra have hundreds of columns. Tables above 8 MB as parquet are sent in the request body (`_refs={}`), since the
+  library's upload reference made `/v1/table/predict` answer 422 for them. `yhatlabs` is not a dependency; install it
+  to use this path.
 - `RB_KQ_AFTER` for the Kubernetes submission (`cluster/submit_job.py`): `kq submit --after` for the Jobs it creates,
   so a long list of models can run as a few chains of pods. `kq` itself only limits the Jobs waiting for a node.
 
+## [1.5.1] — 2026-11-14
+
+### Added
+
+- **v1 reference results of the seven 1.5.0 models**: TabH2O, Seldon, Seldon-Mini, TabAbax, MLP-A, TabM-A and
+  TabSTAR-v1.1 are in the bundled reference (`data/precomputed/v1/`, 72 models with TabOmics), so `compare()` and `leaderboard()` rank
+  against them. Seldon and Seldon-Mini have all 63 classification folds, TabAbax, TabSTAR-v1.1, MLP-A, TabM-A and TabH2O
+  all 405 (see Fixed and Changed). The reference covers all 135 tasks and is built from the aggregate of 2026-11-13: the six
+  subject-grouped tasks (`alzheimer`, `parkinson`, `covid19_salvia`, `comfile_stroke`, `serum_alzheimer_disease`,
+  `serum_prostate_cancer`) were rerun for every model on their group-aware folds, and Chakra-Tab full's six folds that had
+  failed with HTTP 422 were rerun (#201).
+
 ### Changed
 
+- **`evaluate_estimator` hands group ids to estimators that take them.** On tasks with a group column, an estimator
+  whose `fit` / `predict` / `predict_proba` has a `groups` argument now receives the group ids
+  (`models/sklearn_estimator.py`); other estimators are called as before. The hosted TabPFN thinking runner
+  (`scripts/run_tabpfn_thinking.py`) sends them to the API (`use_groups=True`), so its results are a grouped
+  variant that the other v1 models do not have.
 - **Models with a feature cap bin wider spectra instead of skipping them.** TabSTAR-v1.1 takes at most 4,000
   features; the 18 targets above that (54 folds) were skipped. Their spectra are now averaged in runs of
   neighbouring columns down to 4,000 (`raman_bench.preprocessing.raman_preprocessing.bin_columns`, applied
@@ -28,6 +81,14 @@ The full rules are in [RELEASING.md](RELEASING.md).
   the column count, so training and test rows are treated alike and no label is used. Targets at or below
   the cap are untouched. `wrapped_models.MAX_FEATURES_MODELS` and the skip in `run_experiment.py` are gone:
   the cap is the class attribute `_max_input_features`. The TabPFN thinking runner uses the same helper.
+
+### Fixed
+
+- **TabAbax** (15 classification folds: `cancer_cell_cooh`, `cancer_cell_nh2`, `rruff_mineral_raw`, `mlrod`,
+  `bacteria_identification`) failed with a device mismatch in upstream's `_predict_hierarchical`; fixed upstream in
+  tababax-research/TabAbax#1 and verified on these folds with the patched code. The other upstream releases are unchanged.
+- Seldon's `mlrod`, `bacteria_identification` and `cancer_cell_cooh` folds, which hit time limits on A100/H100 nodes in
+  1.5.0, ran on a B200 node and are complete.
 
 ## [1.5.0] — 2026-11-10
 
@@ -138,6 +199,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- **`scripts/aggregate_results.py` and `scripts/compute_fold_metrics.py` read the result files with threads**
+  (`--workers`, default 16), and `aggregate_results.py --scan-cache-dir DIR` keeps each model's loaded results
+  in one pickle, keyed by the paths, sizes and modification times of its result files, so a later run re-reads
+  only the models that changed. The tables are identical to those of a run without either. On the 88k results of
+  the 2026-11-13 aggregation, reading took 35 min cold and 12 min from the cache; the fold check and TabArena's
+  aggregation (about 60 min) are unchanged.
 - The fallback from a failed mirror load to the original source logs a warning, not a debug
   message.
 - **raman-data ≥ 1.6.6**, which adds the glioma datasets `glioma_methylation` and `glioma_idh`
@@ -771,7 +838,6 @@ reference results. The benchmark protocol is unchanged, so earlier scores stay c
   (`configs/v1/scope_default.json`) — same flat 10000-row cap already applied to `mlrod`,
   after the identical `TimeLimitExceeded` pattern was confirmed live for these two other
   row-count outliers in `large_datasets` (COATNET, SANET, ROCKET, TABICLV2, all on GPU).
-
 
 - **`RAMANTRANSFORMER` briefly excluded, then restored the same day** (still 43
   models in `configs/v1/scope_default.json`) — initially removed as the

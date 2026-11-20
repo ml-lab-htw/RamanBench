@@ -109,6 +109,7 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "TABSTAR": ("TabSTAR", "Tabular Foundation", 2025 + 4 / 12),  # 2025-05
     "TABSTAR_V1P1": ("TabSTAR-v1.1", "Tabular Foundation", 2026 + 10 / 12),  # 2026-10
     "TABH2O": ("TabH2O", "Tabular Foundation", 2026 + 10 / 12),
+    "TABOMICS": ("TabOmics", "Tabular Foundation", 2026 + 9 / 12),  # 2026-10, weights on the Hub 2026-10-17
     # The five below were added to TabArena in 2026-11; their exact release dates are approximate.
     "SELDON": ("Seldon", "Tabular Foundation", 2026 + 11 / 12),
     "SELDON-MINI": ("Seldon-Mini", "Tabular Foundation", 2026 + 11 / 12),
