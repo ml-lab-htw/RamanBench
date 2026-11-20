@@ -88,15 +88,6 @@ import logging
 import numpy as np
 import pandas as pd
 
-try:
-    from autogluon.common import space
-    from autogluon.common.features.types import S_BOOL
-except ImportError as _ag_err:
-    raise ImportError(
-        "RamanPreprocessingMixin requires autogluon. "
-        "Install with: pip install 'raman-bench[autogluon]'"
-    ) from _ag_err
-
 from raman_bench.preprocessing.raman_preprocessing import (
     baseline_correction_asls,  # also covers fluorescence removal at high lam / low p
 )
@@ -126,7 +117,11 @@ from raman_bench.preprocessing.raman_preprocessing import (
     wavelet_denoise,
 )
 from raman_bench.seeding import model_seed, seed_global_rngs
-from raman_bench.splitting import GROUP_COL
+
+# AutoGluon and TabArena are imported only where they are used (the HPO search space, the
+# auxiliary params AutoGluon asks for, the group column of TabArena's splitter), so the
+# preprocessing itself -- and ``raman_bench.preprocessing.transformers`` built on it -- runs
+# without them.
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +130,8 @@ logger = logging.getLogger(__name__)
 # Single source of truth for all HPO-tunable preprocessing steps
 # ---------------------------------------------------------------------------
 # Each entry maps step_key → {
-#   "search_params": param_name → space.* (for HPO search space),
+#   "search_params": space -> {param_name → space.*} (the HPO search space; a function of
+#                    ``autogluon.common.space`` so this module imports without AutoGluon),
 #   "defaults":      param_name → default value (all prep_*_enabled = False),
 # }
 # standard_scaling is handled separately below as a forced-on-by-restriction
@@ -143,7 +139,7 @@ logger = logging.getLogger(__name__)
 
 _PREP_STEP_DEFINITIONS = {
     "crop": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_crop_enabled": space.Categorical(True, False),
             "prep_crop_start_frac": space.Real(lower=0.0, upper=0.3),
             "prep_crop_end_frac": space.Real(lower=0.5, upper=1.0),
@@ -186,7 +182,7 @@ _PREP_STEP_DEFINITIONS = {
     # these ranges are present for interface completeness/future use, not
     # exercised here.
     "crop_physical": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_crop_physical_enabled": space.Categorical(True, False),
             "prep_crop_physical_start_cm": space.Real(lower=200.0, upper=800.0),
             "prep_crop_physical_end_cm": space.Real(lower=1200.0, upper=2200.0),
@@ -198,7 +194,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "cosmic_ray_removal": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_crr_enabled": space.Categorical(True, False),
             "prep_crr_threshold": space.Categorical(4, 6, 8, 10),
             "prep_crr_kernel_size": space.Categorical(2, 3, 5),
@@ -210,7 +206,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "baseline_correction": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_bl_enabled": space.Categorical(True, False),
             "prep_bl_lam": space.Real(lower=1e3, upper=1e9, log=True),
             "prep_bl_p": space.Real(lower=0.0001, upper=0.1, log=True),
@@ -222,7 +218,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "airpls": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_airpls_enabled": space.Categorical(True, False),
             "prep_airpls_lam": space.Real(lower=1e2, upper=1e6, log=True),
             "prep_airpls_max_iter": space.Categorical(10, 12, 15, 18, 20),
@@ -236,7 +232,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "arpls": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_arpls_enabled": space.Categorical(True, False),
             "prep_arpls_lam": space.Real(lower=1e2, upper=1e8, log=True),
             "prep_arpls_max_iter": space.Categorical(10, 12, 15, 18, 20),
@@ -248,7 +244,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "rubberband": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_rubberband_enabled": space.Categorical(True, False),
         },
         "defaults": {
@@ -256,7 +252,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "msc": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_msc_enabled": space.Categorical(True, False),
         },
         "defaults": {
@@ -271,7 +267,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "emsc": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_emsc_enabled": space.Categorical(True, False),
             "prep_emsc_poly_order": space.Categorical(2, 4, 6),
         },
@@ -281,7 +277,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "denoising": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_denoise_enabled": space.Categorical(True, False),
             "prep_denoise_wl": space.Categorical(5, 7, 9, 11, 13, 15),
             "prep_denoise_po": space.Categorical(2, 3, 4),
@@ -293,7 +289,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "wavelet_denoise": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_wavelet_enabled": space.Categorical(True, False),
             "prep_wavelet_name": space.Categorical("sym7", "sym8", "db6"),
             "prep_wavelet_level": space.Categorical(3, 4, 5),
@@ -305,7 +301,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "derivative": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_deriv_enabled": space.Categorical(True, False),
             "prep_deriv_order": space.Categorical(1, 2),
             "prep_deriv_wl": space.Categorical(9, 11, 15, 21),
@@ -319,7 +315,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "snv": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_snv_enabled": space.Categorical(True, False),
         },
         "defaults": {
@@ -327,7 +323,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "vecnorm": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_vecnorm_enabled": space.Categorical(True, False),
         },
         "defaults": {
@@ -337,7 +333,7 @@ _PREP_STEP_DEFINITIONS = {
     # Average pooling / decimation along the spectral axis (step 13b). Both shrink the width to
     # n_features // size; avgpool averages each window, decimate keeps its first point.
     "avgpool": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_avgpool_enabled": space.Categorical(True, False),
             "prep_avgpool_size": space.Categorical(2, 3, 5, 8),
         },
@@ -347,7 +343,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "decimate": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_decimate_enabled": space.Categorical(True, False),
             "prep_decimate_step": space.Categorical(2, 3, 5, 8),
         },
@@ -357,7 +353,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "gcu": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_gcu_enabled": space.Categorical(True, False),
             "prep_gcu_rho": space.Categorical(8, 16, 32, 64),
         },
@@ -367,7 +363,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "lvse": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_lvse_enabled": space.Categorical(True, False),
             "prep_lvse_n_regions": space.Categorical(8, 16, 24, 32),
             "prep_lvse_k_per_region": space.Categorical(2, 4, 6, 8),
@@ -379,7 +375,7 @@ _PREP_STEP_DEFINITIONS = {
         },
     },
     "augmentation": {
-        "search_params": {
+        "search_params": lambda space: {
             "prep_aug_enabled": space.Categorical(True, False),
             "prep_aug_noise": space.Real(lower=0.001, upper=0.05, log=True),
             "prep_aug_shift": space.Categorical(0, 1, 2, 3),
@@ -445,9 +441,11 @@ def build_restricted_searchspace(restriction: dict | None) -> dict:
         Mapping of param_name → ``space.*`` object for AutoGluon HPO.
     """
     ss = {}
+    from autogluon.common import space
+
     for step_key, step_def in _PREP_STEP_DEFINITIONS.items():
         if restriction is None or restriction.get(step_key, False):
-            ss.update(step_def["search_params"])
+            ss.update(step_def["search_params"](space))
     return ss
 
 
@@ -583,6 +581,8 @@ class RamanPreprocessingMixin:
         return False
 
     def _get_default_auxiliary_params(self) -> dict:
+        from autogluon.common.features.types import S_BOOL
+
         default_auxiliary_params = super()._get_default_auxiliary_params()
         if self._has_stateful_prep_enabled():
             default_auxiliary_params["drop_unique"] = False
@@ -1360,6 +1360,8 @@ class RamanPreprocessingMixin:
         validation scoring) and the case where the recipe has already been
         applied to this X are passed through untouched.
         """
+        from raman_bench.splitting import GROUP_COL
+
         # The group id is only present in benchmark v2's inner group folds (see
         # RamanBenchTaskWrapper.keep_group_col): it is needed by TabArena's splitter, not as a feature.
         if isinstance(X, pd.DataFrame) and GROUP_COL in X.columns:

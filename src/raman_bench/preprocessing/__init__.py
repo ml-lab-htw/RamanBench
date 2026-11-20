@@ -96,3 +96,37 @@ __all__ = [
     "vector_normalize",
     "wavelet_denoise",
 ]
+
+# scikit-learn transformers (``raman_bench.preprocessing.transformers``), imported on first use so
+# that importing this package stays as light as the NumPy functions above.
+_TRANSFORMERS = (
+    "RamanPreprocessor",
+    "recipe_params",
+    "CosmicRayRemoval",
+    "Crop",
+    "PhysicalCrop",
+    "AsLSBaseline",
+    "AirPLSBaseline",
+    "ArPLSBaseline",
+    "RubberbandBaseline",
+    "MSC",
+    "EMSC",
+    "SavitzkyGolaySmoothing",
+    "WaveletDenoising",
+    "SavitzkyGolayDerivative",
+    "SNV",
+    "VectorNormalization",
+    "AveragePooling",
+    "Decimation",
+    "GCU",
+    "LVSE",
+)
+__all__ += list(_TRANSFORMERS)
+
+
+def __getattr__(name):
+    if name in _TRANSFORMERS:
+        from raman_bench.preprocessing import transformers
+
+        return getattr(transformers, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
