@@ -14,6 +14,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- The `raman-data` requirement rises from `>=1.6.6` to `>=1.9.0`, the first release with `soft_tissue_sarcoma`, `slopp`,
+  `slopp_e`, `vcl_pvcl_water` and `citric_acid_citrates`. Benchmark v1 does not use these keys.
 - The `tabarena` pin moves from `0642914d` (2026-11-08) to `bfa8c50c` (2026-11-13). The 13 commits in between
   change LightPFN (1.5: regression, a categorical adapter, faster GPU inference), the LimiX-2 inference
   configuration for LimiX-2-1016, and Seldon (regression); no new model is added. The extras in
