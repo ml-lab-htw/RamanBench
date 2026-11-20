@@ -14,9 +14,11 @@
 #   tabstar_v1p1  tabstar 1.2.0 caps transformers<5 but synthefy-nori needs transformers>=5.
 #                 The Dockerfile installs tabstar with --no-deps; peft and skrub are in
 #                 requirements-models-git.txt.
+#   lattice       lattice[fast] pins torch==2.7.1, which cannot be resolved with the nori extra's
+#                 torch>=2.8. Install it on top with requirements-lattice-git.txt (--no-deps).
 #   seldon        neuralk-oss needs a structured-data-models build that conflicts with
 #                 kumo_tabular. Use `pip install "tabarena[seldon]"` in its own env.
-tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm,tababax,inpriora,tabpack,lattice] @ git+https://github.com/autogluon/tabarena.git@39c3b4a8dcd18633551f9b1ff0585948250d8435#subdirectory=packages/tabarena
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm,tababax,inpriora,tabpack] @ git+https://github.com/autogluon/tabarena.git@39c3b4a8dcd18633551f9b1ff0585948250d8435#subdirectory=packages/tabarena
 
 # tabicl is pinned exactly: tabarena's extra is `tabicl>=2.0.0`, and a checkpoint with a key
 # an older build does not know either fails to load or silently changes the architecture.

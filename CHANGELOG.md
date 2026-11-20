@@ -17,13 +17,15 @@ The full rules are in [RELEASING.md](RELEASING.md).
 - Four models from upstream TabArena main, all GPU, all with binary, multiclass and regression: **Inpriora**
   (`INPRIORA`, Ant Group, Apache-2.0), **TabPack** (`TABPACK`, Yandex Research, Apache-2.0; an ensemble of MLPs),
   **Lattice** and **Lattice-tiny** (`LATTICE`, `LATTICE-TINY`, Nanjing University). The Lattice weights are
-  CC-BY-NC-4.0, non-commercial. Install their libraries with `pip install -r requirements-tabarena-git.txt`.
+  CC-BY-NC-4.0, non-commercial. Inpriora and TabPack install with `pip install -r requirements-tabarena-git.txt`;
+  Lattice needs `pip install --no-deps -r requirements-lattice-git.txt` because it pins `torch==2.7.1`, which cannot
+  be resolved together with the `nori` extra.
   They are in `configs/v1/scope_default.json`; no results yet.
 
 ### Changed
 
 - The `tabarena` pin moves from `bfa8c50c` (2026-11-13) to `39c3b4a8` (2026-11-20), for the four models above; the
-  extras `inpriora`, `tabpack` and `lattice` join the install line. The other commits in between change how TabArena stores
+  extras `inpriora` and `tabpack` join the install line. The other commits in between change how TabArena stores
   results only for bags fit with `oof_per_fold` (which RamanBench does not use) and touch its audit and reporting tools;
   no model RamanBench already runs changes.
 - `raman_bench.preprocessing.mixin` imports AutoGluon and TabArena only where they are used (HPO search space,
