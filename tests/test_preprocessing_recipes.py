@@ -73,3 +73,23 @@ def test_hyperparameters_are_the_transformers_parameters(spectra):
 def test_unknown_recipe():
     with pytest.raises(KeyError):
         R.recipe("snv_bc")
+
+
+def test_gcu_is_seeded(spectra, monkeypatch):
+    """GCU's NMF gets a fixed seed (default 0) in the mixin path, the transformer and RamanPFN, so repeated
+    fits agree; the seed is a parameter (``prep_gcu_random_state``, ``GCU(random_state=...)``)."""
+    from raman_bench.preprocessing import mixin
+    from raman_bench.models.custom.ramanpfn.model import RamanPFNModel
+
+    a = np.asarray(R.recipe("gcu").fit_transform(spectra), float)
+    b = np.asarray(R.recipe("gcu").fit_transform(spectra), float)
+    np.testing.assert_array_equal(a, b)
+    assert R.recipe_hyperparameters("gcu")["prep_gcu_random_state"] == 0
+    assert RamanPFNModel().get_params()["random_state"] == 0
+
+    seeds = []
+    real = mixin.gcu_fit
+    monkeypatch.setattr(mixin, "gcu_fit", lambda X, **kw: seeds.append(kw["random_state"]) or real(X, **kw))
+    T.GCU(random_state=7).fit(spectra)
+    R.recipe("gcu_lvse").fit(spectra)
+    assert seeds == [7, 0]
