@@ -15,7 +15,7 @@ Apache-2.0), with these changes for RamanBench:
   fits a minute; use 125 s for the limit of 30 fits an hour). A refused fit ("HTTP 429 ... Retry in N s") is still
   repeated after the server's wait, but with the pacing set to the hourly limit no fit is refused. A daily or
   monthly token limit is not retried, it fails the fold, so that a rerun picks it up after the reset;
-* spectra wider than ``MAX_COLUMNS`` (20000) are binned down to that by averaging neighbouring columns, the same for
+* spectra wider than ``MAX_COLUMNS`` (23000) are binned down to that by averaging neighbouring columns, the same for
   training and test rows (``raman_bench.preprocessing.raman_preprocessing.bin_columns``), as the API refuses more;
 * the protocol's 600 s budget is not sent as ``thinking_timeout_s`` (the API's maximum for the effort is, 7200 s
   at high), so a long thinking fit is not cut off;
@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from autogluon.core.metrics import Scorer
     from tabarena.benchmark.task.metadata import ValidationMetadata
 
-MAX_COLUMNS = 20000  # spectra wider than this are binned (the API takes up to 23000 columns at v3.5; 20000 as before)
+MAX_COLUMNS = 23000  # spectra wider than this are binned (the API takes up to 23000 columns at v3.5)
 _KEY_ENV = "TABPFN_TOKEN"
 _MAX_ATTEMPTS = 3  # transport errors and 5xx the client gave up on
 MIN_FIT_INTERVAL_S = 6.0  # the API allows 10 thinking fits a minute per account
