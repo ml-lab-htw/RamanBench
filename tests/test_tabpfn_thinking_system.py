@@ -33,7 +33,7 @@ class _Calls:
 
 
 @pytest.fixture
-def fake_client(monkeypatch):
+def fake_client(monkeypatch, tmp_path_factory):
     calls = _Calls()
 
     class _Estimator:
@@ -99,7 +99,8 @@ def fake_client(monkeypatch):
     monkeypatch.setitem(sys.modules, "tabpfn_client.client", client)
     monkeypatch.setitem(sys.modules, "tabpfn_client.errors", errors)
     monkeypatch.setenv("TABPFN_TOKEN", "test-token")
-    monkeypatch.setattr(system_module, "MIN_FIT_INTERVAL_S", 0.0)
+    monkeypatch.setenv(system_module.INTERVAL_ENV, "0")
+    monkeypatch.setenv(system_module.PACING_FILE_ENV, str(tmp_path_factory.mktemp("pacing") / "last_fit"))
     monkeypatch.setattr(system_module.time, "sleep", lambda s: calls.sleeps.append(s))
     return calls
 
@@ -179,3 +180,15 @@ def test_rate_limit_wait_only_for_request_limits():
     assert system_module.rate_limit_wait(RuntimeError(RATE_LIMIT_HOUR)) == 3539.0
     assert system_module.rate_limit_wait(RuntimeError(USAGE_LIMIT)) is None
     assert system_module.rate_limit_wait(RuntimeError("HTTP 500")) is None
+
+
+def test_fits_are_paced_through_one_lock_file(monkeypatch, tmp_path):
+    sleeps = []
+    monkeypatch.setattr(system_module.time, "sleep", sleeps.append)
+    monkeypatch.setenv(system_module.PACING_FILE_ENV, str(tmp_path / "last_fit"))
+    monkeypatch.setenv(system_module.INTERVAL_ENV, "125")
+
+    system_module.wait_for_fit_slot()  # the first fit goes at once
+    system_module.wait_for_fit_slot()  # the second waits out the interval (another process would, too)
+
+    assert len(sleeps) == 1 and sleeps[0] == pytest.approx(125, abs=1)

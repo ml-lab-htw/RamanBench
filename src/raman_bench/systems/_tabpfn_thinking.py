@@ -10,10 +10,11 @@ Apache-2.0), with these changes for RamanBench:
 
 * the task's group column is not sent to the API (``group_col``), and ``_group_id`` is dropped from ``X``: the
   v1 protocol gives no model the groups, so a grouped fit would be a different variant;
-* the API's rate limit is handled here: at least ``MIN_FIT_INTERVAL_S`` between two fits of a process (10 fits a
-  minute are allowed per account) and a refused fit ("HTTP 429 ... Retry in N s", for the per-minute or
-  per-hour limit) is repeated after the server's wait. A daily or monthly token limit is not retried, it fails
-  the fold, so that a rerun picks it up after the reset;
+* the API's rate limit is handled here: the thinking fits of all processes on a host are paced through a lock
+  file, at least ``TABPFN_FIT_INTERVAL_S`` seconds apart (default ``MIN_FIT_INTERVAL_S``, 6 s for the limit of 10
+  fits a minute; use 125 s for the limit of 30 fits an hour). A refused fit ("HTTP 429 ... Retry in N s") is still
+  repeated after the server's wait, but with the pacing set to the hourly limit no fit is refused. A daily or
+  monthly token limit is not retried, it fails the fold, so that a rerun picks it up after the reset;
 * ``effort`` is ``"high"`` by default.
 
 The key is read from ``TABPFN_TOKEN`` at fit time.
@@ -21,8 +22,10 @@ The key is read from ``TABPFN_TOKEN`` at fit time.
 
 from __future__ import annotations
 
+import fcntl
 import os
 import re
+import tempfile
 import time
 from typing import TYPE_CHECKING, ClassVar
 
@@ -43,7 +46,28 @@ _MAX_ATTEMPTS = 3  # transport errors and 5xx the client gave up on
 MIN_FIT_INTERVAL_S = 6.0  # the API allows 10 thinking fits a minute per account
 RATE_LIMIT_ATTEMPTS = 8  # refused fits repeated after the server's wait (a refusal can name a wait of up to an hour)
 _RETRY_IN = re.compile(r"Retry in (\d+(?:\.\d+)?)\s*s")
-_last_fit = float("-inf")
+INTERVAL_ENV = "TABPFN_FIT_INTERVAL_S"
+PACING_FILE_ENV = "TABPFN_PACING_FILE"
+
+
+def wait_for_fit_slot() -> None:
+    """Block until this host may submit the next thinking fit, then take the slot.
+
+    The time of the last submission lives in a lock file, so the worker processes of a run share one pace.
+    The lock is held while waiting, which lines the waiters up one fit per interval.
+    """
+    interval = float(os.environ.get(INTERVAL_ENV, MIN_FIT_INTERVAL_S))
+    path = os.environ.get(PACING_FILE_ENV, os.path.join(tempfile.gettempdir(), "tabpfn_thinking_pacing"))
+    with open(path, "a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        f.seek(0)
+        text = f.read().strip()
+        wait = (float(text) if text else 0.0) + interval - time.time()
+        if wait > 0:
+            time.sleep(wait)
+        f.seek(0)
+        f.truncate()
+        f.write(str(time.time()))
 
 
 def _model_limit():
@@ -162,7 +186,6 @@ class TabPFN35ThinkingSystemModel(ExternalSystemModel):
 
     def _call(self, what: str, rows: int, call: Callable[[], object], *, paced: bool = False) -> object:
         """Run one client call. A transient failure is repeated, and so is a rate-limit refusal (after its wait)."""
-        global _last_fit
         import httpx
         from tabpfn_client.errors import CappedRetryableServerError, EmptyResponseError, RetryableServerError
 
@@ -170,8 +193,7 @@ class TabPFN35ThinkingSystemModel(ExternalSystemModel):
         failure, start, attempt, refused = None, time.monotonic(), 1, 0
         while True:
             if paced:
-                time.sleep(max(0.0, _last_fit + MIN_FIT_INTERVAL_S - time.monotonic()))
-                _last_fit = time.monotonic()
+                wait_for_fit_slot()
             try:
                 out = call()
             except transient as exc:
