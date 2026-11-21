@@ -181,6 +181,15 @@ def test_usage_limit_is_not_retried(fake_client, tmp_path):
     assert not fake_client.fits and 101.0 not in fake_client.sleeps
 
 
+def test_wide_spectra_are_binned_the_same_for_fit_and_predict(fake_client, tmp_path, monkeypatch):
+    monkeypatch.setattr(system_module, "MAX_COLUMNS", 5)  # the task has 8 columns
+    _run(tmp_path, "regression")
+
+    (columns,) = fake_client.fits
+    assert columns == [f"f{i}" for i in range(5)]
+    assert system_module._bin(pd.DataFrame(np.zeros((2, 5)))).shape == (2, 5)  # not wider: left alone
+
+
 def test_rate_limit_wait_only_for_request_limits():
     assert system_module.rate_limit_wait(RuntimeError(RATE_LIMIT_HOUR)) == 3539.0
     assert system_module.rate_limit_wait(RuntimeError(USAGE_LIMIT)) is None
