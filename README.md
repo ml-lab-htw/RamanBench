@@ -124,7 +124,7 @@ dataset); the [agents](docs/contributor-agents.md) do the work. The manual route
 
 ## Citation
 
-RamanBench has been accepted at NeurIPS 2026. If you use RamanBench in your research, please cite:
+RamanBench has been accepted at NeurIPS 2026. If you use RamanBench in your research, please cite (also in [`CITATION.cff`](CITATION.cff), which GitHub shows as "Cite this repository"):
 
 ```bibtex
 @inproceedings{koddenbrock2026ramanbench,
