@@ -84,7 +84,8 @@ pipe = make_pipeline(SavitzkyGolayDerivative(order=1), SNV(), PLSRegression(n_co
 grid = GridSearchCV(pipe, {"savitzkygolayderivative__window_length": [9, 11, 15]}).fit(X_train, y_train)
 ```
 
-Unlike `RamanPreprocessor`, a hand-built pipeline runs the steps in the order you give. GCU takes
+Unlike `RamanPreprocessor`, a hand-built pipeline runs the steps in the order you give. Standard
+scaling has no one-step transformer; use scikit-learn's `StandardScaler` in a hand-built pipeline. GCU takes
 `random_state` (default 0); it is seeded everywhere, so a recipe with GCU is reproducible.
 
 ## Use a recipe with a benchmark model
