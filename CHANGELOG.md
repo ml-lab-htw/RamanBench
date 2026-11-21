@@ -14,6 +14,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **TabPFN-3.5-Thinking as a system** (`TABPFN-V3.5-THINKING`, `raman_bench.systems`, run with `scripts/run_system.py`): Prior Labs'
+  hosted model, one thinking fit per outer fold as Prior Labs asked, not through AutoGluon's bagging (about four API fits per
+  fold). Effort `high`, the key from `TABPFN_TOKEN`. It waits out the API's rate limit (10 fits a minute, 30 an hour; refused
+  fits are repeated after the server's wait) and does not send the group column. Based on the system in autogluon/tabarena#732.
+  `scripts/run_tabpfn_thinking.py`, which goes through `evaluate_estimator` and so bags, gives a different variant.
 - Four models from upstream TabArena main, all GPU, all with binary, multiclass and regression: **Inpriora**
   (`INPRIORA`, Ant Group, Apache-2.0), **TabPack** (`TABPACK`, Yandex Research, Apache-2.0; an ensemble of MLPs),
   **Lattice** and **Lattice-tiny** (`LATTICE`, `LATTICE-TINY`, Nanjing University). The Lattice weights are

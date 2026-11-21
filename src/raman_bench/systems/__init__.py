@@ -83,6 +83,12 @@ def _chakra_tab_cls():
     return ChakraTabSystemModel
 
 
+def _tabpfn_thinking_cls():
+    from raman_bench.systems._tabpfn_thinking import TabPFN35ThinkingSystemModel
+
+    return TabPFN35ThinkingSystemModel
+
+
 def _tabfm_plus_cls():
     from tabarena.systems.tabfm_plus.system import TabFMPlusSystemModel
 
@@ -145,6 +151,17 @@ SYSTEMS: dict[str, System] = {
         # One request holds the whole fold; at glioma_idh's 10000-row sample it is ~130 MB,
         # over the API's 100 MB request limit (HTTP 413). 5000 rows is ~65 MB.
         max_train_samples={"glioma_idh": 5000},
+    ),
+    # Prior Labs' hosted TabPFN-3.5-Thinking (tabpfn-client), one thinking fit per outer fold as Prior Labs asked,
+    # not through AutoGluon's bagging (see raman_bench.systems._tabpfn_thinking). The key comes from TABPFN_TOKEN.
+    # The account allows 30 thinking fits an hour, so a full pass of the 405 folds takes about 14 hours.
+    "TABPFN-V3.5-THINKING": System(
+        "TABPFN-V3.5-THINKING",
+        _tabpfn_thinking_cls,
+        "TabPFN-V3.5-Thinking-high",
+        {"effort": "high"},
+        env=("TABPFN_TOKEN",),
+        notes="hosted API; the data of every fold is sent to Prior Labs",
     ),
     # TabFM run through its heavier ``ensemble`` interface (TabArena's own TabFM+ system,
     # tabarena.systems.tabfm_plus; Google, non-commercial licence). Shares TABFM's
