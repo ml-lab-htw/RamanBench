@@ -134,7 +134,7 @@ def _run(tmp_path, problem_type, grouped=False):
         name=system.result_dir,
         system_cls=system.load_cls(),
         system_hyperparameters=dict(system.hyperparameters),
-        method_kwargs={"fit_kwargs": {"time_limit": 600, "num_cpus": 1}},
+        method_kwargs={"fit_kwargs": {"time_limit": None, "num_cpus": 1}},
         experiment_kwargs={"require_warmup": False},
     )
     return run_cached(experiment, task_name=task_name, task_wrapper=task, repeat=0, fold=1, results_dir=str(tmp_path))

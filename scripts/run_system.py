@@ -90,7 +90,7 @@ def run_one(
         logger.warning("%s has no usable rows; skipped", task)
         return None
 
-    time_limit = time_limit or task_time_limit(protocol, dataset_name)
+    time_limit = None if system.unlimited_time else (time_limit or task_time_limit(protocol, dataset_name))
     experiment = ExternalSystemExperiment(
         name=system.result_dir,
         system_cls=system.load_cls(),

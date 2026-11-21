@@ -114,6 +114,8 @@ class System:
     # of this and the protocol's own sample wins; the fold check accepts it as match_capped).
     # An int applies to every dataset, a dict only to the datasets it names.
     max_train_samples: int | dict[str, int] | None = None
+    # True: no time limit is passed to the system (``time_limit=None``), whatever the protocol's budget says.
+    unlimited_time: bool = False
 
     def train_sample_cap(self, dataset: str) -> int | None:
         if isinstance(self.max_train_samples, dict):
@@ -162,6 +164,7 @@ SYSTEMS: dict[str, System] = {
         {"effort": "high"},
         env=("TABPFN_TOKEN",),
         notes="hosted API; the data of every fold is sent to Prior Labs",
+        unlimited_time=True,  # a thinking fit takes far longer than the protocol's 600 s
     ),
     # TabFM run through its heavier ``ensemble`` interface (TabArena's own TabFM+ system,
     # tabarena.systems.tabfm_plus; Google, non-commercial licence). Shares TABFM's
