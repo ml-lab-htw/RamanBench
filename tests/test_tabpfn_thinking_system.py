@@ -82,7 +82,12 @@ def fake_client(monkeypatch, tmp_path_factory):
     class _Service:
         @classmethod
         def get_settings(cls):
-            return None
+            return types.SimpleNamespace(
+                max_model_limit=None,
+                thinking_default_model_version="v3.5",
+                thinking_model_limits={"v3.5": types.SimpleNamespace(max_timeout_secs={"high": 7200.0})},
+                thinking_max_timeout_secs=57600.0,
+            )
 
     class _Retryable(Exception):
         pass
@@ -141,7 +146,7 @@ def test_one_thinking_fit_per_outer_fold(fake_client, tmp_path, problem_type):
 
     assert len(fake_client.fits) == 1 and len(fake_client.inits) == 1  # one fit: no bag children, no refit
     (init,) = fake_client.inits
-    assert init["thinking_effort"] == "high" and init["thinking_timeout_s"] == 600.0
+    assert init["thinking_effort"] == "high" and init["thinking_timeout_s"] == 7200.0  # the API's cap, not the 600 s budget
     assert init["thinking_metric"] and isinstance(init["random_state"], int)
     assert out["framework"] == "TabPFN-V3.5-Thinking-high"
     assert out["method_metadata"]["effort"] == "high" and out["method_metadata"]["api_fit_s"] == 2.0

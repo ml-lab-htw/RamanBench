@@ -15,6 +15,8 @@ Apache-2.0), with these changes for RamanBench:
   fits a minute; use 125 s for the limit of 30 fits an hour). A refused fit ("HTTP 429 ... Retry in N s") is still
   repeated after the server's wait, but with the pacing set to the hourly limit no fit is refused. A daily or
   monthly token limit is not retried, it fails the fold, so that a rerun picks it up after the reset;
+* the protocol's 600 s budget is not sent as ``thinking_timeout_s`` (the API's maximum for the effort is, 7200 s
+  at high), so a long thinking fit is not cut off;
 * ``effort`` is ``"high"`` by default.
 
 The key is read from ``TABPFN_TOKEN`` at fit time.
@@ -108,7 +110,7 @@ class TabPFN35ThinkingSystemModel(ExternalSystemModel):
 
     Init hyperparameter ``effort``: the thinking effort (``"micro"``, ``"mini"``, ``"low"``, ``"medium"``, ``"high"``,
     ``"xhigh"``, ``"max"``). The task's metric goes to the API as ``thinking_metric``, the split's seed as
-    ``random_state`` and the time limit as ``thinking_timeout_s`` (capped at what the API takes at this effort).
+    ``random_state``. ``thinking_timeout_s`` is the longest the API takes at this effort, not the protocol's 600 s.
     A prediction larger than one API call allows is sent as several calls over consecutive row blocks.
     ``get_metadata`` holds the client version, the server's timings and service version and every call's attempts,
     which the runner stores with the result.
@@ -151,10 +153,10 @@ class TabPFN35ThinkingSystemModel(ExternalSystemModel):
         estimator_cls = TabPFNRegressor if problem_type == "regression" else TabPFNClassifier
         if problem_type != "regression" and y.dtype == object:
             y = y.infer_objects()
-        self._timeout_s = None if time_limit is None else float(time_limit)
-        cap = None if self._timeout_s is None else _timeout_cap(self.effort)
-        if cap is not None:
-            self._timeout_s = min(self._timeout_s, cap)
+        # The protocol's 600 s budget is not sent: a thinking fit at effort high takes 20+ minutes, and the API
+        # stops a fit at ``thinking_timeout_s``. The API's own maximum for the effort is used (``None`` lets the
+        # server apply its default when it names none).
+        self._timeout_s = _timeout_cap(self.effort)
         self._estimator = estimator_cls(
             thinking_effort=self.effort,
             thinking_timeout_s=self._timeout_s,
