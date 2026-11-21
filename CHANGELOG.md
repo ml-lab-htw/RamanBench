@@ -24,6 +24,10 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- The README is now a short overview (146 lines instead of 859). The details moved to `docs/`: installation,
+  comparing a model, the preprocessing interface, models, protocol, architecture, running the benchmark and the
+  contributor agents, indexed in `docs/README.md`. The preprocessing transformers and recipes have their own page,
+  `docs/preprocessing.md`.
 - The `tabarena` pin moves from `bfa8c50c` (2026-11-13) to `39c3b4a8` (2026-11-20), for the four models above; the
   extras `inpriora` and `tabpack` join the install line. The other commits in between change how TabArena stores
   results only for bags fit with `oof_per_fold` (which RamanBench does not use) and touch its audit and reporting tools;
