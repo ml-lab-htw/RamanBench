@@ -55,7 +55,7 @@ model = make_pipeline(recipe("bc_snv_avgpool"), PLSRegression(n_components=10))
 | `airpls_snv`, `arpls_snv` | airPLS or arPLS baseline, SNV |
 | `crr_snv` | cosmic-ray removal, SNV |
 | `sg_d1_snv`, `sg_d2_snv` | Savitzky-Golay first or second derivative, SNV |
-| `sg_rubberband_snv` | Savitzky-Golay smoothing, rubber-band baseline, SNV |
+| `sg_rubberband_snv` | Savitzky-Golay smoothing, rubberband baseline, SNV |
 | `wavelet_bc_snv` | wavelet denoising, AsLS baseline, SNV |
 | `all` | cosmic-ray removal, smoothing, AsLS baseline, MSC, SNV, standard scaling |
 | `gcu_lvse` | GCU and LVSE, concatenated |

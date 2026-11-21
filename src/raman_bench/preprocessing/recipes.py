@@ -43,7 +43,7 @@ STEP_NAMES = {
     "baseline_correction": "AsLS baseline",
     "airpls": "airPLS baseline",
     "arpls": "arPLS baseline",
-    "rubberband": "rubber-band baseline",
+    "rubberband": "rubberband baseline",
     "avgpool": "average pooling",
     "decimate": "decimation",
     "msc": "MSC",

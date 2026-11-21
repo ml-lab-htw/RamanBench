@@ -70,6 +70,11 @@ def test_hyperparameters_are_the_transformers_parameters(spectra):
     assert R.recipe_hyperparameters("none")["prep_snv_enabled"] is False
 
 
+def test_descriptions():
+    assert R.recipe_description("sg_rubberband_snv") == "Savitzky-Golay smoothing -> rubberband baseline -> SNV"
+    assert R.recipe_description("bc_snv_avgpool") == "AsLS baseline -> SNV -> average pooling"
+
+
 def test_unknown_recipe():
     with pytest.raises(KeyError):
         R.recipe("snv_bc")

@@ -32,6 +32,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
   extras `inpriora` and `tabpack` join the install line. The other commits in between change how TabArena stores
   results only for bags fit with `oof_per_fold` (which RamanBench does not use) and touch its audit and reporting tools;
   no model RamanBench already runs changes.
+- `recipe_description` spells the step "rubberband baseline" (was "rubber-band baseline"), as the Raman
+  preprocessing paper does; the step itself is unchanged.
 
 ## [1.6.0] — 2026-11-20
 
