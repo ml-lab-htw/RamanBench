@@ -27,6 +27,7 @@ import argparse
 import logging
 import os
 import sys
+import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -119,7 +120,13 @@ def _run_job(kwargs: dict) -> tuple[str, int, str]:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", force=True)
     start = time.monotonic()
     try:
-        out = run_one(**kwargs)
+        # Each fold gets its own OpenML cache: the local task a fold builds is stored under a name shared by all folds
+        # of a task, and workers writing it at once corrupted it ("Unknown file type for file 'ignored'").
+        import openml
+
+        with tempfile.TemporaryDirectory(prefix="openml_cache_") as openml_cache:
+            openml.config.set_root_cache_directory(openml_cache)
+            out = run_one(**kwargs)
     except Exception as e:  # one failed fold must not stop the others
         logger.exception("%s fold %d failed", kwargs["task"], kwargs["fold"])
         return kwargs["task"], kwargs["fold"], f"FAILED {type(e).__name__}: {str(e)[:200]}"
