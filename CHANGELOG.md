@@ -14,6 +14,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- `CITATION.cff`: the software's metadata with the NeurIPS paper as the preferred citation, so GitHub shows
+  "Cite this repository"; its version is part of the release steps.
+
 - Four models from upstream TabArena main, all GPU, all with binary, multiclass and regression: **Inpriora**
   (`INPRIORA`, Ant Group, Apache-2.0), **TabPack** (`TABPACK`, Yandex Research, Apache-2.0; an ensemble of MLPs),
   **Lattice** and **Lattice-tiny** (`LATTICE`, `LATTICE-TINY`, Nanjing University). The Lattice weights are

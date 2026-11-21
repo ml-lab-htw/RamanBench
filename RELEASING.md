@@ -42,8 +42,9 @@ Notes:
 
 ## Release steps
 
-1. On a branch, set `version` in `pyproject.toml` and `__version__` in
-   `src/raman_bench/__init__.py`.
+1. On a branch, set `version` in `pyproject.toml`, `__version__` in
+   `src/raman_bench/__init__.py` and `version` in `CITATION.cff` (`tests/test_version.py` checks that the
+   three agree).
 2. In CHANGELOG.md, rename `## [Unreleased]` to `## [X.Y.Z] — YYYY-MM-DD` and add a new
    empty `## [Unreleased]` above it.
 3. Open a PR titled `Release vX.Y.Z: <summary>` and merge it once CI passes.

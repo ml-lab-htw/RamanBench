@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: "If you use RamanBench in your research, please cite the paper below."
+title: "RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy"
+type: software
+license: MIT
+version: "1.6.0"
+repository-code: "https://github.com/ml-lab-htw/RamanBench"
+url: "https://pypi.org/project/raman-bench/"
+keywords:
+  - raman
+  - spectroscopy
+  - benchmark
+  - machine-learning
+authors:
+  - family-names: Koddenbrock
+    given-names: Mario
+  - family-names: Lange
+    given-names: Christoph
+preferred-citation:
+  type: conference-paper
+  title: "RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy"
+  authors:
+    - family-names: Koddenbrock
+      given-names: Mario
+    - family-names: Lange
+      given-names: Christoph
+    - family-names: Legner
+      given-names: Robin
+    - family-names: Jäger
+      given-names: Martin
+    - family-names: Kögler
+      given-names: Martin
+    - family-names: Cruz Bournazou
+      given-names: Mariano N.
+    - family-names: Neubauer
+      given-names: Peter
+    - family-names: Biessmann
+      given-names: Felix
+    - family-names: Rodner
+      given-names: Erik
+  collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+  year: 2026
+  identifiers:
+    - type: url
+      value: "https://arxiv.org/abs/2605.02003"
+      description: "arXiv preprint arXiv:2605.02003"
