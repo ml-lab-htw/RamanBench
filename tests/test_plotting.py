@@ -257,7 +257,7 @@ def test_new_models():
 def test_closed_api_models_are_marked_once_per_note():
     assert model_info.display_name("CHAKRA-TAB") == "Chakra-Tab (API)" + model_info.CLOSED_API_MARK
     notes = model_info.figure_notes(" ".join(model_info.display_name(m) for m in ("CHAKRA-TAB", "CHAKRA-TAB-FULL", "RF")))
-    assert notes == [f"{model_info.CLOSED_API_MARK} Chakra-Tab (API), Chakra-Tab full (API): {model_info.CLOSED_API['CHAKRA-TAB']}"]
+    assert notes == [f"{model_info.CLOSED_API_MARK} API"]  # one short note, however many models carry the mark
 
 
 def test_figure_notes_explain_marks():

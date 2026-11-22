@@ -192,6 +192,8 @@ CLOSED_API = {
     "TABPFN-V3.5-THINKING": "Thinking mode runs only on Prior Labs' hosted API; the data of every fold is sent there.",
 }
 CLOSED_API_MARK = "‡"
+#: The one-line footnote under a figure for each mark.
+MARK_NOTES = {CONTAMINATION_MARK: "RamanPFN: developed on v0.1 data (arXiv:2608.02157)", CLOSED_API_MARK: "API"}
 
 
 def _marks(model: str) -> list[tuple[str, str]]:
@@ -215,21 +217,19 @@ def is_new(model: str) -> bool:
 
 #: Name suffix for a model ranked across all tasks that was evaluated on one task type only.
 SUBSET_TAGS = {"classification": "clf. only", "regression": "reg. only"}
-SUBSET_NOTE = (
-    "(clf. only) / (reg. only): model runs one task type only and is evaluated on that subset; its Elo "
-    "comes from comparisons on those tasks, on the same Random Forest = 1000 scale, with no imputation."
-)
+SUBSET_NOTE = "(clf. only) / (reg. only): evaluated on one task type only."
 
 
 def figure_notes(text: str) -> list[str]:
     """Footnotes a figure needs, given all the text it shows (model names, labels, ...)."""
-    # One note per explanation, naming every shown model it applies to.
-    shown: dict[tuple[str, str], list[str]] = {}
-    for m in {**KNOWN_CONTAMINATION, **CLOSED_API}:
-        if display_name(m) in text:
-            for flag in _marks(m):
-                shown.setdefault(flag, []).append(display_name(m, mark=False))
-    notes = [f"{mark} {', '.join(names)}: {note}" for (mark, note), names in shown.items()]
+    # One short note per mark, however many shown models carry it; the long reasons stay in the leaderboard.
+    marks = {
+        mark
+        for m in {**KNOWN_CONTAMINATION, **CLOSED_API}
+        if display_name(m) in text
+        for mark, _ in _marks(m)
+    }
+    notes = [f"{mark} {MARK_NOTES[mark]}" for mark in (CONTAMINATION_MARK, CLOSED_API_MARK) if mark in marks]
     if any(f"({tag})" in text for tag in SUBSET_TAGS.values()):
         notes.append(SUBSET_NOTE)
     return notes
