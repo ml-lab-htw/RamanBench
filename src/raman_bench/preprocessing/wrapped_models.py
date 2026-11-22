@@ -245,6 +245,12 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "AgenticMLPModel": "tabarena.models.agentic_mlp.model",
     "AgenticTabMModel": "tabarena.models.agentic_tabm.model",
     "PrismBoostModel": "tabarena.models.prismboost.model",
+    # Inpriora, TabPack, Lattice and Lattice-tiny (2026-11-16 to 2026-11-20): upstream TabArena main, own pip
+    # packages via TabArena extras of the same name (requirements-tabarena-git.txt).
+    "InprioraModel": "tabarena.models.inpriora.model",
+    "TabPackModel": "tabarena.models.tabpack.model",
+    "LatticeModel": "tabarena.models.lattice.model",
+    "LatticeTinyModel": "tabarena.models.lattice.model",
 }
 _missing_optional_tabarena_models = []
 for _name, _module_path in _OPTIONAL_TABARENA_MODEL_IMPORTS.items():
@@ -996,6 +1002,13 @@ Prep_TABABAX = _make_optional_prep_class("Prep_TABABAX", TabAbaxModel, ag_key="T
 # Yandex agentic MLP-A and TabM-A (TA-MLP-A / TA-TABM-A): binary, multiclass and regression. Installed from git.
 Prep_MLP_A = _make_optional_prep_class("Prep_MLP_A", AgenticMLPModel, ag_key="MLP-A")
 Prep_TABM_A = _make_optional_prep_class("Prep_TABM_A", AgenticTabMModel, ag_key="TABM-A")
+# Inpriora (TA-INPRIORA, Ant Group, Apache-2.0), TabPack (TA-TABPACK, Yandex Research, Apache-2.0: an ensemble of
+# MLPs) and Lattice / Lattice-tiny (TA-LATTICE / TA-LATTICE-TINY, Nanjing University; the weights are CC-BY-NC-4.0,
+# non-commercial): GPU, binary, multiclass and regression. ag_key without the "TA-" staging prefix, as the models above.
+Prep_INPRIORA = _make_optional_prep_class("Prep_INPRIORA", InprioraModel, ag_key="INPRIORA")
+Prep_TABPACK = _make_optional_prep_class("Prep_TABPACK", TabPackModel, ag_key="TABPACK")
+Prep_LATTICE = _make_optional_prep_class("Prep_LATTICE", LatticeModel, ag_key="LATTICE")
+Prep_LATTICE_TINY = _make_optional_prep_class("Prep_LATTICE_TINY", LatticeTinyModel, ag_key="LATTICE-TINY")
 # PrismBoost (2026-10-09, autogluon/tabarena#629): gradient boosting with SEFR oblique
 # splits. CPU, single-threaded C++ core (``num_cpus`` is unused upstream), all problem
 # types, no max_features/max_rows/max_classes cap. Its wrapper hands 95% of the remaining
@@ -1498,6 +1511,10 @@ PREPROCESSED_MODELS = {
     "TABABAX": Prep_TABABAX,
     "MLP-A": Prep_MLP_A,
     "TABM-A": Prep_TABM_A,
+    "INPRIORA": Prep_INPRIORA,
+    "TABPACK": Prep_TABPACK,
+    "LATTICE": Prep_LATTICE,
+    "LATTICE-TINY": Prep_LATTICE_TINY,
     "PRISMBOOST": Prep_PRISMBOOST,
 }
 

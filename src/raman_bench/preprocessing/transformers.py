@@ -383,10 +383,11 @@ class GCU(_OneStep):
     """Global compositional unmixing: the spectra replaced by their weights on ``rho`` non-negative
     components fitted on the training spectra (RamanPFN, arXiv:2608.02157)."""
 
-    _STEP, _PARAMS = "gcu", {"rho": "prep_gcu_rho"}
+    _STEP, _PARAMS = "gcu", {"rho": "prep_gcu_rho", "random_state": "prep_gcu_random_state"}
 
-    def __init__(self, rho: int = 16):
+    def __init__(self, rho: int = 16, random_state: int | None = 0):
         self.rho = rho
+        self.random_state = random_state
 
 
 class LVSE(_OneStep):
