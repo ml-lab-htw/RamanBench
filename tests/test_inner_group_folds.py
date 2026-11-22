@@ -57,6 +57,19 @@ def test_models_drop_the_group_column_before_fitting():
     assert list(model._preprocess(X).columns) == ["f0", "f1"]
 
 
+def test_group_column_leaves_the_feature_metadata_too():
+    pytest.importorskip("autogluon.tabular")
+    from autogluon.common.features.feature_metadata import FeatureMetadata
+    from raman_bench.models.custom.ridge.model import Prep_RIDGE
+
+    X = pd.DataFrame({"f0": [1.0, 2.0], "f1": [3.0, 4.0], GROUP_COL: ["a", "b"]})
+    model = Prep_RIDGE()
+    model._feature_metadata = FeatureMetadata.from_df(X)
+    assert GROUP_COL in model._feature_metadata.get_features()
+    model._preprocess(X)
+    assert GROUP_COL not in model._feature_metadata.get_features()  # TabPack read its categorical list from here
+
+
 def test_inner_folds_are_group_disjoint_when_kept():
     pytest.importorskip("data_foundry")
     from tabarena.benchmark.exec_models.autogluon_utils import resolve_validation_splits
