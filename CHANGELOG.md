@@ -23,6 +23,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
   time limit (`System.unlimited_time`), so no fit is cut off by the 600 s protocol budget. Spectra wider than the API's 23,000
   columns would be binned (none are; the widest task has about 11,700). Fits from parallel workers are spaced through a lock
   file (`TABPFN_FIT_INTERVAL_S`, 125 s) to stay under 30 an hour. All 405 folds ran with 0 failures.
+- Plots: with an explicit highlight list (`highlight=` in `compare` and `generate_all`, `--highlight` in `plot_results.py` and
+  `plot_tradeoff_100k.py`), the Pareto-optimal models of the trade-off plots stay coloured instead of turning grey.
 - Four models from upstream TabArena main, all GPU, all with binary, multiclass and regression: **Inpriora**
   (`INPRIORA`, Ant Group, Apache-2.0), **TabPack** (`TABPACK`, Yandex Research, Apache-2.0; an ensemble of MLPs),
   **Lattice** and **Lattice-tiny** (`LATTICE`, `LATTICE-TINY`, Nanjing University). The Lattice weights are

@@ -340,3 +340,25 @@ def test_thinking_system_is_a_named_new_tabular_foundation_model():
     assert model_info.is_new(key)
     assert model_info.display_name(key) == "TabPFN v3.5 Thinking (API)" + model_info.CLOSED_API_MARK
     assert model_info.display_name(key, mark=False) == "TabPFN v3.5 Thinking (API)"
+
+
+def test_pareto_optimal_models_stay_coloured_with_an_explicit_highlight():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from raman_bench.plotting import static
+
+    lb = pd.DataFrame(
+        {
+            "median_time_total_per_1k_s": [1.0, 10.0, 100.0, 50.0],
+            "elo": [1100.0, 1300.0, 1500.0, 1200.0],  # A, B, C are on the front; D is dominated by B
+            "display_name": ["A", "B", "C", "D"],
+        },
+        index=["A", "B", "C", "D"],
+    )
+    fig, ax = plt.subplots()
+    static._tradeoff_ax(ax, lb, "elo", "Elo", True, {"D"}, "t", strict=True)
+    muted, shown = ax.collections[:2]  # scatter order in _tradeoff_ax
+    assert len(muted.get_offsets()) == 0 and len(shown.get_offsets()) == 4  # D (highlighted) plus the front A, B, C
+    plt.close(fig)
