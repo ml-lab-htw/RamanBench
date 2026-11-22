@@ -333,3 +333,10 @@ def test_highlight_colours_only_the_listed_models(tmp_path, monkeypatch):
     )
     assert seen and all(focus == {model} and strict for focus, strict in seen)
     assert (tmp_path / "figures" / "static" / "elo_ranking_combined.png").exists()
+
+
+def test_thinking_system_is_a_named_new_tabular_foundation_model():
+    key = "TABPFN-V3.5-THINKING"
+    assert model_info.is_new(key)
+    assert model_info.display_name(key) == "TabPFN v3.5 Thinking (API)" + model_info.CLOSED_API_MARK
+    assert model_info.display_name(key, mark=False) == "TabPFN v3.5 Thinking (API)"

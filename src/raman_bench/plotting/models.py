@@ -149,6 +149,8 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     # models fitted and ensembled behind YHat Labs' endpoint, closed source.
     "CHAKRA-TAB": ("Chakra-Tab (API)", "Tabular Foundation", 2026 + 9 / 12),  # 2026-10
     "CHAKRA-TAB-FULL": ("Chakra-Tab full (API)", "Tabular Foundation", 2026 + 9 / 12),
+    # TabPFN-3.5's thinking mode runs only on Prior Labs' API (raman_bench.systems); one fit per outer fold.
+    "TABPFN-V3.5-THINKING": ("TabPFN v3.5 Thinking (API)", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-15
     "TABFM-PLUS": ("TabFM+", "Tabular Foundation", 2026 + 5 / 12),  # 2026-06-30, TabFM's ensemble interface
     # Time-series classifiers (classification only)
     "ROCKET": ("ROCKET", "TS Classification", 2019 + 9 / 12),  # Dempster et al., 2019-10
@@ -187,6 +189,7 @@ CONTAMINATION_MARK = "†"
 CLOSED_API = {
     "CHAKRA-TAB": "Closed-source hosted API (YHat Labs); model and code are not public.",
     "CHAKRA-TAB-FULL": "Closed-source hosted API (YHat Labs); model and code are not public.",
+    "TABPFN-V3.5-THINKING": "Thinking mode runs only on Prior Labs' hosted API; the data of every fold is sent there.",
 }
 CLOSED_API_MARK = "‡"
 
@@ -201,6 +204,7 @@ def _marks(model: str) -> list[tuple[str, str]]:
 #: Models highlighted as new in the ``elo_vs_time_new*`` figures (:func:`is_new`).
 NEW_MODELS = frozenset({
     "TABDPT-V1.3", "LIGHTPFN", "PRISMBOOST", "TABFM-PLUS", "CHAKRA-TAB", "CHAKRA-TAB-FULL", "HIVECOTEV2",
+    "TABPFN-V3.5-THINKING",
 })
 
 
