@@ -352,7 +352,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: 
                        hoverinfo="skip", showlegend=False),
             row=1, col=col,
         )
-        labelled = focus[g] if strict else focus[g] | set(front.index)
+        labelled = focus[g] | set(front.index)
         for cat, sub in _by_category(lb):
             focused, full = _colors(sub.index, labelled)  # Pareto-optimal models stay coloured
             fig.add_trace(

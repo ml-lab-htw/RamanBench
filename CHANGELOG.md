@@ -14,9 +14,20 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **TabPFN-3.5-Thinking as a system** (`TABPFN-V3.5-THINKING`, `raman_bench.systems`, run with `scripts/run_system.py`): Prior Labs'
+  hosted model, one thinking fit per outer fold as Prior Labs asked, not through AutoGluon's bagging (about four API fits per
+  fold). Effort `high`, the key from `TABPFN_TOKEN`. It waits out the API's rate limit (10 fits a minute, 30 an hour; refused
+  fits are repeated after the server's wait) and does not send the group column. Based on the system in autogluon/tabarena#732.
+  `scripts/run_tabpfn_thinking.py`, which goes through `evaluate_estimator` and so bags, gives a different variant.
+  The API's own timeout cap for the effort (7200 s at `high`) is sent as `thinking_timeout_s`, and the system has no outer
+  time limit (`System.unlimited_time`), so no fit is cut off by the 600 s protocol budget. Spectra wider than the API's 23,000
+  columns would be binned (none are; the widest task has about 11,700). Fits from parallel workers are spaced through a lock
+  file (`TABPFN_FIT_INTERVAL_S`, 125 s) to stay under 30 an hour. All 405 folds ran with 0 failures.
+- Plots: with an explicit highlight list (`highlight=` in `compare` and `generate_all`, `--highlight` in `plot_results.py` and
+  `plot_tradeoff_100k.py`), the Pareto-optimal models of the trade-off plots stay coloured instead of turning grey.
+- The footnotes under the leaderboard figures are one short line per mark (`‡ API`) instead of a sentence naming every model.
 - `CITATION.cff`: the software's metadata with the NeurIPS paper as the preferred citation, so GitHub shows
   "Cite this repository"; its version is part of the release steps.
-
 - Four models from upstream TabArena main, all GPU, all with binary, multiclass and regression: **Inpriora**
   (`INPRIORA`, Ant Group, Apache-2.0), **TabPack** (`TABPACK`, Yandex Research, Apache-2.0; an ensemble of MLPs),
   **Lattice** and **Lattice-tiny** (`LATTICE`, `LATTICE-TINY`, Nanjing University). The Lattice weights are
@@ -26,6 +37,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
   They are in `configs/v1/scope_default.json`; no results yet.
 
 ### Changed
+
+- `scripts/run_system.py` gives every fold its own OpenML cache directory. Parallel workers (`--workers`) shared one, and one
+  worker could read a dataset file another was still writing ("Unknown file type for file 'ignored'").
 
 - The README is now a short overview (146 lines instead of 859). The details moved to `docs/`: installation,
   comparing a model, the preprocessing interface, models, protocol, architecture, running the benchmark and the

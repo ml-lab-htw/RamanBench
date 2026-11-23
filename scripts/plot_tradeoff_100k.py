@@ -1,7 +1,7 @@
 """Elo vs. median time per 100K spectra for a chosen set of models (e.g. the newest ones), log x-axis.
 
 Reads a ``leaderboard_*.csv`` written by ``scripts/plot_results.py`` and draws one figure per time
-measure: train + predict, and inference only. Only the models in ``--highlight`` are coloured; the
+measure: train + predict, and inference only. Only the models in ``--highlight`` and the Pareto-optimal ones are coloured; the
 labels get a white background so the reference lines do not run through the names, and the footnote
 under the figure is left out.
 

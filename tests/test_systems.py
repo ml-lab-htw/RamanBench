@@ -119,7 +119,9 @@ def test_metadata_of_a_system_that_reports_none():
 
 
 def test_every_system_names_its_result_dir_and_key():
-    assert {s.result_dir for s in SYSTEMS.values()} == {"Chakra-Tab-medium", "Chakra-Tab-full", "TabFM-Plus"}
+    assert {s.result_dir for s in SYSTEMS.values()} == {
+        "Chakra-Tab-medium", "Chakra-Tab-full", "TabFM-Plus", "TabLDM-Plus", "TabPFN-V3.5-Thinking-high",
+    }
     assert all(k == s.key for k, s in SYSTEMS.items())
     with pytest.raises(KeyError, match="Unknown system"):
         get_system("nope")

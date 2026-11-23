@@ -84,8 +84,8 @@ def generate_all(
 
     ``focus_top_k`` models per category (by Elo) are drawn in colour, the rest
     in grey; ``None``/``0`` colours every model. ``highlight`` (model keys) replaces that
-    selection: only the listed models are coloured, everything else (Pareto-optimal models
-    and record holders included) is grey. ``dataset_figures`` adds Figures 1-3
+    selection: only the listed models are coloured, everything else is grey, except that the
+    Pareto-optimal models of the trade-off plots always stay coloured. ``dataset_figures`` adds Figures 1-3
     (:mod:`raman_bench.plotting.overview`), which read dataset metadata from raman_data
     and the RamanBench mirror. Returns ``{figure: [paths]}``.
     """
