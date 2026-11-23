@@ -125,10 +125,10 @@ def _task(problem_type, n=60, grouped=False, seed=0):
     )
 
 
-def _run(tmp_path, problem_type, grouped=False):
+def _run(tmp_path, problem_type, grouped=False, system_key="tabpfn-v3.5-thinking"):
     from tabarena.benchmark.experiment.experiment_constructor import ExternalSystemExperiment
 
-    system = get_system("tabpfn-v3.5-thinking")
+    system = get_system(system_key)
     task_name, task = _task(problem_type, grouped=grouped)
     experiment = ExternalSystemExperiment(
         name=system.result_dir,
@@ -153,6 +153,15 @@ def test_one_thinking_fit_per_outer_fold(fake_client, tmp_path, problem_type):
     assert out["method_metadata"]["api_calls"][0]["call"] == "fit"
     sa = out["simulation_artifacts"]  # test predictions are stored like every other v1 result
     assert len(sa["y_test_idx"]) == sum(fake_client.predicts)
+
+
+def test_max_effort_system_asks_for_max_and_the_servers_overall_cap(fake_client, tmp_path):
+    out = _run(tmp_path, "regression", system_key="tabpfn-v3.5-thinking-max")
+
+    (init,) = fake_client.inits
+    assert init["thinking_effort"] == "max"
+    assert init["thinking_timeout_s"] == 57600.0  # the fake server lists no cap for max: the overall one
+    assert out["framework"] == "TabPFN-V3.5-Thinking-max" and out["method_metadata"]["effort"] == "max"
 
 
 def test_groups_are_not_sent(fake_client, tmp_path):
