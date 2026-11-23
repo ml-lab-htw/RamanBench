@@ -267,9 +267,9 @@ def _tradeoff_ax(ax, lb, metric, label, higher_is_better, focus, title, strict=F
     df = lb.dropna(subset=[x, metric])
     front = pareto_front(df, x, metric, higher_is_better)
     _reference_lines(ax, refs, metric)
-    # Pareto-optimal models always keep their colour: they are the trade-off's answer.
-    # With ``strict`` (an explicit highlight list) only the focus set is coloured.
-    highlight = focus if strict else focus | set(front.index)
+    # Pareto-optimal models always keep their colour, also with an explicit highlight list: they are the
+    # trade-off's answer.
+    highlight = focus | set(front.index)
     muted = df[~df.index.isin(highlight)]
     shown = df[df.index.isin(highlight)]
     ax.scatter(muted[x], muted[metric], s=28, color=model_info.MUTED_COLOR, zorder=2, linewidths=0)

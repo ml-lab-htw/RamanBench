@@ -257,7 +257,7 @@ def test_new_models():
 def test_closed_api_models_are_marked_once_per_note():
     assert model_info.display_name("CHAKRA-TAB") == "Chakra-Tab (API)" + model_info.CLOSED_API_MARK
     notes = model_info.figure_notes(" ".join(model_info.display_name(m) for m in ("CHAKRA-TAB", "CHAKRA-TAB-FULL", "RF")))
-    assert notes == [f"{model_info.CLOSED_API_MARK} Chakra-Tab (API), Chakra-Tab full (API): {model_info.CLOSED_API['CHAKRA-TAB']}"]
+    assert notes == [f"{model_info.CLOSED_API_MARK} API"]  # one short note, however many models carry the mark
 
 
 def test_figure_notes_explain_marks():
@@ -333,3 +333,32 @@ def test_highlight_colours_only_the_listed_models(tmp_path, monkeypatch):
     )
     assert seen and all(focus == {model} and strict for focus, strict in seen)
     assert (tmp_path / "figures" / "static" / "elo_ranking_combined.png").exists()
+
+
+def test_thinking_system_is_a_named_new_tabular_foundation_model():
+    key = "TABPFN-V3.5-THINKING"
+    assert model_info.is_new(key)
+    assert model_info.display_name(key) == "TabPFN v3.5 Thinking (API)" + model_info.CLOSED_API_MARK
+    assert model_info.display_name(key, mark=False) == "TabPFN v3.5 Thinking (API)"
+
+
+def test_pareto_optimal_models_stay_coloured_with_an_explicit_highlight():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from raman_bench.plotting import static
+
+    lb = pd.DataFrame(
+        {
+            "median_time_total_per_1k_s": [1.0, 10.0, 100.0, 50.0],
+            "elo": [1100.0, 1300.0, 1500.0, 1200.0],  # A, B, C are on the front; D is dominated by B
+            "display_name": ["A", "B", "C", "D"],
+        },
+        index=["A", "B", "C", "D"],
+    )
+    fig, ax = plt.subplots()
+    static._tradeoff_ax(ax, lb, "elo", "Elo", True, {"D"}, "t", strict=True)
+    muted, shown = ax.collections[:2]  # scatter order in _tradeoff_ax
+    assert len(muted.get_offsets()) == 0 and len(shown.get_offsets()) == 4  # D (highlighted) plus the front A, B, C
+    plt.close(fig)
