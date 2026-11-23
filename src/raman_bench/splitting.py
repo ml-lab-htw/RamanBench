@@ -401,6 +401,20 @@ def _repeated_kfold_splits(
     return result
 
 
+def _group_label_type(df: pd.DataFrame, group_col: str, label_col: str, problem_type: str) -> str:
+    """How TabArena's inner (bagging) folds treat the groups of a task.
+
+    ``PER_GROUP`` when every group of a classification task carries a single class (RamanSTS: one tissue per map;
+    also any task whose groups are single-class): TabArena then splits the groups themselves, stratified, so every
+    class with at least as many groups as folds reaches the training part of every inner fold. ``PER_SAMPLE`` otherwise
+    (regression, or groups that mix classes): sklearn's ``StratifiedGroupKFold`` over the rows, which stratifies only
+    approximately and can leave a class with few groups out of one inner training part entirely.
+    """
+    if problem_type == "classification" and (df.groupby(group_col)[label_col].nunique() == 1).all():
+        return GroupLabelTypes.PER_GROUP
+    return GroupLabelTypes.PER_SAMPLE
+
+
 def build_user_task(
     *,
     task_name: str,
@@ -445,7 +459,7 @@ def build_user_task(
         dataset=df,
         splits=splits,
         group_on=group_col if has_groups else None,
-        group_labels=GroupLabelTypes.PER_SAMPLE if has_groups else None,
+        group_labels=_group_label_type(df, group_col, label_col, problem_type) if has_groups else None,
         stratify_on=label_col if problem_type == "classification" else None,
         dataset_name=task_name,
     )
