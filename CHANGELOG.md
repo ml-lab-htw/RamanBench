@@ -26,6 +26,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 - Plots: with an explicit highlight list (`highlight=` in `compare` and `generate_all`, `--highlight` in `plot_results.py` and
   `plot_tradeoff_100k.py`), the Pareto-optimal models of the trade-off plots stay coloured instead of turning grey.
 - The footnotes under the leaderboard figures are one short line per mark (`‡ API`) instead of a sentence naming every model.
+- `CITATION.cff`: the software's metadata with the NeurIPS paper as the preferred citation, so GitHub shows
+  "Cite this repository"; its version is part of the release steps.
 - Four models from upstream TabArena main, all GPU, all with binary, multiclass and regression: **Inpriora**
   (`INPRIORA`, Ant Group, Apache-2.0), **TabPack** (`TABPACK`, Yandex Research, Apache-2.0; an ensemble of MLPs),
   **Lattice** and **Lattice-tiny** (`LATTICE`, `LATTICE-TINY`, Nanjing University). The Lattice weights are
@@ -47,6 +49,14 @@ The full rules are in [RELEASING.md](RELEASING.md).
   extras `inpriora` and `tabpack` join the install line. The other commits in between change how TabArena stores
   results only for bags fit with `oof_per_fold` (which RamanBench does not use) and touch its audit and reporting tools;
   no model RamanBench already runs changes.
+- `recipe_description` spells the step "rubberband baseline" (was "rubber-band baseline"), as the Raman
+  preprocessing paper does; the step itself is unchanged.
+
+### Fixed
+
+- TabPack failed on every grouped task with `KeyError: '_group_id'`. The preprocessing mixin dropped the group column from
+  `X`, but the feature metadata still listed it, and TabPack builds its categorical list from the metadata. The mixin now
+  removes the column from the metadata too.
 
 ## [1.6.0] — 2026-11-20
 
