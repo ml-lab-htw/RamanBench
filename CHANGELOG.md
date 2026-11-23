@@ -38,6 +38,15 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- **Inner bagging folds of grouped classification tasks stratify over the groups when every group holds a single class**
+  (`PER_GROUP` in TabArena's validation metadata; `_group_label_type` in `splitting.py`). Before, sklearn's
+  `StratifiedGroupKFold` split the rows, which stratifies only approximately, and a class with few groups could be left
+  out of one inner training part entirely (TabArena then stops with "Missing Train Stratification Values"; found on
+  RamanSTS, where all 7 pleomorphic liposarcoma maps landed in one inner fold). Groups that mix classes, and regression
+  tasks, keep the row-wise split. Results computed with the old split on single-class-group tasks are not comparable.
+  Of the stored results, only the 96 folds of Inpriora, TabPack, Lattice and Lattice-tiny on `alzheimer`,
+  `comfile_stroke`, `covid19_salvia`, `cspp_serum_metabolites`, `locust_phase_hemolymph`, `parkinson`,
+  `serum_alzheimer_disease` and `serum_prostate_cancer` used it; they are rerun.
 - `scripts/run_system.py` gives every fold its own OpenML cache directory. Parallel workers (`--workers`) shared one, and one
   worker could read a dataset file another was still writing ("Unknown file type for file 'ignored'").
 

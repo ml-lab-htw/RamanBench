@@ -131,3 +131,61 @@ def test_flow_microgel_inner_folds_are_group_disjoint():
         assert n_folds == 3
         for train_idx, val_idx in custom_splits:
             assert not set(X_train[GROUP_COL].iloc[train_idx]) & set(X_train[GROUP_COL].iloc[val_idx])
+
+
+def _classification_task(group_labels_mixed=False, n_classes=4, maps_per_class=6, seed=0):
+    """One class per group (a map) with maps of very different size, the way RamanSTS is built; with
+    ``group_labels_mixed`` one group holds two classes."""
+    rng = np.random.default_rng(seed)
+    n_groups = n_classes * maps_per_class
+    sizes = rng.integers(5, 60, size=n_groups)
+    group = np.repeat(np.arange(n_groups), sizes)
+    label = np.repeat(np.arange(n_groups) % n_classes, sizes)
+    if group_labels_mixed:
+        label[:3] = (label[:3] + 1) % n_classes
+    df = pd.DataFrame(rng.normal(size=(len(group), 10)), columns=[f"f{i}" for i in range(10)])
+    df[GROUP_COL] = group.astype(str)
+    df["y"] = label
+    return build_user_task(task_name="synth__0", df=df, label_col="y", problem_type="classification",
+                           n_repeats=1, n_splits=3, group_col=GROUP_COL)[1]
+
+
+def test_single_class_groups_use_per_group_inner_folds():
+    from tabarena.benchmark.task.metadata import GroupLabelTypes
+
+    assert _classification_task().group_labels == GroupLabelTypes.PER_GROUP
+    assert _classification_task(group_labels_mixed=True).group_labels == GroupLabelTypes.PER_SAMPLE
+    assert _grouped_task().group_labels == GroupLabelTypes.PER_GROUP  # the helper's groups hold one class each
+
+
+def test_regression_groups_stay_per_sample():
+    from tabarena.benchmark.task.metadata import GroupLabelTypes
+
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame(rng.normal(size=(60, 5)), columns=[f"f{i}" for i in range(5)])
+    df[GROUP_COL] = np.repeat(np.arange(12), 5).astype(str)
+    df["y"] = rng.normal(size=60)
+    task = build_user_task(task_name="synth__1", df=df, label_col="y", problem_type="regression",
+                           n_repeats=1, n_splits=3, group_col=GROUP_COL)[1]
+    assert task.group_labels == GroupLabelTypes.PER_SAMPLE
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_every_class_reaches_the_training_part_of_every_inner_fold(seed):
+    """The RamanSTS failure: sklearn's approximate stratification put all 7 maps of a class into one inner fold."""
+    pytest.importorskip("data_foundry")
+    from tabarena.benchmark.exec_models.autogluon_utils import resolve_validation_splits
+    from tabarena.benchmark.validation_protocol import ValidationProtocol
+
+    wrapper = RamanBenchTaskWrapper(task=_classification_task(seed=seed), keep_group_col=True)
+    for fold in range(3):
+        X_train, y_train, _, _ = wrapper.get_train_test_split(fold=fold, repeat=0)
+        for n_bag_folds in (2, 3):
+            custom_splits, _, _ = resolve_validation_splits(
+                metadata=wrapper.get_validation_metadata(),
+                protocol=ValidationProtocol(num_bag_folds=n_bag_folds, task_specific_validation=True),
+                X=X_train, y=y_train, clamps=[],
+            )  # raises when an inner training part misses a class
+            for train_idx, val_idx in custom_splits:
+                assert set(y_train.iloc[train_idx]) == set(y_train)
+                assert not set(X_train[GROUP_COL].iloc[train_idx]) & set(X_train[GROUP_COL].iloc[val_idx])
