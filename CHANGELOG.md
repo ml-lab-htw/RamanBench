@@ -38,6 +38,12 @@ The full rules are in [RELEASING.md](RELEASING.md).
 - `recipe_description` spells the step "rubberband baseline" (was "rubber-band baseline"), as the Raman
   preprocessing paper does; the step itself is unchanged.
 
+### Fixed
+
+- TabPack failed on every grouped task with `KeyError: '_group_id'`. The preprocessing mixin dropped the group column from
+  `X`, but the feature metadata still listed it, and TabPack builds its categorical list from the metadata. The mixin now
+  removes the column from the metadata too.
+
 ## [1.6.0] — 2026-11-20
 
 The preprocessing as scikit-learn transformers, the 26 named recipes of the preprocessing study, spectral-axis
