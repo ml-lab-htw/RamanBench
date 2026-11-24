@@ -2,7 +2,7 @@
 ``Prep_FTFM``.
 
 ``FTFMModel`` lives only in TabArena's package (``tabarena.models.ftfm.model``,
-autogluon/tabarena#679, on our pin as a cherry-pick -- see ``requirements-tabarena-git.txt``).
+autogluon/tabarena#679, on our pin as a cherry-pick -- see ``requirements-git.txt``).
 See ``wrapped_models.py`` for the import, its ``ag_key`` override (``"TA-FTFM"`` -> ``"FTFM"``)
 and why it is classification-only.
 """

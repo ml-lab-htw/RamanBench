@@ -1,0 +1,31 @@
+# Packages that cannot be resolved together with requirements-git.txt: they pin a torch that clashes with
+# the main environment's. Install them on top, without their dependency tree:
+#     pip install --no-deps -r requirements-git-nodeps.txt
+# (pip applies --no-deps to the whole file, which is why these two are not in requirements-git.txt.)
+# A line with a Python marker is skipped on other interpreters.
+
+# Lattice and Lattice-tiny (Prep_LATTICE, Prep_LATTICE_TINY). `lattice[fast]` pins torch==2.7.1, which
+# conflicts with synthefy-nori (torch>=2.8,<2.14) in requirements-git.txt, so the two cannot be
+# resolved into one environment (checked 2026-11-20 with `uv pip compile`, Linux, Python 3.11). Install
+# Lattice on top of the main image without its dependency tree:
+#
+#     pip install --no-deps -r requirements-git-nodeps.txt
+#
+# TabArena's own run used torch 2.7.1 with triton 3.3.1 (the stack of Lattice's Triton fast path). Whether
+# the newer torch of the main image is enough is not verified: run one real fit before queueing the sweep,
+# and fall back to an image with torch 2.7.1 if it fails.
+#
+# The commit is the one tabarena's wrapper was written against (tabarena.models.lattice.info, `_PIP_EXTRA`).
+# The weights are CC-BY-NC-4.0 (non-commercial). Bump the commit deliberately.
+lattice @ git+https://github.com/hachure-ai/Lattice.git@e106f9fba5994f85aca9593ae82af561054ab77a
+
+# LimiX-2 (Prep_LIMIX2). Its inference package pins torch==2.9.1, which would replace the torch
+# the rest of the image runs on, so install it without its dependency tree:
+#
+#     pip install --no-deps -r requirements-git-nodeps.txt
+#     pip install nvtx
+#
+# The commit is the one tabarena's LimiX-2 wrapper was written against (see
+# tabarena.models.limix_2.info.ModelInfo.pip_extra). Bump it deliberately.
+# Python 3.12 only (LimiX requires it): the cluster's main image is 3.11 and skips this line.
+LimiX @ git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e1a994cbe38f33758e3d663e9951855554 ; python_version >= "3.12"

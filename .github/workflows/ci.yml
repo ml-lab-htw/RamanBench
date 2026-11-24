@@ -83,7 +83,7 @@ jobs:
       - name: Install package with AutoGluon and tabarena
         run: |
           pip install -e ".[dev,plots,autogluon]"
-          pip install -r requirements-tabarena-git.txt
+          pip install -r requirements-git.txt
 
       - name: Install torch (CPU-only)
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu

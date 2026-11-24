@@ -1,0 +1,67 @@
+# Packages with no PyPI release (PyPI forbids direct-URL requirements, so none of this can live in
+# pyproject.toml), resolved together with the package. Install after
+# `pip install raman-bench[models]` (or `[benchmark]` / `[full]`):
+#     pip install --pre -r requirements-git.txt
+# Every line is pinned to one commit, never to a branch head, so a run traces to one commit. Bump a
+# pin deliberately. Until a package is installed, its Prep_* class raises a "not available" error
+# (preprocessing/wrapped_models.py). Packages that cannot be resolved with the rest are in
+# requirements-git-nodeps.txt.
+#
+# --- tabarena ---------------------------------------------------------------------------------
+# tabarena, pinned to a commit of autogluon/tabarena main (39c3b4a8, 2026-11-20).
+#
+# In a non-fresh env use `--force-reinstall`: pip matches on the version string, so it
+# silently skips this line if any tabarena 0.1.0 is already installed. Check
+# `site-packages/tabarena-*.dist-info/direct_url.json` for the real commit. Afterwards
+# re-check torch and torchvision (a forced tabarena reinstall can move torch).
+#
+# Extras left out of the Python 3.11 image, each with its own install:
+#   tabh2o, agentic_mlp, agentic_tabm  need Python >=3.12 (TabH2O, MLP-A, TabM-A).
+#   tabstar_v1p1  tabstar 1.2.0 caps transformers<5 but synthefy-nori needs transformers>=5.
+#                 The Dockerfile installs tabstar with --no-deps; peft and skrub are
+#                 further down in this file.
+#   lattice       lattice[fast] pins torch==2.7.1, which cannot be resolved with the nori extra's
+#                 torch>=2.8. Install it on top with requirements-git-nodeps.txt.
+#   seldon        neuralk-oss needs a structured-data-models build that conflicts with
+#                 kumo_tabular. Use `pip install "tabarena[seldon]"` in its own env.
+tabarena[tabicl,ebm,search_spaces,realmlp,tabdpt,tabm,perpetualboosting,chimeraboost,nori,tabldm,kumo_tabular,lightpfn,prismboost,ftfm,tababax,inpriora,tabpack] @ git+https://github.com/autogluon/tabarena.git@39c3b4a8dcd18633551f9b1ff0585948250d8435#subdirectory=packages/tabarena
+
+# tabicl is pinned exactly: tabarena's extra is `tabicl>=2.0.0`, and a checkpoint with a key
+# an older build does not know either fails to load or silently changes the architecture.
+# 2.2.0 is the version the cluster runs.
+tabicl==2.2.0
+
+# --- models without a PyPI release -------------------------------------------------------------
+# Each pin matches the tabarena extra of the same model.
+
+# TabFM -> Prep_TABFM
+tabfm[pytorch] @ git+https://github.com/google-research/tabfm.git@633cd265f498e1d20c9625be0639f6305d8e2541
+
+# SAP-RPT-OSS -> Prep_SAP_RPT_OSS
+sap_rpt_oss @ git+https://github.com/SAP-samples/sap-rpt-1-oss.git@a323a0aff976fda4ac43c3196a92406de7689aaa
+
+# EXAONE-Tabular -> Prep_EXAONE_TABULAR
+# The code is BSD-3-Clause, but the weights it downloads on first fit are under the EXAONE AI
+# Model License 1.2-NC (non-commercial research and education only).
+exaonetabular @ git+https://github.com/LGAI-Research/EXAONE-Tabular.git@cf55bd2d74aeb9c0b5d5d4f509d05831251a827e
+
+# TabAbax -> Prep_TABABAX
+tababax @ git+https://github.com/tababax-research/TabAbax.git@125d26850015597ed371993f3a00375806c0f32c
+
+# Installed separately, with --no-deps, because both cap transformers<5 while synthefy-nori
+# needs transformers>=5 (the Dockerfile does this):
+#     pip install --no-deps tabstar==1.2.0                                      # TabSTAR-v1.1
+#     pip install --no-deps "tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git"   # OrionMSP
+# tabstar's other requirements:
+peft
+skrub
+
+# --- TabOmics ---------------------------------------------------------------------------------
+# TabOmics (Prep_TABOMICS), a tabular foundation model for wide omics tables (GPL-3.0-or-later).
+# PyPI forbids git dependencies, so it is not a pyproject extra. Its dependencies (torch>=2.4,
+# scikit-learn>=1.4, schedulefree, safetensors, huggingface_hub) are ranges the image already satisfies,
+# except schedulefree, so it installs with its dependencies:
+#
+# The weights (lbotecur/tabomics-v2.5, public) are downloaded from Hugging Face on first use. Bump the
+# commit deliberately: a published model name points to a fixed weights revision, the code does not.
+tabomics @ git+https://github.com/lbotecur/tabomics.git@0a8984fa0c47a2ecdcbbc80fdf4c4a92a456d712

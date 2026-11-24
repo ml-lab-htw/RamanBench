@@ -37,6 +37,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
   They are in `configs/v1/scope_default.json`; no results yet.
 
 ### Changed
+- **Five requirements files became two.** `requirements-tabarena-git.txt`, `requirements-models-git.txt` and
+  `requirements-tabomics-git.txt` are now `requirements-git.txt` (one `pip install -r`; the combined set resolves
+  on Python 3.11, checked with `uv pip compile`). `requirements-lattice-git.txt` and `requirements-limix2-git.txt`
+  are now `requirements-git-nodeps.txt`, installed with `pip install --no-deps -r` because their torch pins clash
+  with the rest; the LimiX line only applies on Python 3.12. The Dockerfile, CI and docs use the new names.
 
 - **Inner bagging folds of grouped classification tasks stratify over the groups when every group holds a single class**
   (`PER_GROUP` in TabArena's validation metadata; `_group_label_type` in `splitting.py`). Before, sklearn's

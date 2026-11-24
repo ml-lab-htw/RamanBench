@@ -21,7 +21,7 @@ feature independent of the removed execution pipeline, not part of it.
   (`cluster/submit_job.py`'s backend dispatch)
 - `tabarena` is pinned to a commit of upstream `autogluon/tabarena` main, not a PyPI
   release: PyPI forbids git dependencies, so it is installed from
-  `requirements-tabarena-git.txt`, whose comments give the pin history and why
+  `requirements-git.txt`, whose comments give the pin history and why
 
 ## What This Repo Is
 

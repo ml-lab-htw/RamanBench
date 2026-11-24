@@ -61,7 +61,7 @@ Notes:
 5. Check the workflow run and https://pypi.org/project/raman-bench/.
 
 PyPI rejects direct (`git+`) dependencies, which is why `tabarena` is installed from
-`requirements-tabarena-git.txt` and not declared in `pyproject.toml`. Don't add a git
+`requirements-git.txt` and not declared in `pyproject.toml`. Don't add a git
 dependency to the package metadata.
 
 ## Yanking
