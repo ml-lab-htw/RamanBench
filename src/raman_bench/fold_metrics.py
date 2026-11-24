@@ -236,9 +236,18 @@ def fold_metrics(results_dir: str | os.PathLike, *, workers: int = 16) -> pd.Dat
     Results without stored test predictions (e.g. the AutoGluon reference runs) are skipped.
     The files are read by *workers* threads.
     """
+    import time
     from concurrent.futures import ThreadPoolExecutor
 
+    from raman_bench.progress import log_progress
+
     paths = sorted(glob(os.path.join(results_dir, "*", "*", "*", "results.pkl")))
+    logger.info("Fold metrics of %d result file(s)", len(paths))
+    rows, t0 = [], time.time()
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        rows = [r for r in pool.map(_row, paths) if r is not None]
+        for i, r in enumerate(pool.map(_row, paths), 1):
+            if r is not None:
+                rows.append(r)
+            log_progress(logger, "Fold metrics", i, len(paths), t0, every=5000)
+    logger.info("Fold metrics: %d row(s), %d skipped (no stored predictions)", len(rows), len(paths) - len(rows))
     return pd.DataFrame(rows, columns=["ta_name", "dataset", "fold", *METRIC_COLUMNS])

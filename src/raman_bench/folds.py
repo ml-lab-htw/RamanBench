@@ -31,6 +31,7 @@ these folds.
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 import numpy as np
@@ -290,6 +291,7 @@ def check_result_folds(
 
     def assignment(task, cap):
         if (task, cap) not in assignments:
+            logger.info("Fold check: loading %s (assignment %d, cap %s)", task, len(assignments) + 1, cap)
             assignments[task, cap] = fold_assignment(task, max_train_samples=cap, **kw)
         return assignments[task, cap]
 
@@ -299,8 +301,12 @@ def check_result_folds(
         row = fold_of[repeat]
         return len(pos) == int((row == fold).sum()) and bool((row[pos] == fold).all())
 
-    rows = []
-    for result in results:
+    from raman_bench.progress import log_progress
+
+    rows, t0 = [], time.time()
+    for n, result in enumerate(results, 1):
+        if n > 1:
+            log_progress(logger, "Fold check", n - 1, len(results), t0, every=5000)
         tm = result["task_metadata"]
         task, repeat, fold = tm["name"], int(tm["repeat"]), int(tm["fold"])
         sa = result.get("simulation_artifacts") or {}

@@ -38,6 +38,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- Aggregation prints progress: the fold check (per loaded task and every 5000 results, with ETA), the fold metrics (every
+  5000 files), and a line before and after TabArena's recycling step, which has no output of its own.
+
 - **Inner bagging folds of grouped classification tasks stratify over the groups when every group holds a single class**
   (`PER_GROUP` in TabArena's validation metadata; `_group_label_type` in `splitting.py`). Before, sklearn's
   `StratifiedGroupKFold` split the rows, which stratifies only approximately, and a class with few groups could be left
