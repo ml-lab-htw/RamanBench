@@ -166,8 +166,7 @@ SYSTEMS: dict[str, System] = {
         notes="hosted API; the data of every fold is sent to Prior Labs",
         unlimited_time=True,  # a thinking fit takes far longer than the protocol's 600 s
     ),
-    # The same system at the highest effort the API offers ("max"); results in their own directory, not on the
-    # leaderboard.
+    # The same system at the highest effort the API offers ("max"); results in their own directory.
     "TABPFN-V3.5-THINKING-MAX": System(
         "TABPFN-V3.5-THINKING-MAX",
         _tabpfn_thinking_cls,
