@@ -33,6 +33,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **LightGBM-Prep-FTE25 as a system** (`LGBM-PREP-FTE25`, `raman_bench.systems.lgbm_prep_fte`, run with `scripts/run_system.py`):
+  Yandex Research's PriorTune system, a portfolio of 26 LightGBM configs (8 with TabPrep features), each an 8-fold bag, combined by
+  greedy ensemble selection. This is the BeyondArena portfolio, whose bags use group-aware inner splits. Copied from the open
+  autogluon/tabarena#746 (head b1f728ae) until the TabArena pin has it; only the import paths and the bag budget differ: every bag
+  gets the protocol's 600 s, as a model config does, where upstream splits the budget over the bags. CPU only.
 - **TabPFN-3.5-Thinking as a system** (`TABPFN-V3.5-THINKING`, `raman_bench.systems`, run with `scripts/run_system.py`): Prior Labs'
   hosted model, one thinking fit per outer fold as Prior Labs asked, not through AutoGluon's bagging (about four API fits per
   fold). Effort `high`, the key from `TABPFN_TOKEN`. It waits out the API's rate limit (10 fits a minute, 30 an hour; refused

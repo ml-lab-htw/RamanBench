@@ -170,6 +170,7 @@ raman_bench = [
     "data/precomputed/v1/*.parquet",
     "data/precomputed/v1/*.json",
     "plotting/data/*.csv",
+    "systems/lgbm_prep_fte/*.json",
 ]
 
 [tool.black]

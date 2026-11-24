@@ -145,6 +145,7 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "KUMO-TABULAR-SMALL": ("Kumo-Tabular (S)", "Tabular Foundation", 2026 + 8 / 12),
     "LIGHTPFN": ("LightPFN", "Tabular Foundation", 2026 + 9 / 12),  # 2026-10-05
     "PRISMBOOST": ("PrismBoost", "Gradient Boosting", 2026 + 8 / 12),  # 2026-09
+    "LGBM-PREP-FTE25": ("LightGBM-Prep-FTE25", "Gradient Boosting", 2026 + 10 / 12),  # 2026-11-23, Yandex Research
     # Hosted API (raman_bench.systems, scripts/run_system.py): pretrained tabular foundation
     # models fitted and ensembled behind YHat Labs' endpoint, closed source.
     "CHAKRA-TAB": ("Chakra-Tab (API)", "Tabular Foundation", 2026 + 9 / 12),  # 2026-10
@@ -208,7 +209,7 @@ def _marks(model: str) -> list[tuple[str, str]]:
 #: Models highlighted as new in the ``elo_vs_time_new*`` figures (:func:`is_new`).
 NEW_MODELS = frozenset({
     "TABDPT-V1.3", "LIGHTPFN", "PRISMBOOST", "TABFM-PLUS", "CHAKRA-TAB", "CHAKRA-TAB-FULL", "HIVECOTEV2",
-    "TABPFN-V3.5-THINKING", "TABPFN-V3.5-THINKING-MAX",
+    "TABPFN-V3.5-THINKING", "TABPFN-V3.5-THINKING-MAX", "LGBM-PREP-FTE25",
 })
 
 
