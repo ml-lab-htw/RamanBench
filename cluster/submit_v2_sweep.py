@@ -68,6 +68,8 @@ def boot(code_dir: str, raman_data: str, entrypoint: str) -> list[str]:
     """Container command: install raman-data, then run *entrypoint* from the code snapshot."""
     return ["/bin/bash", "-c", "; ".join([
         f"pip install -q --no-deps --no-cache-dir --break-system-packages 'raman-data=={raman_data}'",
+        # the grouped inner folds import data_foundry; the pinned images predate that dependency
+        "pip install -q --no-deps --no-cache-dir --break-system-packages 'data-foundry>=0.0.5'",
         f"cd {code_dir}",
         f"export PYTHONPATH={code_dir}/src",
         entrypoint,
