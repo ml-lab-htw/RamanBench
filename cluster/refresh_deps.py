@@ -62,7 +62,7 @@ def refresh_workspace_checkout(workspace: str) -> None:
     raman-bench itself has no released v1 yet for a plain ``pip install`` to
     pull from. A hard ``git pull`` there always fails. Confirmed in practice:
     this crashed unconditionally (``set -e`` in the caller) on every single
-    hourly opportunistic-scheduler cron tick for over a week with nothing
+    hourly cron tick for over a week with nothing
     submitted, because the workspace it was pointed at is exactly this kind of
     rsync deployment -- silently, since cron discards stdout unless redirected.
     Skip cleanly instead of crashing; fixes are deployed there via rsync, not

@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 """Sync the completed-work tree (``results/`` -- ``results.pkl`` presence is
-what ``opportunistic_scheduler.py`` checks before queuing a task, see its
-module docstring) between two cluster storage domains, so a newly-added
-cluster's own scheduler doesn't re-run work another cluster already finished.
+what the submit scripts check before queuing a task) between two cluster storage domains, so a newly-added
+cluster doesn't re-run work another cluster already finished.
 
 Why this is needed at all: completion tracking across this project is purely
 filesystem-based (a ``results.pkl`` existing under a shared cache/results

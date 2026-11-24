@@ -76,7 +76,7 @@ If TabArena does NOT have it yet, that's real upstream contribution work
 
 If the model needs a GPU, add its key to `cluster/gpu_models.json` — this is
 what keeps the CPU/GPU cluster-tier split enforced (see
-`cluster/opportunistic_scheduler.py`'s `compute_backlog`).
+`cluster/submit_job.py`'s `GPU_MODELS`).
 
 #### 3. Add tests
 

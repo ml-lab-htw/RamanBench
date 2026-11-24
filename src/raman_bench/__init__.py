@@ -50,7 +50,6 @@ _public_map = {
     "ClassificationMetrics": ("raman_bench.metrics", "ClassificationMetrics"),
     "RegressionMetrics": ("raman_bench.metrics", "RegressionMetrics"),
     "compute_metrics": ("raman_bench.metrics", "compute_metrics"),
-    "compute_metrics_from_predictions": ("raman_bench.evaluation", "compute_metrics_from_predictions"),
     # Seeds
     "get_seeds": ("raman_bench.seeds", "get_seeds"),
     # Config

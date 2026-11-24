@@ -3,11 +3,8 @@
 import pandas as pd
 
 from raman_bench.filters import (
-    LearnabilityFilterConfig,
     compute_unlearnable_keys,
     filter_trivial_keys,
-    get_unlearnable_keys,
-    get_unlearnable_keys_from_dir,
 )
 
 
@@ -85,39 +82,6 @@ def test_method_subtype_restricts_to_default_variant():
 def test_empty_input_returns_empty():
     assert compute_unlearnable_keys(pd.DataFrame()) == {}
     assert compute_unlearnable_keys(None) == {}
-
-
-def test_config_gating_off_by_default():
-    rows = [
-        _row("ds_a__0", "DUMMY", 0.5),
-        _row("ds_a__0", "RF", 0.48),
-    ]
-    assert get_unlearnable_keys(_df(rows), {"enabled": False}) == set()
-    assert get_unlearnable_keys(_df(rows), None) == set()
-    assert get_unlearnable_keys(_df(rows), {"enabled": True}) == {"ds_a__0"}
-
-
-def test_config_from_nested_learnability_filter_block():
-    cfg = LearnabilityFilterConfig.from_dict(
-        {"learnability_filter": {"enabled": True, "min_dummy_margin": 0.1}}
-    )
-    assert cfg.enabled is True
-    assert cfg.min_dummy_margin == 0.1
-
-
-def test_get_unlearnable_keys_from_dir_missing_file_returns_empty(tmp_path):
-    result = get_unlearnable_keys_from_dir(str(tmp_path), {"enabled": True})
-    assert result == set()
-
-
-def test_get_unlearnable_keys_from_dir_reads_hpo_results(tmp_path):
-    rows = [
-        _row("ds_a__0", "DUMMY", 0.5),
-        _row("ds_a__0", "RF", 0.48),
-    ]
-    _df(rows).to_csv(tmp_path / "hpo_results.csv", index=False)
-    result = get_unlearnable_keys_from_dir(str(tmp_path), {"enabled": True})
-    assert result == {"ds_a__0"}
 
 
 def test_filter_trivial_keys_also_works_for_unlearnable_keys():

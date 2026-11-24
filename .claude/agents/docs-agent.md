@@ -44,7 +44,7 @@ Check these against the code, never against another doc or your memory:
 | Documented fact | Verify against |
 |---|---|
 | number of baseline models (README says 28) | `src/raman_bench/data/precomputed/leaderboard_overall.csv` row count (v0.1) |
-| v1 leaderboard counts (55 ranked models, 135 tasks: 21 classification, 114 regression) and the protocol (3 folds, 3 bag folds, 600 s, row caps) | `src/raman_bench/data/precomputed/v1/protocol.json`: `models` minus `DUMMY` and the `AUTOGLUON-EXTREME-*` reference systems, `tasks`, and the protocol fields |
+| v1 leaderboard counts (69 ranked models, 135 tasks: 21 classification, 114 regression) and the protocol (3 folds, 3 bag folds, 600 s, row caps) | `src/raman_bench/data/precomputed/v1/protocol.json`: `models` minus `DUMMY` and the `AUTOGLUON-EXTREME-*` reference systems, `tasks`, and the protocol fields |
 | the `## Models` category tables | `raman_bench.models.registry.raman_bench_model_registry` (v1) and `preprocessing.wrapped_models.PREPROCESSED_MODELS`; `CUSTOM_MODELS` in `models/custom/__init__.py` for the standalone wrappers |
 | dataset / target counts | **known discrepancy** — README says 74 / 163, `src/raman_bench/data/precomputed/datasets.csv` has 77 rows, `configs/v1/README.md` refers to a curated ~66 / 156. These are different scopes (shipped vs. v0 leaderboard vs. curated v1). Do **not** pick one silently. When you touch a count, state which scope it is, or surface the mismatch to the user and ask which is canonical for that doc. |
 | Notebooks table | `ls notebooks/` |
