@@ -184,9 +184,12 @@ def aggregate_results(results_lst: list[dict]) -> tuple[pd.DataFrame, pd.DataFra
     # .model_results/.hpo_results properties). get_results(use_model_results=...) is the
     # unified replacement: True -> raw per-config rows (the old .model_results), False ->
     # the recycled default/tuned/tuned+ensemble rows (the old .hpo_results).
+    logger.info("Recycling %d result(s) with TabArena (EndToEnd.from_raw); no progress output until it is done", len(results_lst))
+    t0 = time.time()
     end_to_end_results = EndToEnd.from_raw(
         results_lst=results_lst, task_metadata=task_metadata, cache=False, cache_raw=False
     )
+    logger.info("Recycled in %.0fs; building the result tables", time.time() - t0)
     model_results = end_to_end_results.get_results(use_model_results=True)
     hpo_results = end_to_end_results.get_results(use_model_results=False)
     return model_results, hpo_results
