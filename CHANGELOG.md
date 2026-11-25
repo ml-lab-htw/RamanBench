@@ -42,6 +42,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
   time limit (`System.unlimited_time`), so no fit is cut off by the 600 s protocol budget. Spectra wider than the API's 23,000
   columns would be binned (none are; the widest task has about 11,700). Fits from parallel workers are spaced through a lock
   file (`TABPFN_FIT_INTERVAL_S`, 125 s) to stay under 30 an hour. All 405 folds ran with 0 failures.
+- `TABPFN-V3.5-THINKING-MAX`: the thinking system at the API's highest effort (`max`), results in `TabPFN-V3.5-Thinking-max`;
+  in the leaderboard scope next to `TABPFN-V3.5-THINKING` (`high`). All 405 folds ran with 0 failures.
 - Plots: with an explicit highlight list (`highlight=` in `compare` and `generate_all`, `--highlight` in `plot_results.py` and
   `plot_tradeoff_100k.py`), the Pareto-optimal models of the trade-off plots stay coloured instead of turning grey.
 - The footnotes under the leaderboard figures are one short line per mark (`‡ API`) instead of a sentence naming every model.
