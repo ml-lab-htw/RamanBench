@@ -48,11 +48,8 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
   under the new pipeline: PLS, HYDRA, ROCKET and the Raman-specific networks (COATNET,
   DEEPCNN, FCRESNEXT, RAMANFORMER, RAMANNET, RAMANTRANSFORMER, REZERONET, SANET). The
   leaderboard's own model list is `scope_default.json`'s `models`.
-- `scope_default.json` -- the opportunistic scheduler's (`cluster/opportunistic_scheduler.py`)
-  default scope: which models, which target list, chunk size, and capacity
-  thresholds. No institution-specific values -- a private wrapper
-  (`raman_bench_paper/cluster/submit_v1_opportunistic.sh`) supplies the actual
-  cluster profile (`--profile cluster/profiles/htw.yaml`) alongside this scope.
+- `scope_default.json` -- the default scope: which models, which target list,
+  chunk size, and time limits. No institution-specific values.
 - `core_target_list.json` / `scope_core.json` -- the "core" subset: 53 targets across
   37 datasets, meant for people without cluster-scale GPUs/time to still run a real,
   representative RamanBench sweep and compare against the main leaderboard. Derived
@@ -69,5 +66,4 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
   ```
   Run a core-only sweep the same way as the main one, just pointed at this scope/
   targets file, e.g. `cluster/submit_full_benchmark.py --targets-file
-  configs/v1/core_target_list.json ...` or `cluster/opportunistic_scheduler.py
-  --scope configs/v1/scope_core.json`.
+  configs/v1/core_target_list.json ...` 

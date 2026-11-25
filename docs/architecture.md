@@ -128,8 +128,7 @@ Full details are in [CHANGELOG.md](../CHANGELOG.md); the short version:
 - New `is_grouped` / `has_missing_labels` fields on `raman-data`'s `DatasetInfo`
 
 **Infrastructure**
-- Public, cluster-agnostic job-submission tooling plus an opportunistic, capacity-aware scheduler
-  for routine full-benchmark sweeps
+- Public, cluster-agnostic job-submission tooling for routine full-benchmark sweeps
 - Dropped the patched AutoGluon fork; moved to upstream AutoGluon 1.6 with RamanBench-local cap overrides
 - Automatic `.env` credential loading; `main` requires PRs (no direct pushes)
 

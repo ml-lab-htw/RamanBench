@@ -34,8 +34,7 @@ Writes two things:
   reads target_list.json, e.g. the leaderboard's core-vs-main delta view).
 - ``core_target_list.json``: the same schema as ``target_list.json``, containing
   ONLY the selected targets (``excluded`` always ``false`` here) -- pass this
-  directly as ``--targets-file`` to ``cluster/submit_full_benchmark.py`` or
-  ``cluster/opportunistic_scheduler.py --scope configs/v1/scope_core.json`` to run
+  directly as ``--targets-file`` to ``cluster/submit_full_benchmark.py`` to run
   (or resume) a core-only sweep.
 """
 

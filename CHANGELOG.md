@@ -12,6 +12,25 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Removed
+
+- `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
+  section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.
+- Seven one-off cluster scripts (`resubmit_limix2_*`, `resubmit_tabpfn_wide_b200`, `submit_autogluon_1h_*`,
+  `submit_compare_model_speed`), `cluster/run_system_k8s.yaml` and `scripts/compare_model_speed.py`.
+- The bagged TabPFN-thinking runner: `scripts/run_tabpfn_thinking.py` and `raman_bench.models.api`. The system
+  (`TABPFN-V3.5-THINKING`, one fit per outer fold) is the only thinking variant.
+- Unused code: `raman_bench.evaluation` (`compute_metrics_from_predictions`, the v0.1 pipeline's scorer),
+  `raman_bench.dataset_categorization`, `run_file_logger`, `metrics.utils.compare_metrics`, the private
+  `_build_leaderboard_from_metrics`, and the config-gated filter wrappers in `raman_bench.filters`
+  (`get_trivial_keys`, `get_unlearnable_keys`, their `*_from_dir` variants and the two config dataclasses;
+  `compute_*_keys` and `filter_trivial_keys` stay).
+
+### Changed
+
+- The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
+  used `kubectl apply` for the Job and now queues it through `kq`.
+
 ### Added
 
 - **TabPFN-3.5-Thinking as a system** (`TABPFN-V3.5-THINKING`, `raman_bench.systems`, run with `scripts/run_system.py`): Prior Labs'

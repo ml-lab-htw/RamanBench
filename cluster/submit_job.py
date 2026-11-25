@@ -177,8 +177,8 @@ def resolve_k8s_image(profile: dict, model: str) -> str:
 # span multiple (dataset, target) pairs for the same model -- not just
 # multiple (repeat, fold, config) tuples for a single fixed target. The
 # single-target CLI path below just repeats the same three values on every
-# line; the opportunistic scheduler (``opportunistic_scheduler.py``) is what
-# actually varies them within one array.
+# line; a caller that submits several (dataset, target) pairs in one array
+# varies them.
 Job = tuple[str, int, int, int, int, int]
 
 
@@ -189,9 +189,8 @@ def resolve_time_limit(
     model_time_limit_overrides: dict[str, float] | float | None = None,
 ) -> float:
     """The time_limit for ONE task, resolved from its own dataset -- the
-    per-task counterpart to ``opportunistic_scheduler.effective_time_limit``,
-    which computes a single value for an entire chunk (the max needed by ANY
-    dataset present in it). That whole-chunk max is still used as the
+    per-task counterpart to a chunk-wide limit (the max needed by ANY dataset
+    present in a chunk). That whole-chunk max is still used as the
     array-wide ``--export TIME_LIMIT=...`` fallback (see ``submit_jobs``
     below), but applying it to every task regardless of that task's own
     dataset means a fast task sharing a chunk with e.g. an ``mlrod`` task
@@ -391,8 +390,7 @@ def submit_jobs(
     ``time_limit`` is used ONLY for the array-wide ``--export TIME_LIMIT=...``
     fallback (read by ``run_experiment.sbatch`` only for a jobspec line that
     somehow lacks the per-task 7th field -- e.g. an older-format jobspec).
-    Callers that pre-compute a whole-chunk ceiling (e.g.
-    ``opportunistic_scheduler.effective_time_limit``, which folds in the max
+    Callers that pre-compute a whole-chunk ceiling (the max
     override needed by ANY dataset in the chunk) should pass that ceiling
     here.
 
@@ -413,9 +411,8 @@ def submit_jobs(
     ``resolve_time_limit``, so one array/chunk spanning multiple datasets
     doesn't force a fast dataset onto a slow dataset's budget.
 
-    Shared by the single-(dataset,target) CLI path (``submit()`` below) and
-    ``opportunistic_scheduler.py``'s multi-(dataset,target) backlog submission --
-    the only difference between them is how ``jobs`` was built.
+    Used by the single-(dataset,target) CLI path (``submit()`` below) and by any
+    caller that builds a multi-(dataset,target) ``jobs`` list.
     """
     use_gpu = model in GPU_MODELS
     job_ids: list[str] = []
@@ -507,9 +504,8 @@ def submit_jobs(
             # than the workspace itself (a cron job's default cwd is $HOME, not the
             # repo) submits a job whose output file can't be created, which SLURM
             # reports as an immediate FAILED with no log ever written. Confirmed by
-            # a real failure: the opportunistic scheduler's first live submission
-            # (invoked from a login shell's home directory) failed every task this
-            # way before this fix.
+            # a real failure: a submission invoked from a login shell's home directory
+            # failed every task this way before this fix.
             sbatch_args += ["--chdir", str(Path(profile["workspace"]).expanduser())]
         sbatch_args += resolve_mem_flags(profile, model)
         sbatch_args += resolve_gpu_flags(profile, use_gpu)
@@ -932,6 +928,30 @@ def build_k8s_job_manifest_multimodel(
     return job_name, configmap_name, n_pods, job_manifest
 
 
+def submit_k8s_job(configmap_name: str, jobspec_path, job_manifest: dict, namespace: str) -> None:
+    """Create the jobspec ConfigMap, then queue the Job with ``kq submit`` (never ``kubectl apply``).
+
+    ``--validate=false`` on the ConfigMap apply: client-side validation downloads the full OpenAPI schema on every
+    call, and this cluster's API server has repeatedly timed out on that request ("failed to download openapi: ...
+    TLS handshake timeout") while a plain ``kubectl get`` succeeded. The manifests are generated from a fixed shape,
+    not hand-written, so skipping validation costs no safety.
+
+    ``RB_KQ_AFTER`` ("job-a,job-b") holds the Job until those succeeded: it chains submissions into lanes, so a long
+    list of models runs a few pods at a time (kq alone only limits the Jobs waiting for a node).
+    """
+    cm_yaml = subprocess.run(
+        ["kubectl", "create", "configmap", configmap_name, "-n", namespace,
+         "--from-file", f"jobspec.txt={jobspec_path}", "--dry-run=client", "-o", "yaml"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    subprocess.run(["kubectl", "apply", "--validate=false", "-f", "-"], input=cm_yaml, text=True, check=True)
+    after = os.environ.get("RB_KQ_AFTER")
+    subprocess.run(
+        ["kq", "submit", "-n", namespace, *(["--after", after] if after else []), "-"],
+        input=yaml.safe_dump(job_manifest), text=True, check=True,
+    )
+
+
 def submit_jobs_k8s(
     *,
     model: str,
@@ -1010,32 +1030,7 @@ def submit_jobs_k8s(
         if dry_run:
             continue
 
-        cm_yaml = subprocess.run(
-            ["kubectl", "create", "configmap", configmap_name, "-n", namespace,
-             "--from-file", f"jobspec.txt={jobspec_path}", "--dry-run=client", "-o", "yaml"],
-            check=True, capture_output=True, text=True,
-        ).stdout
-        # --validate=false: client-side `kubectl apply` downloads the full OpenAPI
-        # schema on every single call to validate against it -- this cluster's API
-        # server has repeatedly timed out on that specific request ("failed to
-        # download openapi: ... TLS handshake timeout") while a plain `kubectl get`
-        # against the same server succeeds immediately, confirmed as a real,
-        # recurring submission failure (not a one-off) across multiple models'
-        # submissions in one session. The manifests here are generated by this
-        # script itself from a fixed, already-correct shape, not hand-written, so
-        # skipping client-side schema validation trades no real safety for
-        # reliability.
-        subprocess.run(
-            ["kubectl", "apply", "--validate=false", "-f", "-"], input=cm_yaml, text=True, check=True,
-        )
-        # Jobs go through the per-user queue (`kq submit`), never `kubectl apply`.
-        # RB_KQ_AFTER ("job-a,job-b") holds the Job until those succeeded: chains submissions into lanes,
-        # so a long list of models runs a few pods at a time (kq alone only limits the Jobs waiting for a node).
-        after = os.environ.get("RB_KQ_AFTER")
-        subprocess.run(
-            ["kq", "submit", "-n", namespace, *(["--after", after] if after else []), "-"],
-            input=yaml.safe_dump(job_manifest), text=True, check=True,
-        )
+        submit_k8s_job(configmap_name, jobspec_path, job_manifest, namespace)
         job_names.append(job_name)
 
     return job_names

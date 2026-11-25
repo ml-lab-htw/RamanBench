@@ -29,12 +29,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
-
-import yaml
 
 CLUSTER_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(CLUSTER_DIR))
@@ -42,6 +38,7 @@ sys.path.insert(0, str(CLUSTER_DIR))
 from submit_job import (  # noqa: E402
     build_k8s_job_manifest_autogluon,
     resolve_profile,
+    submit_k8s_job,
     write_jobspec_autogluon,
 )
 
@@ -158,39 +155,7 @@ def main():
     if args.dry_run:
         return
 
-    cm_yaml = subprocess.run(
-        [
-            "kubectl",
-            "create",
-            "configmap",
-            configmap_name,
-            "-n",
-            namespace,
-            "--from-file",
-            f"jobspec.txt={jobspec_path}",
-            "--dry-run=client",
-            "-o",
-            "yaml",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    subprocess.run(
-        ["kubectl", "apply", "--validate=false", "-f", "-"],
-        input=cm_yaml,
-        text=True,
-        check=True,
-    )
-    # Jobs go through the per-user queue (`kq submit`), never `kubectl apply`. RB_KQ_AFTER ("job-a,job-b") holds the
-    # Job until those succeeded (see cluster/submit_job.py).
-    after = os.environ.get("RB_KQ_AFTER")
-    subprocess.run(
-        ["kq", "submit", "-n", namespace, *(["--after", after] if after else []), "-"],
-        input=yaml.safe_dump(job_manifest),
-        text=True,
-        check=True,
-    )
+    submit_k8s_job(configmap_name, jobspec_path, job_manifest, namespace)
     print(
         f"Done: k8s Job {job_name!r} created ({n_pods} pod(s), parallelism={min(args.throttle, n_pods) or 1})"
     )

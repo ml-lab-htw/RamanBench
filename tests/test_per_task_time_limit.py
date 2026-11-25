@@ -1,8 +1,8 @@
 """Regression tests for per-task (rather than per-chunk) SLURM time_limit
 resolution.
 
-The problem, observed live on the cluster: ``opportunistic_scheduler.py``'s
-``effective_time_limit(scope, model, chunk)`` computes ONE ``time_limit`` for
+The problem, observed live on the cluster: a backlog scheduler (since removed)
+computed ONE ``time_limit`` for
 an entire chunk (up to 300 tasks), taking the max needed by ANY dataset
 present in that chunk. That single value used to be the only thing threaded
 through to every task in the array (via one array-wide
@@ -21,12 +21,6 @@ it per line, so the per-task jobspec format (already one line per
 the task's own resolved time_limit. ``run_experiment.sbatch`` reads that
 field directly and only falls back to the array-wide ``TIME_LIMIT`` env var
 for older-format (6-field) jobspec lines.
-
-This file intentionally does NOT touch ``tests/test_resource_tuning_fixes.py``
-(which already has its own ``effective_time_limit``/override tests, and had
-real uncommitted in-progress changes from another agent's ORIONMSP fix at the
-time this file was written) -- kept fully separate to avoid any risk of
-colliding edits in a shared working tree.
 """
 
 from __future__ import annotations
@@ -35,7 +29,6 @@ import importlib.util
 import sys
 import uuid
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -46,24 +39,11 @@ CLUSTER_DIR = REPO_ROOT / "cluster"
 def _load_submit_job():
     # cluster/ isn't a package, and cluster/submit_job.py itself does
     # `from detect_cluster import ...` assuming CLUSTER_DIR is on sys.path
-    # (see submit_job.py's own top-of-file sys.path handling via its
-    # sibling opportunistic_scheduler.py) -- mirror that here.
+    # -- mirror that here.
     if str(CLUSTER_DIR) not in sys.path:
         sys.path.insert(0, str(CLUSTER_DIR))
     spec = importlib.util.spec_from_file_location(
         "_submit_job_under_test_time_limit", CLUSTER_DIR / "submit_job.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-def _load_opportunistic_scheduler():
-    if str(CLUSTER_DIR) not in sys.path:
-        sys.path.insert(0, str(CLUSTER_DIR))
-    spec = importlib.util.spec_from_file_location(
-        "_opportunistic_scheduler_under_test_time_limit", CLUSTER_DIR / "opportunistic_scheduler.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -76,12 +56,7 @@ def submit_job():
     return _load_submit_job()
 
 
-@pytest.fixture(scope="module")
-def opportunistic_scheduler():
-    return _load_opportunistic_scheduler()
-
-
-# --- resolve_time_limit: the per-dataset counterpart to effective_time_limit's
+# --- resolve_time_limit: the per-dataset counterpart to the chunk-wide
 #     whole-chunk max. Same override semantics, evaluated for one dataset. ---
 
 
@@ -188,7 +163,7 @@ def test_write_jobspec_no_overrides_uses_flat_default_everywhere(submit_job, tmp
     assert all(parts[6] == "3600" for parts in lines)
 
 
-# --- submit_jobs: the full path opportunistic_scheduler.run_tick drives --
+# --- submit_jobs: the full path a backlog submission drives --
 #     guards specifically against passing the already-chunk-maxed ceiling as
 #     the per-task baseline (which would silently reproduce the bug, since
 #     max(ceiling, ...) can never fall back below the ceiling). ---
@@ -197,7 +172,7 @@ def test_write_jobspec_no_overrides_uses_flat_default_everywhere(submit_job, tmp
 def test_submit_jobs_chunk_ceiling_does_not_leak_into_per_task_baseline(
     submit_job, tmp_path, monkeypatch
 ):
-    """Mirrors exactly how opportunistic_scheduler.run_tick calls submit_jobs:
+    """Mirrors a backlog submission calling submit_jobs:
     `time_limit` is the whole-chunk ceiling (as effective_time_limit would
     return for a chunk containing mlrod -- 10800), while `default_time_limit`
     is the flat scope default (3600) each task's own dataset should bump up
@@ -268,38 +243,3 @@ def test_submit_jobs_default_time_limit_falls_back_to_time_limit(submit_job, tmp
     )
     lines = _read_jobspec_lines(tmp_path / f"{slug}.txt")
     assert all(parts[6] == "3600" for parts in lines)
-
-
-# --- _in_flight_targets: must keep parsing OLDER-format (6-field) jobspec
-#     files -- an already-queued array submitted before this fix has a
-#     6-field jobspec on disk that this dedup logic still needs to read. ---
-
-
-def test_in_flight_targets_parses_both_6_and_7_field_jobspecs(
-    opportunistic_scheduler, tmp_path, monkeypatch
-):
-    monkeypatch.setattr(opportunistic_scheduler, "JOBSPEC_DIR", tmp_path)
-
-    old_format_path = tmp_path / "old_part.txt"
-    old_format_path.write_text("wheat_lines 0 0 0 0 10\n")
-
-    new_format_path = tmp_path / "new_part.txt"
-    new_format_path.write_text("mlrod 0 0 0 0 10 10800\nalzheimer 1 0 0 0 10 3600\n")
-
-    def fake_run(cmd, capture_output, text, check):
-        class _Result:
-            pass
-
-        result = _Result()
-        if cmd[0] == "squeue":
-            result.stdout = "RB_PLS_old_part\nRB_PLS_new_part\n"
-        else:  # sacct
-            result.stdout = ""
-        return result
-
-    with patch("subprocess.run", side_effect=fake_run):
-        targets = opportunistic_scheduler._in_flight_targets("PLS", "testuser")
-
-    assert ("wheat_lines", 0, 0, 0) in targets
-    assert ("mlrod", 0, 0, 0) in targets
-    assert ("alzheimer", 1, 0, 0) in targets
