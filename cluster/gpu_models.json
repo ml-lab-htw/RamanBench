@@ -1,6 +1,8 @@
 [
     "AUTOGLUON",
     "CAUSILO",
+    "CAUSILO-1.5",
+    "CAUSILO-1.5-LIGHT",
     "COATNET",
     "DEEPCNN",
     "FASTAI",
