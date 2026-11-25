@@ -10,7 +10,7 @@ GPU machine.
 
 PROVISIONAL onboarding: sourced from an unmerged upstream PR (autogluon/tabarena#625,
 branch ``kumo-tabular``) rather than a merged-main release -- see
-``requirements-tabarena-git.txt``'s pin comment.
+``requirements-git.txt``'s pin comment.
 
 Follows the older flat-file convention (like TABLDM, not the migrated per-model-
 directory convention): the three ``Prep_*`` classes live in

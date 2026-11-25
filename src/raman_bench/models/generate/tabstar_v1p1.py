@@ -2,7 +2,7 @@
 ``Prep_TABSTAR_V1P1``.
 
 ``TabSTARv1p1Model`` lives only in TabArena's package (``tabarena.models.tabstar_v1p1.model``,
-autogluon/tabarena#674, on our pin as a cherry-pick -- see ``requirements-tabarena-git.txt``).
+autogluon/tabarena#674, on our pin as a cherry-pick -- see ``requirements-git.txt``).
 A separate model from TABSTAR (1.1.15): see ``wrapped_models.py`` for the ``ag_key`` override
 (``"TA-TabSTAR-v1.1"`` -> ``"TABSTAR_V1P1"``).
 """

@@ -18,7 +18,7 @@ What RamanBench adds on top is small: datasets come from the raman-data HF mirro
 OpenML, and about 13 Raman-specific architectures are registered alongside TabArena's own models.
 
 `tabarena` is pinned to a commit of upstream `autogluon/tabarena` main, not a PyPI release, and
-installed from `requirements-tabarena-git.txt`, whose comments give the pin history and why.
+installed from `requirements-git.txt`, whose comments give the pin history and why.
 
 ### Key entry points
 

@@ -10,7 +10,7 @@ its ``ag_key`` override, ``"TA-KUMO-TABULAR"`` -> ``"KUMO-TABULAR"``).
 
 PROVISIONAL: sourced from autogluon/tabarena PR #625 (branch ``kumo-tabular``),
 still open/unmerged as of this onboarding -- see
-``requirements-tabarena-git.txt``'s pin comment.
+``requirements-git.txt``'s pin comment.
 
 GPU-only (``default_num_gpus = 1``, ``minimum_num_gpus = 1``), so listed in
 ``cluster/gpu_models.json``.

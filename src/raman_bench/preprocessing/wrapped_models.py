@@ -130,7 +130,7 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # it exists only in tabarena's own package, same staging situation as
     # TabFM/TabPFN-3/TabSwift/ModernNCA above (confirmed: no `TabICLv2Model` anywhere
     # in `autogluon.tabular.models`, checked against the pinned tabarena commit in
-    # requirements-tabarena-git.txt). Its own hpo module (tabarena.models.tabicl.hpo)
+    # requirements-git.txt). Its own hpo module (tabarena.models.tabicl.hpo)
     # already exposes both `gen_tabicl` (bound to `TabICLModel`) and `gen_tabiclv2`
     # (bound to this class) side by side -- see generate/tabiclv2.py.
     "TabICLv2Model": "tabarena.models.tabicl.model",
@@ -164,7 +164,7 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # dedicated container (Dockerfile.py312) because its inference package
     # (``LimiX @ git+.../LimiX.git@774aa3e``) requires Python >=3.12 and pins
     # torch==2.9.1, both incompatible with the main image's Python 3.11.10 base
-    # and shared torch~=2.14 floor (see requirements-limix2-git.txt). The import
+    # and shared torch~=2.14 floor (see requirements-git-nodeps.txt). The import
     # here still resolves normally in the main image (tabarena's own package
     # doesn't need the LimiX pip package just to define ``LimiX2Model`` -- only
     # actually fitting one does, inside ``LimiX2Model._fit``'s own deferred
@@ -180,12 +180,12 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # TabLDM (2026-09-28): GPU-only tabular foundation model (dual-stream column
     # embedder + MoE backbone), TabArena-package-only like every foundation model
     # above. Own third-party pip package (``tabldm``, git-pinned via TabArena's
-    # ``tabldm`` extra -- see ``requirements-tabarena-git.txt``), not on PyPI.
+    # ``tabldm`` extra -- see ``requirements-git.txt``), not on PyPI.
     "TabLDMModel": "tabarena.models.tabldm.model",
     # Kumo Tabular (2026-09-30) -- large/medium/small checkpoint variants (NVIDIA,
     # https://huggingface.co/blog/nvidia/kumo-tabular). PROVISIONAL: sourced from
     # an UNMERGED upstream PR (autogluon/tabarena#625, branch `kumo-tabular`), not
-    # a merged-main commit -- see requirements-tabarena-git.txt's own comment on
+    # a merged-main commit -- see requirements-git.txt's own comment on
     # the pin for the full reasoning. GPU-only tabular foundation model
     # (interleaved row/column attention encoder + in-context-learning transformer),
     # TabArena-package-only like every foundation model above. Own third-party pip
@@ -209,7 +209,7 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     #
     # Checkpoint-compatibility check performed before onboarding (2026-09-30):
     # tabarena's own `tabdpt` extra (see its pyproject.toml, pinned via
-    # requirements-tabarena-git.txt) requires `tabdpt>=1.3.1` -- the first
+    # requirements-git.txt) requires `tabdpt>=1.3.1` -- the first
     # `tabdpt` release with a separable `TabDPTEstimator._load_model` (the
     # shared-weights loader `TabDPTv13Model` needs) and the release that
     # renamed the network's internal label encoders (`y_encoders` ->
@@ -233,7 +233,7 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     # `TABDPT` entry is left untouched.
     "TabDPTv13Model": "tabarena.models.tabdpt.model",
     # LightPFN and PrismBoost (2026-10-09): upstream autogluon/tabarena#655 and #629,
-    # cherry-picked onto the pin (requirements-tabarena-git.txt). Own pip packages
+    # cherry-picked onto the pin (requirements-git.txt). Own pip packages
     # (``lightpfn==1.0.0``, ``prismboost>=0.5.0``) via TabArena's extras of the same name.
     "LightPFNModel": "tabarena.models.lightpfn.model",
     "FTFMModel": "tabarena.models.ftfm.model",
@@ -246,7 +246,7 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "AgenticTabMModel": "tabarena.models.agentic_tabm.model",
     "PrismBoostModel": "tabarena.models.prismboost.model",
     # Inpriora, TabPack, Lattice and Lattice-tiny (2026-11-16 to 2026-11-20): upstream TabArena main, own pip
-    # packages via TabArena extras of the same name (requirements-tabarena-git.txt).
+    # packages via TabArena extras of the same name (requirements-git.txt).
     "InprioraModel": "tabarena.models.inpriora.model",
     "TabPackModel": "tabarena.models.tabpack.model",
     "LatticeModel": "tabarena.models.lattice.model",
@@ -934,7 +934,7 @@ Prep_TABLDM = _make_optional_prep_class("Prep_TABLDM", TabLDMModel, ag_key="TABL
 # pretrained in-context-learning tabular foundation model
 # (https://huggingface.co/blog/nvidia/kumo-tabular). PROVISIONAL onboarding:
 # sourced from autogluon/tabarena PR #625 (still open/unmerged as of this
-# onboarding -- see requirements-tabarena-git.txt's pin comment) rather than a
+# onboarding -- see requirements-git.txt's pin comment) rather than a
 # merged-main release; revisit the ``ag_key`` overrides below (harmless either
 # way -- they just strip the "TA-" staging prefix, same convention as
 # TabFM/TabPFN-3/TabSwift/TabLDM above) once #625 merges.
@@ -953,7 +953,7 @@ Prep_TABLDM = _make_optional_prep_class("Prep_TABLDM", TabLDMModel, ag_key="TABL
 #
 # Own third-party pip package (``structured-data-models``, imported as ``sdm``,
 # git-pinned via TabArena's own PR-local ``kumo_tabular`` extra in
-# requirements-tabarena-git.txt), not on PyPI. ``requires-python = ">=3.11"`` and
+# requirements-git.txt), not on PyPI. ``requires-python = ">=3.11"`` and
 # ``torch>=2.7`` -- both satisfied by the main image's Python 3.11.10 base and
 # torch~=2.14 floor, so this runs in the shared main image, no dedicated
 # container needed (unlike LIMIX2's Dockerfile.limix2).
@@ -997,7 +997,7 @@ Prep_TABH2O = _make_optional_prep_class("Prep_TABH2O", TabH2OModel, ag_key="TABH
 # Seldon and Seldon-Mini (upstream TA-SELDON / TA-SELDON-MINI): GPU, binary and multiclass only.
 Prep_SELDON = _make_optional_prep_class("Prep_SELDON", SeldonModel, ag_key="SELDON")
 Prep_SELDON_MINI = _make_optional_prep_class("Prep_SELDON_MINI", SeldonMiniModel, ag_key="SELDON-MINI")
-# TabAbax (TA-TABABAX): GPU, binary, multiclass and regression. Installed from git (requirements-models-git.txt).
+# TabAbax (TA-TABABAX): GPU, binary, multiclass and regression. Installed from git (requirements-git.txt).
 Prep_TABABAX = _make_optional_prep_class("Prep_TABABAX", TabAbaxModel, ag_key="TABABAX")
 # Yandex agentic MLP-A and TabM-A (TA-MLP-A / TA-TABM-A): binary, multiclass and regression. Installed from git.
 Prep_MLP_A = _make_optional_prep_class("Prep_MLP_A", AgenticMLPModel, ag_key="MLP-A")
@@ -1135,7 +1135,7 @@ if SAPRPTOSSModel is not None:
     # other foundation model here: the tabarena wrapper class can be defined
     # without its backing package). Confirmed as a real failure building a
     # minimal environment that installs tabarena but not
-    # requirements-models-git.txt (e.g. Dockerfile.py312, a LIMIX2-only
+    # requirements-git.txt (e.g. Dockerfile.py312, a LIMIX2-only
     # image): this module-level `import sap_rpt_oss.rpt` crashed the entire
     # `wrapped_models` import with a bare `ModuleNotFoundError`, taking every
     # other Prep_* model down with it -- exactly the failure mode the "keep
@@ -1392,7 +1392,7 @@ else:
 # GPU-tier, and its own inference package requires Python >=3.12 and pins
 # torch==2.9.1 -- incompatible with the main image (Python 3.11.10,
 # torch~=2.14 floor). Runs in a dedicated container built from
-# Dockerfile.py312 instead (see requirements-limix2-git.txt and
+# Dockerfile.py312 instead (see requirements-git-nodeps.txt and
 # cluster/submit_job.py's model_image_overrides). A LIMIX2 job submitted
 # against the main image's environment will fail to import the LimiX
 # inference package at fit time (a clean ModuleNotFoundError/ImportError from

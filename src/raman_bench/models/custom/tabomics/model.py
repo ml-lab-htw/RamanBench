@@ -52,7 +52,7 @@ class TabOmicsModel(BaseEstimator):
     published model takes up to 10 classes; above ``many_class_threshold`` classes it is wrapped in
     tabpfn-extensions' output-coding ``ManyClassClassifier``, as TabPFN-Wide is.
 
-    Requires the ``tabomics`` package (``requirements-tabomics-git.txt``); the weights come from Hugging
+    Requires the ``tabomics`` package (``requirements-git.txt``); the weights come from Hugging
     Face on first use.
 
     Reference:
@@ -69,7 +69,7 @@ class TabOmicsModel(BaseEstimator):
             import tabomics  # noqa: F401
         except ImportError as e:
             raise ImportError(
-                "TabOmicsModel requires tabomics. Install with: pip install -r requirements-tabomics-git.txt"
+                "TabOmicsModel requires tabomics. Install with: pip install -r requirements-git.txt"
             ) from e
 
         y_arr = np.asarray(y)

@@ -68,7 +68,7 @@ benchmark = [
     # TabArena's grouped inner-fold splitter (issue #162) imports this.
     "data-foundry>=0.0.5",
     # `tabarena` is not declared here: PyPI forbids direct-URL requirements. After installing this extra, run
-    # `pip install -r requirements-tabarena-git.txt`.
+    # `pip install -r requirements-git.txt`.
 ]
 models = [
     "raman-bench[autogluon]",
@@ -109,8 +109,8 @@ models = [
     # torch 2.13; synthefy-nori caps torch<2.14.
     "torchvision>=0.28.0",
     # Not installable from here: TabFM, SAP-RPT-OSS and OrionMSP (tabtune) publish no PyPI release
-    # (`pip install -r requirements-models-git.txt`), and neither does tabarena
-    # (`pip install -r requirements-tabarena-git.txt`).
+    # (`pip install -r requirements-git.txt`), and neither does tabarena
+    # (`pip install -r requirements-git.txt`).
 ]
 plots = [
     # autorank: critical difference diagrams. plotly: the interactive figures.
