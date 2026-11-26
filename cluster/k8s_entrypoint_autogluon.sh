@@ -77,6 +77,9 @@ while IFS= read -r LINE; do
 {"pod": "${HOSTNAME:-unknown}", "completion_index": "${JOB_COMPLETION_INDEX:-0}", "task_num": "${TASK_NUM}", "model": "AUTOGLUON-EXTREME-${BUDGET_LABEL}", "dataset": "${DATASET}", "target_idx": "${TARGET_IDX}", "started": "$(date -Iseconds)"}
 JOBMETA
 
+    MAX_TRAIN_SAMPLES_FLAG=()
+    [ -n "${MAX_TRAIN_SAMPLES:-}" ] && MAX_TRAIN_SAMPLES_FLAG=(--max-train-samples "${MAX_TRAIN_SAMPLES}")
+
     python scripts/run_autogluon_baseline.py \
         --dataset "${DATASET}" \
         --target-idx "${TARGET_IDX}" \
@@ -91,6 +94,7 @@ JOBMETA
         --mirror-repo "${MIRROR_REPO}" \
         --scratch-dir "${SCRATCH_DIR}" \
         --min-groups-per-class "${MIN_GROUPS_PER_CLASS:-0}" \
+        "${MAX_TRAIN_SAMPLES_FLAG[@]}" \
         ${GPU_FLAG}
     TASK_RC=$?
     rm -rf "${SCRATCH_DIR}" "${OPENML_CACHE_DIR}"

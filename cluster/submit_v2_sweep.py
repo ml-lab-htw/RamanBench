@@ -78,13 +78,15 @@ def boot(code_dir: str, raman_data: str, entrypoint: str) -> list[str]:
     ])]
 
 
-def set_container(manifest: dict, command: list[str], min_groups: int, inner_group_folds: bool) -> None:
+def set_container(manifest: dict, command: list[str], min_groups: int, inner_group_folds: bool,
+                  max_train_samples: int | None = None) -> None:
     c = manifest["spec"]["template"]["spec"]["containers"][0]
     c["command"] = command
-    env = [e for e in c["env"] if e["name"] not in ("MIN_GROUPS_PER_CLASS", "INNER_GROUP_FOLDS")]
+    env = [e for e in c["env"] if e["name"] not in ("MIN_GROUPS_PER_CLASS", "INNER_GROUP_FOLDS", "MAX_TRAIN_SAMPLES")]
     c["env"] = env + [
         {"name": "MIN_GROUPS_PER_CLASS", "value": str(min_groups)},
         {"name": "INNER_GROUP_FOLDS", "value": "1" if inner_group_folds else "0"},
+        *([{"name": "MAX_TRAIN_SAMPLES", "value": str(max_train_samples)}] if max_train_samples else []),
     ]
 
 
@@ -237,13 +239,14 @@ def main() -> None:
         budgets = [b for m, b in AUTOGLUON.items() if m in roster]
         for budget_group in ([[b] for b in budgets] if args.job_per_model else [budgets]):
             submit_autogluon(args, profile, targets, budget_group, prefix, n_splits, min_groups,
-                             results_dir, cache_dir, mirror_repo, throttle, created)
+                             results_dir, cache_dir, mirror_repo, throttle, created,
+                             max_train_samples=scope.get("max_train_samples"))
 
     print(f"\n{'Dry run, nothing submitted' if args.dry_run else f'Created {len(created)} Job(s): {created}'}")
 
 
 def submit_autogluon(args, profile, targets, budgets, prefix, n_splits, min_groups,
-                     results_dir, cache_dir, mirror_repo, throttle, created) -> None:
+                     results_dir, cache_dir, mirror_repo, throttle, created, max_train_samples=None) -> None:
     jobs = [
         (t["dataset"], t["target_idx"], 0, fold, EXTREME_TIME_BUDGETS[b], b, t.get("n_repeats", 1), n_splits)
         for b in budgets for t in targets for fold in range(n_splits)
@@ -257,7 +260,7 @@ def submit_autogluon(args, profile, targets, budgets, prefix, n_splits, min_grou
             tasks_per_pod=len(jobs) if args.job_per_model else 4, throttle=throttle,
         )
         set_container(manifest, boot(args.code_dir, args.raman_data,
-                                     "bash cluster/k8s_entrypoint_autogluon.sh"), min_groups, False)
+                                     "bash cluster/k8s_entrypoint_autogluon.sh"), min_groups, False, max_train_samples)
         if args.job_per_model:
             run_alone(manifest)
         print(f"autogluon {'/'.join(budgets)}: {len(jobs)} task(s), {n_pods} pod(s), job {job}")
