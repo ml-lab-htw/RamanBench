@@ -9,13 +9,14 @@
   "mlrod": 10800
  },
  "max_train_samples_overrides": {
-  "mlrod": 10000,
-  "wheat_lines": 10000,
-  "bacteria_identification": 10000,
-  "glioma_idh": 10000,
-  "raman_mpi": 10000,
-  "stroke_urine_sers_532": 10000,
-  "stroke_urine_sers_633": 10000
+  "mlrod": 30000,
+  "wheat_lines": 30000,
+  "bacteria_identification": 30000,
+  "glioma_idh": 30000,
+  "raman_mpi": 30000,
+  "soft_tissue_sarcoma": 30000,
+  "stroke_urine_sers_532": 30000,
+  "stroke_urine_sers_633": 30000
  },
  "model_max_train_samples_overrides": {
   "ORIONMSP": {
