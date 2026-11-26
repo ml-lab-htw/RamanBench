@@ -51,6 +51,10 @@ in colour and the rest in grey (`--focus-top-k`, `0` colours all); the HTML page
 between both views. The dataset figures read metadata from raman_data and the RamanBench mirror
 on the Hugging Face Hub; `--no-dataset-figures` skips them offline.
 
+With `--highlight A B` (one or two model keys) the run also writes two spotlight figures for slides and
+posts: Elo vs. time with the Pareto front, and Elo vs. release date. Call `raman_bench.plotting.spotlight`
+directly for another time unit (`per_spectra`) or to hide a model from the release plot (`hide`).
+
 `scripts/plot_tradeoff_100k.py` draws Elo against median time per 100K spectra for a chosen set
 of models from a `leaderboard_*.csv`.
 

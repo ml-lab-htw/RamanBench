@@ -136,6 +136,8 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "TABLDM": ("Xiaomi-TabLDM", "Tabular Foundation", 2026 + 7 / 12),
     "TA-MITRA-V2": ("Mitra-v2", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-03
     "CAUSILO": ("Causilo", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-13 (PyPI 1.0.0)
+    "CAUSILO-1.5": ("Causilo 1.5", "Tabular Foundation", 2026 + 10 / 12),  # 2026-11-25 (PyPI 1.5.0)
+    "CAUSILO-1.5-LIGHT": ("Causilo 1.5 (Light)", "Tabular Foundation", 2026 + 10 / 12),
     "TABDPT-V1.3": ("TabDPT-1.3", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-08
     "LIMIX2": ("LimiX-2", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-15
     "TABPFN-V3.5": ("TabPFN v3.5", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-15
@@ -209,7 +211,7 @@ def _marks(model: str) -> list[tuple[str, str]]:
 #: Models highlighted as new in the ``elo_vs_time_new*`` figures (:func:`is_new`).
 NEW_MODELS = frozenset({
     "TABDPT-V1.3", "LIGHTPFN", "PRISMBOOST", "TABFM-PLUS", "CHAKRA-TAB", "CHAKRA-TAB-FULL", "HIVECOTEV2",
-    "TABPFN-V3.5-THINKING", "TABPFN-V3.5-THINKING-MAX", "LGBM-PREP-FTE25",
+    "TABPFN-V3.5-THINKING", "TABPFN-V3.5-THINKING-MAX", "CAUSILO-1.5", "CAUSILO-1.5-LIGHT", "LGBM-PREP-FTE25",
 })
 
 
