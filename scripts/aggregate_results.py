@@ -43,7 +43,8 @@ loaded from the mirror for that). A result tested on other rows (from before a c
 to the row cleaning, the grouping or the splitter) is left out, since the scoring
 compares fold k across models and assumes it is the same spectra; a fold on a per-model
 row sample (``model_max_train_samples_overrides``) counts as matching. Every result's
-status goes to ``fold_check.csv``. ``--keep-mismatched-folds`` keeps the mismatches in
+status goes to ``fold_check.csv``. Every fold without a result goes to ``failures.csv`` with its label
+(``oom_gpu``, ``oom_cpu``, ``timeout``, ``error``, or ``missing`` when the run left no record; see ``raman_bench.run_record``). ``--keep-mismatched-folds`` keeps the mismatches in
 (still listed), ``--no-fold-check`` skips the check.
 
 Usage:
@@ -195,6 +196,20 @@ def check_folds(results_lst: list[dict], args: argparse.Namespace) -> list[dict]
     return [r for r, b in zip(results_lst, bad) if not b]
 
 
+def write_failure_report(args: argparse.Namespace) -> None:
+    """Write ``failures.csv`` (every fold without a result, with its uniform label) and log the counts per framework."""
+    from raman_bench.run_record import collect_folds, failure_summary
+
+    folds = collect_folds(args.results_dir)
+    failed = folds[folds["status"] != "ok"]
+    path = os.path.join(args.output_dir, "failures.csv")
+    failed.to_csv(path, index=False)
+    logger.info("Failures (%s): %d of %d fold(s) have no result", path, len(failed), len(folds))
+    if len(failed):
+        summary = failure_summary(failed.assign(label=failed["label"]))
+        logger.info("Failed folds per framework (label counts):\n%s", summary.to_string(index=False))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", default="results/v1/data")
@@ -289,6 +304,7 @@ def main():
         logger.warning("No cached results found under %s", args.results_dir)
     elif not args.no_fold_check:
         results_lst = check_folds(results_lst, args)
+    write_failure_report(args)
     model_results, hpo_results = aggregate_results(results_lst) if results_lst else (pd.DataFrame(), pd.DataFrame())
 
     model_results_path = os.path.join(args.output_dir, "model_results.csv")

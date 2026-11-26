@@ -123,6 +123,7 @@ def load_own_results(source, *, variant: str = "default") -> pd.DataFrame:
 
     preprocessing: dict[str, str] = {}
     per_fold = None
+    _warn_unverified_fit(source)
     if isinstance(source, pd.DataFrame) and "model" in source.columns:
         missing = set(TIDY_COLUMNS) - set(source.columns)
         if missing:
@@ -159,6 +160,33 @@ def load_own_results(source, *, variant: str = "default") -> pd.DataFrame:
     df = df[df["fold"] < n_folds]
     df["num_instances"] = df["dataset"].map(lambda k: tasks[k]["num_instances"])
     return df.reset_index(drop=True)
+
+
+def _warn_unverified_fit(source) -> None:
+    """Warn when *source* cannot be shown to follow the protocol's fit: bagged models, or a system.
+
+    The leaderboard's reference rows come from a 3-fold bagged fit (a system is fitted once per outer fold),
+    so results from a plain fit on the whole training split are not comparable with them: a model that sees
+    more rows per fit scores higher. A results directory written by the runners records its ``fit_mode``;
+    a table or CSV records nothing, so the warning says so.
+    """
+    if isinstance(source, pd.DataFrame) or not Path(source).is_dir():
+        logger.warning(
+            "These results are not a RamanBench results directory, so compare() cannot check how they were fitted. "
+            "The leaderboard rows are 3-fold bagged fits (or systems fitted once per outer fold): results from a "
+            "single fit on the whole training split are not comparable with them. Run the model with "
+            "evaluate_estimator, or register it as a system."
+        )
+        return
+    from raman_bench.run_record import collect_folds
+
+    folds = collect_folds(source)
+    modes = folds.loc[folds["status"] == "ok", "fit_mode"]
+    if (modes == "").any():
+        logger.warning(
+            "%d result(s) have no setup.json (run before the setup was recorded), so their fit mode is not checked.",
+            int((modes == "").sum()),
+        )
 
 
 def attach_fold_metrics(results: pd.DataFrame, per_fold: pd.DataFrame) -> pd.DataFrame:
