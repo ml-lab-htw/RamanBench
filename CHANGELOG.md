@@ -37,7 +37,7 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 - Benchmark v2: the global row cap (`max_train_samples_overrides`) is 30000 instead of 10000 on `mlrod`, `wheat_lines`,
   `bacteria_identification`, `glioma_idh`, `raman_mpi`, `soft_tissue_sarcoma` and both `stroke_urine_sers` datasets. The per-model caps
-  stay and the smaller cap wins. `soft_tissue_sarcoma` is now in `protocol_v2_only.json` too (it was only in the scope file).
+  (`model_max_train_samples_overrides`) are removed from the v2 scope and protocol: every model gets the same row cut. `soft_tissue_sarcoma` is now in `protocol_v2_only.json` too (it was only in the scope file).
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
   used `kubectl apply` for the Job and now queues it through `kq`.
 
