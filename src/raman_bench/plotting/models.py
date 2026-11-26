@@ -197,6 +197,11 @@ CLOSED_API = {
     "TABPFN-V3.5-THINKING-MAX": "Thinking mode runs only on Prior Labs' hosted API; the data of every fold is sent there.",
 }
 CLOSED_API_MARK = "‡"
+
+
+def is_closed_api(model: str) -> bool:
+    """Whether *model* runs on a closed-source hosted API (its times include network and queueing)."""
+    return model.upper() in CLOSED_API
 #: The one-line footnote under a figure for each mark.
 MARK_NOTES = {CONTAMINATION_MARK: "RamanPFN: developed on v0.1 data (arXiv:2608.02157)", CLOSED_API_MARK: "API"}
 
@@ -286,3 +291,59 @@ def label_color(model: str) -> str:
 def category_rank(cat: str) -> int:
     """Position of *cat* in :data:`CATEGORY_ORDER` (unknown categories last)."""
     return CATEGORY_ORDER.index(cat) if cat in CATEGORY_ORDER else len(CATEGORY_ORDER)
+
+
+#: Organization that develops a model, for the "best per provider" filter of the interactive figures. Same
+#: assignment as the leaderboard's logos; a model that is missing here is its own provider.
+ORGANIZATION = {
+    "KUMO-TABULAR": "NVIDIA", "KUMO-TABULAR-MEDIUM": "NVIDIA", "KUMO-TABULAR-SMALL": "NVIDIA",
+    "CHAKRA-TAB": "Yhat Labs", "CHAKRA-TAB-FULL": "Yhat Labs",
+    "TABFM": "Google Research", "TABFM-PLUS": "Google Research",
+    "SELDON": "Neuralk-AI", "SELDON-MINI": "Neuralk-AI",
+    "LIMIX": "Stable AI & Tsinghua University", "LIMIX2": "Stable AI & Tsinghua University",
+    "NORI": "Synthefy",
+    "TABPFN-V3": "Prior Labs", "TABPFN-V3.5": "Prior Labs", "TABPFN-V3.5-FAST": "Prior Labs",
+    "TABPFN-V3.5-THINKING": "Prior Labs", "TABPFN-V3.5-THINKING-MAX": "Prior Labs",
+    "REALTABPFN-V2": "Prior Labs", "REALTABPFN-V2.5": "Prior Labs", "REALTABPFN-V2.6": "Prior Labs",
+    "TA-EXAONE-TABULAR": "LG AI Research", "TABABAX": "TabAbax",
+    "CAUSILO": "Nums AI", "CAUSILO-1.5": "Nums AI", "CAUSILO-1.5-LIGHT": "Nums AI",
+    "SAP_RPT_OSS": "SAP", "TABICLV2": "Inria",
+    "MITRA": "Amazon", "TA-MITRA-V2": "Amazon", "NN_TORCH": "Amazon",
+    "TABDPT": "Layer 6 AI", "TABDPT-V1.3": "Layer 6 AI",
+    "TABH2O": "H2O.ai", "TABSTAR_V1P1": "Technion", "TABLDM": "Xiaomi", "ILTM": "Stanford University",
+    "TABSWIFT": "Nanjing University", "MODERNNCA": "Nanjing University",
+    "REALMLP": "University of Stuttgart & Inria", "FASTAI": "fast.ai",
+    "MLP-A": "Yandex Research", "TABM": "Yandex Research", "TABM-A": "Yandex Research", "CAT": "Yandex",
+    "EBM": "Microsoft", "XGB": "University of Washington", "XRFM": "UC San Diego",
+    "PERPETUAL_BOOSTER": "Perpetual ML", "ORIONMSP": "Lexsi Labs",
+    "LR": "scikit-learn", "KNN": "scikit-learn", "RF": "scikit-learn", "XT": "scikit-learn", "PLS": "scikit-learn",
+}
+
+#: Versions and variants of one model line, for the "best per family" filter. A model that is missing here is
+#: its own family.
+FAMILY = {
+    "REALTABPFN-V2": "TabPFN", "REALTABPFN-V2.5": "TabPFN", "REALTABPFN-V2.6": "TabPFN", "TABPFN-V3": "TabPFN",
+    "TABPFN-V3.5": "TabPFN", "TABPFN-V3.5-FAST": "TabPFN", "TABPFN-V3.5-THINKING": "TabPFN",
+    "TABPFN-V3.5-THINKING-MAX": "TabPFN", "TABPFN-WIDE": "TabPFN", "TA-TABPFN-3": "TabPFN",
+    "CAUSILO": "Causilo", "CAUSILO-1.5": "Causilo", "CAUSILO-1.5-LIGHT": "Causilo",
+    "KUMO-TABULAR": "Kumo-Tabular", "KUMO-TABULAR-MEDIUM": "Kumo-Tabular", "KUMO-TABULAR-SMALL": "Kumo-Tabular",
+    "LIMIX": "LimiX", "LIMIX2": "LimiX",
+    "MITRA": "Mitra", "TA-MITRA-V2": "Mitra",
+    "TABDPT": "TabDPT", "TABDPT-V1.3": "TabDPT",
+    "TABFM": "TabFM", "TABFM-PLUS": "TabFM",
+    "TABM": "TabM", "TABM-A": "TabM",
+    "CHAKRA-TAB": "Chakra-Tab", "CHAKRA-TAB-FULL": "Chakra-Tab",
+    "SELDON": "Seldon", "SELDON-MINI": "Seldon",
+    "LATTICE": "Lattice", "LATTICE-TINY": "Lattice",
+    "TABICL": "TabICL", "TABICLV2": "TabICL",
+}
+
+
+def provider(model: str) -> str:
+    """Organization behind *model*; the model's own key when none is recorded."""
+    return ORGANIZATION.get(model.upper(), model)
+
+
+def family(model: str) -> str:
+    """Model line *model* belongs to (see :data:`FAMILY`); the model's own key when it has none."""
+    return FAMILY.get(model.upper(), model)
