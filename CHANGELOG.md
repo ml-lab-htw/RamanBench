@@ -18,6 +18,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
   (`CAUSILO`, results unchanged): the package's new default network with the full training context and the library's own
   ensemble size. The `causilo` pin is now `>=1.5.0`; the `CAUSILO` wrapper passes `model_version="1.0"` when the installed
   causilo has that argument, so the 1.0 key keeps meaning Causilo 1.0. Row cap 30000 (above the 5000 of `CAUSILO`; the benchmark-wide 10000 cap on mlrod, wheat_lines and bacteria_identification still applies) and the same time-limit overrides as `CAUSILO`.
+- **LightGBM-Prep-FTE25 as a system** (`LGBM-PREP-FTE25`, `raman_bench.systems.lgbm_prep_fte`, run with `scripts/run_system.py`):
+  Yandex Research's PriorTune system, a portfolio of 26 LightGBM configs (8 with TabPrep features), each an 8-fold bag, combined by
+  greedy ensemble selection. This is the BeyondArena portfolio, whose bags use group-aware inner splits. Copied from the open
+  autogluon/tabarena#746 (head b1f728ae) until the TabArena pin has it; only the import paths and the bag budget differ: every bag
+  gets the protocol's 600 s, as a model config does, where upstream splits the budget over the bags. CPU only.
 - Spotlight figures (`raman_bench.plotting.spotlight`): Elo vs. time with the Pareto front, and Elo vs. release date with the
   running best, with one or two models in the foreground (callout with Elo and rank, halo markers) and the other front or
   record models named in grey. `plot_results.py --highlight A B` writes them as `spotlight_elo_vs_time` and
