@@ -1374,6 +1374,10 @@ class RamanPreprocessingMixin:
             metadata = getattr(self, "_feature_metadata", None)
             if metadata is not None and GROUP_COL in metadata.get_features():
                 self._feature_metadata = metadata.remove_features([GROUP_COL])
+            # The same for a model that hands the feature list to its library (EBM's feature_names).
+            features = getattr(self, "_features_internal", None)
+            if features is not None and GROUP_COL in features:
+                self._features_internal = [f for f in features if f != GROUP_COL]
         if isinstance(X, pd.DataFrame) and X.shape[1] == getattr(self, "_prep_binned_width", None):
             return super()._preprocess(X, **kwargs)  # already binned by an earlier call
         recipe = getattr(self, "_prep_recipe", None)
