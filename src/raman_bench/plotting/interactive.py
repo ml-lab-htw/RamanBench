@@ -273,7 +273,18 @@ _FILTER_JS = """<script>
 (function () {
   var C = __CFG__, MUTED = "#C8C8C8", state = {mode: "all", colour: C.topk ? "topk" : "all", off: {}};
   var orig = null, catArr = {};
-  function arr(a) { return a == null ? null : Array.from(a); }
+  // Plotly keeps numeric arrays as {dtype, bdata} (base64 typed arrays); plain arrays stay as they are.
+  var TYPES = {f8: Float64Array, f4: Float32Array, i1: Int8Array, i2: Int16Array, i4: Int32Array,
+               u1: Uint8Array, u2: Uint16Array, u4: Uint32Array};
+  function arr(a) {
+    if (a == null) { return null; }
+    if (a.bdata !== undefined) {
+      var bin = atob(a.bdata), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
+      return Array.from(new TYPES[a.dtype](bytes.buffer));
+    }
+    return Array.from(a);
+  }
   function axisKey(letter, ref) { return letter + "axis" + ((ref || letter).slice(1) || ""); }
   function init(gd) {
     orig = gd.data.map(function (t) {
@@ -452,7 +463,8 @@ def _filterable(fig, kind: str, higher: bool, topk: int | None, boards: list[pd.
                          "provider": model_info.provider(m), "family": model_info.family(m)}
             cats[cat] = model_info.color(m)
     ordered = sorted(cats, key=model_info.category_rank)
-    fig.update_layout(showlegend=False, updatemenus=[])
+    fig.update_layout(showlegend=False)
+    fig.layout.updatemenus = ()  # the chips take over the focus toggle
     fig.layout.meta = {**(fig.layout.meta or {}), "filter": {
         "models": models, "cats": [[c, cats[c]] for c in ordered], "higher": higher, "kind": kind, "topk": topk}}
 
@@ -471,6 +483,11 @@ def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -
         for n in notes
     ) + extra
     page = path.read_text(encoding="utf-8")
+    header = (fig.layout.meta or {}).get("header")
+    if header:
+        page = page.replace(
+            "<body>",
+            f'<body><p style="font:600 14px Inter,Arial,sans-serif;color:#333;margin:10px 12px 0">{html.escape(header)}</p>', 1)
     cfg = (fig.layout.meta or {}).get("filter")
     if cfg:
         extra += _FILTER_JS.replace("__CFG__", json.dumps(cfg))
@@ -505,6 +522,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
                     error_y={"type": "data", "symmetric": False, "array": sub["elo+"],
                              "arrayminus": sub["elo-"], "color": "#444444", "thickness": 1, "width": 2},
                     hovertext=_hover(sub), hoverinfo="text",
+                    customdata=[[m, int(m in focus[g])] for m in sub.index],
                 ),
                 row=row, col=1,
             )
@@ -522,6 +540,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
         fig.add_hline(y=1000, line={"dash": "dash", "color": "#9A9A9A", "width": 1}, row=row, col=1)
     fig.update_layout(bargap=0.2)
     _layout(fig, "RamanBench Elo ranking (Random Forest = 1000)", 520 * len(groups), focus_traces, top_k)
+    _filterable(fig, "bar", True, top_k, [split_references(scores[g].leaderboard)[0] for g in groups])
     set_mobile(fig, min_width=max(760, 14 * max(len(split_references(scores[g].leaderboard)[0]) for g in groups)))
     return fig
 
@@ -552,7 +571,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: 
         fig.add_trace(
             go.Scatter(x=front[x], y=front[metric] * scale, mode="lines", line_shape="hv",
                        line={"dash": "dash", "color": "#9A9A9A", "width": 1},
-                       hoverinfo="skip", showlegend=False),
+                       hoverinfo="skip", showlegend=False, meta="front"),
             row=1, col=col,
         )
         labelled = focus[g] | set(front.index)
@@ -566,6 +585,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: 
                     textposition="top center", textfont={"size": 10, "color": "#444444"},
                     marker={"color": focused, "size": 11, "line": {"width": 1, "color": "white"}},
                     hovertext=_hover(sub), hoverinfo="text",
+                    customdata=[[m, int(m in focus[g])] for m in sub.index],
                 ),
                 row=1, col=col,
             )
@@ -576,6 +596,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: 
         fig.update_yaxes(title_text=label, row=1, col=col)
     arrow = "↖ better" if higher else "↙ better"
     _layout(fig, f"{label} vs. time  ({arrow})", 620, focus_traces, top_k)
+    _filterable(fig, "scatter", higher, top_k, [split_references(scores[g].leaderboard)[0].dropna(subset=[x, metric]) for g in groups])
     return fig
 
 
@@ -592,7 +613,7 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k, strict: boo
     fig.add_trace(
         go.Scatter(x=list(record["release_date"]) + [end], y=list(record["elo"]) + [record["elo"].iloc[-1]],
                    mode="lines", line_shape="hv", line={"color": "#9A9A9A", "width": 2},
-                   name="State of the art", hoverinfo="skip")
+                   name="State of the art", hoverinfo="skip", meta=f"record:{end}")
     )
     highlight = focus if strict else focus | set(record.index)
     focus_traces = []
@@ -605,6 +626,7 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k, strict: boo
                 textposition="top center", textfont={"size": 10, "color": "#444444"},
                 marker={"color": focused, "size": 11, "line": {"width": 1, "color": "white"}},
                 hovertext=_hover(sub), hoverinfo="text",
+                customdata=[[m, int(m in focus)] for m in sub.index],
             )
         )
         focus_traces.append((len(fig.data) - 1, focused, full))
@@ -613,6 +635,7 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k, strict: boo
     fig.update_yaxes(title_text="Elo")
     _layout(fig, f"Model progress over time ({TASK_TITLES[scores.name].lower()}; drag to zoom, older models left)",
             600, focus_traces, top_k)
+    _filterable(fig, "scatter", True, top_k, [lb])
     return fig
 
 
@@ -638,11 +661,13 @@ def winrate_matrix(scores: GroupScores, models: list[str] | None = None, caption
     size = max(600, 18 * len(names) + 250)
     fig.update_yaxes(autorange="reversed")
     fig.update_xaxes(side="top", tickangle=-55)
-    title = f"Pairwise win rates: row vs. column ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)"
+    # The title and caption go in a header above the plot, not on it: on the plot they covered the model names.
+    header = f"Pairwise win rates: row vs. column ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)"
     if caption:
-        title += f"<br><sup>{caption}</sup>"
-    _layout(fig, title, size, [], None)
-    fig.update_layout(width=size + 100, margin={"t": 220})
+        header += f" · {caption}"
+    _layout(fig, "", size, [], None)
+    fig.update_layout(width=size + 100, margin={"t": 140}, title=None)
+    fig.layout.meta = {**(fig.layout.meta or {}), "header": header}
     set_mobile(fig, min_width=size + 100)
     return fig
 
@@ -656,6 +681,7 @@ def efficiency_overview(scores: GroupScores, focus: set[str], top_k):
 
     go = _go()
     lb = split_references(scores.leaderboard)[0]
+    lb = lb[[not model_info.is_closed_api(m) for m in lb.index]]  # API times are network and queue, not the model
     lb = lb.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
     infer = "median_infer_per_1k_s" if "median_infer_per_1k_s" in lb else "median_time_infer_s"
     panels = [("median_time_train_s", "Median train time (s)"),

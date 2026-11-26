@@ -432,7 +432,6 @@ def plot_winrate_matrix(
                     ax.text(j, i, f"{data[i, j]:.0f}", ha="center", va="center", fontsize=6.5, color="#222222")
     cbar = fig.colorbar(im, ax=ax, fraction=0.035, pad=0.02)
     cbar.set_label("Win rate of row vs. column (%)")
-    ax.set_title(f"Pairwise win rates ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)", pad=12)
     if caption:
         fig.text(0.5, 0.0, caption, ha="center", va="top", fontsize=9, color="#555555", wrap=True)
     return save(fig, out_dir, stem, formats)
@@ -444,6 +443,7 @@ def plot_winrate_matrix(
 def plot_efficiency_overview(scores: GroupScores, focus: set[str], out_dir: Path, formats, stem: str):
     """Median train time and median inference time per 1K samples, one bar per model."""
     lb = split_references(scores.leaderboard)[0]
+    lb = lb[[not model_info.is_closed_api(m) for m in lb.index]]  # API times are network and queue, not the model
     lb = lb.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
     panels = [("median_time_train_s", "Median train time (s)")]
     if "median_infer_per_1k_s" in lb:

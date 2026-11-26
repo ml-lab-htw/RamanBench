@@ -195,6 +195,11 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
         assert (out / "static" / f"{stem}.png").exists()
         assert (out / "static" / f"{stem}.pdf").exists()
         assert (out / "interactive" / f"{stem}.html").exists()
+    for stem in ("elo_ranking_combined", "elo_ranking", "improvability_vs_time", "elo_vs_time", "elo_vs_release_date"):
+        page = (out / "interactive" / f"{stem}.html").read_text(encoding="utf-8")
+        assert 'id="rb-bar"' in page and "data-mode=\"provider\"" in page, stem  # the filter bar replaced the legend
+    assert 'id="rb-bar"' not in (out / "interactive" / "efficiency_overview.html").read_text(encoding="utf-8")
+    assert not (out / "interactive" / "metrics_vs_time.html").exists()
     assert not (out / "static" / "metrics_vs_time.png").exists()  # dropped: Elo vs. time shows the same trade-off
     for group in ("all", "classification", "regression"):
         assert (out / "static" / f"elo_vs_time_{group}.png").exists()
@@ -389,3 +394,11 @@ def test_figure_script_sizes_the_iframe_from_the_figure_not_the_body():
     # by a few pixels on every resize event, without end.
     assert "(document.body.offsetHeight + 24)" not in interactive._MOBILE_JS
     assert "getBoundingClientRect().bottom" in interactive._MOBILE_JS
+
+
+def test_provider_and_family_group_versions_and_default_to_the_model_itself():
+    assert model_info.provider("REALTABPFN-V2") == model_info.provider("TABPFN-V3.5-THINKING") == "Prior Labs"
+    assert model_info.family("REALTABPFN-V2") == model_info.family("TABPFN-V3.5-THINKING") == "TabPFN"
+    assert model_info.family("CAUSILO-1.5-LIGHT") == model_info.family("CAUSILO") == "Causilo"
+    assert model_info.provider("RAMANNET") == "RAMANNET" and model_info.family("RAMANNET") == "RAMANNET"
+    assert model_info.is_closed_api("chakra-tab") and not model_info.is_closed_api("RF")

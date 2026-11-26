@@ -197,6 +197,11 @@ CLOSED_API = {
     "TABPFN-V3.5-THINKING-MAX": "Thinking mode runs only on Prior Labs' hosted API; the data of every fold is sent there.",
 }
 CLOSED_API_MARK = "‡"
+
+
+def is_closed_api(model: str) -> bool:
+    """Whether *model* runs on a closed-source hosted API (its times include network and queueing)."""
+    return model.upper() in CLOSED_API
 #: The one-line footnote under a figure for each mark.
 MARK_NOTES = {CONTAMINATION_MARK: "RamanPFN: developed on v0.1 data (arXiv:2608.02157)", CLOSED_API_MARK: "API"}
 
