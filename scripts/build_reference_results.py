@@ -76,6 +76,7 @@ def build_protocol(scope: dict, targets: list[dict], results, preprocessing: dic
         "time_limit": scope["time_limit"],
         "num_random_configs": scope["num_random_configs"],
         "time_limit_overrides": scope.get("time_limit_overrides", {}),
+        **({"max_train_samples": scope["max_train_samples"]} if scope.get("max_train_samples") else {}),
         "max_train_samples_overrides": scope.get("max_train_samples_overrides", {}),
         "model_max_train_samples_overrides": scope.get("model_max_train_samples_overrides", {}),
         "min_samples_per_class": MIN_SAMPLES_PER_CLASS,

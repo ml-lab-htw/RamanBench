@@ -35,9 +35,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
-- Benchmark v2: the global row cap (`max_train_samples_overrides`) is 30000 instead of 10000 on `mlrod`, `wheat_lines`,
-  `bacteria_identification`, `glioma_idh`, `raman_mpi`, `soft_tissue_sarcoma` and both `stroke_urine_sers` datasets. The per-model caps
-  (`model_max_train_samples_overrides`) are removed from the v2 scope and protocol: every model gets the same row cut.
+- Benchmark v2: one row cap, `max_train_samples = 30000`, for every dataset and every model (scope and protocol), instead of the
+  dataset-keyed `max_train_samples_overrides` of 10000 on eight datasets. The per-model caps (`model_max_train_samples_overrides`)
+  are removed from the v2 scope and protocol: every model gets the same row cut. `raman_bench.compare.row_cap` reads either form.
 - Benchmark v2: one time limit for every model on every dataset, 10800 s per fit instead of 600 s. The per-dataset (`mlrod`) and
   per-model time overrides are removed from the v2 scope and protocol. `soft_tissue_sarcoma` was capped only in the scope file; the v2 protocol now carries it too.
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`

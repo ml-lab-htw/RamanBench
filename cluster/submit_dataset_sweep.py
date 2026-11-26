@@ -42,6 +42,7 @@ from submit_job import (  # noqa: E402
     build_k8s_job_manifest_multimodel,
     resolve_k8s_image,
     resolve_profile,
+    scope_row_cap,
     submit_k8s_job,
     write_jobspec_multimodel,
 )
@@ -86,7 +87,7 @@ def main():
     mirror_repo = args.mirror_repo or scope.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench")
     throttle = args.throttle if args.throttle is not None else scope.get("throttle", 8)
     dataset_time_limit_overrides = scope.get("time_limit_overrides", {})
-    max_train_samples_overrides = scope.get("max_train_samples_overrides", {})
+    max_train_samples_overrides = scope_row_cap(scope)
     model_time_limit_overrides = scope.get("model_time_limit_overrides", {})
     model_max_train_samples_overrides = scope.get("model_max_train_samples_overrides", {})
     min_groups_per_class = int(scope.get("min_groups_per_class", 0))

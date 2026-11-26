@@ -5,16 +5,7 @@
  "num_bag_folds": 3,
  "time_limit": 10800,
  "num_random_configs": 0,
- "max_train_samples_overrides": {
-  "mlrod": 30000,
-  "wheat_lines": 30000,
-  "bacteria_identification": 30000,
-  "glioma_idh": 30000,
-  "raman_mpi": 30000,
-  "soft_tissue_sarcoma": 30000,
-  "stroke_urine_sers_532": 30000,
-  "stroke_urine_sers_633": 30000
- },
+ "max_train_samples": 30000,
  "min_samples_per_class": 9,
  "min_groups_per_class": 3,
  "tasks": [

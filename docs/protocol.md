@@ -63,9 +63,10 @@ the same settings, with no per-model exceptions:
 - 3-fold outer cross-validation, group-aware, and 3-fold bagging inside each training split. A class needs
   at least 3 groups, and the inner folds of grouped tasks are group-disjoint.
 - 10800 s per fit, for every model on every dataset.
-- A dataset above its cap is cut to a random sample of 30000 spectra before splitting. The cap applies to
-  `mlrod`, `wheat_lines`, `bacteria_identification`, `glioma_idh`, `raman_mpi`, `soft_tissue_sarcoma` and both
-  `stroke_urine_sers` datasets, and there are no per-model row caps.
+- One row cap, `max_train_samples = 30000`, for every dataset and every model: a dataset with more spectra is
+  cut to a random sample of 30000 before splitting. That applies to `mlrod`, `wheat_lines`,
+  `bacteria_identification`, `glioma_idh` and `soft_tissue_sarcoma`; every other dataset runs on all its rows.
+  There are no per-dataset or per-model row caps.
 
 A model that runs out of memory or time on a large dataset fails there; the fold is reported with its failure
 label and imputed like any missing task. A result produced under v1's other limits (600 s, 10,000-row caps, per-model caps) is rerun for v2 where one of those limits

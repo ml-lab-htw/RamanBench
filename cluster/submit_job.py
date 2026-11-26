@@ -233,7 +233,7 @@ def resolve_time_limit(
 
 def resolve_max_train_samples(
     dataset: str,
-    max_train_samples_overrides: dict[str, int] | None = None,
+    max_train_samples_overrides: dict[str, int] | int | None = None,
     model_max_train_samples_overrides: dict[str, int] | int | None = None,
 ) -> int | None:
     """The ``--max-train-samples`` row-subsampling cap for ONE task, resolved
@@ -258,13 +258,21 @@ def resolve_max_train_samples(
     dominate).
     """
     candidates = []
-    if max_train_samples_overrides and dataset in max_train_samples_overrides:
+    if isinstance(max_train_samples_overrides, int):  # benchmark v2: one cap for every dataset (scope's max_train_samples)
+        candidates.append(max_train_samples_overrides)
+    elif max_train_samples_overrides and dataset in max_train_samples_overrides:
         candidates.append(max_train_samples_overrides[dataset])
     if isinstance(model_max_train_samples_overrides, int):
         candidates.append(model_max_train_samples_overrides)
     elif model_max_train_samples_overrides and dataset in model_max_train_samples_overrides:
         candidates.append(model_max_train_samples_overrides[dataset])
     return min(candidates) if candidates else None
+
+
+def scope_row_cap(scope: dict) -> dict[str, int] | int:
+    """The scope's dataset row cap for :func:`resolve_max_train_samples`: the global ``max_train_samples`` (v2) or the
+    dataset-keyed ``max_train_samples_overrides`` (v1)."""
+    return scope["max_train_samples"] if scope.get("max_train_samples") else scope.get("max_train_samples_overrides", {})
 
 
 def write_jobspec(

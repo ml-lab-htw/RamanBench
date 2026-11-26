@@ -74,17 +74,8 @@
     "num_random_configs": 0,
     "num_bag_folds": 3,
     "time_limit": 10800,
-    "_comment_max_train_samples_overrides": "Global row cap (every model, per dataset): a dataset above the cap is cut to a random sample of that many rows before splitting. No per-model caps or time limits in v2: every model gets the same cap and the same time_limit (10800 s per fit).",
-    "max_train_samples_overrides": {
-        "mlrod": 30000,
-        "wheat_lines": 30000,
-        "bacteria_identification": 30000,
-        "glioma_idh": 30000,
-        "raman_mpi": 30000,
-        "soft_tissue_sarcoma": 30000,
-        "stroke_urine_sers_532": 30000,
-        "stroke_urine_sers_633": 30000
-    },
+    "_comment_max_train_samples": "Row cap for every dataset and every model: a dataset above it is cut to a random sample of this many rows before splitting. v2 has no per-model row caps and no per-model time limits; every model gets the same cap and the same time_limit.",
+    "max_train_samples": 30000,
     "_comment_large_datasets": "k8s-only (submit_full_benchmark.py's k8s branch): routed to a separate single pod on a bigger GPU (H100/H200) instead of the main A100 pod, so the main sweep isn't dominated by these outliers. Two disjoint kinds of 'large', both real: the top 6 by row count (mlrod 130061, bacteria_identification 78500, wheat_lines 53134, serum_prostate_cancer 12601, sugar_mixtures_low_snr 7840, bioprocess_substrates 6960 -- clear cliff after these, next is 12601 already listed then a drop to 4020) stress GPU batch-size/training memory; the 9 extremely wide ones (~11084-11689 features, 14-235 rows: acetic_acid_species, citric_acid_species, flow_microgel_synthesis, formic_acid_species, itaconic_acid_species, levulinic_acid_species, microgel_size_raw_global, microgel_synthesis, succinic_acid_species) stress feature-dimension memory instead (PCA/GCU representation size, TabPFN's per-forward-pass feature cap) -- unrelated mechanism, just also 'large' in a different axis. 6 more equally-wide microgel_size_*_global variants exist in data/precomputed/dataset_stats.json but aren't in target_list.json (not part of the routine sweep), so they're excluded here too. bioprocess_analytes_kaiser ADDED 2026-09-29: confirmed real TABICL NotEnoughCudaMemoryError on the main A100 pod (all 9 tasks: 3 targets x 3 folds) -- only 134 rows but 5472 features, well below the ~11084+ threshold of the 'extremely wide' cluster above but still wide enough to OOM TabICL specifically; not previously flagged because no model had hit this ceiling on it before. Confirms the wide-dataset OOM risk is a continuum, not a fixed feature-count cutoff -- revisit the other not-yet-flagged wide-ish datasets if another model hits the same error on one.",
     "large_datasets": [
         "acetic_acid_species",

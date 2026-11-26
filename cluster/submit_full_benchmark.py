@@ -105,7 +105,7 @@ def main():
 
     from copy import deepcopy
 
-    from submit_job import resolve_profile, submit_jobs
+    from submit_job import resolve_profile, scope_row_cap, submit_jobs
 
     profile = resolve_profile(args.profile, args.cluster)
 
@@ -129,7 +129,7 @@ def main():
         # Both used to be ignored here: every task ran at the flat --time-limit.
         dataset_time_limit_overrides = scope_data.get("time_limit_overrides", {})
         model_time_limit_override = scope_data.get("model_time_limit_overrides", {}).get(args.model)
-        max_train_samples_overrides = scope_data.get("max_train_samples_overrides", {})
+        max_train_samples_overrides = scope_row_cap(scope_data)
         # Per-model row-subsampling cap (e.g. {"PERPETUAL_BOOSTER": 3000}), applied
         # across EVERY dataset for that model -- not just the ones already in
         # max_train_samples_overrides above. See submit_job.resolve_max_train_samples's
@@ -144,7 +144,7 @@ def main():
     # Benchmark v2 drops classes with fewer than this many groups (configs/v2); v1 has none.
     min_groups_per_class = int(scope_data.get("min_groups_per_class", 0))
 
-    from submit_job import resolve_time_limit
+    from submit_job import resolve_max_train_samples, resolve_time_limit
 
     def task_time_limit(dataset: str) -> float:
         return resolve_time_limit(
@@ -247,15 +247,9 @@ def main():
         # Same min-combine as submit_job.resolve_max_train_samples -- the global
         # dataset-keyed cap and this model's own cap (flat or dataset-keyed) can
         # both apply; the smaller one wins.
-        task_caps = []
-        if t["dataset"] in max_train_samples_overrides:
-            task_caps.append(max_train_samples_overrides[t["dataset"]])
-        if isinstance(model_max_train_samples_override, int):
-            task_caps.append(model_max_train_samples_override)
-        elif model_max_train_samples_override and t["dataset"] in model_max_train_samples_override:
-            task_caps.append(model_max_train_samples_override[t["dataset"]])
-        if task_caps:
-            cmd += ["--max-train-samples", str(min(task_caps))]
+        task_cap = resolve_max_train_samples(t["dataset"], max_train_samples_overrides, model_max_train_samples_override)
+        if task_cap is not None:
+            cmd += ["--max-train-samples", str(task_cap)]
         if args.profile:
             cmd += ["--profile", args.profile]
         if args.cluster:

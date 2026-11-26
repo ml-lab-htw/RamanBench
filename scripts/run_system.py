@@ -72,6 +72,7 @@ def run_one(
     """Fit *system_key* on one outer fold of one protocol task and cache the result."""
     from tabarena.benchmark.experiment.experiment_constructor import ExternalSystemExperiment
 
+    from raman_bench.compare import row_cap
     from raman_bench.experiment_utils import build_task, load_dataframe, run_cached
     from raman_bench.systems import get_system
 
@@ -80,7 +81,7 @@ def run_one(
     (spec,) = [t for t in protocol["tasks"] if t["task"] == task]
     dataset_name, target_idx = spec["dataset"], spec["target_idx"]
 
-    caps = [c for c in (protocol.get("max_train_samples_overrides", {}).get(dataset_name), system.train_sample_cap(dataset_name)) if c]
+    caps = [c for c in (row_cap(protocol, dataset_name), system.train_sample_cap(dataset_name)) if c]
     dataset, df, sample_idx, problem_type = load_dataframe(
         dataset_name,
         target_idx,

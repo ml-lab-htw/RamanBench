@@ -86,12 +86,13 @@ def run_fold(task, fold, out_dir, protocol, cache_dir, mirror_repo, model_kwargs
     from llm_trees import LLMTreeClassifier, LLMTreeRegressor
     from raman_data.datasets import get_dataset_info
 
+    from raman_bench.compare import row_cap
     from raman_bench.experiment_utils import build_task, load_dataframe
 
     (spec,) = [t for t in protocol["tasks"] if t["task"] == task]
     name, target_idx = spec["dataset"], spec["target_idx"]
     dataset, df, sample_idx, problem_type = load_dataframe(
-        name, target_idx, max_train_samples=protocol.get("max_train_samples_overrides", {}).get(name),
+        name, target_idx, max_train_samples=row_cap(protocol, name),
         cache_dir=cache_dir, mirror_repo=mirror_repo,
     )
     task_name, wrapper = build_task(

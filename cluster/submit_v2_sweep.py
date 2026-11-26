@@ -55,6 +55,7 @@ from submit_job import (  # noqa: E402
     build_k8s_job_manifest_multimodel,
     resolve_k8s_image,
     resolve_profile,
+    scope_row_cap,
     write_jobspec_autogluon,
     write_jobspec_multimodel,
 )
@@ -184,7 +185,7 @@ def main() -> None:
                     default_time_limit=scope["time_limit"],
                     dataset_time_limit_overrides=scope.get("time_limit_overrides", {}),
                     model_time_limit_overrides=scope.get("model_time_limit_overrides", {}),
-                    max_train_samples_overrides=scope.get("max_train_samples_overrides", {}),
+                    max_train_samples_overrides=scope_row_cap(scope),
                     model_max_train_samples_overrides=scope.get("model_max_train_samples_overrides", {}),
                 )
                 job, cm, n_pods, manifest = build_k8s_job_manifest_multimodel(
