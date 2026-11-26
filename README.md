@@ -161,8 +161,7 @@ RamanBench has been accepted at NeurIPS 2026. If you use RamanBench in your rese
   title={RamanBench: A Large-Scale Benchmark for Machine Learning on Raman Spectroscopy},
   author={Koddenbrock, Mario and Lange, Christoph and Legner, Robin and J{\"a}ger, Martin and K{\"o}gler, Martin and Bournazou, Mariano N Cruz and Neubauer, Peter and Biessmann, Felix and Rodner, Erik},
   booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
-  year={2026},
-  note={arXiv preprint arXiv:2605.02003}
+  year={2026}
 }
 ```
 

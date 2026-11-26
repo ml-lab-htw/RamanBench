@@ -14,36 +14,15 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- Failure labels and a setup record for every fold (`raman_bench.run_record`). A fold that raises leaves a `failure.json` with a
+  uniform label (`oom_gpu`, `oom_cpu`, `timeout`, `error`); a finished fold leaves a `setup.json` with the package versions, the hardware,
+  whether it was a bagged or a system run, and the time limit, bag folds and row cap it ran under. `aggregate_results.py` writes
+  `failures.csv` and logs the failed folds per model (`missing` for a fold that left no record). `compare()` warns when it cannot check
+  that results follow the protocol's bagged fit. `docs/protocol.md` describes models and systems, failures and the setup record.
 - **Causilo 1.5** (`CAUSILO-1.5`) and **Causilo 1.5 (Light)** (`CAUSILO-1.5-LIGHT`, the library's `mode="light"`) (Nums AI, PyPI `causilo>=1.5.0`, released 2026-11-25) as a new model next to Causilo 1.0
   (`CAUSILO`, results unchanged): the package's new default network with the full training context and the library's own
   ensemble size. The `causilo` pin is now `>=1.5.0`; the `CAUSILO` wrapper passes `model_version="1.0"` when the installed
   causilo has that argument, so the 1.0 key keeps meaning Causilo 1.0. Row cap 30000 (above the 5000 of `CAUSILO`; the benchmark-wide 10000 cap on mlrod, wheat_lines and bacteria_identification still applies) and the same time-limit overrides as `CAUSILO`.
-
-### Removed
-
-- `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
-  section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.
-- Seven one-off cluster scripts (`resubmit_limix2_*`, `resubmit_tabpfn_wide_b200`, `submit_autogluon_1h_*`,
-  `submit_compare_model_speed`), `cluster/run_system_k8s.yaml` and `scripts/compare_model_speed.py`.
-- The bagged TabPFN-thinking runner: `scripts/run_tabpfn_thinking.py` and `raman_bench.models.api`. The system
-  (`TABPFN-V3.5-THINKING`, one fit per outer fold) is the only thinking variant.
-- Unused code: `raman_bench.evaluation` (`compute_metrics_from_predictions`, the v0.1 pipeline's scorer),
-  `raman_bench.dataset_categorization`, `run_file_logger`, `metrics.utils.compare_metrics`, the private
-  `_build_leaderboard_from_metrics`, and the config-gated filter wrappers in `raman_bench.filters`
-  (`get_trivial_keys`, `get_unlearnable_keys`, their `*_from_dir` variants and the two config dataclasses;
-  `compute_*_keys` and `filter_trivial_keys` stay).
-
-### Changed
-
-- Benchmark v2: one row cap, `max_train_samples = 30000`, for every dataset and every model (scope and protocol), instead of the
-  dataset-keyed `max_train_samples_overrides` of 10000 on eight datasets. The per-model caps (`model_max_train_samples_overrides`)
-  are removed from the v2 scope and protocol: every model gets the same row cut. `raman_bench.compare.row_cap` reads either form.
-- Benchmark v2: the optimization budget (`time_limit`, 600 s as in v1) is separate from `max_run_time` (10800 s), the wall-clock after which a fold is cancelled. `run_experiment.py --max-run-time` (default: env `MAX_RUN_TIME`, set by the sweep scripts from the scope) runs the bag under the longer limit and caps each bagged model at 0.8 x the budget, the child budget a 600 s bag gave in v1. This replaces the single 10800 s limit.
-- The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
-  used `kubectl apply` for the Job and now queues it through `kq`.
-
-### Added
-
 - **LightGBM-Prep-FTE25 as a system** (`LGBM-PREP-FTE25`, `raman_bench.systems.lgbm_prep_fte`, run with `scripts/run_system.py`):
   Yandex Research's PriorTune system, a portfolio of 26 LightGBM configs (8 with TabPrep features), each an 8-fold bag, combined by
   greedy ensemble selection. This is the BeyondArena portfolio, whose bags use group-aware inner splits. Copied from the open
@@ -79,15 +58,16 @@ The full rules are in [RELEASING.md](RELEASING.md).
   They are in `configs/v1/scope_default.json`; no results yet.
 
 ### Changed
+
+- The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
+  used `kubectl apply` for the Job and now queues it through `kq`.
 - **Five requirements files became two.** `requirements-tabarena-git.txt`, `requirements-models-git.txt` and
   `requirements-tabomics-git.txt` are now `requirements-git.txt` (one `pip install -r`; the combined set resolves
   on Python 3.11, checked with `uv pip compile`). `requirements-lattice-git.txt` and `requirements-limix2-git.txt`
   are now `requirements-git-nodeps.txt`, installed with `pip install --no-deps -r` because their torch pins clash
   with the rest; the LimiX line only applies on Python 3.12. The Dockerfile, CI and docs use the new names.
-
 - Aggregation prints progress: the fold check (per loaded task and every 5000 results, with ETA), the fold metrics (every
   5000 files), and a line before and after TabArena's recycling step, which has no output of its own.
-
 - **Inner bagging folds of grouped classification tasks stratify over the groups when every group holds a single class**
   (`PER_GROUP` in TabArena's validation metadata; `_group_label_type` in `splitting.py`). Before, sklearn's
   `StratifiedGroupKFold` split the rows, which stratifies only approximately, and a class with few groups could be left
@@ -99,7 +79,6 @@ The full rules are in [RELEASING.md](RELEASING.md).
   `serum_alzheimer_disease` and `serum_prostate_cancer` used it; they are rerun.
 - `scripts/run_system.py` gives every fold its own OpenML cache directory. Parallel workers (`--workers`) shared one, and one
   worker could read a dataset file another was still writing ("Unknown file type for file 'ignored'").
-
 - The README is now a short overview (146 lines instead of 859). The details moved to `docs/`: installation,
   comparing a model, the preprocessing interface, models, protocol, architecture, running the benchmark and the
   contributor agents, indexed in `docs/README.md`. The preprocessing transformers and recipes have their own page,
@@ -110,6 +89,24 @@ The full rules are in [RELEASING.md](RELEASING.md).
   no model RamanBench already runs changes.
 - `recipe_description` spells the step "rubberband baseline" (was "rubber-band baseline"), as the Raman
   preprocessing paper does; the step itself is unchanged.
+- Benchmark v2: one row cap, `max_train_samples = 30000`, for every dataset and every model (scope and protocol), instead of the
+  dataset-keyed `max_train_samples_overrides` of 10000 on eight datasets. The per-model caps (`model_max_train_samples_overrides`)
+  are removed from the v2 scope and protocol: every model gets the same row cut. `raman_bench.compare.row_cap` reads either form.
+- Benchmark v2: the optimization budget (`time_limit`, 600 s as in v1) is separate from `max_run_time` (10800 s), the wall-clock after which a fold is cancelled. `run_experiment.py --max-run-time` (default: env `MAX_RUN_TIME`, set by the sweep scripts from the scope) runs the bag under the longer limit and caps each bagged model at 0.8 x the budget, the child budget a 600 s bag gave in v1. This replaces the single 10800 s limit.
+
+### Removed
+
+- `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
+  section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.
+- Seven one-off cluster scripts (`resubmit_limix2_*`, `resubmit_tabpfn_wide_b200`, `submit_autogluon_1h_*`,
+  `submit_compare_model_speed`), `cluster/run_system_k8s.yaml` and `scripts/compare_model_speed.py`.
+- The bagged TabPFN-thinking runner: `scripts/run_tabpfn_thinking.py` and `raman_bench.models.api`. The system
+  (`TABPFN-V3.5-THINKING`, one fit per outer fold) is the only thinking variant.
+- Unused code: `raman_bench.evaluation` (`compute_metrics_from_predictions`, the v0.1 pipeline's scorer),
+  `raman_bench.dataset_categorization`, `run_file_logger`, `metrics.utils.compare_metrics`, the private
+  `_build_leaderboard_from_metrics`, and the config-gated filter wrappers in `raman_bench.filters`
+  (`get_trivial_keys`, `get_unlearnable_keys`, their `*_from_dir` variants and the two config dataclasses;
+  `compute_*_keys` and `filter_trivial_keys` stay).
 
 ### Fixed
 
@@ -147,14 +144,6 @@ with this release.
 
 ### Added
 
-- **Benchmark v2: five more datasets** (raman_data 1.9.0): `slopp` and `slopp_e` (Rochman Lab libraries of plastic
-  particles, Munno et al. 2020), `soft_tissue_sarcoma` (RamanSTS, 8 tissue classes, 110 Raman maps as groups),
-  `vcl_pvcl_water` (3 concentration targets) and `citric_acid_citrates` (5 targets). After the 9-spectra and
-  3-groups-per-class rules `slopp` keeps 8 of its 15 classes (108 of 148 spectra; ABS drops out with 2 groups) and
-  `slopp_e` 4 of its 20 (68 of 113); all 8 RamanSTS classes stay. RamanSTS has 286,672 spectra and gets the 10,000-row
-  cap and the large-dataset pod. v2 now has 116 datasets and 78 v2-only targets, 52 of them run. All five are on the
-  HF mirror (the SLoPP download package states no licence). Not swept yet; `cluster/submit_v2_sweep.py` installs
-  raman-data 1.9.0 by default. The per-model row caps of the other large datasets are not set for RamanSTS yet.
 - `scripts/plot_tradeoff_100k.py`: Elo vs. median time per 100K spectra (train + predict, and inference only), log
   x-axis, with only the models given in `--highlight` coloured. Reads a `leaderboard_*.csv` from `plot_results.py`.
 - Named preprocessing recipes (`raman_bench.preprocessing.recipes`, also importable from

@@ -77,11 +77,59 @@ the optimization budget is unchanged from v1, so a longer cancel limit alone doe
 
 ## Departures from the protocol
 
-- Systems (Chakra-Tab, TabFM+) do their own validation and ensembling, so they are fit once per
-  outer fold instead of through AutoGluon's bagging.
+- Systems (Chakra-Tab, TabFM+, TabLDM+, TabPFN Thinking, LightGBM-Prep-FTE25) do their own validation
+  and ensembling, so they are fit once per outer fold instead of through AutoGluon's bagging (see
+  [Models and systems](#models-and-systems)).
 - HIVE-COTE 2 gets 21,600 s per fit instead of 600 s, because aeon turns the budget into its own
   time contract; it has no result on `mlrod`, which is imputed.
 - A task a model has no result for is imputed with Random Forest's result and counted in
   `imputed_pct`; a model more than 50% imputed is not ranked.
+
+## Models and systems
+
+RamanBench takes two kinds of entrant, and they are fitted differently.
+
+| | Model | System |
+|---|---|---|
+| What it is | One method with a fixed configuration | A pipeline that does its own validation, tuning and ensembling |
+| Fit | 3-fold bagging inside each training split, 600 s | Once per outer fold on the whole training split |
+| Run with | `scripts/run_experiment.py`, `evaluate_estimator` | `scripts/run_system.py` |
+
+The two are not interchangeable. A model fitted once on the whole training split sees more rows per
+fit than a bagged one, and in-context models gain from that: Nums AI's fit-once Causilo 1.5 scored
+Elo 1570 on the v1 folds where the bagged run scores about 1525. The leaderboard's reference rows are
+bagged fits (and systems), so a single fit of a plain model is not comparable with them. Run it
+bagged, or submit it as a system and say so. `compare()` warns when it cannot check how results were
+fitted.
+
+## Failures and incomplete models
+
+A fold that raises leaves a `failure.json` next to where its `results.pkl` would be, with one uniform
+label:
+
+| Label | Meaning |
+|---|---|
+| `oom_gpu` | CUDA out of memory |
+| `oom_cpu` | out of host memory |
+| `timeout` | the fit exceeded its time limit |
+| `error` | any other exception |
+
+A fold with neither result nor record (a pod that was killed) is reported as `missing`.
+`scripts/aggregate_results.py` collects them into `failures.csv` and logs the counts per model. The
+ranking is unchanged: a missing task is imputed with Random Forest's result, counted in
+`imputed_pct`, and a model more than 50% imputed is not ranked.
+
+## What is recorded with each result
+
+Next to every `results.pkl` the runners write a `setup.json`: the package versions (`raman-bench`,
+`tabarena`, `autogluon.tabular`, `torch`, `scikit-learn`, `numpy`), the Python version, the hardware,
+whether the run was `bagged` or a `system`, and the settings it ran under (time limit, bag folds, row
+cap, rows after cleaning, CPUs and GPUs). A result run before this was recorded has none.
+
+## One protocol file per benchmark version
+
+Each benchmark version has one protocol file that lists all of its tasks and settings; for v1 it is
+`src/raman_bench/data/precomputed/v1/protocol.json`. The scope file used to run the sweeps must agree
+with it on the folds, bagging, time limit and row caps, and a test checks that.
 
 Known contamination and closed-API markers are in [Models](models.md#known-contamination-and-closed-apis).

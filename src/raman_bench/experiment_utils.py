@@ -55,14 +55,9 @@ def write_hardware_info(cache_path: str) -> None:
     result itself and never has to be reconstructed from an external tracker later.
     """
     try:
-        import torch
+        from raman_bench.run_record import hardware_info
 
-        if torch.cuda.is_available():
-            info = {"gpu": torch.cuda.get_device_name(0), "gpu_count": torch.cuda.device_count()}
-        elif torch.backends.mps.is_available():
-            info = {"gpu": "Apple MPS", "gpu_count": 1}
-        else:
-            info = {"gpu": None, "gpu_count": 0}
+        info = hardware_info()
     except Exception:
         logger.warning("Could not determine compute device for hardware info", exc_info=True)
         info = {"gpu": None, "gpu_count": None, "note": "device detection failed"}
@@ -356,6 +351,7 @@ def run_cached(
     results_dir: str,
     experiment_dir_name: str | None = None,
     force_recompute: bool = False,
+    setup: dict | None = None,
 ) -> dict:
     """Run one TabArena experiment on one fold, caching the result.
 
@@ -369,11 +365,17 @@ def run_cached(
     stands as final, and TabArena would otherwise refuse the cached run's mismatching
     validation protocol. ``force_recompute`` overwrites it instead, which is meant for a
     dataset-definition fix that makes the cached result meaningless.
+
+    Next to it, ``setup.json`` records what the result was produced with (versions, hardware, and
+    *setup*, the protocol settings the caller ran under) and a fold that raises leaves a
+    ``failure.json`` with a uniform label (:mod:`raman_bench.run_record`); the exception still propagates.
     """
     import os
     from pathlib import Path
 
     from tabarena.utils.cache import CacheFunctionPickle
+
+    from raman_bench.run_record import write_failure, write_setup
 
     cache_path = os.path.join(results_dir, experiment_dir_name or experiment.name, task_name, f"{repeat}_{fold}")
     Path(cache_path).mkdir(parents=True, exist_ok=True)
@@ -389,17 +391,22 @@ def run_cached(
         return out
 
     logger.info("Running %s on %s repeat=%d fold=%d -> %s", experiment.name, task_name, repeat, fold, cache_path)
-    out = experiment.run(
-        task=task_wrapper,
-        fold=fold,
-        repeat=repeat,
-        task_name=task_name,
-        # The task's canonical cache identifier; TabArena uses it to scope its
-        # text-embedding cache. Where results land is decided by cache_path above.
-        cache_task_key=task_name,
-        cacher=cacher,
-        ignore_cache=force_recompute,
-    )
+    try:
+        out = experiment.run(
+            task=task_wrapper,
+            fold=fold,
+            repeat=repeat,
+            task_name=task_name,
+            # The task's canonical cache identifier; TabArena uses it to scope its
+            # text-embedding cache. Where results land is decided by cache_path above.
+            cache_task_key=task_name,
+            cacher=cacher,
+            ignore_cache=force_recompute,
+        )
+    except Exception as exc:
+        write_failure(cache_path, experiment, exc, setup)
+        raise
     write_hardware_info(cache_path)
+    write_setup(cache_path, experiment, setup)
     logger.info("Done: metric_error=%s", out.get("metric_error"))
     return out

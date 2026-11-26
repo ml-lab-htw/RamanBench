@@ -127,6 +127,10 @@ def run_one(
         fold=fold,
         results_dir=results_dir,
         force_recompute=force_recompute,
+        setup={
+            "system": system.key, "time_limit": time_limit, "n_splits": spec["n_folds"], "n_repeats": spec["n_repeats"],
+            "max_train_samples": min(caps) if caps else None, "rows": len(df),
+        },
     )
 
 
