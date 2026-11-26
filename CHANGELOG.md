@@ -18,28 +18,6 @@ The full rules are in [RELEASING.md](RELEASING.md).
   (`CAUSILO`, results unchanged): the package's new default network with the full training context and the library's own
   ensemble size. The `causilo` pin is now `>=1.5.0`; the `CAUSILO` wrapper passes `model_version="1.0"` when the installed
   causilo has that argument, so the 1.0 key keeps meaning Causilo 1.0. Row cap 30000 (above the 5000 of `CAUSILO`; the benchmark-wide 10000 cap on mlrod, wheat_lines and bacteria_identification still applies) and the same time-limit overrides as `CAUSILO`.
-
-### Removed
-
-- `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
-  section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.
-- Seven one-off cluster scripts (`resubmit_limix2_*`, `resubmit_tabpfn_wide_b200`, `submit_autogluon_1h_*`,
-  `submit_compare_model_speed`), `cluster/run_system_k8s.yaml` and `scripts/compare_model_speed.py`.
-- The bagged TabPFN-thinking runner: `scripts/run_tabpfn_thinking.py` and `raman_bench.models.api`. The system
-  (`TABPFN-V3.5-THINKING`, one fit per outer fold) is the only thinking variant.
-- Unused code: `raman_bench.evaluation` (`compute_metrics_from_predictions`, the v0.1 pipeline's scorer),
-  `raman_bench.dataset_categorization`, `run_file_logger`, `metrics.utils.compare_metrics`, the private
-  `_build_leaderboard_from_metrics`, and the config-gated filter wrappers in `raman_bench.filters`
-  (`get_trivial_keys`, `get_unlearnable_keys`, their `*_from_dir` variants and the two config dataclasses;
-  `compute_*_keys` and `filter_trivial_keys` stay).
-
-### Changed
-
-- The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
-  used `kubectl apply` for the Job and now queues it through `kq`.
-
-### Added
-
 - Spotlight figures (`raman_bench.plotting.spotlight`): Elo vs. time with the Pareto front, and Elo vs. release date with the
   running best, with one or two models in the foreground (callout with Elo and rank, halo markers) and the other front or
   record models named in grey. `plot_results.py --highlight A B` writes them as `spotlight_elo_vs_time` and
@@ -70,6 +48,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
   They are in `configs/v1/scope_default.json`; no results yet.
 
 ### Changed
+
+- The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
+  used `kubectl apply` for the Job and now queues it through `kq`.
 - **Five requirements files became two.** `requirements-tabarena-git.txt`, `requirements-models-git.txt` and
   `requirements-tabomics-git.txt` are now `requirements-git.txt` (one `pip install -r`; the combined set resolves
   on Python 3.11, checked with `uv pip compile`). `requirements-lattice-git.txt` and `requirements-limix2-git.txt`
@@ -101,6 +82,20 @@ The full rules are in [RELEASING.md](RELEASING.md).
   no model RamanBench already runs changes.
 - `recipe_description` spells the step "rubberband baseline" (was "rubber-band baseline"), as the Raman
   preprocessing paper does; the step itself is unchanged.
+
+### Removed
+
+- `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
+  section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.
+- Seven one-off cluster scripts (`resubmit_limix2_*`, `resubmit_tabpfn_wide_b200`, `submit_autogluon_1h_*`,
+  `submit_compare_model_speed`), `cluster/run_system_k8s.yaml` and `scripts/compare_model_speed.py`.
+- The bagged TabPFN-thinking runner: `scripts/run_tabpfn_thinking.py` and `raman_bench.models.api`. The system
+  (`TABPFN-V3.5-THINKING`, one fit per outer fold) is the only thinking variant.
+- Unused code: `raman_bench.evaluation` (`compute_metrics_from_predictions`, the v0.1 pipeline's scorer),
+  `raman_bench.dataset_categorization`, `run_file_logger`, `metrics.utils.compare_metrics`, the private
+  `_build_leaderboard_from_metrics`, and the config-gated filter wrappers in `raman_bench.filters`
+  (`get_trivial_keys`, `get_unlearnable_keys`, their `*_from_dir` variants and the two config dataclasses;
+  `compute_*_keys` and `filter_trivial_keys` stay).
 
 ### Fixed
 
