@@ -102,7 +102,7 @@ models = [
     "kditransform",
     # Needs torch>=2.13, above the torch<2.10 that fastai declares. fastai still works (warning only).
     # The pretrained weights are under the non-commercial Causilo License v1.0.
-    "causilo>=1.0.0",
+    "causilo>=1.5.0",
     # AutoGluon imports fastai lazily, so a missing install only fails at the first fit.
     "fastai",
     # Keeps torch and torchvision a matched pair (a stale torchvision broke REALMLP). 0.28 pairs with

@@ -12,6 +12,13 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Causilo 1.5** (`CAUSILO-1.5`) and **Causilo 1.5 (Light)** (`CAUSILO-1.5-LIGHT`, the library's `mode="light"`) (Nums AI, PyPI `causilo>=1.5.0`, released 2026-11-25) as a new model next to Causilo 1.0
+  (`CAUSILO`, results unchanged): the package's new default network with the full training context and the library's own
+  ensemble size. The `causilo` pin is now `>=1.5.0`; the `CAUSILO` wrapper passes `model_version="1.0"` when the installed
+  causilo has that argument, so the 1.0 key keeps meaning Causilo 1.0. Row cap 30000 (above the 5000 of `CAUSILO`; the benchmark-wide 10000 cap on mlrod, wheat_lines and bacteria_identification still applies) and the same time-limit overrides as `CAUSILO`.
+
 ### Removed
 
 - `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
