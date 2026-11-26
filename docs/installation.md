@@ -41,8 +41,7 @@ the core package. AutoGluon is not needed for this path.
 in a PyPI package. Install them separately if you need them:
 
 ```bash
-pip install -r requirements-tabarena-git.txt
-pip install -r requirements-models-git.txt
+pip install -r requirements-git.txt
 ```
 
 Until then, every `Prep_*` class that wraps a `tabarena.models.*` model
@@ -50,8 +49,8 @@ Until then, every `Prep_*` class that wraps a `tabarena.models.*` model
 Raman-specific standalone architectures work without this step.
 
 Some models need their own install because their dependencies conflict with the
-main one (for example Lattice, which pins `torch==2.7.1`, in `requirements-lattice-git.txt`,
-and LimiX-2, in `requirements-limix2-git.txt`). The header of each requirements file says how.
+main one (for example Lattice, which pins `torch==2.7.1`, and LimiX-2). They are in
+`requirements-git-nodeps.txt`, installed with `pip install --no-deps -r`; its header says how.
 
 ## Option 3: full benchmark reproducibility
 
@@ -64,7 +63,7 @@ cd RamanBench
 uv pip install --prerelease=allow -e ".[models]"   # uv resolves bencheval automatically;
                                                     # plain pip needs it installed first,
                                                     # see the note in pyproject.toml
-pip install -r requirements-tabarena-git.txt       # tabarena is git-pinned, not on PyPI
+pip install -r requirements-git.txt                # tabarena is git-pinned, not on PyPI
 ```
 
 ### What replaced the AutoGluon fork

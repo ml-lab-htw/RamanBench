@@ -14,6 +14,37 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **Causilo 1.5** (`CAUSILO-1.5`) and **Causilo 1.5 (Light)** (`CAUSILO-1.5-LIGHT`, the library's `mode="light"`) (Nums AI, PyPI `causilo>=1.5.0`, released 2026-11-25) as a new model next to Causilo 1.0
+  (`CAUSILO`, results unchanged): the package's new default network with the full training context and the library's own
+  ensemble size. The `causilo` pin is now `>=1.5.0`; the `CAUSILO` wrapper passes `model_version="1.0"` when the installed
+  causilo has that argument, so the 1.0 key keeps meaning Causilo 1.0. Row cap 30000 (above the 5000 of `CAUSILO`; the benchmark-wide 10000 cap on mlrod, wheat_lines and bacteria_identification still applies) and the same time-limit overrides as `CAUSILO`.
+
+### Removed
+
+- `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
+  section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.
+- Seven one-off cluster scripts (`resubmit_limix2_*`, `resubmit_tabpfn_wide_b200`, `submit_autogluon_1h_*`,
+  `submit_compare_model_speed`), `cluster/run_system_k8s.yaml` and `scripts/compare_model_speed.py`.
+- The bagged TabPFN-thinking runner: `scripts/run_tabpfn_thinking.py` and `raman_bench.models.api`. The system
+  (`TABPFN-V3.5-THINKING`, one fit per outer fold) is the only thinking variant.
+- Unused code: `raman_bench.evaluation` (`compute_metrics_from_predictions`, the v0.1 pipeline's scorer),
+  `raman_bench.dataset_categorization`, `run_file_logger`, `metrics.utils.compare_metrics`, the private
+  `_build_leaderboard_from_metrics`, and the config-gated filter wrappers in `raman_bench.filters`
+  (`get_trivial_keys`, `get_unlearnable_keys`, their `*_from_dir` variants and the two config dataclasses;
+  `compute_*_keys` and `filter_trivial_keys` stay).
+
+### Changed
+
+- The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
+  used `kubectl apply` for the Job and now queues it through `kq`.
+
+### Added
+
+- Spotlight figures (`raman_bench.plotting.spotlight`): Elo vs. time with the Pareto front, and Elo vs. release date with the
+  running best, with one or two models in the foreground (callout with Elo and rank, halo markers) and the other front or
+  record models named in grey. `plot_results.py --highlight A B` writes them as `spotlight_elo_vs_time` and
+  `spotlight_elo_vs_release_date`; `plot_spotlight_tradeoff` takes `per_spectra` and `time_col`, `plot_spotlight_release`
+  takes `hide` (a model released the same day).
 - **TabPFN-3.5-Thinking as a system** (`TABPFN-V3.5-THINKING`, `raman_bench.systems`, run with `scripts/run_system.py`): Prior Labs'
   hosted model, one thinking fit per outer fold as Prior Labs asked, not through AutoGluon's bagging (about four API fits per
   fold). Effort `high`, the key from `TABPFN_TOKEN`. It waits out the API's rate limit (10 fits a minute, 30 an hour; refused
@@ -23,6 +54,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
   time limit (`System.unlimited_time`), so no fit is cut off by the 600 s protocol budget. Spectra wider than the API's 23,000
   columns would be binned (none are; the widest task has about 11,700). Fits from parallel workers are spaced through a lock
   file (`TABPFN_FIT_INTERVAL_S`, 125 s) to stay under 30 an hour. All 405 folds ran with 0 failures.
+- `TABPFN-V3.5-THINKING-MAX`: the thinking system at the API's highest effort (`max`), results in `TabPFN-V3.5-Thinking-max`;
+  in the leaderboard scope next to `TABPFN-V3.5-THINKING` (`high`). All 405 folds ran with 0 failures.
 - Plots: with an explicit highlight list (`highlight=` in `compare` and `generate_all`, `--highlight` in `plot_results.py` and
   `plot_tradeoff_100k.py`), the Pareto-optimal models of the trade-off plots stay coloured instead of turning grey.
 - The footnotes under the leaderboard figures are one short line per mark (`‡ API`) instead of a sentence naming every model.
@@ -37,6 +70,14 @@ The full rules are in [RELEASING.md](RELEASING.md).
   They are in `configs/v1/scope_default.json`; no results yet.
 
 ### Changed
+- **Five requirements files became two.** `requirements-tabarena-git.txt`, `requirements-models-git.txt` and
+  `requirements-tabomics-git.txt` are now `requirements-git.txt` (one `pip install -r`; the combined set resolves
+  on Python 3.11, checked with `uv pip compile`). `requirements-lattice-git.txt` and `requirements-limix2-git.txt`
+  are now `requirements-git-nodeps.txt`, installed with `pip install --no-deps -r` because their torch pins clash
+  with the rest; the LimiX line only applies on Python 3.12. The Dockerfile, CI and docs use the new names.
+
+- Aggregation prints progress: the fold check (per loaded task and every 5000 results, with ETA), the fold metrics (every
+  5000 files), and a line before and after TabArena's recycling step, which has no output of its own.
 
 - **Inner bagging folds of grouped classification tasks stratify over the groups when every group holds a single class**
   (`PER_GROUP` in TabArena's validation metadata; `_group_label_type` in `splitting.py`). Before, sklearn's

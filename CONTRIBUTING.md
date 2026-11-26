@@ -29,7 +29,7 @@ Before you start, here are the key resources:
 git clone https://github.com/ml-lab-htw/RamanBench.git
 cd RamanBench
 pip install -e ".[full,dev]"
-pip install -r requirements-tabarena-git.txt
+pip install -r requirements-git.txt
 ```
 
 ---
@@ -55,7 +55,7 @@ compare("results/my_model")["all"].leaderboard.head(15)
 ### Option B: Wrapping a TabArena-native model
 
 Use this path when the model already exists in TabArena (check the pinned
-commit's `tabarena.models.<key>` — see `requirements-tabarena-git.txt` for
+commit's `tabarena.models.<key>` — see `requirements-git.txt` for
 which commit is currently pinned and why) rather than
 subclassing a raw AutoGluon model directly.
 
@@ -76,7 +76,7 @@ If TabArena does NOT have it yet, that's real upstream contribution work
 
 If the model needs a GPU, add its key to `cluster/gpu_models.json` — this is
 what keeps the CPU/GPU cluster-tier split enforced (see
-`cluster/opportunistic_scheduler.py`'s `compute_backlog`).
+`cluster/submit_job.py`'s `GPU_MODELS`).
 
 #### 3. Add tests
 

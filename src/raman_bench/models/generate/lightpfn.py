@@ -3,7 +3,7 @@
 
 ``LightPFNModel`` (https://github.com/GioOtto/LightPFN, Apache-2.0) lives only in
 TabArena's package (``tabarena.models.lightpfn.model``, autogluon/tabarena#655, on our pin
-as a cherry-pick -- see ``requirements-tabarena-git.txt``). See ``wrapped_models.py`` for
+as a cherry-pick -- see ``requirements-git.txt``). See ``wrapped_models.py`` for
 the import, its ``ag_key`` override (``"TA-LIGHTPFN"`` -> ``"LIGHTPFN"``) and why it is
 classification-only and capped at 10 classes.
 

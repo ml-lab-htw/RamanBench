@@ -2,7 +2,7 @@
 
 ``PrismBoostModel`` (https://github.com/PrismBoost/PrismBoost, MIT) lives only in
 TabArena's package (``tabarena.models.prismboost.model``, autogluon/tabarena#629, on our
-pin as a cherry-pick -- see ``requirements-tabarena-git.txt``). Config 0 is upstream's
+pin as a cherry-pick -- see ``requirements-git.txt``). Config 0 is upstream's
 default (``manual_configs=[{}]``: PrismBoost's "auto" capacity rules, round count by early
 stopping); the search space is upstream's, for an HPO sweep. CPU-only.
 """

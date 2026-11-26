@@ -711,15 +711,3 @@ def _aggregate_leaderboard(per_ds: pd.DataFrame) -> pd.DataFrame:
     agg["Score"] = agg["Score"].round(4)
     agg["Avg Rank"] = agg["Avg Rank"].round(1)
     return agg
-
-
-def _build_leaderboard_from_metrics(
-    clf_df: pd.DataFrame,
-    reg_df: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Build overall/clf/reg leaderboard DataFrames from raw metrics CSVs.
-
-    Kept for backwards compatibility with :meth:`Leaderboard.from_results_dir`.
-    """
-    lb = Leaderboard(reg_df, clf_df)
-    return lb._overall, lb._clf, lb._reg

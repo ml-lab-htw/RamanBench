@@ -18,7 +18,7 @@ What RamanBench adds on top is small: datasets come from the raman-data HF mirro
 OpenML, and about 13 Raman-specific architectures are registered alongside TabArena's own models.
 
 `tabarena` is pinned to a commit of upstream `autogluon/tabarena` main, not a PyPI release, and
-installed from `requirements-tabarena-git.txt`, whose comments give the pin history and why.
+installed from `requirements-git.txt`, whose comments give the pin history and why.
 
 ### Key entry points
 
@@ -128,8 +128,7 @@ Full details are in [CHANGELOG.md](../CHANGELOG.md); the short version:
 - New `is_grouped` / `has_missing_labels` fields on `raman-data`'s `DatasetInfo`
 
 **Infrastructure**
-- Public, cluster-agnostic job-submission tooling plus an opportunistic, capacity-aware scheduler
-  for routine full-benchmark sweeps
+- Public, cluster-agnostic job-submission tooling for routine full-benchmark sweeps
 - Dropped the patched AutoGluon fork; moved to upstream AutoGluon 1.6 with RamanBench-local cap overrides
 - Automatic `.env` credential loading; `main` requires PRs (no direct pushes)
 

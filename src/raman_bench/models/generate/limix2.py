@@ -30,7 +30,7 @@ git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e1a994cbe38f33758e3d663e9951
 declares ``requires-python = ">=3.12"`` and pins ``torch==2.9.1``, both
 incompatible with the main image's Python 3.11.10 base and shared
 ``torch~=2.14`` floor (forced by Causilo -- see ``pyproject.toml``). See
-``requirements-limix2-git.txt`` and ``cluster/submit_job.py``'s
+``requirements-git-nodeps.txt`` and ``cluster/submit_job.py``'s
 ``model_image_overrides`` for how a LIMIX2 job gets routed to that image.
 """
 

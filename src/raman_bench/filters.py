@@ -15,7 +15,7 @@ TabArena applies this once, at dataset-curation time -- deciding which
 datasets enter its fixed suite at all, before any leaderboard numbers exist.
 RamanBench applies it differently: post-hoc, per (dataset, target) key,
 against already-computed ``hpo_results`` (see :mod:`scripts.aggregate_results`),
-opt-in and off by default (:attr:`TrivialFilterConfig.enabled`). Nothing here
+opt-in and off by default (``scripts/aggregate_results.py --trivial-filter``). Nothing here
 excludes a dataset from being *run* -- it only flags keys whose results a
 downstream leaderboard/plot/table may want to drop, exactly like
 ``raman_bench_paper.filters`` did for the v0.1 pipeline's per-seed metrics
@@ -126,9 +126,7 @@ leaderboard-shaped utilities.
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Iterable
-from dataclasses import dataclass
 
 import pandas as pd
 
@@ -138,44 +136,6 @@ logger = logging.getLogger(__name__)
 # hpo_results/model_results ``problem_type`` column (see module docstring).
 CLASSIFICATION_PROBLEM_TYPES = frozenset({"binary", "multiclass"})
 REGRESSION_PROBLEM_TYPES = frozenset({"regression"})
-
-
-@dataclass
-class TrivialFilterConfig:
-    """Config-driven settings for the trivial-dataset filter. Off by default.
-
-    Mirrors the ``trivial_filter`` block shape from
-    ``raman_bench_paper/configs/v0_default.json`` (``enabled``, ``perfect_clf``,
-    ``perfect_reg``, ``min_tie_models``, ``tie_decimals``) for continuity, plus
-    one v1-specific addition (``method_subtype``, see :func:`compute_trivial_keys`).
-    See the module docstring for why ``perfect_clf``/``perfect_reg`` default to
-    ``0.0`` here rather than the paper config's ``1.0``/``0.0`` pair.
-    """
-
-    enabled: bool = False
-    perfect_clf: float = 0.0
-    perfect_reg: float = 0.0
-    min_tie_models: int = 2
-    tie_decimals: int = 4
-    method_subtype: str | None = "default"
-
-    @classmethod
-    def from_dict(cls, raw: dict | None) -> TrivialFilterConfig:
-        """Build from a plain dict, either the ``trivial_filter`` block itself
-        or a parent config containing one under the ``"trivial_filter"`` key
-        (matching how ``raman_bench_paper.filters.get_trivial_keys`` reads its
-        config)."""
-        raw = raw or {}
-        cfg = raw.get("trivial_filter", raw) if isinstance(raw, dict) else {}
-        cfg = cfg or {}
-        return cls(
-            enabled=bool(cfg.get("enabled", False)),
-            perfect_clf=float(cfg.get("perfect_clf", 0.0)),
-            perfect_reg=float(cfg.get("perfect_reg", 0.0)),
-            min_tie_models=int(cfg.get("min_tie_models", 2)),
-            tie_decimals=int(cfg.get("tie_decimals", 4)),
-            method_subtype=cfg.get("method_subtype", "default"),
-        )
 
 
 def compute_trivial_keys(
@@ -195,8 +155,7 @@ def compute_trivial_keys(
 ) -> dict[str, str]:
     """Return ``{key: reason}`` for every key flagged trivial.
 
-    Pure function: no config gating, no I/O -- see :func:`get_trivial_keys`
-    for the config-driven entry point. Operates on a long-form DataFrame
+    Pure function: no config gating, no I/O. Operates on a long-form DataFrame
     shaped like ``scripts/aggregate_results.py``'s ``hpo_results`` output
     (one row per (key, model, fold), see the module docstring for why).
 
@@ -330,66 +289,6 @@ def compute_trivial_keys(
     return flagged
 
 
-def get_trivial_keys(
-    hpo_results: pd.DataFrame,
-    config: dict | TrivialFilterConfig | None,
-    exclude_models: Iterable[str] = (),
-) -> set[str]:
-    """Config-gated entry point. Returns the set of keys to drop.
-
-    Returns the empty set (no computation performed) unless
-    ``config``/``config["trivial_filter"]`` has ``"enabled": true`` (or
-    ``config`` is already a :class:`TrivialFilterConfig` with
-    ``enabled=True``). Logs each flagged key and its reason when any are
-    found, matching ``raman_bench_paper.filters.get_trivial_keys``'s own
-    console output.
-    """
-    cfg = (
-        config if isinstance(config, TrivialFilterConfig) else TrivialFilterConfig.from_dict(config)
-    )
-    if not cfg.enabled:
-        return set()
-
-    flagged = compute_trivial_keys(
-        hpo_results,
-        perfect_clf=cfg.perfect_clf,
-        perfect_reg=cfg.perfect_reg,
-        min_tie_models=cfg.min_tie_models,
-        tie_decimals=cfg.tie_decimals,
-        method_subtype=cfg.method_subtype,
-        exclude_models=exclude_models,
-    )
-    if flagged:
-        logger.info("[trivial-filter] excluding %d dataset key(s):", len(flagged))
-        for key, reason in sorted(flagged.items()):
-            logger.info("  - %s  (%s)", key, reason)
-    return set(flagged.keys())
-
-
-def get_trivial_keys_from_dir(
-    aggregated_dir: str,
-    config: dict | TrivialFilterConfig | None,
-    exclude_models: Iterable[str] = (),
-    filename: str = "hpo_results.csv",
-) -> set[str]:
-    """Convenience wrapper: load ``hpo_results.csv`` from an aggregated results
-    directory (``scripts/aggregate_results.py``'s ``--output-dir``) and call
-    :func:`get_trivial_keys` on it. Returns the empty set (without reading the
-    file) if the filter is disabled or the file doesn't exist.
-    """
-    cfg = (
-        config if isinstance(config, TrivialFilterConfig) else TrivialFilterConfig.from_dict(config)
-    )
-    if not cfg.enabled:
-        return set()
-    path = os.path.join(aggregated_dir, filename)
-    if not os.path.isfile(path):
-        logger.warning("[trivial-filter] %s not found -- nothing to filter.", path)
-        return set()
-    hpo_results = pd.read_csv(path)
-    return get_trivial_keys(hpo_results, cfg, exclude_models=exclude_models)
-
-
 def filter_trivial_keys(
     df: pd.DataFrame,
     trivial_keys: Iterable[str],
@@ -405,7 +304,7 @@ def filter_trivial_keys(
     way) without checking shapes first.
 
     Generic despite the name (it just drops rows by ``key_col`` membership) --
-    also the right function to call with :func:`get_unlearnable_keys`'s output,
+    also the right function to call with the keys of :func:`compute_unlearnable_keys`,
     rather than duplicating this for the "not learnable" criterion.
     """
     trivial_keys = set(trivial_keys)
@@ -418,46 +317,6 @@ def filter_trivial_keys(
 
 DEFAULT_DUMMY_MODEL = "DUMMY"
 DEFAULT_EXCLUDE_FROM_BEST = frozenset({"DUMMY", "AUTOGLUON"})
-
-
-@dataclass
-class LearnabilityFilterConfig:
-    """Config-driven settings for the "not learnable" filter. Off by default.
-
-    v1-native reimplementation of ``raman_bench_paper/scripts/ablation_baseline_check.py``'s
-    ablation, generalized to a single metric-agnostic criterion -- see
-    :func:`compute_unlearnable_keys`'s docstring for why the paper's two separate
-    formulas (classification F1 margin, regression R² floor) collapse into one
-    "beats Dummy's error by more than a margin" check under v1's ``metric_error``
-    convention. Off by default, same as :class:`TrivialFilterConfig` and for the
-    same reason: this flags keys a downstream leaderboard/plot/table may want to
-    drop, it never excludes a key from being *run*.
-
-    Unlike the trivial filter, a key flagged here is not permanently trivial --
-    a new/better model can beat Dummy by more than ``min_dummy_margin`` on a key
-    that previously failed. See ``configs/v1/EXCLUDED_TARGETS.md``'s periodic
-    "learnability sweep" for the intended re-check process.
-    """
-
-    enabled: bool = False
-    min_dummy_margin: float = 0.05
-    method_subtype: str | None = "default"
-    dummy_model: str = DEFAULT_DUMMY_MODEL
-
-    @classmethod
-    def from_dict(cls, raw: dict | None) -> LearnabilityFilterConfig:
-        """Build from a plain dict, either the ``learnability_filter`` block
-        itself or a parent config containing one under that key (mirrors
-        :meth:`TrivialFilterConfig.from_dict`)."""
-        raw = raw or {}
-        cfg = raw.get("learnability_filter", raw) if isinstance(raw, dict) else {}
-        cfg = cfg or {}
-        return cls(
-            enabled=bool(cfg.get("enabled", False)),
-            min_dummy_margin=float(cfg.get("min_dummy_margin", 0.05)),
-            method_subtype=cfg.get("method_subtype", "default"),
-            dummy_model=cfg.get("dummy_model", DEFAULT_DUMMY_MODEL),
-        )
 
 
 def compute_unlearnable_keys(
@@ -580,58 +439,3 @@ def compute_unlearnable_keys(
             flagged[key] = f"best_error={best_error:.4g} (Dummy not beaten by >= {min_dummy_margin})"
 
     return flagged
-
-
-def get_unlearnable_keys(
-    hpo_results: pd.DataFrame,
-    config: dict | LearnabilityFilterConfig | None,
-) -> set[str]:
-    """Config-gated entry point, mirroring :func:`get_trivial_keys`.
-
-    Returns the empty set (no computation performed) unless
-    ``config``/``config["learnability_filter"]`` has ``"enabled": true``.
-    """
-    cfg = (
-        config
-        if isinstance(config, LearnabilityFilterConfig)
-        else LearnabilityFilterConfig.from_dict(config)
-    )
-    if not cfg.enabled:
-        return set()
-
-    flagged = compute_unlearnable_keys(
-        hpo_results,
-        min_dummy_margin=cfg.min_dummy_margin,
-        method_subtype=cfg.method_subtype,
-        dummy_model=cfg.dummy_model,
-    )
-    if flagged:
-        logger.info("[learnability-filter] excluding %d dataset key(s):", len(flagged))
-        for key, reason in sorted(flagged.items()):
-            logger.info("  - %s  (%s)", key, reason)
-    return set(flagged.keys())
-
-
-def get_unlearnable_keys_from_dir(
-    aggregated_dir: str,
-    config: dict | LearnabilityFilterConfig | None,
-    filename: str = "hpo_results.csv",
-) -> set[str]:
-    """Convenience wrapper, mirroring :func:`get_trivial_keys_from_dir`: load
-    ``hpo_results.csv`` from an aggregated results directory and call
-    :func:`get_unlearnable_keys` on it. Returns the empty set (without
-    reading the file) if the filter is disabled or the file doesn't exist.
-    """
-    cfg = (
-        config
-        if isinstance(config, LearnabilityFilterConfig)
-        else LearnabilityFilterConfig.from_dict(config)
-    )
-    if not cfg.enabled:
-        return set()
-    path = os.path.join(aggregated_dir, filename)
-    if not os.path.isfile(path):
-        logger.warning("[learnability-filter] %s not found -- nothing to filter.", path)
-        return set()
-    hpo_results = pd.read_csv(path)
-    return get_unlearnable_keys(hpo_results, cfg)

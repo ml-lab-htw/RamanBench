@@ -10,7 +10,7 @@ ta_exaone_tabular_info = ModelInfo(
     display_name="EXAONE-Tabular",
     compute="gpu",
     reference_url="https://github.com/LGAI-Research/EXAONE-Tabular",
-    # Git-only (no PyPI release) -- see requirements-models-git.txt, not
+    # Git-only (no PyPI release) -- see requirements-git.txt, not
     # pyproject.toml's `[models]` extra (PyPI forbids direct-URL deps in an
     # uploaded package). Pin matches tabarena.models.exaone_tabular.info's own
     # pip_extra metadata, so the wrapped estimator is the same checkpoint/runtime

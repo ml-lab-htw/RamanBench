@@ -335,11 +335,12 @@ def test_highlight_colours_only_the_listed_models(tmp_path, monkeypatch):
     assert (tmp_path / "figures" / "static" / "elo_ranking_combined.png").exists()
 
 
-def test_thinking_system_is_a_named_new_tabular_foundation_model():
-    key = "TABPFN-V3.5-THINKING"
+@pytest.mark.parametrize("key, effort", [("TABPFN-V3.5-THINKING", "high"), ("TABPFN-V3.5-THINKING-MAX", "max")])
+def test_thinking_system_is_a_named_new_tabular_foundation_model(key, effort):
     assert model_info.is_new(key)
-    assert model_info.display_name(key) == "TabPFN v3.5 Thinking (API)" + model_info.CLOSED_API_MARK
-    assert model_info.display_name(key, mark=False) == "TabPFN v3.5 Thinking (API)"
+    name = f"TabPFN v3.5 Thinking {effort} (API)"
+    assert model_info.display_name(key) == name + model_info.CLOSED_API_MARK
+    assert model_info.display_name(key, mark=False) == name
 
 
 def test_pareto_optimal_models_stay_coloured_with_an_explicit_highlight():
@@ -362,3 +363,19 @@ def test_pareto_optimal_models_stay_coloured_with_an_explicit_highlight():
     muted, shown = ax.collections[:2]  # scatter order in _tradeoff_ax
     assert len(muted.get_offsets()) == 0 and len(shown.get_offsets()) == 4  # D (highlighted) plus the front A, B, C
     plt.close(fig)
+
+
+def test_spotlight_figures(tmp_path):
+    from raman_bench.plotting import spotlight
+
+    path, scope, tl = _hpo_results(tmp_path)
+    scores = res.score_all(res.load_results(path, scope=scope, target_list=tl), bootstrap_rounds=10)["all"]
+    out = tmp_path / "spot"
+    # keys are matched case-insensitively; a second model may be hidden from the release plot
+    files = spotlight.plot_spotlight_tradeoff(scores, ["tabpfn-v3", "RAMANPFN"], out, ("png",))
+    files += spotlight.plot_spotlight_release(scores, ["TABPFN-V3"], out, ("png",), hide=["RAMANPFN"])
+    assert all(f.exists() and f.stat().st_size > 10_000 for f in files)
+    with pytest.raises(ValueError, match="spotlight needs"):
+        spotlight.plot_spotlight_tradeoff(scores, ["NOT-A-MODEL"], out, ("png",))
+    with pytest.raises(ValueError, match="spotlight needs"):
+        spotlight.plot_spotlight_tradeoff(scores, ["RF", "LR", "ROCKET"], out, ("png",))

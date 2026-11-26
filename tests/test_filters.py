@@ -4,11 +4,8 @@ import pandas as pd
 import pytest
 
 from raman_bench.filters import (
-    TrivialFilterConfig,
     compute_trivial_keys,
     filter_trivial_keys,
-    get_trivial_keys,
-    get_trivial_keys_from_dir,
 )
 
 
@@ -188,92 +185,6 @@ def test_mixed_problem_type_within_one_model_skips_criterion_one_without_crashin
     ]
     flagged = compute_trivial_keys(_df(rows), min_tie_models=2)
     assert "ds_weird__0" not in flagged
-
-
-# ---------------------------------------------------------------------------
-# TrivialFilterConfig
-# ---------------------------------------------------------------------------
-
-
-def test_config_defaults_are_off():
-    cfg = TrivialFilterConfig()
-    assert cfg.enabled is False
-    assert cfg.perfect_clf == 0.0
-    assert cfg.perfect_reg == 0.0
-    assert cfg.min_tie_models == 2
-    assert cfg.tie_decimals == 4
-    assert cfg.method_subtype == "default"
-
-
-def test_config_from_dict_nested_block():
-    raw = {"trivial_filter": {"enabled": True, "perfect_clf": 0.02, "min_tie_models": 5}}
-    cfg = TrivialFilterConfig.from_dict(raw)
-    assert cfg.enabled is True
-    assert cfg.perfect_clf == 0.02
-    assert cfg.min_tie_models == 5
-    assert cfg.tie_decimals == 4  # default retained
-
-
-def test_config_from_dict_flat_block():
-    raw = {"enabled": True, "tie_decimals": 6}
-    cfg = TrivialFilterConfig.from_dict(raw)
-    assert cfg.enabled is True
-    assert cfg.tie_decimals == 6
-
-
-def test_config_from_dict_none_or_empty():
-    assert TrivialFilterConfig.from_dict(None).enabled is False
-    assert TrivialFilterConfig.from_dict({}).enabled is False
-
-
-# ---------------------------------------------------------------------------
-# get_trivial_keys -- off-by-default gate
-# ---------------------------------------------------------------------------
-
-
-def test_get_trivial_keys_disabled_by_default_even_with_flaggable_data():
-    rows = [_row("ds_a__0", f, "PLS", 0.0, "regression") for f in range(3)]
-    assert get_trivial_keys(_df(rows), config=None) == set()
-    assert get_trivial_keys(_df(rows), config={}) == set()
-    assert get_trivial_keys(_df(rows), config={"trivial_filter": {"enabled": False}}) == set()
-
-
-def test_get_trivial_keys_enabled_returns_flagged_set():
-    rows = [
-        *[_row("ds_a__0", f, "PLS", 0.0, "regression") for f in range(3)],
-        *[_row("ds_b__0", f, "RF", 0.4, "regression") for f in range(3)],
-    ]
-    keys = get_trivial_keys(_df(rows), config={"trivial_filter": {"enabled": True}})
-    assert keys == {"ds_a__0"}
-
-
-def test_get_trivial_keys_accepts_config_object_directly():
-    rows = [_row("ds_a__0", f, "PLS", 0.0, "regression") for f in range(2)]
-    cfg = TrivialFilterConfig(enabled=True)
-    assert get_trivial_keys(_df(rows), cfg) == {"ds_a__0"}
-
-
-# ---------------------------------------------------------------------------
-# get_trivial_keys_from_dir
-# ---------------------------------------------------------------------------
-
-
-def test_get_trivial_keys_from_dir_disabled_skips_file_read(tmp_path):
-    # No hpo_results.csv written at all -- must not raise since disabled.
-    keys = get_trivial_keys_from_dir(str(tmp_path), config={"trivial_filter": {"enabled": False}})
-    assert keys == set()
-
-
-def test_get_trivial_keys_from_dir_missing_file_returns_empty(tmp_path):
-    keys = get_trivial_keys_from_dir(str(tmp_path), config={"trivial_filter": {"enabled": True}})
-    assert keys == set()
-
-
-def test_get_trivial_keys_from_dir_reads_real_csv(tmp_path):
-    rows = [_row("ds_a__0", f, "PLS", 0.0, "regression") for f in range(2)]
-    _df(rows).to_csv(tmp_path / "hpo_results.csv", index=False)
-    keys = get_trivial_keys_from_dir(str(tmp_path), config={"trivial_filter": {"enabled": True}})
-    assert keys == {"ds_a__0"}
 
 
 # ---------------------------------------------------------------------------

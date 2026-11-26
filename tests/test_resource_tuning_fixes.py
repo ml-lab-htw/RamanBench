@@ -1,4 +1,4 @@
-"""Regression tests for the 3 resource-tuning fixes found during batch-3
+"""Regression tests for the resource-tuning fixes found during batch-3
 verification of the 14-model TabArena onboarding effort:
 
 1. TabSTAR OOMs on RamanBench's widest spectra (memory scales with feature
@@ -18,11 +18,7 @@ verification of the 14-model TabArena onboarding effort:
    (``interactions=0`` -- confirmed the only value that actually skips the
    ranking loop, not just a small positive count) are now disabled
    unconditionally for every EBM fit, not gated on feature count.
-3. ``cluster/opportunistic_scheduler.py``'s ``time_limit_overrides`` mechanism
-   was dataset-keyed only, unable to express "this model needs more time on
-   this dataset, but other models sharing it are fine" -- extended with a
-   parallel ``model_time_limit_overrides`` (model -> dataset -> seconds) layer.
-4. ORIONMSP OOMs on GPU VRAM (not host RAM) above a real, joint feature-count
+3. ORIONMSP OOMs on GPU VRAM (not host RAM) above a real, joint feature-count
    AND row-count threshold -- confirmed real on the cluster: "Tried to
    allocate 94.47 GiB" on a 79.25 GiB GPU for ``pharmaceutical_ingredients``
    (3,276 features, 2,340 train rows), traced to
@@ -40,8 +36,7 @@ verification of the 14-model TabArena onboarding effort:
    ``scripts/run_experiment.py::run_one()``.
 
 See ``wrapped_models.py``'s own comment blocks (``_TABSTAR_MAX_FEATURES``,
-``Prep_EBM._fit``, ``VRAM_CAPPED_MODELS``) and
-``cluster/opportunistic_scheduler.py::effective_time_limit`` for the full
+``Prep_EBM._fit``, ``VRAM_CAPPED_MODELS``) for the full
 evidence/reasoning behind each fix -- this file only locks the resulting
 behavior in.
 """
@@ -50,7 +45,6 @@ from __future__ import annotations
 
 import numpy as np
 import importlib.util
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -127,90 +121,6 @@ def test_ebm_interactions_not_reset_if_user_disabled_already():
     with patch("raman_bench.preprocessing.wrapped_models.EBMModel._fit", return_value=None):
         model._fit(X, y)
     assert model.params["interactions"] == 0
-
-
-def _load_opportunistic_scheduler():
-    spec = importlib.util.spec_from_file_location(
-        "_opportunistic_scheduler_under_test",
-        REPO_ROOT / "cluster" / "opportunistic_scheduler.py",
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-@pytest.fixture(scope="module")
-def opportunistic_scheduler():
-    return _load_opportunistic_scheduler()
-
-
-def test_effective_time_limit_dataset_override_unaffected(opportunistic_scheduler):
-    """Pre-existing dataset-keyed override (e.g. mlrod) still applies regardless
-    of which model is running -- the new model-keyed layer is additive."""
-    scope = {"time_limit": 3600, "time_limit_overrides": {"mlrod": 10800}}
-    chunk = [("mlrod", 0, 0, 0, 0, 10)]
-    assert opportunistic_scheduler.effective_time_limit(scope, "PLS", chunk) == 10800
-    assert opportunistic_scheduler.effective_time_limit(scope, "EBM", chunk) == 10800
-
-
-def test_effective_time_limit_model_scoped_override(opportunistic_scheduler):
-    """A model_time_limit_overrides entry only applies to its own model, not to
-    other models sharing the same dataset in a different chunk."""
-    scope = {
-        "time_limit": 3600,
-        "model_time_limit_overrides": {
-            "EBM": {"microgel_synthesis": 10800},
-        },
-    }
-    chunk = [("microgel_synthesis", 0, 0, 0, 0, 10)]
-    assert opportunistic_scheduler.effective_time_limit(scope, "EBM", chunk) == 10800
-    # PLS shares the dataset but isn't in EBM's override sub-dict -- unaffected.
-    assert opportunistic_scheduler.effective_time_limit(scope, "PLS", chunk) == 3600
-
-
-def test_effective_time_limit_combines_both_override_sources(opportunistic_scheduler):
-    """Dataset-keyed and model-keyed overrides compose (max of applicable
-    values from both), never silently shadow each other."""
-    scope = {
-        "time_limit": 3600,
-        "time_limit_overrides": {"mlrod": 10800},
-        "model_time_limit_overrides": {"EBM": {"mlrod": 7200}},
-    }
-    chunk = [("mlrod", 0, 0, 0, 0, 10)]
-    # The dataset-level override (10800) is larger than EBM's own (7200) here.
-    assert opportunistic_scheduler.effective_time_limit(scope, "EBM", chunk) == 10800
-
-
-def test_effective_time_limit_model_override_scalar_applies_regardless_of_dataset(
-    opportunistic_scheduler,
-):
-    """A model_time_limit_overrides entry may be a bare number instead of a
-    dataset-keyed dict -- a blanket override for a model that's fast/
-    deterministic enough that no time cap bounds anything meaningful (LR:
-    no per-dataset variation, just don't cap it at all)."""
-    scope = {"time_limit": 3600, "model_time_limit_overrides": {"LR": 800000}}
-    assert (
-        opportunistic_scheduler.effective_time_limit(scope, "LR", [("wheat_lines", 0, 0, 0, 0, 10)])
-        == 800000
-    )
-    assert (
-        opportunistic_scheduler.effective_time_limit(scope, "LR", [("alzheimer", 0, 0, 0, 0, 10)])
-        == 800000
-    )
-    # Another model without a scalar entry is unaffected.
-    assert (
-        opportunistic_scheduler.effective_time_limit(
-            scope, "PLS", [("wheat_lines", 0, 0, 0, 0, 10)]
-        )
-        == 3600
-    )
-
-
-def test_effective_time_limit_no_overrides(opportunistic_scheduler):
-    scope = {"time_limit": 3600}
-    chunk = [("wheat_lines", 0, 0, 0, 0, 10)]
-    assert opportunistic_scheduler.effective_time_limit(scope, "PLS", chunk) == 3600
 
 
 def _load_run_experiment():

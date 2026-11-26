@@ -21,7 +21,7 @@ feature independent of the removed execution pipeline, not part of it.
   (`cluster/submit_job.py`'s backend dispatch)
 - `tabarena` is pinned to a commit of upstream `autogluon/tabarena` main, not a PyPI
   release: PyPI forbids git dependencies, so it is installed from
-  `requirements-tabarena-git.txt`, whose comments give the pin history and why
+  `requirements-git.txt`, whose comments give the pin history and why
 
 ## What This Repo Is
 
@@ -139,11 +139,11 @@ python scripts/run_experiment.py --dataset <dataset> --target-idx 0 \
 ```
 
 Cluster runs (SLURM or Kubernetes) use `cluster/submit_job.py`,
-`cluster/submit_full_benchmark.py`, and (SLURM only) `cluster/opportunistic_scheduler.py`.
+and `cluster/submit_full_benchmark.py`.
 
 ## Important: No Half-Done State
 
-This codebase is currently in a released state (v1.6.0). There are no major in-flight refactors or experimental branches. If you see a branch that looks like active development, check git log to see if it's stale before assuming it's live work.
+`main` is in a released state (v1.6.0 plus the Unreleased section of the CHANGELOG). The long-lived `v2` branch is live work (benchmark v2, new datasets); other branches may be stale, so check git log before assuming a branch is active.
 
 If you're about to start significant work, create a feature branch, but assume main is stable.
 

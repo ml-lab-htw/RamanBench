@@ -23,8 +23,7 @@
 # and writes it as this line's 7th field, so tasks in the same array/chunk
 # can get different budgets (e.g. a fast dataset no longer inherits a slow
 # sibling dataset's inflated override just for sharing an array with it --
-# see submit_job.resolve_time_limit / opportunistic_scheduler.effective_time_limit
-# for the full reasoning). Older-format 6-field jobspec lines (no 7th field)
+# see submit_job.resolve_time_limit for the full reasoning). Older-format 6-field jobspec lines (no 7th field)
 # fall back to the env var, unchanged from before this field existed.
 
 echo "SLURM Job ID:        $SLURM_JOB_ID"

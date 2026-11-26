@@ -20,6 +20,8 @@ note next to the ``causilo`` pin in ``pyproject.toml``.
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 from sklearn.base import BaseEstimator
 
@@ -119,6 +121,12 @@ class CausiloModel(BaseEstimator):
             use_kv_cache=self.use_kv_cache,
             retain_preprocessing=self.retain_preprocessing,
         )
+
+        # causilo>=1.5.0 defaults to the 1.5 network; this key stays Causilo 1.0 (CAUSILO-1.5 is the other one).
+        from causilo import CausiloClassifier
+
+        if "model_version" in inspect.signature(CausiloClassifier).parameters:
+            estimator_kwargs["model_version"] = "1.0"
 
         if self.problem_type_ == "regression":
             from causilo import CausiloRegressor
