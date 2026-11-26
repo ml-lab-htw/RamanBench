@@ -70,6 +70,16 @@ def test_group_column_leaves_the_feature_metadata_too():
     assert GROUP_COL not in model._feature_metadata.get_features()  # TabPack read its categorical list from here
 
 
+def test_group_column_leaves_the_feature_list_too():
+    from raman_bench.models.custom.ridge.model import Prep_RIDGE
+
+    X = pd.DataFrame({"f0": [1.0, 2.0], "f1": [3.0, 4.0], GROUP_COL: ["a", "b"]})
+    model = Prep_RIDGE()
+    model._features_internal = list(X.columns)
+    model._preprocess(X)
+    assert model._features == ["f0", "f1"]  # EBM passes this list to interpret as feature_names
+
+
 def test_inner_folds_are_group_disjoint_when_kept():
     pytest.importorskip("data_foundry")
     from tabarena.benchmark.exec_models.autogluon_utils import resolve_validation_splits
