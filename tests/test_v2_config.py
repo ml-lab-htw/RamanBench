@@ -1,6 +1,7 @@
 """Benchmark v2 has one protocol file, and the scope and the target list agree with it."""
 
 import json
+import sys
 from pathlib import Path
 
 from raman_bench.compare import load_protocol
@@ -66,11 +67,11 @@ def test_max_run_time_caps_the_child_budget_and_raises_the_bag_limit():
 
 def test_autogluon_baseline_gets_the_row_cap():
     """The AutoGluon baselines ran uncapped until the entrypoint passed --max-train-samples (48 stale folds)."""
-    sys.path.insert(0, str(ROOT / "cluster"))
+    sys.path.insert(0, str(REPO / "cluster"))
     import submit_v2_sweep
 
     manifest = {"spec": {"template": {"spec": {"containers": [{"env": []}]}}}}
     submit_v2_sweep.set_container(manifest, ["cmd"], 3, False, max_train_samples=30000)
     env = {e["name"]: e["value"] for e in manifest["spec"]["template"]["spec"]["containers"][0]["env"]}
     assert env["MAX_TRAIN_SAMPLES"] == "30000"
-    assert '--max-train-samples "${MAX_TRAIN_SAMPLES}"' in (ROOT / "cluster/k8s_entrypoint_autogluon.sh").read_text()
+    assert '--max-train-samples "${MAX_TRAIN_SAMPLES}"' in (REPO / "cluster/k8s_entrypoint_autogluon.sh").read_text()
