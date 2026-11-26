@@ -15,7 +15,7 @@ import html
 import logging
 from pathlib import Path
 
-from raman_bench.plotting import interactive, overview, static
+from raman_bench.plotting import interactive, overview, spotlight, static
 from raman_bench.plotting import models as model_info
 from raman_bench.plotting.results import (
     DEFAULT_SCOPE,
@@ -49,6 +49,8 @@ FIGURES = {
     "elo_vs_time_new_classification": "Elo vs. time, classification: Pareto-optimal, best per category and new models",
     "elo_vs_time_new_regression": "Elo vs. time, regression: Pareto-optimal, best per category and new models",
     "elo_vs_release_date": "Model progress over time",
+    "spotlight_elo_vs_time": "Spotlight: Elo vs. time, Pareto front",
+    "spotlight_elo_vs_release_date": "Spotlight: model progress over time",
     "pairwise_win_rates": "Pairwise win rates",
     "efficiency_overview": "Efficiency overview",
     "critical_difference": "Critical difference diagrams",
@@ -85,7 +87,8 @@ def generate_all(
     ``focus_top_k`` models per category (by Elo) are drawn in colour, the rest
     in grey; ``None``/``0`` colours every model. ``highlight`` (model keys) replaces that
     selection: only the listed models are coloured, everything else is grey, except that the
-    Pareto-optimal models of the trade-off plots always stay coloured. ``dataset_figures`` adds Figures 1-3
+    Pareto-optimal models of the trade-off plots always stay coloured. The first two listed models
+    that are in the results also get the spotlight figures (:mod:`raman_bench.plotting.spotlight`). ``dataset_figures`` adds Figures 1-3
     (:mod:`raman_bench.plotting.overview`), which read dataset metadata from raman_data
     and the RamanBench mirror. Returns ``{figure: [paths]}``.
     """
@@ -182,6 +185,16 @@ def generate_from_results(
     written["elo_vs_release_date"] = static.plot_elo_vs_release_date(
         scores["all"], focus["all"], st, formats, "elo_vs_release_date", strict=strict
     )
+    if strict:  # the two-model spotlight figures need an explicit choice of models
+        present = {m.upper() for m in scores["all"].leaderboard.index}
+        spotlit = [m for m in highlight if m.upper() in present][:2]
+        if spotlit:
+            written["spotlight_elo_vs_time"] = spotlight.plot_spotlight_tradeoff(
+                scores["all"], spotlit, st, formats, "spotlight_elo_vs_time"
+            )
+            written["spotlight_elo_vs_release_date"] = spotlight.plot_spotlight_release(
+                scores["all"], spotlit, st, formats, "spotlight_elo_vs_release_date"
+            )
     all_models = list(split_references(scores["all"].leaderboard)[0].index)
     # Pareto/near-Pareto models plus the top-k per category by Elo over all tasks.
     top_k = focus_top_k or 2
