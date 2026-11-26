@@ -89,6 +89,12 @@ def _tabpfn_thinking_cls():
     return TabPFN35ThinkingSystemModel
 
 
+def _lgbm_prep_fte_cls():
+    from raman_bench.systems.lgbm_prep_fte.system import LGBMPrepFTESystemModel
+
+    return LGBMPrepFTESystemModel
+
+
 def _tabfm_plus_cls():
     from tabarena.systems.tabfm_plus.system import TabFMPlusSystemModel
 
@@ -175,6 +181,16 @@ SYSTEMS: dict[str, System] = {
         env=("TABPFN_TOKEN",),
         notes="hosted API; the data of every fold is sent to Prior Labs",
         unlimited_time=True,
+    ),
+    # Yandex Research's LightGBM + TabPrep system (autogluon/tabarena#746, vendored in raman_bench.systems.lgbm_prep_fte):
+    # a PriorTune-selected portfolio of 26 LightGBM configs (8 with TabPrep features), each an 8-fold bag, combined by
+    # greedy ensemble selection. The BeyondArena portfolio (FTE25): its bags use group-aware inner splits, as the grouped
+    # Raman data needs. Every bag gets the protocol's budget, so a fold may take up to 26 x 600 s. CPU only.
+    "LGBM-PREP-FTE25": System(
+        "LGBM-PREP-FTE25",
+        _lgbm_prep_fte_cls,
+        "LightGBM-Prep-FTE25",
+        {"arena": "beyondarena"},
     ),
     # TabFM run through its heavier ``ensemble`` interface (TabArena's own TabFM+ system,
     # tabarena.systems.tabfm_plus; Google, non-commercial licence). Shares TABFM's
