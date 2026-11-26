@@ -27,5 +27,6 @@ lattice @ git+https://github.com/hachure-ai/Lattice.git@e106f9fba5994f85aca9593a
 #
 # The commit is the one tabarena's LimiX-2 wrapper was written against (see
 # tabarena.models.limix_2.info.ModelInfo.pip_extra). Bump it deliberately.
-# Python 3.12 only (LimiX requires it): the cluster's main image is 3.11 and skips this line.
+# Python 3.12 only (LimiX requires it): benchmark v2's image (Dockerfile.v2) is 3.12 and installs it; the
+# Python 3.11 image of benchmark v1 (Dockerfile) skips this line.
 LimiX @ git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e1a994cbe38f33758e3d663e9951855554 ; python_version >= "3.12"

@@ -21,15 +21,11 @@ namespace: default
 image_pull_secret: null     # e.g. "private-registry-auth"; null = no imagePullSecrets
 
 # Per-model image overrides, checked by submit_job.py's resolve_k8s_image()
-# before falling back to `image` above. For a model whose dependencies
-# genuinely conflict with the main image (different Python/torch requirement,
-# not just an extra package) -- e.g. LIMIX2, built from this repo's
-# Dockerfile.py312 (Python 3.12, torch==2.9.1) because the main image is
-# Python 3.11.10 / torch~=2.14. Named after the Python version, not LIMIX2
-# specifically -- route any other >=3.12-only model here too, same axis as
-# Dockerfile.v100's GPU-architecture naming. Same schema idea as mem_tiers
-# below.
-image_overrides: {}          # e.g. {"LIMIX2": "registry.example.org/you/raman-bench:py312"}
+# before falling back to `image` above. Only for a model whose dependencies
+# genuinely conflict with the shared image (a different Python/torch requirement,
+# not just an extra package). Benchmark v2's Dockerfile.v2 is Python 3.12 and
+# includes LimiX-2, so no model needs one. Same schema idea as mem_tiers below.
+image_overrides: {}          # e.g. {"SOME_MODEL": "registry.example.org/you/raman-bench:other"}
 
 # Persistent storage. The workspace (RamanBench + raman_data checkouts,
 # .cache_v1, results/) lives on this PVC, mounted at pvc_mount_path in every

@@ -156,17 +156,10 @@ def resolve_k8s_image(profile: dict, model: str) -> str:
     """Pick the container image for one model's pod, mirroring resolve_k8s_resources'
     per-model tier lookup shape (``mem_tiers``) for a per-model image override.
 
-    Every model shares ``profile["image"]`` by default. LIMIX2 is the first
-    exception: its inference package requires Python >=3.12 and pins
-    torch==2.9.1, both incompatible with the main image's Python 3.11.10 base
-    and shared torch~=2.14 floor -- it needs a separate image built from
-    ``Dockerfile.py312`` (see that file and requirements-git-nodeps.txt; named
-    after the Python version, not LIMIX2 specifically, so a future model with
-    the same >=3.12 requirement can potentially reuse it too, same axis as
-    ``Dockerfile.v100``'s GPU-architecture naming).
-    ``image_overrides`` is a profile-level ``{model: image}`` dict, same place
-    ``mem_tiers`` lives, so a cluster profile can route any future model to its
-    own image without touching this function again.
+    Every model shares ``profile["image"]`` by default (benchmark v2's ``Dockerfile.v2`` is
+    Python 3.12 and includes LimiX-2). ``image_overrides`` is a profile-level ``{model: image}``
+    dict, same place ``mem_tiers`` lives, so a cluster profile can route a model whose
+    dependencies conflict with the shared image to an image of its own.
     """
     return profile.get("image_overrides", {}).get(model, profile["image"])
 

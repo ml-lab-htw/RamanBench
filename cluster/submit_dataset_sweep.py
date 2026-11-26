@@ -5,8 +5,8 @@ of submit_full_benchmark.py (one MODEL across every dataset).
 Why this exists: adding a new dataset, or recomputing an existing one after a
 dataset-definition fix (see docs/internal/invalidating-results.md), used to
 mean one pod PER MODEL -- ~50 pods to touch one dataset. This submits ONE pod
-per (Python-version image, CPU/GPU tier) GROUP instead -- in practice today,
-up to 3: (main image, CPU), (main image, GPU), (py312 image, GPU) -- each pod
+per (image, CPU/GPU tier) GROUP instead -- in practice today, up to 2:
+(main image, CPU) and (main image, GPU) -- each pod
 iterating every model in its group, sequentially, against every non-excluded
 target of the requested dataset(s) (every target_idx, not just 0 -- a
 multi-target dataset gets all of its targets in the same sweep).

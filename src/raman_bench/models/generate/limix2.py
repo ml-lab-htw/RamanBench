@@ -24,14 +24,10 @@ have LIMIX v1's hard CPU-retrieval crash -- but it is still GPU-tier in
 practice (in-context prediction over a 400M-parameter network on every
 predict call), so it's still listed in ``cluster/gpu_models.json``.
 
-Needs its own dedicated container (``Dockerfile.py312``, not the main
-``Dockerfile``): its inference package (``LimiX @
-git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e1a994cbe38f33758e3d663e9951855554``)
-declares ``requires-python = ">=3.12"`` and pins ``torch==2.9.1``, both
-incompatible with the main image's Python 3.11.10 base and shared
-``torch~=2.14`` floor (forced by Causilo -- see ``pyproject.toml``). See
-``requirements-git-nodeps.txt`` and ``cluster/submit_job.py``'s
-``model_image_overrides`` for how a LIMIX2 job gets routed to that image.
+Needs Python >=3.12: its inference package (``LimiX @ git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e``)
+declares ``requires-python = ">=3.12"`` and pins ``torch==2.9.1``. Benchmark v2's image (``Dockerfile.v2``) is
+Python 3.12 and installs the package without its torch pin (``requirements-git-nodeps.txt``), so LimiX-2 runs
+there like every other model. The Python 3.11 image of benchmark v1 does not have it.
 """
 
 from __future__ import annotations

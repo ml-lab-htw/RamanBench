@@ -160,11 +160,9 @@ _OPTIONAL_TABARENA_MODEL_IMPORTS = {
     "LimiXModel": "tabarena.models.limix.model",
     # LimiX-2 (Stable AI, released 2026-09-15) -- a separate model/checkpoint from
     # LimiXModel above, not a version bump of it (different HF repo, different
-    # inference package pin, own ``tabarena.models.limix_2`` package). Runs in a
-    # dedicated container (Dockerfile.py312) because its inference package
-    # (``LimiX @ git+.../LimiX.git@774aa3e``) requires Python >=3.12 and pins
-    # torch==2.9.1, both incompatible with the main image's Python 3.11.10 base
-    # and shared torch~=2.14 floor (see requirements-git-nodeps.txt). The import
+    # inference package pin, own ``tabarena.models.limix_2`` package). Needs
+    # Python >=3.12 (its inference package declares it): benchmark v2's image (Dockerfile.v2) installs the
+    # package without its torch==2.9.1 pin (requirements-git-nodeps.txt). The import
     # here still resolves normally in the main image (tabarena's own package
     # doesn't need the LimiX pip package just to define ``LimiX2Model`` -- only
     # actually fitting one does, inside ``LimiX2Model._fit``'s own deferred
@@ -1135,8 +1133,7 @@ if SAPRPTOSSModel is not None:
     # other foundation model here: the tabarena wrapper class can be defined
     # without its backing package). Confirmed as a real failure building a
     # minimal environment that installs tabarena but not
-    # requirements-git.txt (e.g. Dockerfile.py312, a LIMIX2-only
-    # image): this module-level `import sap_rpt_oss.rpt` crashed the entire
+    # requirements-git.txt (e.g. a minimal image) this module-level `import sap_rpt_oss.rpt` crashed the entire
     # `wrapped_models` import with a bare `ModuleNotFoundError`, taking every
     # other Prep_* model down with it -- exactly the failure mode the "keep
     # optional imports out of module top-level" convention (see this module's
@@ -1389,15 +1386,9 @@ else:
 # that class, same bug, same fix, confirmed its ~1000 real results were NOT
 # corrupted since "TA-LIMIX" itself has never been submitted).
 #
-# GPU-tier, and its own inference package requires Python >=3.12 and pins
-# torch==2.9.1 -- incompatible with the main image (Python 3.11.10,
-# torch~=2.14 floor). Runs in a dedicated container built from
-# Dockerfile.py312 instead (see requirements-git-nodeps.txt and
-# cluster/submit_job.py's model_image_overrides). A LIMIX2 job submitted
-# against the main image's environment will fail to import the LimiX
-# inference package at fit time (a clean ModuleNotFoundError/ImportError from
-# LimiX2Model's own deferred import inside `_fit`, not a hang or crash
-# elsewhere) -- always route LIMIX2 through the limix2 image.
+# GPU-tier, and its inference package needs Python >=3.12: benchmark v2's image (Dockerfile.v2) has it. On the
+# Python 3.11 image of benchmark v1 a LIMIX2 job fails to import the LimiX package at fit time (a clean
+# ImportError from LimiX2Model's own deferred import inside `_fit`, not a hang or crash elsewhere).
 def _limix2_convert_proba_to_unified_form(self, y_pred_proba):
     """Keep the row axis on single-row regression predictions.
 

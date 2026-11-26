@@ -4,9 +4,8 @@
 model/checkpoint (Stable AI's second-generation tabular foundation model, not
 a version bump of the first). See ``raman_bench/models/generate/limix2.py``
 and ``wrapped_models.py``'s ``Prep_LIMIX2`` comment block for the full
-rationale, and ``Dockerfile.py312``/``requirements-git-nodeps.txt`` for why
-this model needs a dedicated container (Python >=3.12, torch>=2.9.1 -- both
-incompatible with the main image).
+rationale, and ``Dockerfile.v2``/``requirements-git-nodeps.txt`` for how it is
+installed (Python >=3.12 image, the package without its own torch pin).
 
 Unlike ``LIMIX`` (v1), ``LimiX2Model`` caps ``max_classes=10`` via the normal
 DECLARATIVE ``_default_auxiliary_params_extra`` class attribute (confirmed by
