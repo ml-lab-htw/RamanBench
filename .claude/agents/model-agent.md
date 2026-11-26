@@ -37,6 +37,20 @@ and shows up in the leaderboard's `preprocessing` column. Steps inside the user'
 `notebooks/02_benchmark_new_model.ipynb` is the walkthrough. Only continue with steps 2-7
 when the model should become part of RamanBench.
 
+**Model or system?** Also settle which kind of entrant this is; the two run differently.
+A *model* is one method with a fixed configuration. It runs through the protocol's bagged
+experiment (3-fold bagging, 600 s, the row caps of `protocol.json`) via
+`scripts/run_experiment.py` or `evaluate_estimator`. A *system* does its own validation,
+tuning and ensembling (an AutoML framework, a hosted API). It is registered in
+`src/raman_bench/systems/` and runs through `scripts/run_system.py`, which fits it once per
+outer fold on the whole training split, on the same folds and budget. A plain
+`fit` / `predict_proba` estimator is a model. The two kinds of result are not
+interchangeable: a model fitted once on the full training split sees more rows per fit than
+a bagged one (Nums AI's fit-once Causilo 1.5 scored Elo 1570 against our bagged 1523),
+so such a result must not be compared with the bagged leaderboard models. If a user brings
+fit-once results for a model, say so, and either rerun them bagged or register the method as
+a system.
+
 ### 2. Check if it already exists in TabArena
 Before implementing anything, check `raman_bench.models.registry.raman_bench_model_registry`
 — many models (tree-based, tabular foundation models, deep tabular nets) are already
@@ -165,5 +179,8 @@ reference results are rebuilt with `scripts/build_reference_results.py` (see
   on your own to make it fit or score better: a fold that fails is imputed. Per-model
   overrides in the scope file (e.g. EBM's longer budget on wide datasets) are the
   maintainers' call, recorded there with the reason; propose one, don't apply it silently.
+- A model's results come from the bagged protocol run, a system's from `scripts/run_system.py`.
+  Never score a fit-once run of a model against the bagged reference results, and never
+  present a system and a model as the same kind of entry.
 - Never add a `Co-Authored-By: Claude` or any Anthropic attribution line to any git commit
   you create.

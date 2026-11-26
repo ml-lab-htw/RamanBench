@@ -113,9 +113,39 @@ Example notebooks are in [`notebooks/`](notebooks/). Release notes are in
 
 ## Contributing
 
-New models and datasets are welcome. Only want to see where your model lands? You don't need to
-add it to the repository: run it with `evaluate_estimator` and `compare`. To put it on the
-leaderboard, open an issue or pull request with the model and its results directory.
+New models, systems and datasets are welcome. Only want to see where your method lands? You don't
+need to add it to the repository: run it with `evaluate_estimator` and `compare`. To put it on the
+leaderboard, open an issue or pull request with the method and its results directory.
+
+### Model or system?
+
+RamanBench takes two kinds of entrant, and they are run differently.
+
+| | Model | System |
+|---|---|---|
+| What it is | One method with a fixed configuration, scored under the shared protocol | A pipeline that does its own validation, tuning and ensembling |
+| How it runs | Through the protocol's bagged experiment: 3-fold bagging, a 600 s budget, the row caps of `protocol.json` | Once per outer fold on the whole training split, on the same folds and budget |
+| Code | `src/raman_bench/models/custom/<key>/` | `src/raman_bench/systems/` |
+| Run it | `scripts/run_experiment.py`, or `evaluate_estimator` | `scripts/run_system.py` |
+
+If your method is a plain `fit` / `predict_proba` estimator, it is a model. If it searches, validates
+and ensembles by itself (an AutoML framework, a hosted API), it is a system. Results of the two are
+not interchangeable: a model fitted once on the full training split sees more rows per fit than a
+bagged one, so it cannot be compared with bagged leaderboard models. Run it as a model, bagged, or
+submit it as a system, and say which.
+
+### Submitting
+
+1. Say how your method differs from the models already on the leaderboard. A new version of an
+   existing method goes next to the old one under its own key.
+2. Run it on the v1 protocol: all 405 folds of `data/precomputed/v1/protocol.json`, with the bagging,
+   time budget and row caps the protocol sets for models, or as a system. Do not change the folds,
+   the budget or the row caps for your method.
+3. Score it with `compare`, and keep the results directory (the `results.pkl` files).
+4. Open an issue or pull request with the method (or the code to run it), the results directory, the
+   package versions and the hardware.
+5. We check the results against the protocol and re-run the method on our hardware for the final
+   entry, then add it to the leaderboard.
 
 To add a model or dataset to RamanBench itself, open this repo in Claude Code and say
 `Add my model to RamanBench, test it, and run it across the benchmark.` (or the same for a
