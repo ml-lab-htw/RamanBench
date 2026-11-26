@@ -445,7 +445,7 @@ def run_one(
         experiment_dir_name=experiment_dir_name,
         force_recompute=force_recompute,
         setup={
-            "model": model_key, "config_index": config_index, "time_limit": time_limit,
+            "model": model_key, "config_index": config_index, "time_limit": time_limit, "max_run_time": max_run_time,
             "num_bag_folds": effective_num_bag_folds, "n_splits": n_splits, "n_repeats": n_repeats,
             "max_train_samples": max_train_samples, "rows": len(df), "num_cpus": num_cpus, "num_gpus": num_gpus,
             "inner_group_folds": inner_group_folds,
