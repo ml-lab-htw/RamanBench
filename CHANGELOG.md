@@ -14,6 +14,7 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- `tests/test_configs_v2.py`: v2's target list, exclusions, dataset lists and scope agree with each other, and its v1 targets are those of v1 unchanged.
 - Failure labels and a setup record for every fold (`raman_bench.run_record`). A fold that raises leaves a `failure.json` with a
   uniform label (`oom_gpu`, `oom_cpu`, `timeout`, `error`); a finished fold leaves a `setup.json` with the package versions, the hardware,
   whether it was a bagged or a system run, and the time limit, bag folds and row cap it ran under. `aggregate_results.py` writes
