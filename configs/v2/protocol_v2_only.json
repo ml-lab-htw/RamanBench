@@ -3,11 +3,9 @@
  "scope": "v2-only tasks (the v1 tasks are in src/raman_bench/data/precomputed/v1/protocol.json)",
  "n_splits": 3,
  "num_bag_folds": 3,
- "time_limit": 600,
+ "time_limit": 10800,
  "num_random_configs": 0,
- "time_limit_overrides": {
-  "mlrod": 10800
- },
+ "time_limit_overrides": {},
  "max_train_samples_overrides": {
   "mlrod": 30000,
   "wheat_lines": 30000,
