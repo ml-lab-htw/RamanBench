@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from collections import defaultdict
@@ -133,6 +134,8 @@ def main() -> None:
     args = parser.parse_args()
 
     scope = json.loads(Path(args.scope).read_text())
+    if scope.get("max_run_time"):
+        os.environ["MAX_RUN_TIME"] = str(scope["max_run_time"])  # read by submit_job and run_experiment
     targets = json.loads((Path(args.scope).parent / scope["targets_file"]).read_text())
     targets = [
         t for t in targets

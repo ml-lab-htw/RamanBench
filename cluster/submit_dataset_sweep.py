@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -77,6 +78,8 @@ def main():
     args = parser.parse_args()
 
     scope = json.loads(Path(args.scope).read_text())
+    if scope.get("max_run_time"):
+        os.environ["MAX_RUN_TIME"] = str(scope["max_run_time"])  # read by submit_job and run_experiment
     models: list[str] = scope["models"]
     n_splits = args.n_splits if args.n_splits is not None else scope["n_splits"]
     num_random_configs = args.num_random_configs if args.num_random_configs is not None else scope["num_random_configs"]

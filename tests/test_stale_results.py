@@ -11,7 +11,7 @@ OLD = {
     "max_train_samples_overrides": {"mlrod": 10000},
     "model_max_train_samples_overrides": {"CAUSILO": 5000, "LIMIX": {"mlrod": 2000}},
 }
-NEW = {"time_limit": 10800, "max_train_samples": 30000, "tasks": []}
+NEW = {"time_limit": 600, "max_run_time": 10800, "max_train_samples": 30000, "tasks": []}
 
 
 def task(dataset, n):
@@ -34,12 +34,12 @@ def test_a_result_is_stale_when_the_row_cut_changed():
     assert sr.stale_reason("RF", task("mid", 8000), 5.0, OLD, NEW) == ""  # 8000 rows either way
 
 
-def test_a_result_is_stale_when_it_was_bound_by_the_old_time_limit():
+def test_a_result_is_stale_when_it_used_more_budget_than_the_protocol_allows():
     small = task("small", 100)
-    assert sr.stale_reason("MITRA", small, 590.0, OLD, NEW) == "time"
-    assert sr.stale_reason("MITRA", small, 100.0, OLD, NEW) == ""  # stopped well before the limit
-    assert sr.stale_reason("LR", small, 700000.0, OLD, NEW) == ""  # the old limit was higher than the new one
-    assert sr.stale_reason(None, small, 599.0, OLD, NEW) == ""  # no model key: a baseline with its own budget
+    assert sr.stale_reason("MITRA", small, 590.0, OLD, NEW) == ""  # old limit was the default 600: same budget
+    assert sr.stale_reason("LR", small, 5000.0, OLD, NEW) == "time"  # fit ran far past the new budget
+    assert sr.stale_reason("LR", small, 100.0, OLD, NEW) == ""  # finished within the new budget
+    assert sr.stale_reason("MITRA", task("mlrod", 500), 9000.0, OLD, NEW) == "time"  # mlrod budget was 10800
 
 
 def test_classify_and_quarantine_move_the_fold_directories(tmp_path):

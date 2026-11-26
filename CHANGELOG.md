@@ -38,8 +38,7 @@ The full rules are in [RELEASING.md](RELEASING.md).
 - Benchmark v2: one row cap, `max_train_samples = 30000`, for every dataset and every model (scope and protocol), instead of the
   dataset-keyed `max_train_samples_overrides` of 10000 on eight datasets. The per-model caps (`model_max_train_samples_overrides`)
   are removed from the v2 scope and protocol: every model gets the same row cut. `raman_bench.compare.row_cap` reads either form.
-- Benchmark v2: one time limit for every model on every dataset, 10800 s per fit instead of 600 s. The per-dataset (`mlrod`) and
-  per-model time overrides are removed from the v2 scope and protocol. `soft_tissue_sarcoma` was capped only in the scope file; the v2 protocol now carries it too.
+- Benchmark v2: the optimization budget (`time_limit`, 600 s as in v1) is separate from `max_run_time` (10800 s), the wall-clock after which a fold is cancelled. `run_experiment.py --max-run-time` (default: env `MAX_RUN_TIME`, set by the sweep scripts from the scope) runs the bag under the longer limit and caps each bagged model at 0.8 x the budget, the child budget a 600 s bag gave in v1. This replaces the single 10800 s limit.
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
   used `kubectl apply` for the Job and now queues it through `kq`.
 

@@ -62,15 +62,18 @@ the same settings, with no per-model exceptions:
 
 - 3-fold outer cross-validation, group-aware, and 3-fold bagging inside each training split. A class needs
   at least 3 groups, and the inner folds of grouped tasks are group-disjoint.
-- 10800 s per fit, for every model on every dataset.
+- A 600 s optimization budget per fit, as in v1: the time a model sees and adapts to. Separately, a fold is
+  cancelled and labelled `timeout` once it has run `max_run_time` = 10800 s. The budget caps each bagged model at
+  480 s (0.8 of the bag limit, what AutoGluon gave it in v1); the cancel limit only lets slow models finish.
+  Both are the same for every model on every dataset.
 - One row cap, `max_train_samples = 30000`, for every dataset and every model: a dataset with more spectra is
   cut to a random sample of 30000 before splitting. That applies to `mlrod`, `wheat_lines`,
   `bacteria_identification`, `glioma_idh` and `soft_tissue_sarcoma`; every other dataset runs on all its rows.
   There are no per-dataset or per-model row caps.
 
 A model that runs out of memory or time on a large dataset fails there; the fold is reported with its failure
-label and imputed like any missing task. A result produced under v1's other limits (600 s, 10,000-row caps, per-model caps) is rerun for v2 where one of those limits
-applied to it.
+label and imputed like any missing task. A result produced under v1's row caps (10,000 rows, per-model caps) is rerun for v2 where a cap applied to it;
+the optimization budget is unchanged from v1, so a longer cancel limit alone does not invalidate a result.
 
 ## Departures from the protocol
 

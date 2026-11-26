@@ -1,11 +1,12 @@
 """Which cached results were produced under settings that differ from a protocol's, and so must be rerun.
 
-A result is stale when the old settings changed what the model saw or how long it had:
+A result is stale when the old settings changed what the model saw:
 
 - ``rows``: the dataset was cut to another number of rows (the old scope's dataset cap or the model's own cap against
   the protocol's ``max_train_samples``);
-- ``time``: the protocol's time limit is higher and the fit used at least *threshold* of the old limit, so it was
-  bound by its budget (a fit that stopped well before its limit would not change with more time).
+- ``time``: the old scope gave this model more optimization budget than the protocol's ``time_limit`` and the fit ran
+  longer than the protocol's budget allows, so it would have been cut. A fit that finished within the new budget is
+  unchanged, and a longer cancel limit (``max_run_time``) never makes a result stale.
 
 ``old_scope`` is the scope file the results ran under (``time_limit``, ``time_limit_overrides``,
 ``model_time_limit_overrides``, ``max_train_samples_overrides``, ``model_max_train_samples_overrides``).
@@ -20,6 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 from raman_bench.compare import row_cap
+from raman_bench.experiment_utils import BAG_CHILD_RATIO
 
 THRESHOLD = 0.8
 
@@ -61,8 +63,8 @@ def stale_reason(
     reasons = []
     if min(n, old_cap or n) != min(n, new_cap or n):
         reasons.append("rows")
-    old_limit = old_time_limit(old_scope, model, dataset)
-    if model is not None and protocol["time_limit"] > old_limit and time_train_s >= threshold * old_limit:
+    new_budget = protocol["time_limit"]
+    if model is not None and old_time_limit(old_scope, model, dataset) > new_budget and time_train_s > BAG_CHILD_RATIO * new_budget * (1 + 1 / 8):
         reasons.append("time")
     return "+".join(reasons)
 

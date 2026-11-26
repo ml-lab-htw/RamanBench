@@ -508,8 +508,8 @@ def main():
     parser.add_argument("--num-bag-folds", type=int, default=DEFAULT_NUM_BAG_FOLDS)
     parser.add_argument("--time-limit", type=float, default=DEFAULT_TIME_LIMIT,
                         help="Optimization budget a model sees (as the bag's time limit)")
-    parser.add_argument("--max-run-time", type=float, default=None,
-                        help="Wall-clock after which a fold is cancelled; the model budget stays --time-limit")
+    parser.add_argument("--max-run-time", type=float, default=float(os.environ["MAX_RUN_TIME"]) if os.environ.get("MAX_RUN_TIME") else None,
+                        help="Wall-clock after which a fold is cancelled; the model budget stays --time-limit (default: env MAX_RUN_TIME, set by the sweep scripts)")
     parser.add_argument("--results-dir", default="results/v1/data")
     parser.add_argument("--cache-dir", default=".cache_v1")
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")

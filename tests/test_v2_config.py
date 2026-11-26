@@ -15,7 +15,7 @@ def _load(name):
 
 def test_scope_and_protocol_agree_on_the_fit_settings():
     scope, protocol = _load("scope_default.json"), _load("protocol.json")
-    for key in ("n_splits", "num_bag_folds", "time_limit", "num_random_configs", "max_train_samples"):
+    for key in ("n_splits", "num_bag_folds", "time_limit", "max_run_time", "num_random_configs", "max_train_samples"):
         assert scope[key] == protocol[key], key
     assert protocol["version"] == "v2"
 

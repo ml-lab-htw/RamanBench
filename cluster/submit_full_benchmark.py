@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -125,6 +126,8 @@ def main():
         with open(scope_path) as f:
             scope_data = json.load(f)
         large_datasets = set(scope_data.get("large_datasets", []))
+        if scope_data.get("max_run_time"):
+            os.environ["MAX_RUN_TIME"] = str(scope_data["max_run_time"])  # read by submit_job and run_experiment
         # Per-dataset and per-model time budgets (e.g. mlrod: 10800 s, LR: 800000 s).
         # Both used to be ignored here: every task ran at the flat --time-limit.
         dataset_time_limit_overrides = scope_data.get("time_limit_overrides", {})
