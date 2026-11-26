@@ -44,7 +44,7 @@ import time
 
 import pandas as pd
 
-from raman_bench.compare import load_own_results, load_protocol, protocol_tasks
+from raman_bench.compare import load_own_results, load_protocol, protocol_tasks, row_cap
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +58,8 @@ def _check_name(name: str) -> None:
 
 def _task_settings(task: dict, protocol: dict) -> tuple[float, int | None]:
     """``(time_limit, max_train_samples)`` of *task* under *protocol*."""
-    time_limit = protocol["time_limit_overrides"].get(task["dataset"], protocol["time_limit"])
-    max_rows = protocol["max_train_samples_overrides"].get(task["dataset"])
+    time_limit = protocol.get("time_limit_overrides", {}).get(task["dataset"], protocol["time_limit"])
+    max_rows = row_cap(protocol, task["dataset"])
     return float(time_limit), max_rows
 
 

@@ -168,6 +168,7 @@ def run_one(
     num_random_configs: int = DEFAULT_NUM_RANDOM_CONFIGS,
     num_bag_folds: int = DEFAULT_NUM_BAG_FOLDS,
     time_limit: float = DEFAULT_TIME_LIMIT,
+    max_run_time: float | None = None,
     results_dir: str = "results/v1/data",
     cache_dir: str = ".cache_v1",
     mirror_repo: str = "HTW-KI-Werkstatt/RamanBench",
@@ -399,12 +400,15 @@ def run_one(
     generate_kwargs = bag_experiment_kwargs(
         num_random_configs=num_random_configs,
         time_limit=time_limit,
+        max_run_time=max_run_time,
         num_bag_folds=effective_num_bag_folds,
         scratch_dir=scratch_dir,
         task_specific_validation=inner_group_folds,
     )
     if extra_model_hyperparameters:
-        generate_kwargs["extra_model_hyperparameters"] = extra_model_hyperparameters
+        generate_kwargs["extra_model_hyperparameters"] = {
+            **generate_kwargs.get("extra_model_hyperparameters", {}), **extra_model_hyperparameters,
+        }
     experiments = gen.generate_all_bag_experiments(**generate_kwargs)
     if config_index >= len(experiments):
         raise IndexError(
@@ -502,7 +506,10 @@ def main():
         help="Must be identical across every job for this model (fixes config-pool identity)",
     )
     parser.add_argument("--num-bag-folds", type=int, default=DEFAULT_NUM_BAG_FOLDS)
-    parser.add_argument("--time-limit", type=float, default=DEFAULT_TIME_LIMIT)
+    parser.add_argument("--time-limit", type=float, default=DEFAULT_TIME_LIMIT,
+                        help="Optimization budget a model sees (as the bag's time limit)")
+    parser.add_argument("--max-run-time", type=float, default=float(os.environ["MAX_RUN_TIME"]) if os.environ.get("MAX_RUN_TIME") else None,
+                        help="Wall-clock after which a fold is cancelled; the model budget stays --time-limit (default: env MAX_RUN_TIME, set by the sweep scripts)")
     parser.add_argument("--results-dir", default="results/v1/data")
     parser.add_argument("--cache-dir", default=".cache_v1")
     parser.add_argument("--mirror-repo", default="HTW-KI-Werkstatt/RamanBench")
@@ -579,6 +586,7 @@ def main():
         num_random_configs=args.num_random_configs,
         num_bag_folds=args.num_bag_folds,
         time_limit=args.time_limit,
+        max_run_time=args.max_run_time,
         results_dir=args.results_dir,
         cache_dir=args.cache_dir,
         mirror_repo=args.mirror_repo,

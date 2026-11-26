@@ -142,3 +142,12 @@ def test_estimator_with_a_groups_argument_gets_the_group_ids_on_grouped_tasks(tm
         )
     assert _SEEN_GROUPS["fit"] and all(g is not None and g[1] > 1 for g in _SEEN_GROUPS["fit"])
     assert _SEEN_GROUPS["predict"] and all(p is not None for p in _SEEN_GROUPS["predict"])
+
+
+def test_task_settings_need_no_override_keys():
+    from raman_bench.evaluate import _task_settings
+
+    assert _task_settings({"dataset": "d"}, {"time_limit": 10800}) == (10800.0, None)
+    protocol = {"time_limit": 600, "time_limit_overrides": {"d": 900}, "max_train_samples_overrides": {"d": 5000}}
+    assert _task_settings({"dataset": "d"}, protocol) == (900.0, 5000)
+    assert _task_settings({"dataset": "e"}, protocol) == (600.0, None)

@@ -35,11 +35,20 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- Benchmark v2: one row cap, `max_train_samples = 30000`, for every dataset and every model (scope and protocol), instead of the
+  dataset-keyed `max_train_samples_overrides` of 10000 on eight datasets. The per-model caps (`model_max_train_samples_overrides`)
+  are removed from the v2 scope and protocol: every model gets the same row cut. `raman_bench.compare.row_cap` reads either form.
+- Benchmark v2: the optimization budget (`time_limit`, 600 s as in v1) is separate from `max_run_time` (10800 s), the wall-clock after which a fold is cancelled. `run_experiment.py --max-run-time` (default: env `MAX_RUN_TIME`, set by the sweep scripts from the scope) runs the bag under the longer limit and caps each bagged model at 0.8 x the budget, the child budget a 600 s bag gave in v1. This replaces the single 10800 s limit.
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
   used `kubectl apply` for the Job and now queues it through `kq`.
 
 ### Added
 
+- **LightGBM-Prep-FTE25 as a system** (`LGBM-PREP-FTE25`, `raman_bench.systems.lgbm_prep_fte`, run with `scripts/run_system.py`):
+  Yandex Research's PriorTune system, a portfolio of 26 LightGBM configs (8 with TabPrep features), each an 8-fold bag, combined by
+  greedy ensemble selection. This is the BeyondArena portfolio, whose bags use group-aware inner splits. Copied from the open
+  autogluon/tabarena#746 (head b1f728ae) until the TabArena pin has it; only the import paths and the bag budget differ: every bag
+  gets the protocol's 600 s, as a model config does, where upstream splits the budget over the bags. CPU only.
 - Spotlight figures (`raman_bench.plotting.spotlight`): Elo vs. time with the Pareto front, and Elo vs. release date with the
   running best, with one or two models in the foreground (callout with Elo and rank, halo markers) and the other front or
   record models named in grey. `plot_results.py --highlight A B` writes them as `spotlight_elo_vs_time` and

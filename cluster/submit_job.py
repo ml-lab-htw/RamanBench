@@ -233,7 +233,7 @@ def resolve_time_limit(
 
 def resolve_max_train_samples(
     dataset: str,
-    max_train_samples_overrides: dict[str, int] | None = None,
+    max_train_samples_overrides: dict[str, int] | int | None = None,
     model_max_train_samples_overrides: dict[str, int] | int | None = None,
 ) -> int | None:
     """The ``--max-train-samples`` row-subsampling cap for ONE task, resolved
@@ -258,13 +258,29 @@ def resolve_max_train_samples(
     dominate).
     """
     candidates = []
-    if max_train_samples_overrides and dataset in max_train_samples_overrides:
+    if isinstance(max_train_samples_overrides, int):  # benchmark v2: one cap for every dataset (scope's max_train_samples)
+        candidates.append(max_train_samples_overrides)
+    elif max_train_samples_overrides and dataset in max_train_samples_overrides:
         candidates.append(max_train_samples_overrides[dataset])
     if isinstance(model_max_train_samples_overrides, int):
         candidates.append(model_max_train_samples_overrides)
     elif model_max_train_samples_overrides and dataset in model_max_train_samples_overrides:
         candidates.append(model_max_train_samples_overrides[dataset])
     return min(candidates) if candidates else None
+
+
+def _max_run_time_env() -> list[dict]:
+    """The ``MAX_RUN_TIME`` env entry of a Job (``run_experiment.py`` reads it as ``--max-run-time``): the wall-clock
+    after which a fold is cancelled, while ``TIME_LIMIT`` stays the model's optimization budget. The sweep scripts set
+    it from the scope's ``max_run_time``; unset, a fold's cancel time is its time limit (v1)."""
+    value = os.environ.get("MAX_RUN_TIME")
+    return [{"name": "MAX_RUN_TIME", "value": value}] if value else []
+
+
+def scope_row_cap(scope: dict) -> dict[str, int] | int:
+    """The scope's dataset row cap for :func:`resolve_max_train_samples`: the global ``max_train_samples`` (v2) or the
+    dataset-keyed ``max_train_samples_overrides`` (v1)."""
+    return scope["max_train_samples"] if scope.get("max_train_samples") else scope.get("max_train_samples_overrides", {})
 
 
 def write_jobspec(
@@ -530,6 +546,7 @@ def submit_jobs(
             # above) and falls back to this env var just for jobspec lines
             # that don't have it (older-format jobspecs already queued).
             f"TIME_LIMIT={time_limit}",
+            *([f"MAX_RUN_TIME={os.environ['MAX_RUN_TIME']}"] if os.environ.get("MAX_RUN_TIME") else []),
             f"RESULTS_DIR={results_dir}",
             f"CACHE_DIR={cache_dir}",
             f"MIRROR_REPO={mirror_repo}",
@@ -628,6 +645,7 @@ def _build_k8s_job_manifest(
         {"name": "NUM_BAG_FOLDS", "value": str(num_bag_folds)},
         {"name": "MIN_GROUPS_PER_CLASS", "value": str(min_groups_per_class)},
         {"name": "TIME_LIMIT", "value": str(time_limit)},
+        *_max_run_time_env(),
         {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir, workspace)},
         {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir, workspace)},
         {"name": "MIRROR_REPO", "value": mirror_repo},
@@ -843,6 +861,7 @@ def build_k8s_job_manifest_multimodel(
         {"name": "NUM_BAG_FOLDS", "value": str(num_bag_folds)},
         {"name": "MIN_GROUPS_PER_CLASS", "value": str(min_groups_per_class)},
         {"name": "TIME_LIMIT", "value": str(time_limit)},
+        *_max_run_time_env(),
         {"name": "RESULTS_DIR", "value": _abs_under_workspace(results_dir, workspace)},
         {"name": "CACHE_DIR", "value": _abs_under_workspace(cache_dir, workspace)},
         {"name": "MIRROR_REPO", "value": mirror_repo},

@@ -74,3 +74,13 @@ def test_slurm_path_passes_each_tasks_time_limit(run, monkeypatch):
     run("slurm", "--time-limit", "900")
     got = {c[c.index("--dataset") + 1]: float(c[c.index("--time-limit") + 1]) for c in cmds}
     assert got == {"small": 900, "big": 10800, "wide": 5400}
+
+
+def test_the_row_cap_of_a_v2_scope_is_one_global_number():
+    from submit_job import resolve_max_train_samples, scope_row_cap
+
+    cap = scope_row_cap({"max_train_samples": 30000})
+    assert cap == 30000 and resolve_max_train_samples("mlrod", cap) == 30000
+    assert resolve_max_train_samples("any", cap, 5000) == 5000  # the smaller cap wins
+    v1 = scope_row_cap({"max_train_samples_overrides": {"mlrod": 10000}})
+    assert resolve_max_train_samples("mlrod", v1) == 10000 and resolve_max_train_samples("other", v1) is None

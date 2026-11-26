@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from collections import defaultdict
@@ -55,6 +56,7 @@ from submit_job import (  # noqa: E402
     build_k8s_job_manifest_multimodel,
     resolve_k8s_image,
     resolve_profile,
+    scope_row_cap,
     write_jobspec_autogluon,
     write_jobspec_multimodel,
 )
@@ -132,6 +134,8 @@ def main() -> None:
     args = parser.parse_args()
 
     scope = json.loads(Path(args.scope).read_text())
+    if scope.get("max_run_time"):
+        os.environ["MAX_RUN_TIME"] = str(scope["max_run_time"])  # read by submit_job and run_experiment
     targets = json.loads((Path(args.scope).parent / scope["targets_file"]).read_text())
     targets = [
         t for t in targets
@@ -184,7 +188,7 @@ def main() -> None:
                     default_time_limit=scope["time_limit"],
                     dataset_time_limit_overrides=scope.get("time_limit_overrides", {}),
                     model_time_limit_overrides=scope.get("model_time_limit_overrides", {}),
-                    max_train_samples_overrides=scope.get("max_train_samples_overrides", {}),
+                    max_train_samples_overrides=scope_row_cap(scope),
                     model_max_train_samples_overrides=scope.get("model_max_train_samples_overrides", {}),
                 )
                 job, cm, n_pods, manifest = build_k8s_job_manifest_multimodel(
@@ -220,7 +224,7 @@ def main() -> None:
             )
             run = (
                 'TASK=$(sed -n "$((JOB_COMPLETION_INDEX + 1))p" /jobspec/jobspec.txt); '
-                f'python scripts/run_system.py --system {system} --protocol configs/v2/protocol_v2_only.json '
+                f'python scripts/run_system.py --system {system} --protocol configs/v2/protocol.json '
                 '--tasks "$TASK" --results-dir "$RESULTS_DIR" --cache-dir "$CACHE_DIR" --mirror-repo "$MIRROR_REPO"'
             )
             set_container(manifest, boot(args.code_dir, args.raman_data, run), min_groups, inner_group_folds)

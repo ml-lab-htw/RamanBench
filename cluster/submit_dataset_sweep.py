@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -42,6 +43,7 @@ from submit_job import (  # noqa: E402
     build_k8s_job_manifest_multimodel,
     resolve_k8s_image,
     resolve_profile,
+    scope_row_cap,
     submit_k8s_job,
     write_jobspec_multimodel,
 )
@@ -76,6 +78,8 @@ def main():
     args = parser.parse_args()
 
     scope = json.loads(Path(args.scope).read_text())
+    if scope.get("max_run_time"):
+        os.environ["MAX_RUN_TIME"] = str(scope["max_run_time"])  # read by submit_job and run_experiment
     models: list[str] = scope["models"]
     n_splits = args.n_splits if args.n_splits is not None else scope["n_splits"]
     num_random_configs = args.num_random_configs if args.num_random_configs is not None else scope["num_random_configs"]
@@ -86,7 +90,7 @@ def main():
     mirror_repo = args.mirror_repo or scope.get("mirror_repo", "HTW-KI-Werkstatt/RamanBench")
     throttle = args.throttle if args.throttle is not None else scope.get("throttle", 8)
     dataset_time_limit_overrides = scope.get("time_limit_overrides", {})
-    max_train_samples_overrides = scope.get("max_train_samples_overrides", {})
+    max_train_samples_overrides = scope_row_cap(scope)
     model_time_limit_overrides = scope.get("model_time_limit_overrides", {})
     model_max_train_samples_overrides = scope.get("model_max_train_samples_overrides", {})
     min_groups_per_class = int(scope.get("min_groups_per_class", 0))

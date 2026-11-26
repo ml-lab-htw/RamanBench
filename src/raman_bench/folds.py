@@ -37,7 +37,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from raman_bench.compare import load_protocol, protocol_tasks
+from raman_bench.compare import load_protocol, protocol_tasks, row_cap
 from raman_bench.experiment_utils import load_dataframe, prepare_task_dataframe
 from raman_bench.splitting import GROUP_COL, _repeated_kfold_splits
 
@@ -67,7 +67,7 @@ def _task_frame(
     (spec,) = [t for t in protocol_tasks(tasks=[task]) if t["task"] == task]
     dataset_name, target_idx = spec["dataset"], spec["target_idx"]
     if max_train_samples is _PROTOCOL_CAP:
-        max_train_samples = protocol["max_train_samples_overrides"].get(dataset_name)
+        max_train_samples = row_cap(protocol, dataset_name)
 
     dataset, df, sample_idx, problem_type = load_dataframe(
         dataset_name,
@@ -243,7 +243,7 @@ def row_caps(dataset: str, protocol: dict | None = None) -> list[int | None]:
     (the smaller of the two wins, as in ``cluster/submit_job.py``).
     """
     protocol = protocol or load_protocol()
-    base = protocol.get("max_train_samples_overrides", {}).get(dataset)
+    base = row_cap(protocol, dataset)
     caps = [base]
     for cap in protocol.get("model_max_train_samples_overrides", {}).values():
         cap = cap if isinstance(cap, int) else cap.get(dataset)

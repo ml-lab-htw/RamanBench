@@ -1,0 +1,41 @@
+# The image for benchmark v2 (branch v2): Python 3.12 for every model, LimiX-2 included.
+#
+# The main Dockerfile is Python 3.11 (its pytorch/pytorch base), and LimiX-2's inference package needs
+# Python >= 3.12, so LimiX-2 used to run from a separate image. This one is the main image's pip steps on an
+# Ubuntu 24.04 base (Python 3.12), plus requirements-git-nodeps.txt, which installs LimiX-2 without its own
+# `torch==2.9.1` pin. torch comes from pip (cu130 wheels bundle their CUDA libraries), as in the main image.
+#
+# Built in the cluster with kaniko (scratch/v2rerun/build_v2_image.yaml); to build elsewhere:
+#   docker build --platform linux/amd64 -f Dockerfile.v2 -t <registry>/<you>/ramanbench:v2-py312 .
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
+
+ENV PIP_BREAK_SYSTEM_PACKAGES=1 PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.12 python3.12-dev python3-pip git build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python
+
+WORKDIR /app
+
+COPY pyproject.toml README.md requirements-git.txt requirements-git-nodeps.txt ./
+COPY src ./src
+# One RUN per step, as in the main Dockerfile: small layers push (and retry) independently.
+RUN pip install --pre -e ".[models,benchmark]"
+RUN pip install --pre -r requirements-git.txt
+RUN pip install --no-deps tabstar==1.2.0
+RUN pip install --no-deps "tabtune @ git+https://github.com/Lexsi-Labs/TabTune.git"
+# LimiX-2 (and Lattice) without their dependency trees, then LimiX's extra.
+RUN pip install --no-deps -r requirements-git-nodeps.txt && pip install nvtx
+# torchaudio has no release for torch >= 2.12 and breaks transformers' import chain (see Dockerfile).
+RUN pip uninstall -y torchaudio
+RUN pip install "datasets<5.1" \
+    && python -c "import datasets, raman_data, raman_bench, tabarena, limix; print('imports ok')"
+
+COPY scripts ./scripts
+COPY cluster ./cluster
+COPY configs ./configs
+
+RUN chmod +x cluster/k8s_entrypoint.sh cluster/k8s_entrypoint_by_dataset.sh cluster/k8s_entrypoint_autogluon.sh
+
+ENTRYPOINT ["/bin/bash", "cluster/k8s_entrypoint.sh"]

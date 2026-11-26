@@ -49,6 +49,13 @@ def _reference_dir():
     return resources.files("raman_bench").joinpath("data", "precomputed", "v1")
 
 
+def row_cap(protocol: dict, dataset: str) -> int | None:
+    """The row cap of *dataset* under *protocol*: the global ``max_train_samples`` and the dataset's entry in
+    ``max_train_samples_overrides`` (v1), the smaller one if both are set; ``None`` is no cap."""
+    caps = [c for c in (protocol.get("max_train_samples"), protocol.get("max_train_samples_overrides", {}).get(dataset)) if c]
+    return min(caps) if caps else None
+
+
 @lru_cache(maxsize=1)
 def load_protocol() -> dict:
     """The v1 evaluation protocol (folds, bagging, time budget, row caps, task list)."""
