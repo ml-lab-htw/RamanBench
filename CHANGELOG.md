@@ -33,6 +33,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- Spotlight figures (`raman_bench.plotting.spotlight`): Elo vs. time with the Pareto front, and Elo vs. release date with the
+  running best, with one or two models in the foreground (callout with Elo and rank, halo markers) and the other front or
+  record models named in grey. `plot_results.py --highlight A B` writes them as `spotlight_elo_vs_time` and
+  `spotlight_elo_vs_release_date`; `plot_spotlight_tradeoff` takes `per_spectra` and `time_col`, `plot_spotlight_release`
+  takes `hide` (a model released the same day).
 - **TabPFN-3.5-Thinking as a system** (`TABPFN-V3.5-THINKING`, `raman_bench.systems`, run with `scripts/run_system.py`): Prior Labs'
   hosted model, one thinking fit per outer fold as Prior Labs asked, not through AutoGluon's bagging (about four API fits per
   fold). Effort `high`, the key from `TABPFN_TOKEN`. It waits out the API's rate limit (10 fits a minute, 30 an hour; refused

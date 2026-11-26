@@ -363,3 +363,19 @@ def test_pareto_optimal_models_stay_coloured_with_an_explicit_highlight():
     muted, shown = ax.collections[:2]  # scatter order in _tradeoff_ax
     assert len(muted.get_offsets()) == 0 and len(shown.get_offsets()) == 4  # D (highlighted) plus the front A, B, C
     plt.close(fig)
+
+
+def test_spotlight_figures(tmp_path):
+    from raman_bench.plotting import spotlight
+
+    path, scope, tl = _hpo_results(tmp_path)
+    scores = res.score_all(res.load_results(path, scope=scope, target_list=tl), bootstrap_rounds=10)["all"]
+    out = tmp_path / "spot"
+    # keys are matched case-insensitively; a second model may be hidden from the release plot
+    files = spotlight.plot_spotlight_tradeoff(scores, ["tabpfn-v3", "RAMANPFN"], out, ("png",))
+    files += spotlight.plot_spotlight_release(scores, ["TABPFN-V3"], out, ("png",), hide=["RAMANPFN"])
+    assert all(f.exists() and f.stat().st_size > 10_000 for f in files)
+    with pytest.raises(ValueError, match="spotlight needs"):
+        spotlight.plot_spotlight_tradeoff(scores, ["NOT-A-MODEL"], out, ("png",))
+    with pytest.raises(ValueError, match="spotlight needs"):
+        spotlight.plot_spotlight_tradeoff(scores, ["RF", "LR", "ROCKET"], out, ("png",))
