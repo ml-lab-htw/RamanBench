@@ -6,7 +6,7 @@ AutoGluon's built-in ``KNNModel`` that adds ``scaler``/``cat_threshold``
 preprocessing knobs (see ``tabarena/models/knn/model.py`` and its
 ``KNNPreprocessor``). RamanBench's ``Prep_KNN`` wraps plain AutoGluon ``KNNModel``
 (matching AutoGluon's own ``"KNN"`` ag_key, which is what's registered in
-``configs/models/all.json``) -- it has no ``KNNPreprocessor`` and its plain
+``configs/v0.1/models/all.json``) -- it has no ``KNNPreprocessor`` and its plain
 ``_fit`` would forward ``scaler``/``cat_threshold`` straight into sklearn's
 ``KNeighborsClassifier(**params)``, which doesn't accept them, crashing every fit.
 ``rebind_tabarena_generator`` (see ``_tabarena_adapter.py``) is therefore not used

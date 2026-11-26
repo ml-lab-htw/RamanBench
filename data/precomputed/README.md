@@ -37,7 +37,7 @@ across 3 random seeds.
 
 **v0.1.0** — released 2026-04-14
 - 74 datasets, 163 targets, 28 models, 3 seeds each
-- Config: `configs/benchmark_v0.1.json` equivalent (`extreme_quality` preset, no HPO, no preprocessing)
+- Config: `configs/v0.1/benchmark.json` equivalent (`extreme_quality` preset, no HPO, no preprocessing)
 
 ## Using with the Leaderboard class
 

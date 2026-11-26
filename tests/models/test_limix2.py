@@ -52,11 +52,11 @@ def _prep_limix2():
 
 
 def test_all_json_keys_covered():
-    all_json = json.loads((REPO_ROOT / "configs" / "models" / "all.json").read_text())
+    all_json = json.loads((REPO_ROOT / "configs" / "v0.1" / "models" / "all.json").read_text())
     assert "LIMIX2" in all_json
 
     foundation_json = json.loads(
-        (REPO_ROOT / "configs" / "models" / "tabular_foundation.json").read_text()
+        (REPO_ROOT / "configs" / "v0.1" / "models" / "tabular_foundation.json").read_text()
     )
     assert "LIMIX2" in foundation_json
 

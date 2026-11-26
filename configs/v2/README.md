@@ -8,10 +8,10 @@ Benchmark v2 lives on the long-lived `v2` branch; `main` stays benchmark v1 (see
 
 - `target_list.json`: all v2 targets. `since` says where a target comes from: `"v1"` (the 135
   targets of `configs/v1/target_list.json`, unchanged) or `"v2"` (78, of which 52 run).
-- `datasets/v2_all.json`: all 116 datasets of v2 (the 70 of v1 plus the 46 below).
-- `datasets/v2_only.json`: the 46 datasets of the `since: "v2"` targets.
+- `datasets/all.json`: all 116 datasets of v2 (the 70 of v1 plus the 46 below).
+- `datasets/new.json`: the 46 datasets of the `since: "v2"` targets.
 - `exclusions.json`: v2-only targets that are not run, with a reason, in the format of
-  `configs/v1/quality_exclusions.json`.
+  `configs/v1/exclusions.json`.
 - `scope_default.json`: the v1 scope plus `min_groups_per_class: 3`, `results/v2/data` and
   the large-dataset overrides of the new datasets.
 - `protocol.json`: the one protocol file of benchmark v2: all 187 tasks (the 135 of v1 and the 52 v2-only ones) with their
@@ -23,9 +23,9 @@ Rebuild the v2-only part of the target list after a dataset change:
 
 ```bash
 python scripts/build_target_list.py \
-    --dataset-list configs/v2/datasets/v2_only.json \
+    --dataset-list configs/v2/datasets/new.json \
     --quality-exclusions configs/v2/exclusions.json \
-    --min-groups-per-class 3 --force-n-repeats 1 --output v2_only.json
+    --min-groups-per-class 3 --force-n-repeats 1 --output new_targets.json
 ```
 
 and merge it with the v1 entries (`since: "v1"`).

@@ -59,6 +59,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- `configs/` has one folder per benchmark version. The loose v0.1 files moved into `configs/v0.1/` (`benchmark_v0.1.json` is now `benchmark.json`; `datasets/` and `models/` came with it), and `configs/v1/quality_exclusions.json` is now `configs/v1/exclusions.json`, the name benchmark v2 uses. `configs/README.md` says what each folder is.
+- Benchmark v2 `configs/v2/datasets/` files are `all.json` and `new.json` (were `v2_all.json`, `v2_only.json`).
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
   used `kubectl apply` for the Job and now queues it through `kq`.
 - **Five requirements files became two.** `requirements-tabarena-git.txt`, `requirements-models-git.txt` and

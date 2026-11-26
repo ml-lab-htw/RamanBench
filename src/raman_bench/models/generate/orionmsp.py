@@ -11,7 +11,7 @@ override (``"TA-ORION-MSP"`` -> ``"ORIONMSP"``).
 ["binary", "multiclass"]``; ``_fit`` raises ``AssertionError`` for regression)
 -- ``ORIONMSP`` is listed in ``wrapped_models.CLASSIFICATION_ONLY_MODELS``
 alongside ROCKET/ARSENAL/TABPFN-WIDE. A full-benchmark run for this model
-should only target ``configs/datasets/classification_all.json``.
+should only target ``configs/v0.1/datasets/classification_all.json``.
 
 No ``max_features``/``max_rows``/``max_classes`` cap (confirmed via
 ``_get_default_auxiliary_params()`` on the installed build), but its own
