@@ -171,7 +171,7 @@ def _compute_partition_totals(
     and large-partition dicts {dataset: expected_tasks}, plus their sums, plus the
     set of excluded ``"{dataset}__{target_idx}"`` keys (same on-disk naming as
     ``main()``'s ``dataset_target``) -- so completed results.pkl files for a target
-    that's since been quality-excluded (``configs/v1/quality_exclusions.json``,
+    that's since been quality-excluded (``configs/v1/exclusions.json``,
     see ``EXCLUDED_TARGETS.md``) can be excluded from the numerator too, not just
     the denominator. Without this, a model that already ran before the exclusion
     (or, see the last return value's docstring, before a lowered n_repeats) reports

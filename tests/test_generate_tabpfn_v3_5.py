@@ -47,8 +47,8 @@ def run_experiment():
 
 
 def test_all_models_json_lists_key():
-    """Guards against ``configs/models/all.json`` silently dropping this key."""
-    all_json = json.loads((REPO_ROOT / "configs" / "models" / "all.json").read_text())
+    """Guards against ``configs/v0.1/models/all.json`` silently dropping this key."""
+    all_json = json.loads((REPO_ROOT / "configs" / "v0.1" / "models" / "all.json").read_text())
     assert MODEL_KEY in all_json
 
 

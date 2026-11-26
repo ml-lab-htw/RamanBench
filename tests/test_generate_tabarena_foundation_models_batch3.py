@@ -92,20 +92,20 @@ def run_experiment():
 
 
 def test_all_models_json_keys_covered():
-    """Guards against ``configs/models/all.json`` silently dropping one of these keys."""
-    all_json = json.loads((REPO_ROOT / "configs" / "models" / "all.json").read_text())
+    """Guards against ``configs/v0.1/models/all.json`` silently dropping one of these keys."""
+    all_json = json.loads((REPO_ROOT / "configs" / "v0.1" / "models" / "all.json").read_text())
     missing = set(TABARENA_BATCH3_KEYS) - set(all_json)
-    assert not missing, f"configs/models/all.json no longer lists: {missing}"
+    assert not missing, f"configs/v0.1/models/all.json no longer lists: {missing}"
 
 
 def test_tabular_foundation_json_keys_covered():
     """All six are pretrained/fine-tuned foundation models -- belong in
     tabular_foundation.json, not traditional_ml.json."""
     foundation_json = json.loads(
-        (REPO_ROOT / "configs" / "models" / "tabular_foundation.json").read_text()
+        (REPO_ROOT / "configs" / "v0.1" / "models" / "tabular_foundation.json").read_text()
     )
     missing = set(TABARENA_BATCH3_FOUNDATION_KEYS) - set(foundation_json)
-    assert not missing, f"configs/models/tabular_foundation.json no longer lists: {missing}"
+    assert not missing, f"configs/v0.1/models/tabular_foundation.json no longer lists: {missing}"
 
 
 def test_gpu_models_json_keys_covered():

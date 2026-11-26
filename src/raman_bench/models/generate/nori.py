@@ -12,7 +12,7 @@ Nori is a **regression-only** in-context-learning foundation model
 ``wrapped_models.REGRESSION_ONLY_MODELS`` (the mirror of
 ``CLASSIFICATION_ONLY_MODELS``, which ROCKET/ARSENAL/TABPFN-WIDE/ORIONMSP use the
 other way around). A full-benchmark run for this model should only target
-``configs/datasets/regression_all.json`` -- not build a target list from
+``configs/v0.1/datasets/regression_all.json`` -- not build a target list from
 ``classification_all.json`` at all, since every classification target would fail
 fast with that same AssertionError.
 

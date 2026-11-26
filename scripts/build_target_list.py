@@ -2,7 +2,7 @@
 """Build a target list for a full-benchmark submission, one entry per (dataset, target).
 
 Reads dataset-name lists (JSON arrays of raman_data keys, e.g. the paper repo's
-``configs/datasets/{classification,regression}_all.json``), loads each dataset once to
+``configs/v0.1/datasets/{classification,regression}_all.json``), loads each dataset once to
 determine its real target names and instance count, and writes one row per target with
 the dataset-size-adaptive ``n_repeats`` TabArena's own real protocol uses (see
 ``raman_bench.splitting.get_n_repeats`` -- ported directly from
@@ -21,7 +21,7 @@ flag never deletes or invalidates anything, it only changes what gets requested
 next.
 
 A target whose ``{dataset}_{target_idx}`` key appears in ``--quality-exclusions`` (a JSON
-registry shaped like ``configs/v1/quality_exclusions.json``, with top-level ``"trivial"``/
+registry shaped like ``configs/v1/exclusions.json``, with top-level ``"trivial"``/
 ``"not_learnable"`` maps of ``{key: reason}``) is likewise marked ``excluded``, with
 ``exclusion_reason`` set to ``"trivial"``/``"not_learnable"`` (``None`` for targets excluded
 by ``--exclude-targets`` or not excluded at all). See ``configs/v1/EXCLUDED_TARGETS.md`` for
@@ -69,7 +69,7 @@ from raman_bench.env import load_env
 
 
 def load_quality_exclusions(path: str | None) -> dict[str, str]:
-    """Flatten a ``configs/v1/quality_exclusions.json``-shaped registry into
+    """Flatten a ``configs/v1/exclusions.json``-shaped registry into
     ``{"{dataset}_{target_idx}": reason_category}``, where ``reason_category`` is
     ``"trivial"`` or ``"not_learnable"`` (the registry's two top-level keys; any
     ``_``-prefixed key, e.g. ``"_comment"``/``"_criterion"``, is metadata and skipped).
@@ -187,9 +187,9 @@ def main():
         help="Target names to mark excluded rather than run (e.g. a raw elapsed-time column)",
     )
     parser.add_argument(
-        "--quality-exclusions", default="configs/v1/quality_exclusions.json",
+        "--quality-exclusions", default="configs/v1/exclusions.json",
         help="Path to a trivial/not_learnable exclusion registry (see "
-             "configs/v1/quality_exclusions.json and EXCLUDED_TARGETS.md); pass an "
+             "configs/v1/exclusions.json and EXCLUDED_TARGETS.md); pass an "
              "empty string to disable.",
     )
     parser.add_argument(

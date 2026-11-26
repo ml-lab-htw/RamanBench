@@ -364,7 +364,7 @@ def compute_unlearnable_keys(
 
     This is *not* claimed to be numerically identical to the paper's original
     regression check (an error-margin threshold vs. an R²-floor threshold are
-    different units), so re-deriving ``configs/v1/quality_exclusions.json``'s
+    different units), so re-deriving ``configs/v1/exclusions.json``'s
     ``not_learnable`` entries with this function against real v1 data may not
     reproduce the exact v0.1-era list byte-for-byte -- expected, and fine:
     the intent (flag keys nothing beats Dummy on) is preserved, the specific
