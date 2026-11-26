@@ -46,7 +46,7 @@ tuning and ensembling (an AutoML framework, a hosted API). It is registered in
 outer fold on the whole training split, on the same folds and budget. A plain
 `fit` / `predict_proba` estimator is a model. The two kinds of result are not
 interchangeable: a model fitted once on the full training split sees more rows per fit than
-a bagged one (a fit-once Causilo 1.5 scored about 45 Elo higher than the same model bagged),
+a bagged one (Nums AI's fit-once Causilo 1.5 scored Elo 1570 against our bagged 1523),
 so such a result must not be compared with the bagged leaderboard models. If a user brings
 fit-once results for a model, say so, and either rerun them bagged or register the method as
 a system.
