@@ -8,7 +8,6 @@ import pytest
 
 from raman_bench import run_record
 from raman_bench.compare import _warn_unverified_fit
-from raman_bench.experiment_utils import run_cached
 
 
 class OutOfMemoryError(RuntimeError):  # torch.cuda.OutOfMemoryError by name
@@ -62,6 +61,9 @@ class _Experiment:
 
 
 def _run(tmp_path, experiment, setup=None):
+    pytest.importorskip("tabarena")
+    from raman_bench.experiment_utils import run_cached
+
     return run_cached(
         experiment, task_name="t__0", task_wrapper=None, repeat=0, fold=1, results_dir=str(tmp_path), setup=setup
     )
