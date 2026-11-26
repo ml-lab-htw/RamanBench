@@ -14,8 +14,10 @@ Benchmark v2 lives on the long-lived `v2` branch; `main` stays benchmark v1 (see
   `configs/v1/quality_exclusions.json`.
 - `scope_default.json`: the v1 scope plus `min_groups_per_class: 3`, `results/v2/data` and
   the large-dataset overrides of the new datasets.
-- `protocol_v2_only.json`: the 52 v2-only tasks with their metric, for
-  `scripts/run_system.py --protocol` (systems such as TABFM-PLUS).
+- `protocol.json`: the one protocol file of benchmark v2: all 187 tasks (the 135 of v1 and the 52 v2-only ones) with their
+  metric and folds, and the settings every model runs under (3 folds, 3 bag folds, 10800 s, the row caps). It is also what
+  `scripts/run_system.py --protocol` reads (systems such as TABFM-PLUS). `tests/test_v2_config.py` checks it against
+  `scope_default.json` and `target_list.json`.
 
 Rebuild the v2-only part of the target list after a dataset change:
 

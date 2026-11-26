@@ -220,7 +220,7 @@ def main() -> None:
             )
             run = (
                 'TASK=$(sed -n "$((JOB_COMPLETION_INDEX + 1))p" /jobspec/jobspec.txt); '
-                f'python scripts/run_system.py --system {system} --protocol configs/v2/protocol_v2_only.json '
+                f'python scripts/run_system.py --system {system} --protocol configs/v2/protocol.json '
                 '--tasks "$TASK" --results-dir "$RESULTS_DIR" --cache-dir "$CACHE_DIR" --mirror-repo "$MIRROR_REPO"'
             )
             set_container(manifest, boot(args.code_dir, args.raman_data, run), min_groups, inner_group_folds)

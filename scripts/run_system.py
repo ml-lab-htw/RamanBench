@@ -39,7 +39,7 @@ N_SPLITS = 3
 
 
 def _load_protocol(path: str | None) -> dict:
-    """The bundled v1 protocol, or the protocol file at *path* (e.g. configs/v2/protocol_v2_only.json)."""
+    """The bundled v1 protocol, or the protocol file at *path* (e.g. configs/v2/protocol.json)."""
     if path is None:
         from raman_bench.compare import load_protocol
 
@@ -164,7 +164,7 @@ def main() -> None:
     parser.add_argument(
         "--protocol", default=None,
         help="Protocol JSON with the tasks to run (default: the bundled v1 protocol; "
-             "benchmark v2's own tasks are in configs/v2/protocol_v2_only.json)",
+             "benchmark v2's tasks are in configs/v2/protocol.json)",
     )
     parser.add_argument("--force-recompute", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="List the folds that would run, call nothing")

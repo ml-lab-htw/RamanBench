@@ -54,6 +54,23 @@ another metric instead, see [Rank by another metric](compare-your-model.md#rank-
 See the [live leaderboard](https://huggingface.co/spaces/HTW-KI-Werkstatt/RamanBench) for
 interactive filtering by model category, task type and dataset domain.
 
+## Benchmark v2
+
+Benchmark v2 adds datasets to v1 and keeps all of its tasks: 187 tasks, the 135 of v1 and 52 new ones.
+Its protocol is `configs/v2/protocol.json`, the one protocol file of the version, and every model runs under
+the same settings, with no per-model exceptions:
+
+- 3-fold outer cross-validation, group-aware, and 3-fold bagging inside each training split. A class needs
+  at least 3 groups, and the inner folds of grouped tasks are group-disjoint.
+- 10800 s per fit, for every model on every dataset.
+- A dataset above its cap is cut to a random sample of 30000 spectra before splitting. The cap applies to
+  `mlrod`, `wheat_lines`, `bacteria_identification`, `glioma_idh`, `raman_mpi`, `soft_tissue_sarcoma` and both
+  `stroke_urine_sers` datasets, and there are no per-model row caps.
+
+A model that runs out of memory or time on a large dataset fails there; the fold is reported with its failure
+label and imputed like any missing task. The v1 results are not valid for v2, since they ran with a 600 s
+limit and 10,000-row caps.
+
 ## Departures from the protocol
 
 - Systems (Chakra-Tab, TabFM+) do their own validation and ensembling, so they are fit once per
