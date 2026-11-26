@@ -379,3 +379,12 @@ def test_spotlight_figures(tmp_path):
         spotlight.plot_spotlight_tradeoff(scores, ["NOT-A-MODEL"], out, ("png",))
     with pytest.raises(ValueError, match="spotlight needs"):
         spotlight.plot_spotlight_tradeoff(scores, ["RF", "LR", "ROCKET"], out, ("png",))
+
+
+def test_figure_script_sizes_the_iframe_from_the_figure_not_the_body():
+    from raman_bench.plotting import interactive
+
+    # body.offsetHeight is at least the iframe's own height, so sizing the iframe from it grew the page
+    # by a few pixels on every resize event, without end.
+    assert "(document.body.offsetHeight + 24)" not in interactive._MOBILE_JS
+    assert "getBoundingClientRect().bottom" in interactive._MOBILE_JS

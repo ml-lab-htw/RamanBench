@@ -149,8 +149,13 @@ _MOBILE_JS = """<script>
     // The div and its wrapper keep their original CSS height; match them to the layout so
     // the page (and the iframe embedding it) grows and shrinks with the figure.
     gd.style.height = gd.parentElement.style.height = gd._fullLayout.height + "px";
+    // Measured from where the figure ends, not from body.offsetHeight: the body is at least as tall as
+    // the iframe, so sizing the iframe from it grew the iframe on every resize event, without end.
     var f = window.frameElement;
-    if (f) { f.style.height = (document.body.offsetHeight + 24) + "px"; }
+    if (f) {
+      var need = Math.ceil(gd.parentElement.getBoundingClientRect().bottom + window.pageYOffset) + 24;
+      if (Math.abs(need - f.offsetHeight) > 1) { f.style.height = need + "px"; }
+    }
   }
   function apply(gd, toMobile) {
     var lay = Object.assign({}, M.layout || {});
