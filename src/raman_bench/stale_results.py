@@ -89,6 +89,17 @@ def classify(results: list[dict], old_scope: dict, protocol: dict, threshold: fl
     return pd.DataFrame(rows, columns=["framework", "task", "repeat", "fold", "model", "time_train_s", "reason"])
 
 
+def delete(results_dir: str | Path, stale: pd.DataFrame) -> int:
+    """Delete the fold directory of every stale result. Returns the count."""
+    n = 0
+    for r in stale.itertuples():
+        src = Path(results_dir) / r.framework / r.task / f"{r.repeat}_{r.fold}"
+        if src.is_dir():
+            shutil.rmtree(src)
+            n += 1
+    return n
+
+
 def quarantine(results_dir: str | Path, stale: pd.DataFrame, quarantine_dir: str | Path) -> int:
     """Move the fold directory of every stale result to *quarantine_dir*, keeping its relative path. Returns the count."""
     n = 0

@@ -15,7 +15,9 @@ import os
 import time
 
 from raman_bench.aggregation import scan_cached_results
-from raman_bench.stale_results import THRESHOLD, classify, quarantine
+import pandas as pd
+
+from raman_bench.stale_results import THRESHOLD, classify, delete, quarantine
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,8 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", required=True)
-    parser.add_argument("--old-scope", required=True, help="Scope JSON the results ran under")
+    parser.add_argument("--delete-from", default=None, help="Delete the stale folds listed in this stale_results.csv (no scan)")
+    parser.add_argument("--old-scope", default=None, help="Scope JSON the results ran under")
     parser.add_argument("--protocol", default="configs/v2/protocol.json")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--quarantine-dir", default=None)
@@ -32,6 +35,12 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
+    if args.delete_from:
+        table = pd.read_csv(args.delete_from, keep_default_na=False)
+        stale = table[table["reason"] != ""]
+        logger.info("Deleting %d stale fold(s) of %d listed", len(stale), len(table))
+        logger.info("DONE: deleted %d fold directorie(s)", delete(args.results_dir, stale))
+        return
     old_scope = json.load(open(args.old_scope))
     protocol = json.load(open(args.protocol))
     start = time.time()

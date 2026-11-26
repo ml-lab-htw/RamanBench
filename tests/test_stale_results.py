@@ -58,3 +58,15 @@ def test_classify_and_quarantine_move_the_fold_directories(tmp_path):
     assert sr.quarantine(tmp_path / "data", table, tmp_path / "stale") == 1
     assert not fold.exists() and (tmp_path / "stale/RF_c1_BAG_L1/mlrod__0/0_1/results.pkl").exists()
     json.dumps(table.to_dict())
+
+
+def test_delete_removes_only_the_listed_fold_directories(tmp_path):
+    import pandas as pd
+
+    keep = tmp_path / "RF_c1_BAG_L1/t__0/0_0"
+    gone = tmp_path / "RF_c1_BAG_L1/t__0/0_1"
+    for d in (keep, gone):
+        d.mkdir(parents=True)
+        (d / "results.pkl").write_text("x")
+    stale = pd.DataFrame([{"framework": "RF_c1_BAG_L1", "task": "t__0", "repeat": 0, "fold": 1}])
+    assert sr.delete(tmp_path, stale) == 1 and keep.exists() and not gone.exists()
