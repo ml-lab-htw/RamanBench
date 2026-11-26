@@ -263,6 +263,212 @@ def mobile_spec(fig, panel_px: int = 400, legend_px: int = 190) -> dict:
     return spec
 
 
+
+# --------------------------------------------------------------------------- filter bar
+
+#: Wires the filter bar (see :func:`_filter_bar`) to a figure: category chips, "best per provider / family",
+#: and the colour mode. Every filter change redraws each trace from its original data and recomputes the
+#: staircase lines (Pareto front, state of the art) from the points that are left.
+_FILTER_JS = """<script>
+(function () {
+  var C = __CFG__, MUTED = "#C8C8C8", state = {mode: "all", colour: C.topk ? "topk" : "all", off: {}};
+  var orig = null, catArr = {};
+  // Plotly keeps numeric arrays as {dtype, bdata} (base64 typed arrays); plain arrays stay as they are.
+  var TYPES = {f8: Float64Array, f4: Float32Array, i1: Int8Array, i2: Int16Array, i4: Int32Array,
+               u1: Uint8Array, u2: Uint16Array, u4: Uint32Array};
+  function arr(a) {
+    if (a == null) { return null; }
+    if (a.bdata !== undefined) {
+      var bin = atob(a.bdata), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
+      return Array.from(new TYPES[a.dtype](bytes.buffer));
+    }
+    return Array.from(a);
+  }
+  function axisKey(letter, ref) { return letter + "axis" + ((ref || letter).slice(1) || ""); }
+  function init(gd) {
+    orig = gd.data.map(function (t) {
+      var m = t.marker || {};
+      return {x: arr(t.x), y: arr(t.y), text: arr(t.text), hover: arr(t.hovertext), cd: arr(t.customdata),
+              col: Array.isArray(m.color) ? arr(m.color) : null,
+              pat: m.pattern && m.pattern.shape ? arr(m.pattern.shape) : null,
+              ep: t.error_y && t.error_y.array ? arr(t.error_y.array) : null,
+              em: t.error_y && t.error_y.arrayminus ? arr(t.error_y.arrayminus) : null,
+              role: typeof t.meta === "string" ? t.meta : null,
+              panel: (t.xaxis || "x") + "|" + (t.yaxis || "y")};
+    });
+    Object.keys(gd.layout).forEach(function (k) {
+      if (/^xaxis\\d*$/.test(k) && gd.layout[k].categoryarray) { catArr[k] = arr(gd.layout[k].categoryarray); }
+    });
+    document.querySelectorAll("#rb-bar [data-cat]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var c = b.getAttribute("data-cat"); state.off[c] = !state.off[c];
+        b.classList.toggle("off", !!state.off[c]); redraw(gd);
+      });
+    });
+    document.querySelectorAll("#rb-bar [data-mode]").forEach(function (b) {
+      b.addEventListener("click", function () { state.mode = b.getAttribute("data-mode"); select("mode"); redraw(gd); });
+    });
+    document.querySelectorAll("#rb-bar [data-colour]").forEach(function (b) {
+      b.addEventListener("click", function () { state.colour = b.getAttribute("data-colour"); select("colour"); redraw(gd); });
+    });
+    select("mode"); select("colour"); redraw(gd);
+  }
+  function select(which) {
+    document.querySelectorAll("#rb-bar [data-" + which + "]").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-" + which) === state[which]);
+    });
+  }
+  function better(a, b) { return C.higher ? a > b : a < b; }
+  // The staircase of *pts*: scanning x upwards, every point that beats all earlier ones.
+  function stairs(pts) {
+    var sorted = pts.slice().sort(function (a, b) { return a.x - b.x || (C.higher ? b.y - a.y : a.y - b.y); });
+    var out = [], best = null;
+    sorted.forEach(function (p) { if (best === null || better(p.y, best)) { out.push(p); best = p.y; } });
+    return out;
+  }
+  function visible() {
+    var panels = {};
+    orig.forEach(function (o) {
+      if (!o.cd) { return; }
+      var list = panels[o.panel] = panels[o.panel] || [];
+      o.cd.forEach(function (d, k) {
+        if (!state.off[C.models[d[0]].cat]) { list.push({m: d[0], x: o.x[k], y: o.y[k]}); }
+      });
+    });
+    var keep = {};
+    Object.keys(panels).forEach(function (p) {
+      var kept = keep[p] = {}, best = {};
+      panels[p].forEach(function (c) {
+        if (state.mode === "all") { kept[c.m] = c; return; }
+        var g = C.models[c.m][state.mode];
+        if (!best[g] || better(c.y, best[g].y)) { best[g] = c; }
+      });
+      Object.keys(best).forEach(function (g) { kept[best[g].m] = best[g]; });
+    });
+    return keep;
+  }
+  function redraw(gd) {
+    var keep = visible(), onLine = {}, steps = [];
+    Object.keys(keep).forEach(function (p) {
+      var pts = Object.keys(keep[p]).map(function (m) { return keep[p][m]; });
+      var line = stairs(pts);
+      onLine[p] = {}; line.forEach(function (q) { onLine[p][q.m] = true; });
+      orig.forEach(function (o, i) {
+        if (o.role === "front" && o.panel === p) {
+          steps.push([i, line.map(function (q) { return q.x; }), line.map(function (q) { return q.y; })]);
+        } else if (o.role && o.role.indexOf("record:") === 0 && o.panel === p && line.length) {
+          steps.push([i, line.map(function (q) { return q.x; }).concat([+o.role.slice(7)]),
+                      line.map(function (q) { return q.y; }).concat([line[line.length - 1].y])]);
+        }
+      });
+    });
+    var jobs = [];
+    orig.forEach(function (o, i) {
+      if (!o.cd) { return; }
+      var idx = [], k;
+      for (k = 0; k < o.cd.length; k++) { if (keep[o.panel][o.cd[k][0]]) { idx.push(k); } }
+      var pick = function (a) { return a ? idx.map(function (j) { return a[j]; }) : null; };
+      var u = {x: [pick(o.x)], y: [pick(o.y)], customdata: [pick(o.cd)], hovertext: [pick(o.hover)]};
+      var line = C.kind !== "bar";
+      var hi = function (d) { return d[1] === 1 || (line && onLine[o.panel][d[0]]); };
+      var cd = pick(o.cd);
+      u["marker.color"] = [cd.map(function (d) {
+        return state.colour === "all" || hi(d) ? C.models[d[0]].color : MUTED;
+      })];
+      if (o.text) { u.text = [cd.map(function (d, j) { return hi(d) ? pick(o.text)[j] || C.models[d[0]].name : ""; })]; }
+      if (o.pat) { u["marker.pattern.shape"] = [pick(o.pat)]; }
+      if (o.ep) { u["error_y.array"] = [pick(o.ep)]; u["error_y.arrayminus"] = [pick(o.em)]; }
+      jobs.push(function () { return Plotly.restyle(gd, u, [i]); });
+    });
+    steps.forEach(function (s) { jobs.push(function () { return Plotly.restyle(gd, {x: [s[1]], y: [s[2]]}, [s[0]]); }); });
+    var rel = {};
+    Object.keys(catArr).forEach(function (axis) {
+      var names = {};
+      orig.forEach(function (o) {
+        if (o.cd && axis === axisKey("x", o.panel.split("|")[0])) {
+          Object.keys(keep[o.panel]).forEach(function (m) { names[C.models[m].name] = true; });
+        }
+      });
+      rel[axis + ".categoryarray"] = catArr[axis].filter(function (n) { return names[n]; });
+    });
+    if (Object.keys(rel).length) { jobs.push(function () { return Plotly.relayout(gd, rel); }); }
+    jobs.reduce(function (p, job) { return p.then(job); }, Promise.resolve());
+  }
+  function ready() {
+    var gd = document.querySelector(".plotly-graph-div");
+    if (!gd || !window.Plotly || !gd._fullLayout) { setTimeout(ready, 100); return; }
+    init(gd);
+  }
+  if (document.readyState === "complete") { ready(); } else { window.addEventListener("load", ready); }
+})();
+</script>"""
+
+_FILTER_CSS = """<style>
+#rb-bar { font: 13px Inter, Arial, sans-serif; color: #333; padding: 8px 12px 4px; }
+#rb-bar .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 6px; }
+#rb-bar .label { color: #777; font-size: 12px; margin-right: 2px; }
+#rb-bar button { font: inherit; cursor: pointer; border: 1px solid #ccc; background: #fff; color: #333;
+  border-radius: 14px; padding: 2px 11px; }
+#rb-bar button.chip { border-color: var(--c); }
+#rb-bar button.chip::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--c); margin-right: 6px; }
+#rb-bar button.chip.off { border-color: #ddd; color: #999; }
+#rb-bar button.chip.off::before { background: #ddd; }
+#rb-bar .seg button { border-radius: 0; margin-left: -1px; padding: 2px 11px; }
+#rb-bar .seg button:first-child { border-radius: 14px 0 0 14px; margin-left: 0; }
+#rb-bar .seg button:last-child { border-radius: 0 14px 14px 0; }
+#rb-bar .seg button.on { background: #333; border-color: #333; color: #fff; }
+#rb-bar .sep { width: 14px; }
+</style>"""
+
+#: The model-scope choices of the filter bar's second row: (key in :data:`_FILTER_JS`, label).
+FILTER_MODES = [("all", "Every model"), ("provider", "Best per provider"), ("family", "Best per family")]
+
+
+def _filter_bar(cfg: dict) -> str:
+    """HTML of the filter bar: category chips (they replace the legend) over a row of model-scope and colour choices."""
+    chips = "".join(
+        f'<button class="chip" style="--c:{color}" data-cat="{html.escape(name)}">{html.escape(name)}</button>'
+        for name, color in cfg["cats"]
+    )
+    modes = "".join(f'<button data-mode="{k}">{html.escape(label)}</button>' for k, label in FILTER_MODES)
+    colour = ""
+    if cfg["topk"]:
+        colour = (
+            '<span class="sep"></span><span class="label">Colour</span><span class="seg">'
+            f'<button data-colour="topk">Top {cfg["topk"]} per category</button>'
+            '<button data-colour="all">All in colour</button></span>'
+        )
+    return (
+        _FILTER_CSS
+        + f'<div id="rb-bar"><div class="row"><span class="label">Categories</span>{chips}</div>'
+        f'<div class="row"><span class="label">Models</span><span class="seg">{modes}</span>{colour}</div></div>'
+    )
+
+
+def _filterable(fig, kind: str, higher: bool, topk: int | None, boards: list[pd.DataFrame]) -> None:
+    """Turn the legend of *fig* into the filter bar written by :func:`write`.
+
+    *kind* is ``"bar"`` or ``"scatter"``; *higher* tells which direction of the y values is better;
+    *boards* are the leaderboards the traces were drawn from. Every point of a filterable trace carries
+    ``customdata = [model, 1 if highlighted else 0]``; a trace with ``meta="front"`` or
+    ``meta="record:<x end>"`` is a staircase line that the script recomputes from the points left.
+    """
+    models, cats = {}, {}
+    for lb in boards:
+        for m, row in lb.iterrows():
+            cat = model_info.category(m)
+            models[m] = {"name": row["display_name"], "cat": cat, "color": model_info.color(m),
+                         "provider": model_info.provider(m), "family": model_info.family(m)}
+            cats[cat] = model_info.color(m)
+    ordered = sorted(cats, key=model_info.category_rank)
+    fig.update_layout(showlegend=False)
+    fig.layout.updatemenus = ()  # the chips take over the focus toggle
+    fig.layout.meta = {**(fig.layout.meta or {}), "filter": {
+        "models": models, "cats": [[c, cats[c]] for c in ordered], "higher": higher, "kind": kind, "topk": topk}}
+
+
 def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -> Path:
     """Write *fig* as a self-contained ``<stem>.html`` that switches to its phone layout on narrow screens."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -277,6 +483,15 @@ def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -
         for n in notes
     ) + extra
     page = path.read_text(encoding="utf-8")
+    header = (fig.layout.meta or {}).get("header")
+    if header:
+        page = page.replace(
+            "<body>",
+            f'<body><p style="font:600 14px Inter,Arial,sans-serif;color:#333;margin:10px 12px 0">{html.escape(header)}</p>', 1)
+    cfg = (fig.layout.meta or {}).get("filter")
+    if cfg:
+        extra += _FILTER_JS.replace("__CFG__", json.dumps(cfg))
+        page = page.replace("<body>", "<body>" + _filter_bar(cfg), 1)
     path.write_text(page.replace("</body>", extra + "</body>", 1), encoding="utf-8")
     return path
 
@@ -307,6 +522,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
                     error_y={"type": "data", "symmetric": False, "array": sub["elo+"],
                              "arrayminus": sub["elo-"], "color": "#444444", "thickness": 1, "width": 2},
                     hovertext=_hover(sub), hoverinfo="text",
+                    customdata=[[m, int(m in focus[g])] for m in sub.index],
                 ),
                 row=row, col=1,
             )
@@ -324,6 +540,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
         fig.add_hline(y=1000, line={"dash": "dash", "color": "#9A9A9A", "width": 1}, row=row, col=1)
     fig.update_layout(bargap=0.2)
     _layout(fig, "RamanBench Elo ranking (Random Forest = 1000)", 520 * len(groups), focus_traces, top_k)
+    _filterable(fig, "bar", True, top_k, [split_references(scores[g].leaderboard)[0] for g in groups])
     set_mobile(fig, min_width=max(760, 14 * max(len(split_references(scores[g].leaderboard)[0]) for g in groups)))
     return fig
 
@@ -354,7 +571,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: 
         fig.add_trace(
             go.Scatter(x=front[x], y=front[metric] * scale, mode="lines", line_shape="hv",
                        line={"dash": "dash", "color": "#9A9A9A", "width": 1},
-                       hoverinfo="skip", showlegend=False),
+                       hoverinfo="skip", showlegend=False, meta="front"),
             row=1, col=col,
         )
         labelled = focus[g] | set(front.index)
@@ -368,6 +585,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: 
                     textposition="top center", textfont={"size": 10, "color": "#444444"},
                     marker={"color": focused, "size": 11, "line": {"width": 1, "color": "white"}},
                     hovertext=_hover(sub), hoverinfo="text",
+                    customdata=[[m, int(m in focus[g])] for m in sub.index],
                 ),
                 row=1, col=col,
             )
@@ -378,6 +596,7 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: 
         fig.update_yaxes(title_text=label, row=1, col=col)
     arrow = "↖ better" if higher else "↙ better"
     _layout(fig, f"{label} vs. time  ({arrow})", 620, focus_traces, top_k)
+    _filterable(fig, "scatter", higher, top_k, [split_references(scores[g].leaderboard)[0].dropna(subset=[x, metric]) for g in groups])
     return fig
 
 
@@ -394,7 +613,7 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k, strict: boo
     fig.add_trace(
         go.Scatter(x=list(record["release_date"]) + [end], y=list(record["elo"]) + [record["elo"].iloc[-1]],
                    mode="lines", line_shape="hv", line={"color": "#9A9A9A", "width": 2},
-                   name="State of the art", hoverinfo="skip")
+                   name="State of the art", hoverinfo="skip", meta=f"record:{end}")
     )
     highlight = focus if strict else focus | set(record.index)
     focus_traces = []
@@ -407,6 +626,7 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k, strict: boo
                 textposition="top center", textfont={"size": 10, "color": "#444444"},
                 marker={"color": focused, "size": 11, "line": {"width": 1, "color": "white"}},
                 hovertext=_hover(sub), hoverinfo="text",
+                customdata=[[m, int(m in focus)] for m in sub.index],
             )
         )
         focus_traces.append((len(fig.data) - 1, focused, full))
@@ -415,6 +635,7 @@ def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k, strict: boo
     fig.update_yaxes(title_text="Elo")
     _layout(fig, f"Model progress over time ({TASK_TITLES[scores.name].lower()}; drag to zoom, older models left)",
             600, focus_traces, top_k)
+    _filterable(fig, "scatter", True, top_k, [lb])
     return fig
 
 
@@ -440,11 +661,13 @@ def winrate_matrix(scores: GroupScores, models: list[str] | None = None, caption
     size = max(600, 18 * len(names) + 250)
     fig.update_yaxes(autorange="reversed")
     fig.update_xaxes(side="top", tickangle=-55)
-    title = f"Pairwise win rates: row vs. column ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)"
+    # The title and caption go in a header above the plot, not on it: on the plot they covered the model names.
+    header = f"Pairwise win rates: row vs. column ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)"
     if caption:
-        title += f"<br><sup>{caption}</sup>"
-    _layout(fig, title, size, [], None)
-    fig.update_layout(width=size + 100, margin={"t": 220})
+        header += f" · {caption}"
+    _layout(fig, "", size, [], None)
+    fig.update_layout(width=size + 100, margin={"t": 140}, title=None)
+    fig.layout.meta = {**(fig.layout.meta or {}), "header": header}
     set_mobile(fig, min_width=size + 100)
     return fig
 
@@ -458,6 +681,7 @@ def efficiency_overview(scores: GroupScores, focus: set[str], top_k):
 
     go = _go()
     lb = split_references(scores.leaderboard)[0]
+    lb = lb[[not model_info.is_closed_api(m) for m in lb.index]]  # API times are network and queue, not the model
     lb = lb.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
     infer = "median_infer_per_1k_s" if "median_infer_per_1k_s" in lb else "median_time_infer_s"
     panels = [("median_time_train_s", "Median train time (s)"),
