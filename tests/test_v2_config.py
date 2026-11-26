@@ -52,3 +52,13 @@ def test_one_row_cap_for_every_dataset():
     protocol = _load("protocol.json")
     assert protocol["max_train_samples"] == 30000
     assert {row_cap(protocol, t["dataset"]) for t in protocol["tasks"]} == {30000}
+
+
+def test_max_run_time_caps_the_child_budget_and_raises_the_bag_limit():
+    from raman_bench.experiment_utils import BAG_CHILD_RATIO, bag_experiment_kwargs
+
+    plain = bag_experiment_kwargs(num_random_configs=0, time_limit=600, num_bag_folds=3)
+    assert plain["time_limit"] == 600 and "extra_model_hyperparameters" not in plain
+    split = bag_experiment_kwargs(num_random_configs=0, time_limit=600, num_bag_folds=3, max_run_time=10800)
+    assert split["time_limit"] == 10800
+    assert split["extra_model_hyperparameters"] == {"ag.max_time_limit": BAG_CHILD_RATIO * 600}

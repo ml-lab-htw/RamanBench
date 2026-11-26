@@ -278,6 +278,10 @@ def load_dataframe(
     return dataset, df, sample_idx, problem_type
 
 
+#: Share of a bag's time limit AutoGluon gives each child (``fold_fitting_strategy.time_limit_fold_ratio``).
+BAG_CHILD_RATIO = 0.8
+
+
 def bag_experiment_kwargs(
     *,
     num_random_configs: int,
@@ -286,6 +290,7 @@ def bag_experiment_kwargs(
     scratch_dir: str | None = None,
     verbosity: int | None = None,
     task_specific_validation: bool = True,
+    max_run_time: float | None = None,
 ) -> dict:
     """Keyword arguments for ``ConfigGenerator.generate_all_bag_experiments``.
 
@@ -304,6 +309,11 @@ def bag_experiment_kwargs(
     - ``add_seed="fold-config-wise"``: TabArena's production default, so each internal
       bag fold and each HPO config gets its own random seed.
 
+    ``time_limit`` is the optimization budget a model sees. AutoGluon hands each bag child 0.8 of the bag's limit, so
+    with the default (``max_run_time=None``) the limit is both budget and cancel time. With ``max_run_time`` the bag
+    runs under that larger limit (a fold taking longer is cancelled) while each child's budget is capped at
+    ``BAG_CHILD_RATIO * time_limit``, the same child budget a bag limit of ``time_limit`` gives.
+
     ``scratch_dir`` pins AutoGluon's predictor path (default: a timestamped directory
     under the working directory), so a cluster wrapper can clean it up. ``verbosity`` is
     AutoGluon's (0-4, default 2).
@@ -314,7 +324,7 @@ def bag_experiment_kwargs(
 
     kwargs = dict(
         num_random_configs=num_random_configs,
-        time_limit=time_limit,
+        time_limit=time_limit if max_run_time is None else max_run_time,
         validation_protocol=ValidationProtocol(
             num_bag_folds=num_bag_folds,
             task_specific_validation=task_specific_validation,
@@ -331,6 +341,8 @@ def bag_experiment_kwargs(
         init_kwargs["verbosity"] = verbosity
     if init_kwargs:
         kwargs["method_kwargs"] = {"init_kwargs": init_kwargs}
+    if max_run_time is not None:
+        kwargs["extra_model_hyperparameters"] = {"ag.max_time_limit": BAG_CHILD_RATIO * time_limit}
     return kwargs
 
 
