@@ -14,6 +14,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- Failure labels and a setup record for every fold (`raman_bench.run_record`). A fold that raises leaves a `failure.json` with a
+  uniform label (`oom_gpu`, `oom_cpu`, `timeout`, `error`); a finished fold leaves a `setup.json` with the package versions, the hardware,
+  whether it was a bagged or a system run, and the time limit, bag folds and row cap it ran under. `aggregate_results.py` writes
+  `failures.csv` and logs the failed folds per model (`missing` for a fold that left no record). `compare()` warns when it cannot check
+  that results follow the protocol's bagged fit. `docs/protocol.md` describes models and systems, failures and the setup record.
 - **Causilo 1.5** (`CAUSILO-1.5`) and **Causilo 1.5 (Light)** (`CAUSILO-1.5-LIGHT`, the library's `mode="light"`) (Nums AI, PyPI `causilo>=1.5.0`, released 2026-11-25) as a new model next to Causilo 1.0
   (`CAUSILO`, results unchanged): the package's new default network with the full training context and the library's own
   ensemble size. The `causilo` pin is now `>=1.5.0`; the `CAUSILO` wrapper passes `model_version="1.0"` when the installed
