@@ -163,6 +163,11 @@ def test_row_caps_put_the_protocol_sample_first_and_take_the_smaller_cap():
     assert folds_mod.row_caps("other", protocol) == [None, 3000, 500]
 
 
+def test_a_protocol_without_override_keys_has_no_caps():
+    protocol = {"time_limit": 10800}
+    assert folds_mod.row_caps("big", protocol) == [None]
+
+
 def test_check_result_folds_flags_results_on_other_rows(capped_task):
     full = folds_mod.fold_assignment("toy__0", max_train_samples=None)[0]
     capped = folds_mod.fold_assignment("toy__0", max_train_samples=90)[0]

@@ -58,8 +58,8 @@ def _check_name(name: str) -> None:
 
 def _task_settings(task: dict, protocol: dict) -> tuple[float, int | None]:
     """``(time_limit, max_train_samples)`` of *task* under *protocol*."""
-    time_limit = protocol["time_limit_overrides"].get(task["dataset"], protocol["time_limit"])
-    max_rows = protocol["max_train_samples_overrides"].get(task["dataset"])
+    time_limit = protocol.get("time_limit_overrides", {}).get(task["dataset"], protocol["time_limit"])
+    max_rows = protocol.get("max_train_samples_overrides", {}).get(task["dataset"])
     return float(time_limit), max_rows
 
 

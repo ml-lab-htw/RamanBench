@@ -91,7 +91,7 @@ def run_fold(task, fold, out_dir, protocol, cache_dir, mirror_repo, model_kwargs
     (spec,) = [t for t in protocol["tasks"] if t["task"] == task]
     name, target_idx = spec["dataset"], spec["target_idx"]
     dataset, df, sample_idx, problem_type = load_dataframe(
-        name, target_idx, max_train_samples=protocol["max_train_samples_overrides"].get(name),
+        name, target_idx, max_train_samples=protocol.get("max_train_samples_overrides", {}).get(name),
         cache_dir=cache_dir, mirror_repo=mirror_repo,
     )
     task_name, wrapper = build_task(

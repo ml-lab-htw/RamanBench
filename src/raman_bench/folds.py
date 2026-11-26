@@ -67,7 +67,7 @@ def _task_frame(
     (spec,) = [t for t in protocol_tasks(tasks=[task]) if t["task"] == task]
     dataset_name, target_idx = spec["dataset"], spec["target_idx"]
     if max_train_samples is _PROTOCOL_CAP:
-        max_train_samples = protocol["max_train_samples_overrides"].get(dataset_name)
+        max_train_samples = protocol.get("max_train_samples_overrides", {}).get(dataset_name)
 
     dataset, df, sample_idx, problem_type = load_dataframe(
         dataset_name,

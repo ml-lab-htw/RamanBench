@@ -5,7 +5,6 @@
  "num_bag_folds": 3,
  "time_limit": 10800,
  "num_random_configs": 0,
- "time_limit_overrides": {},
  "max_train_samples_overrides": {
   "mlrod": 30000,
   "wheat_lines": 30000,
@@ -16,7 +15,6 @@
   "stroke_urine_sers_532": 30000,
   "stroke_urine_sers_633": 30000
  },
- "model_max_train_samples_overrides": {},
  "min_samples_per_class": 9,
  "min_groups_per_class": 3,
  "tasks": [
