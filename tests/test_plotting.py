@@ -190,11 +190,12 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
     written = generate_all(
         path, out, scope=scope, target_list=tl, bootstrap_rounds=10, focus_top_k=1, dataset_figures=False
     )
-    for stem in ("elo_ranking_combined", "metrics_vs_time", "improvability_vs_time",
+    for stem in ("elo_ranking_combined", "improvability_vs_time",
                  "elo_vs_release_date", "pairwise_win_rates", "efficiency_overview", "critical_difference"):
         assert (out / "static" / f"{stem}.png").exists()
         assert (out / "static" / f"{stem}.pdf").exists()
         assert (out / "interactive" / f"{stem}.html").exists()
+    assert not (out / "static" / "metrics_vs_time.png").exists()  # dropped: Elo vs. time shows the same trade-off
     for group in ("all", "classification", "regression"):
         assert (out / "static" / f"elo_vs_time_{group}.png").exists()
         assert (out / "static" / f"elo_vs_time_new_{group}.png").exists()

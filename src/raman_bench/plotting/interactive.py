@@ -263,6 +263,200 @@ def mobile_spec(fig, panel_px: int = 400, legend_px: int = 190) -> dict:
     return spec
 
 
+
+# --------------------------------------------------------------------------- filter bar
+
+#: Wires the filter bar (see :func:`_filter_bar`) to a figure: category chips, "best per provider / family",
+#: and the colour mode. Every filter change redraws each trace from its original data and recomputes the
+#: staircase lines (Pareto front, state of the art) from the points that are left.
+_FILTER_JS = """<script>
+(function () {
+  var C = __CFG__, MUTED = "#C8C8C8", state = {mode: "all", colour: C.topk ? "topk" : "all", off: {}};
+  var orig = null, catArr = {};
+  function arr(a) { return a == null ? null : Array.from(a); }
+  function axisKey(letter, ref) { return letter + "axis" + ((ref || letter).slice(1) || ""); }
+  function init(gd) {
+    orig = gd.data.map(function (t) {
+      var m = t.marker || {};
+      return {x: arr(t.x), y: arr(t.y), text: arr(t.text), hover: arr(t.hovertext), cd: arr(t.customdata),
+              col: Array.isArray(m.color) ? arr(m.color) : null,
+              pat: m.pattern && m.pattern.shape ? arr(m.pattern.shape) : null,
+              ep: t.error_y && t.error_y.array ? arr(t.error_y.array) : null,
+              em: t.error_y && t.error_y.arrayminus ? arr(t.error_y.arrayminus) : null,
+              role: typeof t.meta === "string" ? t.meta : null,
+              panel: (t.xaxis || "x") + "|" + (t.yaxis || "y")};
+    });
+    Object.keys(gd.layout).forEach(function (k) {
+      if (/^xaxis\\d*$/.test(k) && gd.layout[k].categoryarray) { catArr[k] = arr(gd.layout[k].categoryarray); }
+    });
+    document.querySelectorAll("#rb-bar [data-cat]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var c = b.getAttribute("data-cat"); state.off[c] = !state.off[c];
+        b.classList.toggle("off", !!state.off[c]); redraw(gd);
+      });
+    });
+    document.querySelectorAll("#rb-bar [data-mode]").forEach(function (b) {
+      b.addEventListener("click", function () { state.mode = b.getAttribute("data-mode"); select("mode"); redraw(gd); });
+    });
+    document.querySelectorAll("#rb-bar [data-colour]").forEach(function (b) {
+      b.addEventListener("click", function () { state.colour = b.getAttribute("data-colour"); select("colour"); redraw(gd); });
+    });
+    select("mode"); select("colour"); redraw(gd);
+  }
+  function select(which) {
+    document.querySelectorAll("#rb-bar [data-" + which + "]").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-" + which) === state[which]);
+    });
+  }
+  function better(a, b) { return C.higher ? a > b : a < b; }
+  // The staircase of *pts*: scanning x upwards, every point that beats all earlier ones.
+  function stairs(pts) {
+    var sorted = pts.slice().sort(function (a, b) { return a.x - b.x || (C.higher ? b.y - a.y : a.y - b.y); });
+    var out = [], best = null;
+    sorted.forEach(function (p) { if (best === null || better(p.y, best)) { out.push(p); best = p.y; } });
+    return out;
+  }
+  function visible() {
+    var panels = {};
+    orig.forEach(function (o) {
+      if (!o.cd) { return; }
+      var list = panels[o.panel] = panels[o.panel] || [];
+      o.cd.forEach(function (d, k) {
+        if (!state.off[C.models[d[0]].cat]) { list.push({m: d[0], x: o.x[k], y: o.y[k]}); }
+      });
+    });
+    var keep = {};
+    Object.keys(panels).forEach(function (p) {
+      var kept = keep[p] = {}, best = {};
+      panels[p].forEach(function (c) {
+        if (state.mode === "all") { kept[c.m] = c; return; }
+        var g = C.models[c.m][state.mode];
+        if (!best[g] || better(c.y, best[g].y)) { best[g] = c; }
+      });
+      Object.keys(best).forEach(function (g) { kept[best[g].m] = best[g]; });
+    });
+    return keep;
+  }
+  function redraw(gd) {
+    var keep = visible(), onLine = {}, steps = [];
+    Object.keys(keep).forEach(function (p) {
+      var pts = Object.keys(keep[p]).map(function (m) { return keep[p][m]; });
+      var line = stairs(pts);
+      onLine[p] = {}; line.forEach(function (q) { onLine[p][q.m] = true; });
+      orig.forEach(function (o, i) {
+        if (o.role === "front" && o.panel === p) {
+          steps.push([i, line.map(function (q) { return q.x; }), line.map(function (q) { return q.y; })]);
+        } else if (o.role && o.role.indexOf("record:") === 0 && o.panel === p && line.length) {
+          steps.push([i, line.map(function (q) { return q.x; }).concat([+o.role.slice(7)]),
+                      line.map(function (q) { return q.y; }).concat([line[line.length - 1].y])]);
+        }
+      });
+    });
+    var jobs = [];
+    orig.forEach(function (o, i) {
+      if (!o.cd) { return; }
+      var idx = [], k;
+      for (k = 0; k < o.cd.length; k++) { if (keep[o.panel][o.cd[k][0]]) { idx.push(k); } }
+      var pick = function (a) { return a ? idx.map(function (j) { return a[j]; }) : null; };
+      var u = {x: [pick(o.x)], y: [pick(o.y)], customdata: [pick(o.cd)], hovertext: [pick(o.hover)]};
+      var line = C.kind !== "bar";
+      var hi = function (d) { return d[1] === 1 || (line && onLine[o.panel][d[0]]); };
+      var cd = pick(o.cd);
+      u["marker.color"] = [cd.map(function (d) {
+        return state.colour === "all" || hi(d) ? C.models[d[0]].color : MUTED;
+      })];
+      if (o.text) { u.text = [cd.map(function (d, j) { return hi(d) ? pick(o.text)[j] || C.models[d[0]].name : ""; })]; }
+      if (o.pat) { u["marker.pattern.shape"] = [pick(o.pat)]; }
+      if (o.ep) { u["error_y.array"] = [pick(o.ep)]; u["error_y.arrayminus"] = [pick(o.em)]; }
+      jobs.push(function () { return Plotly.restyle(gd, u, [i]); });
+    });
+    steps.forEach(function (s) { jobs.push(function () { return Plotly.restyle(gd, {x: [s[1]], y: [s[2]]}, [s[0]]); }); });
+    var rel = {};
+    Object.keys(catArr).forEach(function (axis) {
+      var names = {};
+      orig.forEach(function (o) {
+        if (o.cd && axis === axisKey("x", o.panel.split("|")[0])) {
+          Object.keys(keep[o.panel]).forEach(function (m) { names[C.models[m].name] = true; });
+        }
+      });
+      rel[axis + ".categoryarray"] = catArr[axis].filter(function (n) { return names[n]; });
+    });
+    if (Object.keys(rel).length) { jobs.push(function () { return Plotly.relayout(gd, rel); }); }
+    jobs.reduce(function (p, job) { return p.then(job); }, Promise.resolve());
+  }
+  function ready() {
+    var gd = document.querySelector(".plotly-graph-div");
+    if (!gd || !window.Plotly || !gd._fullLayout) { setTimeout(ready, 100); return; }
+    init(gd);
+  }
+  if (document.readyState === "complete") { ready(); } else { window.addEventListener("load", ready); }
+})();
+</script>"""
+
+_FILTER_CSS = """<style>
+#rb-bar { font: 13px Inter, Arial, sans-serif; color: #333; padding: 8px 12px 4px; }
+#rb-bar .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 6px; }
+#rb-bar .label { color: #777; font-size: 12px; margin-right: 2px; }
+#rb-bar button { font: inherit; cursor: pointer; border: 1px solid #ccc; background: #fff; color: #333;
+  border-radius: 14px; padding: 2px 11px; }
+#rb-bar button.chip { border-color: var(--c); }
+#rb-bar button.chip::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--c); margin-right: 6px; }
+#rb-bar button.chip.off { border-color: #ddd; color: #999; }
+#rb-bar button.chip.off::before { background: #ddd; }
+#rb-bar .seg button { border-radius: 0; margin-left: -1px; padding: 2px 11px; }
+#rb-bar .seg button:first-child { border-radius: 14px 0 0 14px; margin-left: 0; }
+#rb-bar .seg button:last-child { border-radius: 0 14px 14px 0; }
+#rb-bar .seg button.on { background: #333; border-color: #333; color: #fff; }
+#rb-bar .sep { width: 14px; }
+</style>"""
+
+#: The model-scope choices of the filter bar's second row: (key in :data:`_FILTER_JS`, label).
+FILTER_MODES = [("all", "Every model"), ("provider", "Best per provider"), ("family", "Best per family")]
+
+
+def _filter_bar(cfg: dict) -> str:
+    """HTML of the filter bar: category chips (they replace the legend) over a row of model-scope and colour choices."""
+    chips = "".join(
+        f'<button class="chip" style="--c:{color}" data-cat="{html.escape(name)}">{html.escape(name)}</button>'
+        for name, color in cfg["cats"]
+    )
+    modes = "".join(f'<button data-mode="{k}">{html.escape(label)}</button>' for k, label in FILTER_MODES)
+    colour = ""
+    if cfg["topk"]:
+        colour = (
+            '<span class="sep"></span><span class="label">Colour</span><span class="seg">'
+            f'<button data-colour="topk">Top {cfg["topk"]} per category</button>'
+            '<button data-colour="all">All in colour</button></span>'
+        )
+    return (
+        _FILTER_CSS
+        + f'<div id="rb-bar"><div class="row"><span class="label">Categories</span>{chips}</div>'
+        f'<div class="row"><span class="label">Models</span><span class="seg">{modes}</span>{colour}</div></div>'
+    )
+
+
+def _filterable(fig, kind: str, higher: bool, topk: int | None, boards: list[pd.DataFrame]) -> None:
+    """Turn the legend of *fig* into the filter bar written by :func:`write`.
+
+    *kind* is ``"bar"`` or ``"scatter"``; *higher* tells which direction of the y values is better;
+    *boards* are the leaderboards the traces were drawn from. Every point of a filterable trace carries
+    ``customdata = [model, 1 if highlighted else 0]``; a trace with ``meta="front"`` or
+    ``meta="record:<x end>"`` is a staircase line that the script recomputes from the points left.
+    """
+    models, cats = {}, {}
+    for lb in boards:
+        for m, row in lb.iterrows():
+            cat = model_info.category(m)
+            models[m] = {"name": row["display_name"], "cat": cat, "color": model_info.color(m),
+                         "provider": model_info.provider(m), "family": model_info.family(m)}
+            cats[cat] = model_info.color(m)
+    ordered = sorted(cats, key=model_info.category_rank)
+    fig.update_layout(showlegend=False, updatemenus=[])
+    fig.layout.meta = {**(fig.layout.meta or {}), "filter": {
+        "models": models, "cats": [[c, cats[c]] for c in ordered], "higher": higher, "kind": kind, "topk": topk}}
+
+
 def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -> Path:
     """Write *fig* as a self-contained ``<stem>.html`` that switches to its phone layout on narrow screens."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -277,6 +471,10 @@ def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -
         for n in notes
     ) + extra
     page = path.read_text(encoding="utf-8")
+    cfg = (fig.layout.meta or {}).get("filter")
+    if cfg:
+        extra += _FILTER_JS.replace("__CFG__", json.dumps(cfg))
+        page = page.replace("<body>", "<body>" + _filter_bar(cfg), 1)
     path.write_text(page.replace("</body>", extra + "</body>", 1), encoding="utf-8")
     return path
 

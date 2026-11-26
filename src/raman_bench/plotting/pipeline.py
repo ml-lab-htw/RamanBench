@@ -38,7 +38,6 @@ FIGURES = {
     "composition": "Figure 3: Benchmark composition",
     "elo_ranking_combined": "Elo ranking, classification and regression",
     "elo_ranking": "Elo ranking, all tasks",
-    "metrics_vs_time": "Normalized score vs. time",
     "improvability_vs_time": "Improvability vs. time",
     "elo_vs_time": "Elo vs. time",
     "elo_vs_time_all": "Elo vs. time, all tasks",
@@ -166,7 +165,6 @@ def generate_from_results(
         written["composition"] = overview.plot_composition(datasets, st, formats)
     written["elo_ranking"] = static.plot_elo_ranking(scores, everyone, st, formats)
     for metric, stem in (
-        ("normalized_score", "metrics_vs_time"),
         ("improvability", "improvability_vs_time"),
         ("elo", "elo_vs_time"),
     ):
@@ -221,7 +219,6 @@ def generate_from_results(
         figs = {
             "elo_ranking_combined": interactive.elo_ranking(scores, everyone, None, groups or ["all"]),
             "elo_ranking": interactive.elo_ranking(scores, everyone, None, ["all"]),
-            "metrics_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "normalized_score", strict),
             "improvability_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "improvability", strict),
             "elo_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "elo", strict),
             "elo_vs_release_date": interactive.elo_vs_release_date(scores["all"], focus["all"], focus_top_k, strict),
