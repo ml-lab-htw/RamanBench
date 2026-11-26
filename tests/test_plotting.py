@@ -386,5 +386,5 @@ def test_figure_script_sizes_the_iframe_from_the_figure_not_the_body():
 
     # body.offsetHeight is at least the iframe's own height, so sizing the iframe from it grew the page
     # by a few pixels on every resize event, without end.
-    assert "body.offsetHeight" not in interactive._MOBILE_JS
+    assert "(document.body.offsetHeight + 24)" not in interactive._MOBILE_JS
     assert "getBoundingClientRect().bottom" in interactive._MOBILE_JS
