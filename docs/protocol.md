@@ -68,8 +68,8 @@ the same settings, with no per-model exceptions:
   `stroke_urine_sers` datasets, and there are no per-model row caps.
 
 A model that runs out of memory or time on a large dataset fails there; the fold is reported with its failure
-label and imputed like any missing task. The v1 results are not valid for v2, since they ran with a 600 s
-limit and 10,000-row caps.
+label and imputed like any missing task. A result produced under v1's other limits (600 s, 10,000-row caps, per-model caps) is rerun for v2 where one of those limits
+applied to it.
 
 ## Departures from the protocol
 
