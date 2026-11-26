@@ -2,7 +2,7 @@
 
 Before this fix, ``scripts/run_experiment.py::_import_generator`` had no
 ``raman_bench.models.generate.<key>`` (nor ``custom/<key>/hpo.py``) module for any
-of the "built-in" AutoGluon models in ``configs/models/all.json`` (RF, CAT, XGB,
+of the "built-in" AutoGluon models in ``configs/v0.1/models/all.json`` (RF, CAT, XGB,
 KNN, LR, NN_TORCH, FASTAI, DUMMY, REALMLP, MITRA, TABM, TABDPT, TABICL,
 REALTABPFN-V2, REALTABPFN-V2.5, XT) -- every one of them could be resolved to a
 ``Prep_*`` model class via ``raman_bench.models.registry.infer_model_cls``, but
@@ -87,10 +87,10 @@ def run_experiment():
 
 
 def test_all_models_json_keys_covered():
-    """Guards against ``configs/models/all.json`` silently dropping one of these keys."""
-    all_json = json.loads((REPO_ROOT / "configs" / "models" / "all.json").read_text())
+    """Guards against ``configs/v0.1/models/all.json`` silently dropping one of these keys."""
+    all_json = json.loads((REPO_ROOT / "configs" / "v0.1" / "models" / "all.json").read_text())
     missing = set(TABARENA_NATIVE_KEYS) - set(all_json)
-    assert not missing, f"configs/models/all.json no longer lists: {missing}"
+    assert not missing, f"configs/v0.1/models/all.json no longer lists: {missing}"
 
 
 @pytest.mark.parametrize("key", TABARENA_NATIVE_KEYS)

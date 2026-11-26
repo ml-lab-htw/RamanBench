@@ -60,7 +60,7 @@ process below.
 Both criteria need results from *every* in-scope model to mean anything, and
 v1's own cluster sweep did not have full model coverage at the time this list
 was built (2026-09-24). So the current
-[`quality_exclusions.json`](quality_exclusions.json) registry was computed
+[`exclusions.json`](exclusions.json) registry was computed
 against the most complete single snapshot available:
 `raman_bench_paper/results/v0_default_backup_splitfix` — 77 datasets, 171
 `(dataset, target)` keys, 31 models, every model's results present. All 171
@@ -84,7 +84,7 @@ elapsed time isn't predictable from a spectrum).
 | **Total excluded** | **27** |
 | Remaining, in the routine sweep | 135 |
 
-See `quality_exclusions.json` for the exact keys and per-key reasons.
+See `exclusions.json` for the exact keys and per-key reasons.
 
 ## The periodic "learnability sweep"
 
@@ -108,9 +108,9 @@ on *every* routine sweep would defeat the point of excluding them (see
        --output-dir <...> --learnability-filter
    ```
    This writes `unlearnable_keys.csv` — compare it against
-   `quality_exclusions.json`'s current `not_learnable` list. Any key that no
+   `exclusions.json`'s current `not_learnable` list. Any key that no
    longer appears has been beaten by a top model and should be removed from
-   `quality_exclusions.json` (with a note of which model and when), then
+   `exclusions.json` (with a note of which model and when), then
    `target_list.json` regenerated:
    ```
    python scripts/build_target_list.py \
@@ -157,7 +157,7 @@ the exclusion list to improve over time.
 
 | File | Role |
 |---|---|
-| `configs/v1/quality_exclusions.json` | The exclusion registry itself: `{dataset}_{target_idx}` → reason, split into `trivial`/`not_learnable` |
+| `configs/v1/exclusions.json` | The exclusion registry itself: `{dataset}_{target_idx}` → reason, split into `trivial`/`not_learnable` |
 | `scripts/build_target_list.py --quality-exclusions` | Merges the registry into `target_list.json` (`excluded`/`exclusion_reason` fields) |
 | `configs/v1/target_list.json` | The generated target list `cluster/submit_full_benchmark.py` reads; excluded keys are skipped automatically |
 | `src/raman_bench/filters.py` | `compute_trivial_keys`/`compute_unlearnable_keys` — the functions that (re-)derive this list from real `hpo_results` |

@@ -8,7 +8,7 @@ benchmark v2 (package 2.1.0). Nothing here is run by the v1 sweep.
 
 - `datasets/candidates.json`: the 40 raman_data keys added after 1.6.6 (raman_data 1.7.0).
 - `candidate_exclusions.json`: candidate targets that are not run, with a reason, in the
-  format of `configs/v1/quality_exclusions.json`.
+  format of `configs/v1/exclusions.json`.
 
 Build the target list:
 

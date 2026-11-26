@@ -72,20 +72,20 @@ def run_experiment():
 
 
 def test_all_models_json_keys_covered():
-    """Guards against ``configs/models/all.json`` silently dropping one of these keys."""
-    all_json = json.loads((REPO_ROOT / "configs" / "models" / "all.json").read_text())
+    """Guards against ``configs/v0.1/models/all.json`` silently dropping one of these keys."""
+    all_json = json.loads((REPO_ROOT / "configs" / "v0.1" / "models" / "all.json").read_text())
     missing = set(TABARENA_BATCH2_KEYS) - set(all_json)
-    assert not missing, f"configs/models/all.json no longer lists: {missing}"
+    assert not missing, f"configs/v0.1/models/all.json no longer lists: {missing}"
 
 
 def test_traditional_ml_json_keys_covered():
     """Tree/boosting/kernel-family models belong in traditional_ml.json, not
     tabular_foundation.json (none of the four are pretrained/zero-shot)."""
     traditional_ml_json = json.loads(
-        (REPO_ROOT / "configs" / "models" / "traditional_ml.json").read_text()
+        (REPO_ROOT / "configs" / "v0.1" / "models" / "traditional_ml.json").read_text()
     )
     missing = set(TABARENA_BATCH2_KEYS) - set(traditional_ml_json)
-    assert not missing, f"configs/models/traditional_ml.json no longer lists: {missing}"
+    assert not missing, f"configs/v0.1/models/traditional_ml.json no longer lists: {missing}"
 
 
 def test_gpu_models_json_keys_covered():

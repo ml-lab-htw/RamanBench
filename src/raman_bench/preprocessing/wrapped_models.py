@@ -545,7 +545,7 @@ Prep_TABDPT_V13 = _make_optional_prep_class("Prep_TABDPT_V13", TabDPTv13Model, a
 # that hasn't (yet) graduated into AutoGluon core, unlike e.g. MitraModel/TabDPTModel/
 # TabICLModel, whose ag_key is already the short, unprefixed form these Prep_* classes
 # inherit unmodified. Overriding ag_key here to the short form keeps RamanBench's own
-# model keys (configs/models/*.json, cluster/gpu_models.json, --model CLI values) short
+# model keys (configs/v0.1/models/*.json, cluster/gpu_models.json, --model CLI values) short
 # and TA-prefix-free like every other model, and -- for TabPFN-3 specifically -- avoids
 # colliding with raman_bench.models.custom.ta_tabpfn_3, which already legitimately owns
 # ag_key "TA-TABPFN-3" for the un-preprocessed TabArena baseline variant (kept as a

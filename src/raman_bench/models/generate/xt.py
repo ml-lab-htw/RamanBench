@@ -1,7 +1,7 @@
 """XT (ExtraTrees): rebind TabArena's own search space onto ``Prep_XT``.
 
 Not one of the 15 models named in the original wiring-gap report, but affected by
-the exact same gap (``XT`` is listed in ``configs/models/all.json`` and its
+the exact same gap (``XT`` is listed in ``configs/v0.1/models/all.json`` and its
 ``Prep_XT`` class lives in ``preprocessing/wrapped_models.py`` alongside the other
 14) -- fixed alongside them rather than left half-done.
 

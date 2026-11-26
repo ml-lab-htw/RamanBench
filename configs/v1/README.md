@@ -25,7 +25,7 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
       --output configs/v1/target_list.json
   ```
   A handful of targets are marked `excluded` for quality reasons (not just the
-  raw `time_h`-style name exclusions) -- see `quality_exclusions.json` and
+  raw `time_h`-style name exclusions) -- see `exclusions.json` and
   `EXCLUDED_TARGETS.md` below.
 
   **Current state (2026-09-24): every non-excluded target is pinned to
@@ -36,7 +36,7 @@ stay private, in `raman_bench_paper/cluster/profiles/{htw,tu}.yaml`.
   invalidate any already-completed `results.pkl` for `repeat >= 1` -- those
   stay on disk and remain usable if repeats are ever raised again. To restore
   the original adaptive schedule, regenerate without `--force-n-repeats`.
-- `quality_exclusions.json` / `EXCLUDED_TARGETS.md` -- the benchmark-scope "trivial"
+- `exclusions.json` / `EXCLUDED_TARGETS.md` -- the benchmark-scope "trivial"
   and "not learnable" target exclusions (TabArena's own dataset-curation criteria,
   and the paper's baseline-check ablation), merged into `target_list.json` by
   `build_target_list.py --quality-exclusions`. Read `EXCLUDED_TARGETS.md` before

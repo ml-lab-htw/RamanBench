@@ -6,7 +6,8 @@ Guidance for Claude Code when working with this repository.
 
 **Status**: since v2.0.0 (2026-09-18; renumbered to the 1.x line in v1.2.0) — the legacy v0.1-era execution pipeline
 (`raman_bench.model.AutoGluonModel`, `raman_bench.predictions`,
-`scripts/run_benchmark.py`, `configs/benchmark_v0.1.json`) has been removed.
+`scripts/run_benchmark.py`) has been removed. Its config is kept in `configs/v0.1/` (read by
+`Leaderboard`'s scoring of the v0.1 data).
 The only benchmark execution path now is the TabArena-based one:
 `scripts/run_experiment.py`, driven by `cluster/submit_job.py`/
 `cluster/submit_full_benchmark.py` against `configs/v1/target_list.json`.

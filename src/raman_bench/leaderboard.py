@@ -285,7 +285,7 @@ class Leaderboard:
             A scikit-learn-compatible estimator.
         config_path : str | None
             Path to a benchmark config JSON.  Defaults to the bundled
-            ``configs/benchmark_v0.1.json``.
+            ``configs/v0.1/benchmark.json``.
         seeds : int
             Number of random seeds to average over (default 3).
         task : str
@@ -316,7 +316,7 @@ class Leaderboard:
 
         if config_path is None:
             pkg_root = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(pkg_root, "..", "..", "configs", "benchmark_v0.1.json")
+            config_path = os.path.join(pkg_root, "..", "..", "configs", "v0.1", "benchmark.json")
 
         config = load_config(config_path)
         config["use_mirror"] = use_mirror
