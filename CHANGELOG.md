@@ -14,6 +14,13 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Added
 
+- **LimiX-2-1016** (`LIMIX2-1016`, Stable AI, released 2026-11-10; `stable-ai/LimiX-2-1016`, classification and regression) replaces
+  LimiX-2 on the leaderboard: it is the same network (both checkpoints have the same 1496 parameter tensors), so the inference package
+  pinned for LimiX-2 loads it, and it has its own results folder so the old checkpoint's folds are never reused. `LIMIX2` leaves the v1
+  scope; its results stay on disk as history.
+- **LimiX-2M** (`LIMIX-2M`, Stable AI, 2M parameters, classification and regression; `stable-ai/LimiX-1_2M`): TabArena's LimiX code with the
+  2M checkpoint and its retrieval configs, next to LimiX (16M).
+- **FTFM** (`FTFM`, Grabocka group, arXiv 2610.25558, classification only) is in the v1 scope: the model was already wired, but never run.
 - `tests/test_configs_v1.py`: the v1 scope, target list, core target list, exclusions and dataset lists agree with each other (same targets, exclusion reasons, datasets and models).
 - Failure labels and a setup record for every fold (`raman_bench.run_record`). A fold that raises leaves a `failure.json` with a
   uniform label (`oom_gpu`, `oom_cpu`, `timeout`, `error`); a finished fold leaves a `setup.json` with the package versions, the hardware,
