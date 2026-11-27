@@ -209,21 +209,25 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
         page = (out / "interactive" / f"{stem}.html").read_text(encoding="utf-8")
         assert 'id="rb-bar"' in page and "data-mode=\"provider\"" in page, stem  # the filter bar replaced the legend
     elo = (out / "interactive" / "elo_ranking.html").read_text(encoding="utf-8")
-    assert all(f'data-view="{g}"' in elo for g in ("all", "classification", "regression"))  # the Tasks row
-    assert 'data-view=' not in (out / "interactive" / "elo_vs_time.html").read_text(encoding="utf-8")
+    for stem in ("elo_ranking", "improvability_vs_time", "elo_vs_time", "elo_vs_release_date", "efficiency_overview",
+                 "pairwise_win_rates", "pairwise_win_rates_all"):  # every filterable figure has the Tasks row
+        page = (out / "interactive" / f"{stem}.html").read_text(encoding="utf-8")
+        assert all(f'data-view="{g}"' in page for g in ("all", "classification", "regression")), stem
     assert 'id="rb-bar"' not in (out / "interactive" / "critical_difference.html").read_text(encoding="utf-8")  # fixed model set
     cfgs = {stem: _page_filter_config(out / "interactive" / f"{stem}.html")
             for stem in ("elo_ranking", "efficiency_overview", "pairwise_win_rates_all", "elo_vs_time")}
+    assert all(list(c["views"]) == ["all", "classification", "regression"] for c in cfgs.values())
     assert list(cfgs["elo_ranking"]["views"]) == ["all", "classification", "regression"]
     assert cfgs["elo_ranking"]["cat_axis"] == "x" and cfgs["elo_ranking"]["bars"]["px"][0] > 0  # models along the bottom, a minimum bar width
-    top = max(cfgs["elo_ranking"]["models"].values(), key=lambda m: m["elo"])["name"].split(" (")[0]
+    top = max(cfgs["elo_ranking"]["models"].values(), key=lambda m: m["elo"]["all"])["name"].split(" (")[0]
     assert cfgs["elo_ranking"]["views"]["all"]["order"][0].startswith(top)  # best on the left
     assert 'data-mode="cat"' in elo and "Best per category" in elo and "model line" not in elo
     assert cfgs["efficiency_overview"]["cat_axis"] == "y" and cfgs["efficiency_overview"]["by"] == "elo"
     assert cfgs["pairwise_win_rates_all"]["kind"] == "matrix"
-    assert set(cfgs["pairwise_win_rates_all"]["matrix"]) <= set(cfgs["pairwise_win_rates_all"]["models"])
-    assert cfgs["elo_vs_time"]["views"] is None and cfgs["elo_vs_time"]["by"] is None
-    assert all(m["elo"] > 0 and m["provider"] for m in cfgs["elo_ranking"]["models"].values())
+    for group, view in cfgs["pairwise_win_rates_all"]["views"].items():  # one matrix and one header per task group
+        assert set(view["matrix"]) <= set(cfgs["pairwise_win_rates_all"]["models"]) and group in view["header"].lower()
+    assert cfgs["elo_vs_time"]["by"] is None
+    assert all(e > 0 and m["provider"] for m in cfgs["elo_ranking"]["models"].values() for e in m["elo"].values())
     assert not (out / "interactive" / "metrics_vs_time.html").exists()
     assert not (out / "static" / "metrics_vs_time.png").exists()  # dropped: Elo vs. time shows the same trade-off
     for group in ("all", "classification", "regression"):

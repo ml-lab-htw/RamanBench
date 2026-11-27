@@ -65,6 +65,10 @@ The full rules are in [RELEASING.md](RELEASING.md).
   efficiency figure get the same category and best-per-provider / best-per-category filters as the other figures ("best" by Elo).
   The critical difference diagrams have no filter bar: their significance bars belong to a fixed set of models.
 - `leaderboard_*.csv` gain a `provider` column, for the filters of the leaderboard tables on the Space.
+- Interactive figures: every figure with a filter bar (Elo ranking, Elo and improvability vs. time, Elo vs. release date, efficiency, both
+  pairwise win-rate matrices) has a "Tasks" row: all tasks, classification or regression. They are single-panel figures now (the two-panel
+  classification / regression layout of the trade-off figures is gone), and "best per provider / category" uses the Elo of the chosen
+  task group. The critical difference diagrams stay as they are.
 - Interactive figures: the model filter has "Every model", "Best per provider" and "Best per category" (the best model of each category:
   one tabular foundation model, one gradient booster, ...). Lattice and Lattice-tiny share a provider, as do the three aeon time series
   classifiers (HIVE-COTE 2, ROCKET, Hydra).
