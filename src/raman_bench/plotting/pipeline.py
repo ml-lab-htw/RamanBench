@@ -220,12 +220,12 @@ def generate_from_results(
                 scores, everyone, None, [g for g in ("all", "classification", "regression") if g in scores]),
             "improvability_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "improvability", strict),
             "elo_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "elo", strict),
-            "elo_vs_release_date": interactive.elo_vs_release_date(scores["all"], focus["all"], focus_top_k, strict),
+            "elo_vs_release_date": interactive.elo_vs_release_date(scores, focus, focus_top_k, strict),
             "pairwise_win_rates": interactive.winrate_matrix(
-                scores["all"], pareto_models, captions["pairwise_win_rates"]
+                scores, pareto_models, captions["pairwise_win_rates"]
             ),
-            "pairwise_win_rates_all": interactive.winrate_matrix(scores["all"]),
-            "efficiency_overview": interactive.efficiency_overview(scores["all"], everyone["all"], None),
+            "pairwise_win_rates_all": interactive.winrate_matrix(scores),
+            "efficiency_overview": interactive.efficiency_overview(scores, everyone, None),
         }
         if cds:
             figs["critical_difference"] = interactive.critical_difference(cds, scores)

@@ -126,6 +126,18 @@ def _reference_lines(fig, refs: pd.DataFrame, metric: str, scale: float = 1.0, *
         )
 
 
+def _tag_view(fig, g: str, first: bool, before: tuple[int, int]) -> None:
+    """Name the shapes and annotations added since *before* (their counts) as belonging to the task view *g*."""
+    for shape in fig.layout.shapes[before[0]:]:
+        shape.name, shape.visible = f"view:{g}", first
+    for note in fig.layout.annotations[before[1]:]:
+        note.name, note.visible = f"view:{g}", first
+
+
+def _view_label(g: str, scores) -> str:
+    return f"{TASK_TITLES[g]} ({scores[g].n_tasks} tasks)"
+
+
 def _by_category(lb: pd.DataFrame):
     for cat in sorted(lb["category"].unique(), key=model_info.category_rank):
         yield cat, lb[lb["category"] == cat]
@@ -302,7 +314,7 @@ _FILTER_JS = """<script>
               ep: (t.error_x || t.error_y || {}).array ? arr((t.error_x || t.error_y).array) : null,
               em: (t.error_x || t.error_y || {}).arrayminus ? arr((t.error_x || t.error_y).arrayminus) : null,
               role: typeof t.meta === "string" ? t.meta : null,
-              view: typeof t.uid === "string" && t.uid.indexOf("view:") === 0 ? t.uid.slice(5) : null,
+              view: typeof t.uid === "string" && t.uid.indexOf("view_") === 0 ? t.uid.slice(5) : null,
               panel: (t.xaxis || "x") + "|" + (t.yaxis || "y")};
     });
     Object.keys(gd.layout).forEach(function (k) {
@@ -337,6 +349,8 @@ _FILTER_JS = """<script>
   }
   function better(a, b) { return C.higher ? a > b : a < b; }
   function byElo(a, b) { return a > b; }
+  // Elo of a model: one per task view when the figure has views.
+  function E(m) { var e = C.models[m].elo; return typeof e === "object" ? e[state.view] : e; }
   // The staircase of *pts*: scanning x upwards, every point that beats all earlier ones.
   function stairs(pts) {
     var sorted = pts.slice().sort(function (a, b) { return a.x - b.x || (C.higher ? b.y - a.y : a.y - b.y); });
@@ -351,7 +365,7 @@ _FILTER_JS = """<script>
       var list = panels[o.panel] = panels[o.panel] || [];
       o.cd.forEach(function (d, k) {
         if (!state.off[C.models[d[0]].cat]) {
-          list.push({m: d[0], x: o.x[k], y: o.y[k], n: L === "y" ? o.y[k] : o.x[k], v: C.by === "elo" ? C.models[d[0]].elo : o.y[k]});
+          list.push({m: d[0], x: o.x[k], y: o.y[k], n: L === "y" ? o.y[k] : o.x[k], v: C.by === "elo" ? E(d[0]) : o.y[k]});
         }
       });
     });
@@ -369,20 +383,31 @@ _FILTER_JS = """<script>
   }
   // A heatmap keeps the rows and columns of the models that pass the filters (best by Elo per provider or category).
   function redrawMatrix(gd) {
-    var o = orig[0], best = {}, idx = [];
-    C.matrix.forEach(function (m, i) {
+    var at = null;
+    orig.forEach(function (t, i) { if (t.z && (!t.view || t.view === state.view)) { at = i; } });
+    var o = orig[at], models = C.views ? C.views[state.view].matrix : C.matrix, best = {}, idx = [];
+    models.forEach(function (m, i) {
       if (state.off[C.models[m].cat]) { return; }
       if (state.mode === "all") { idx.push(i); return; }
       var g = C.models[m][state.mode];
-      if (!best[g] || C.models[m].elo > C.models[C.matrix[best[g]]].elo) { best[g] = i; }
+      if (!best[g] || E(m) > E(models[best[g]])) { best[g] = i; }
     });
     if (state.mode !== "all") { idx = Object.keys(best).map(function (g) { return best[g]; }).sort(function (a, b) { return a - b; }); }
     var pick = function (a) { return idx.map(function (i) { return a[i]; }); };
     var grid = function (m) { return idx.map(function (i) { return idx.map(function (j) { return m[i][j]; }); }); };
-    Plotly.restyle(gd, {x: [pick(o.x)], y: [pick(o.y)], z: [grid(o.z)], hovertext: [grid(o.hover)]}, [0]);
+    var jobs = [];
+    orig.forEach(function (t, i) {
+      if (t.view) { jobs.push(function () { return Plotly.restyle(gd, {visible: t.view === state.view}, [i]); }); }
+    });
+    jobs.push(function () {
+      return Plotly.restyle(gd, {x: [pick(o.x)], y: [pick(o.y)], z: [grid(o.z)], hovertext: [grid(o.hover)]}, [at]);
+    });
+    var head = document.getElementById("rb-header");
+    if (head && C.views && C.views[state.view].header) { head.textContent = C.views[state.view].header; }
+    jobs.reduce(function (p, job) { return p.then(job); }, Promise.resolve());
   }
   // Bars keep a minimum thickness (by screen size): the figure is as wide as its bars need, or as the screen if that is wider,
-  // and the page scrolls sideways.
+  // and the figure's container scrolls sideways.
   function barsWidth(n) {
     var w = document.documentElement.clientWidth, px = w < 760 ? C.bars.px[2] : w < 1100 ? C.bars.px[1] : C.bars.px[0];
     return Math.max(w, Math.round(C.bars.chrome + n * px));
@@ -395,6 +420,7 @@ _FILTER_JS = """<script>
       var line = stairs(pts);
       onLine[p] = {}; line.forEach(function (q) { onLine[p][q.m] = true; });
       orig.forEach(function (o, i) {
+        if (o.view && o.view !== state.view) { return; }
         if (o.role === "front" && o.panel === p) {
           steps.push([i, line.map(function (q) { return q.x; }), line.map(function (q) { return q.y; })]);
         } else if (o.role && o.role.indexOf("record:") === 0 && o.panel === p && line.length) {
@@ -405,7 +431,10 @@ _FILTER_JS = """<script>
     });
     var jobs = [];
     orig.forEach(function (o, i) {
-      if (!o.cd) { return; }
+      if (!o.cd) {  // a line (front, state of the art) belongs to one view
+        if (o.view) { jobs.push(function () { return Plotly.restyle(gd, {visible: o.view === state.view}, [i]); }); }
+        return;
+      }
       if (o.view && o.view !== state.view) { jobs.push(function () { return Plotly.restyle(gd, {visible: false}, [i]); }); return; }
       var idx = [], k;
       for (k = 0; k < o.cd.length; k++) { if (keep[o.panel][o.cd[k][0]]) { idx.push(k); } }
@@ -435,7 +464,7 @@ _FILTER_JS = """<script>
       rel[axis + ".categoryarray"] = base.filter(function (n) { return names[n]; });
     });
     if (C.views) {  // the title and reference lines of the chosen task group, and its y range
-      rel[(L === "x" ? "y" : "x") + "axis.range"] = C.views[state.view].range;
+      if (C.views[state.view].range) { rel[(L === "x" ? "y" : "x") + "axis.range"] = C.views[state.view].range; }
       ["shapes", "annotations"].forEach(function (kind) {
         (gd.layout[kind] || []).forEach(function (el, j) {
           if (el.name && el.name.indexOf("view:") === 0) { rel[kind + "[" + j + "].visible"] = el.name === "view:" + state.view; }
@@ -532,19 +561,24 @@ def _filterable(fig, kind: str, higher: bool, topk: int | None, boards: list[pd.
     *boards* are the leaderboards the traces were drawn from. Every point of a filterable trace carries
     ``customdata = [model, 1 if highlighted else 0]``; a trace with ``meta="front"`` or
     ``meta="record:<x end>"`` is a staircase line that the script recomputes from the points left.
-    *views* (``{group: {"label", "order", "yrange"}}``) adds a "Tasks" row that shows one task group at a time:
-    see :func:`elo_ranking`. *cat_axis* is the axis (``"x"`` or ``"y"``) whose categories are the model names;
+    *views* (``{group: {"label", ...}}``, in the order of *boards*) adds a "Tasks" row that shows one task group at a
+    time; a view may also carry ``order`` (the model order of a category axis), ``range`` (of the value axis),
+    ``matrix`` and ``header`` (of a heatmap): see :func:`elo_ranking`. *cat_axis* is the axis (``"x"`` or ``"y"``) whose categories are the model names;
     *by_elo* picks "the best model" of a provider or category by Elo instead of by the plotted value; *matrix* (the
     model keys, in the order of the heatmap's rows and columns) makes the filters drop rows and columns of a heatmap.
     *bars* (``{"px": [wide, medium, narrow screen], "chrome"}``) makes a figure of bars as wide as ``chrome + bars * px``
     (at least the screen), with the number of bars the filters leave, and lets the page scroll sideways.
     """
     models, cats = {}, {}
-    for lb in boards:
+    for g, lb in zip(list(views) if views else [None] * len(boards), boards):
         for m, row in lb.iterrows():
             cat = model_info.category(m)
-            models[m] = {"name": row["display_name"], "cat": cat, "color": model_info.color(m),
-                         "provider": model_info.provider(m), "elo": float(row["elo"])}
+            info = models.setdefault(m, {"name": row["display_name"], "cat": cat, "color": model_info.color(m),
+                                         "provider": model_info.provider(m), "elo": {} if views else None})
+            if views:
+                info["elo"][g] = float(row["elo"])  # the Elo of a model differs between the task views
+            else:
+                info["elo"] = float(row["elo"])
             cats[cat] = model_info.color(m)
     ordered = sorted(cats, key=model_info.category_rank)
     fig.update_layout(showlegend=False)
@@ -572,7 +606,7 @@ def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -
     if header:
         page = page.replace(
             "<body>",
-            f'<body><p style="font:600 14px Inter,Arial,sans-serif;color:#333;margin:10px 12px 0">{html.escape(header)}</p>', 1)
+            f'<body><p id="rb-header" style="font:600 14px Inter,Arial,sans-serif;color:#333;margin:10px 12px 0">{html.escape(header)}</p>', 1)
     cfg = (fig.layout.meta or {}).get("filter")
     if cfg:
         extra += _FILTER_JS.replace("__CFG__", json.dumps(cfg))
@@ -588,7 +622,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
     """Elo bars with 95% CIs, best on the left. One panel; the filter bar's "Tasks" row switches it between the task groups in *groups*.
 
     The bars keep a minimum width: the figure is as wide as the models shown need, and the page scrolls sideways.
-    Every trace carries ``uid="view:<group>"``; the shapes and annotations that belong to one group (its title, its
+    Every trace carries ``uid="view_<group>"`` (Plotly makes CSS class names of uids, so no colon); the shapes and annotations that belong to one group (its title, its
     reference lines) are named the same way, so the script can show one group at a time.
     """
     go = _go()
@@ -604,7 +638,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
             fig.add_trace(
                 go.Bar(
                     x=sub["display_name"], y=sub["elo"], name=cat, legendgroup=cat, showlegend=False,
-                    uid=f"view:{g}", visible=first,
+                    uid=f"view_{g}", visible=first,
                     marker={"color": focused, "line": {"width": 0},
                             "pattern": {"shape": ["/" if p > 0 else "" for p in sub["imputed_pct"]]}},
                     error_y={"type": "data", "symmetric": False, "array": sub["elo+"],
@@ -619,12 +653,9 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
                     "range": [float(max(0, np.floor((low - 50) / 100) * 100)), float(high + 60)]}
         n_before = (len(fig.layout.shapes), len(fig.layout.annotations))
         _reference_lines(fig, refs, "elo")
-        fig.add_annotation(text=f"{TASK_TITLES[g]} ({scores[g].n_tasks} tasks)", xref="paper", yref="paper",
+        fig.add_annotation(text=_view_label(g, scores), xref="paper", yref="paper",
                            x=0.5, y=1.0, yanchor="bottom", showarrow=False, font={"size": 16})
-        for shape in fig.layout.shapes[n_before[0]:]:
-            shape.name, shape.visible = f"view:{g}", first
-        for note in fig.layout.annotations[n_before[1]:]:
-            note.name, note.visible = f"view:{g}", first
+        _tag_view(fig, g, first, n_before)
     fig.update_xaxes(categoryorder="array", categoryarray=views[groups[0]]["order"], tickangle=-55)
     fig.update_yaxes(title_text="Elo", range=views[groups[0]]["range"])
     fig.add_hline(y=1000, line={"dash": "dash", "color": "#9A9A9A", "width": 1})
@@ -639,31 +670,39 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
 # --------------------------------------------------------------------------- trade-off
 
 
-def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: bool = False):
-    """Score vs median train+predict time, one panel per task type, with the Pareto front."""
-    from plotly.subplots import make_subplots
+def _groups(scores: dict[str, GroupScores]) -> list[str]:
+    return [g for g in ("all", "classification", "regression") if g in scores]
 
+
+def _view_title(fig, g: str, scores) -> None:
+    fig.add_annotation(text=_view_label(g, scores), xref="paper", yref="paper", x=0.5, y=1.0, yanchor="bottom",
+                       showarrow=False, font={"size": 16})
+
+
+def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: bool = False):
+    """Score vs median train+predict time with the Pareto front; the filter bar's "Tasks" row switches the task group."""
     go = _go()
     label, higher = {
         "normalized_score": ("Normalized score", True),
         "improvability": ("Improvability (%)", False),
         "elo": ("Elo", True),
     }[metric]
-    groups = [g for g in ("classification", "regression") if g in scores] or ["all"]
-    fig = make_subplots(rows=1, cols=len(groups), subplot_titles=[TASK_TITLES[g] for g in groups],
-                        horizontal_spacing=0.08)
-    focus_traces, seen = [], set()
+    groups = _groups(scores)
+    fig = go.Figure()
+    focus_traces, views, boards = [], {}, []
     x = TIME_COL
-    for col, g in enumerate(groups, start=1):
+    for g in groups:
+        first = g == groups[0]
         lb, refs = split_references(scores[g].leaderboard)
         lb = lb.dropna(subset=[x, metric]).copy()
+        boards.append(lb)
+        views[g] = {"label": TASK_TITLES[g]}
         scale = 100.0 if metric == "improvability" else 1.0
         front = pareto_front(lb, x, metric, higher)
         fig.add_trace(
             go.Scatter(x=front[x], y=front[metric] * scale, mode="lines", line_shape="hv",
                        line={"dash": "dash", "color": "#9A9A9A", "width": 1},
-                       hoverinfo="skip", showlegend=False, meta="front"),
-            row=1, col=col,
+                       hoverinfo="skip", showlegend=False, meta="front", uid=f"view_{g}", visible=first)
         )
         labelled = focus[g] | set(front.index)
         for cat, sub in _by_category(lb):
@@ -671,133 +710,153 @@ def tradeoff(scores: dict[str, GroupScores], focus, top_k, metric: str, strict: 
             fig.add_trace(
                 go.Scatter(
                     x=sub[x], y=sub[metric] * scale, mode="markers+text", name=cat, legendgroup=cat,
-                    showlegend=cat not in seen,
+                    showlegend=False, uid=f"view_{g}", visible=first,
                     text=[n if m in labelled else "" for m, n in zip(sub.index, sub["display_name"])],
                     textposition="top center", textfont={"size": 10, "color": "#444444"},
                     marker={"color": focused, "size": 11, "line": {"width": 1, "color": "white"}},
                     hovertext=_hover(sub), hoverinfo="text",
                     customdata=[[m, int(m in focus[g])] for m in sub.index],
-                ),
-                row=1, col=col,
+                )
             )
-            seen.add(cat)
             focus_traces.append((len(fig.data) - 1, focused, full))
-        _reference_lines(fig, refs, metric, scale, row=1, col=col)  # after the traces (see elo_ranking)
-        fig.update_xaxes(type="log", title_text="Median train + predict time per 1K spectra (s)", row=1, col=col)
-        fig.update_yaxes(title_text=label, row=1, col=col)
+        n_before = (len(fig.layout.shapes), len(fig.layout.annotations))
+        _reference_lines(fig, refs, metric, scale)  # after the traces (see elo_ranking)
+        _view_title(fig, g, scores)
+        _tag_view(fig, g, first, n_before)
+    fig.update_xaxes(type="log", title_text="Median train + predict time per 1K spectra (s)")
+    fig.update_yaxes(title_text=label)
     arrow = "↖ better" if higher else "↙ better"
     _layout(fig, f"{label} vs. time  ({arrow})", 620, focus_traces, top_k)
-    _filterable(fig, "scatter", higher, top_k, [split_references(scores[g].leaderboard)[0].dropna(subset=[x, metric]) for g in groups])
+    _filterable(fig, "scatter", higher, top_k, boards, views=views)
     return fig
 
 
 # --------------------------------------------------------------------------- Elo vs release date
 
 
-def elo_vs_release_date(scores: GroupScores, focus: set[str], top_k, strict: bool = False):
-    """Elo over release date; the staircase is the best Elo released so far."""
+def elo_vs_release_date(scores: dict[str, GroupScores], focus, top_k, strict: bool = False):
+    """Elo over release date; the staircase is the best Elo released so far. The "Tasks" row switches the task group."""
     go = _go()
-    lb = by_release(scores.leaderboard)
-    record = record_holders(lb)
     fig = go.Figure()
-    end = lb["release_date"].max() + 0.3
-    fig.add_trace(
-        go.Scatter(x=list(record["release_date"]) + [end], y=list(record["elo"]) + [record["elo"].iloc[-1]],
-                   mode="lines", line_shape="hv", line={"color": "#9A9A9A", "width": 2},
-                   name="State of the art", hoverinfo="skip", meta=f"record:{end}")
-    )
-    highlight = focus if strict else focus | set(record.index)
-    focus_traces = []
-    for cat, sub in _by_category(lb):
-        focused, full = _colors(sub.index, highlight)
+    focus_traces, views, boards, groups = [], {}, [], _groups(scores)
+    ends = []
+    for g in groups:
+        first = g == groups[0]
+        lb = by_release(scores[g].leaderboard)
+        boards.append(lb)
+        views[g] = {"label": TASK_TITLES[g]}
+        record = record_holders(lb)
+        end = lb["release_date"].max() + 0.3
+        ends.append(end)
         fig.add_trace(
-            go.Scatter(
-                x=sub["release_date"], y=sub["elo"], mode="markers+text", name=cat, legendgroup=cat,
-                text=[n if m in highlight else "" for m, n in zip(sub.index, sub["display_name"])],
-                textposition="top center", textfont={"size": 10, "color": "#444444"},
-                marker={"color": focused, "size": 11, "line": {"width": 1, "color": "white"}},
-                hovertext=_hover(sub), hoverinfo="text",
-                customdata=[[m, int(m in focus)] for m in sub.index],
-            )
+            go.Scatter(x=list(record["release_date"]) + [end], y=list(record["elo"]) + [record["elo"].iloc[-1]],
+                       mode="lines", line_shape="hv", line={"color": "#9A9A9A", "width": 2},
+                       name="State of the art", hoverinfo="skip", meta=f"record:{end}", showlegend=False,
+                       uid=f"view_{g}", visible=first)
         )
-        focus_traces.append((len(fig.data) - 1, focused, full))
-    fig.add_hline(y=1000, line={"dash": "dot", "color": "#9A9A9A", "width": 1})
-    fig.update_xaxes(title_text="Model release", range=[2013.5, end + 0.3])
+        highlight = focus[g] if strict else focus[g] | set(record.index)
+        for cat, sub in _by_category(lb):
+            focused, full = _colors(sub.index, highlight)
+            fig.add_trace(
+                go.Scatter(
+                    x=sub["release_date"], y=sub["elo"], mode="markers+text", name=cat, legendgroup=cat,
+                    showlegend=False, uid=f"view_{g}", visible=first,
+                    text=[n if m in highlight else "" for m, n in zip(sub.index, sub["display_name"])],
+                    textposition="top center", textfont={"size": 10, "color": "#444444"},
+                    marker={"color": focused, "size": 11, "line": {"width": 1, "color": "white"}},
+                    hovertext=_hover(sub), hoverinfo="text",
+                    customdata=[[m, int(m in focus[g])] for m in sub.index],
+                )
+            )
+            focus_traces.append((len(fig.data) - 1, focused, full))
+        n_before = (len(fig.layout.shapes), len(fig.layout.annotations))
+        fig.add_hline(y=1000, line={"dash": "dot", "color": "#9A9A9A", "width": 1})
+        _view_title(fig, g, scores)
+        _tag_view(fig, g, first, n_before)
+    fig.update_xaxes(title_text="Model release", range=[2013.5, max(ends) + 0.3])
     fig.update_yaxes(title_text="Elo")
-    _layout(fig, f"Model progress over time ({TASK_TITLES[scores.name].lower()}; drag to zoom, older models left)",
-            600, focus_traces, top_k)
-    _filterable(fig, "scatter", True, top_k, [lb])
+    _layout(fig, "Model progress over time (drag to zoom, older models left)", 600, focus_traces, top_k)
+    _filterable(fig, "scatter", True, top_k, boards, views=views)
     return fig
 
 
 # --------------------------------------------------------------------------- win rates
 
 
-def winrate_matrix(scores: GroupScores, models: list[str] | None = None, caption: str | None = None):
-    """Pairwise win-rate heatmap of *models* (default: all), ordered by Elo."""
+def winrate_matrix(scores: dict[str, GroupScores], models: list[str] | None = None, caption: str | None = None):
+    """Pairwise win-rate heatmap of *models* (default: all), ordered by Elo. The "Tasks" row switches the task group."""
     go = _go()
-    lb = split_references(scores.leaderboard)[0]
-    if models is not None:
-        lb = lb.loc[[m for m in lb.index if m in set(models)]]
-    names = list(lb["display_name"])
-    wr = scores.winrate_matrix.loc[lb.index, lb.index].to_numpy(dtype=float) * 100
-    np.fill_diagonal(wr, np.nan)
-    z = [[None if np.isnan(v) else float(v) for v in row] for row in wr]  # plain lists: the filter script reads them
-    hover = [[f"<b>{names[i]}</b> beats <b>{names[j]}</b><br>on {wr[i, j]:.1f}% of tasks" if i != j else ""
-              for j in range(len(names))] for i in range(len(names))]
-    fig = go.Figure(
-        go.Heatmap(z=z, x=names, y=names, colorscale="RdYlGn", zmin=0, zmax=100,
-                   hovertext=hover, hoverinfo="text", colorbar={"title": "Win rate (%)"},
-                   xgap=1, ygap=1)
-    )
-    size = max(600, 18 * len(names) + 250)
+    fig = go.Figure()
+    views, boards, groups, size = {}, [], _groups(scores), 0
+    for g in groups:
+        first = g == groups[0]
+        lb = split_references(scores[g].leaderboard)[0]
+        if models is not None:
+            lb = lb.loc[[m for m in lb.index if m in set(models)]]
+        boards.append(lb)
+        names = list(lb["display_name"])
+        wr = scores[g].winrate_matrix.loc[lb.index, lb.index].to_numpy(dtype=float) * 100
+        np.fill_diagonal(wr, np.nan)
+        z = [[None if np.isnan(v) else float(v) for v in row] for row in wr]  # plain lists: the filter script reads them
+        hover = [[f"<b>{names[i]}</b> beats <b>{names[j]}</b><br>on {wr[i, j]:.1f}% of tasks" if i != j else ""
+                  for j in range(len(names))] for i in range(len(names))]
+        fig.add_trace(
+            go.Heatmap(z=z, x=names, y=names, colorscale="RdYlGn", zmin=0, zmax=100,
+                       hovertext=hover, hoverinfo="text", colorbar={"title": "Win rate (%)"},
+                       xgap=1, ygap=1, uid=f"view_{g}", visible=first)
+        )
+        # The title and caption go in a header above the plot, not on it: on the plot they covered the model names.
+        header = f"Pairwise win rates: row vs. column ({TASK_TITLES[g].lower()}, {scores[g].n_tasks} tasks)"
+        views[g] = {"label": TASK_TITLES[g], "matrix": list(lb.index), "header": header + (f" · {caption}" if caption else "")}
+        size = max(size, 600, 18 * len(names) + 250)
     fig.update_yaxes(autorange="reversed")
     fig.update_xaxes(side="top", tickangle=-55)
-    # The title and caption go in a header above the plot, not on it: on the plot they covered the model names.
-    header = f"Pairwise win rates: row vs. column ({TASK_TITLES[scores.name].lower()}, {scores.n_tasks} tasks)"
-    if caption:
-        header += f" · {caption}"
     _layout(fig, "", size, [], None)
     fig.update_layout(width=size + 100, margin={"t": 140}, title=None)
-    fig.layout.meta = {**(fig.layout.meta or {}), "header": header}
+    fig.layout.meta = {**(fig.layout.meta or {}), "header": views[groups[0]]["header"]}
     set_mobile(fig, min_width=size + 100)
-    _filterable(fig, "matrix", True, None, [lb], by_elo=True, matrix=list(lb.index))
+    _filterable(fig, "matrix", True, None, boards, views=views, by_elo=True)
     return fig
 
 
 # --------------------------------------------------------------------------- efficiency
 
 
-def efficiency_overview(scores: GroupScores, focus: set[str], top_k):
-    """Median train time and inference time per 1K samples."""
+def efficiency_overview(scores: dict[str, GroupScores], focus, top_k):
+    """Median train time and inference time per 1K samples. The "Tasks" row switches the task group."""
     from plotly.subplots import make_subplots
 
     go = _go()
-    lb = split_references(scores.leaderboard)[0]
-    lb = lb[[not model_info.is_closed_api(m) for m in lb.index]]  # API times are network and queue, not the model
-    lb = lb.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
-    infer = "median_infer_per_1k_s" if "median_infer_per_1k_s" in lb else "median_time_infer_s"
+    groups = _groups(scores)
+    infer = "median_infer_per_1k_s" if "median_infer_per_1k_s" in scores[groups[0]].leaderboard else "median_time_infer_s"
     panels = [("median_time_train_s", "Median train time (s)"),
               (infer, "Median inference (s / 1K samples)" if infer.endswith("1k_s") else "Median inference (s)")]
-    fig = make_subplots(rows=1, cols=2, shared_yaxes=True, subplot_titles=[p[1] for p in panels],
-                        horizontal_spacing=0.03)
-    focus_traces, seen = [], set()
-    for col, (metric, _) in enumerate(panels, start=1):
-        for cat, sub in _by_category(lb):
-            focused, full = _colors(sub.index, focus)
-            fig.add_trace(
-                go.Bar(y=sub["display_name"], x=sub[metric], orientation="h", name=cat, legendgroup=cat,
-                       showlegend=cat not in seen, marker={"color": focused},
-                       hovertext=_hover(sub), hoverinfo="text", customdata=[[m, 0] for m in sub.index]),
-                row=1, col=col,
-            )
-            seen.add(cat)
-            focus_traces.append((len(fig.data) - 1, focused, full))
-        fig.update_xaxes(type="log", row=1, col=col)
-    fig.update_yaxes(categoryorder="array", categoryarray=list(lb["display_name"])[::-1], row=1, col=1)
-    _layout(fig, "Efficiency (lower is faster)", max(500, 22 * len(lb) + 200), focus_traces, top_k)
+    fig = make_subplots(rows=1, cols=2, shared_yaxes=True, subplot_titles=[p[1] for p in panels], horizontal_spacing=0.03)
+    focus_traces, views, boards = [], {}, []
+    for g in groups:
+        first = g == groups[0]
+        lb = split_references(scores[g].leaderboard)[0]
+        lb = lb[[not model_info.is_closed_api(m) for m in lb.index]]  # API times are network and queue, not the model
+        lb = lb.dropna(subset=["median_time_train_s"]).sort_values("median_time_train_s")
+        boards.append(lb)
+        views[g] = {"label": TASK_TITLES[g], "order": list(lb["display_name"])[::-1]}
+        for col, (metric, _) in enumerate(panels, start=1):
+            for cat, sub in _by_category(lb):
+                focused, full = _colors(sub.index, focus[g])
+                fig.add_trace(
+                    go.Bar(y=sub["display_name"], x=sub[metric], orientation="h", name=cat, legendgroup=cat,
+                           showlegend=False, marker={"color": focused}, uid=f"view_{g}", visible=first,
+                           hovertext=_hover(sub), hoverinfo="text", customdata=[[m, 0] for m in sub.index]),
+                    row=1, col=col,
+                )
+                focus_traces.append((len(fig.data) - 1, focused, full))
+    for col, (_, title) in enumerate(panels, start=1):
+        fig.update_xaxes(type="log", title_text=title, row=1, col=col)
+    fig.update_yaxes(categoryorder="array", categoryarray=views[groups[0]]["order"], row=1, col=1)
+    height = max(500, max(22 * len(b) for b in boards) + 200)
+    _layout(fig, "Efficiency (lower is faster)", height, focus_traces, top_k)
     set_mobile(fig, min_width=760)
-    _filterable(fig, "bar", False, None, [lb], cat_axis="y", by_elo=True)
+    _filterable(fig, "bar", False, None, boards, views=views, cat_axis="y", by_elo=True)
     return fig
 
 
