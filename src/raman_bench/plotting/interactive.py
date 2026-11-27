@@ -115,18 +115,15 @@ def _layout(fig, title: str, height: int, focus_traces: list, top_k: int | None)
     )
 
 
-def _reference_lines(fig, refs: pd.DataFrame, metric: str, scale: float = 1.0, vertical: bool = False, **pos) -> None:
-    """Dashed, labelled line per reference system (e.g. AutoGluon): horizontal, or vertical for horizontal bars."""
+def _reference_lines(fig, refs: pd.DataFrame, metric: str, scale: float = 1.0, **pos) -> None:
+    """Dashed, labelled horizontal line per reference system (e.g. AutoGluon)."""
     for i, (_, row) in enumerate(refs.sort_values(metric, ascending=False).iterrows()):
-        style = {"line": {"dash": "dash", "color": model_info.REFERENCE_COLOR, "width": 1.5},
-                 "annotation_text": f"<i>{row['display_name']}</i>",
-                 "annotation_font": {"color": model_info.REFERENCE_COLOR, "size": 11}, **pos}
-        if vertical:  # labels above the plot, right-aligned to their line, one above the other
-            fig.add_vline(x=row[metric] * scale, line=style["line"])
-            fig.add_annotation(x=row[metric] * scale, xref="x", y=1, yref="paper", xanchor="right", yanchor="bottom",
-                               yshift=14 * i, showarrow=False, text=style["annotation_text"], font=style["annotation_font"])
-        else:
-            fig.add_hline(y=row[metric] * scale, annotation_position="top right" if i == 0 else "bottom right", **style)
+        fig.add_hline(
+            y=row[metric] * scale, line={"dash": "dash", "color": model_info.REFERENCE_COLOR, "width": 1.5},
+            annotation_text=f"<i>{row['display_name']}</i>",
+            annotation_position="top right" if i == 0 else "bottom right",
+            annotation_font={"color": model_info.REFERENCE_COLOR, "size": 11}, **pos,
+        )
 
 
 def _by_category(lb: pd.DataFrame):
@@ -183,12 +180,12 @@ _MOBILE_JS = """<script>
       if (hint) { hint.style.display = toMobile ? "" : "none"; }
     }
     // A fixed width only for figures that scroll sideways on phones; otherwise fill the page.
-    gd.style.width = toMobile && M.min_width ? M.min_width + "px" : "100%%";
+    gd.style.width = gd._rbBars ? gd.style.width : toMobile && M.min_width ? M.min_width + "px" : "100%%";
     // Size the div first: Plotly's resize reads it.
-    var h = gd._rbHeight || (toMobile ? (M.mobile_height || desk.height) : desk.height);
+    var h = toMobile ? (M.mobile_height || desk.height) : desk.height;
     gd.style.height = gd.parentElement.style.height = h + "px";
     var p = Plotly.relayout(gd, toMobile ? lay : desk.layout);
-    if (!toMobile && !M.min_width) { p = p.then(function () { return Plotly.Plots.resize(gd); }); }
+    if (!toMobile && !M.min_width && !gd._rbBars) { p = p.then(function () { return Plotly.Plots.resize(gd); }); }
     var rs = toMobile ? M.restyle : desk.restyle;
     if (rs && Object.keys(rs).length) { p = p.then(function () { return Plotly.restyle(gd, rs); }); }
     mobile = toMobile;
@@ -270,13 +267,13 @@ def mobile_spec(fig, panel_px: int = 400, legend_px: int = 190) -> dict:
 
 # --------------------------------------------------------------------------- filter bar
 
-#: Wires the filter bar (see :func:`_filter_bar`) to a figure: category chips, "best per provider / model line / category",
+#: Wires the filter bar (see :func:`_filter_bar`) to a figure: category chips, "best per provider / category",
 #: and the colour mode. Every filter change redraws each trace from its original data and recomputes the
 #: staircase lines (Pareto front, state of the art) from the points that are left.
 _FILTER_JS = """<script>
 (function () {
   var C = __CFG__, MUTED = "#C8C8C8", state = {mode: "all", colour: C.topk ? "topk" : "all", off: {}, view: C.views ? Object.keys(C.views)[0] : null};
-  var orig = null, catArr = {}, L = C.cat_axis || "x", reset = false, bucket = null;
+  var orig = null, catArr = {}, L = C.cat_axis || "x", reset = false;
   // Plotly keeps numeric arrays as {dtype, bdata} (base64 typed arrays); plain arrays stay as they are.
   var TYPES = {f8: Float64Array, f4: Float32Array, i1: Int8Array, i2: Int16Array, i4: Int32Array,
                u1: Uint8Array, u2: Uint16Array, u4: Uint32Array};
@@ -365,7 +362,7 @@ _FILTER_JS = """<script>
     });
     return keep;
   }
-  // A heatmap keeps the rows and columns of the models that pass the filters (best by Elo per provider, model line or category).
+  // A heatmap keeps the rows and columns of the models that pass the filters (best by Elo per provider or category).
   function redrawMatrix(gd) {
     var o = orig[0], best = {}, idx = [];
     C.matrix.forEach(function (m, i) {
@@ -378,6 +375,12 @@ _FILTER_JS = """<script>
     var pick = function (a) { return idx.map(function (i) { return a[i]; }); };
     var grid = function (m) { return idx.map(function (i) { return idx.map(function (j) { return m[i][j]; }); }); };
     Plotly.restyle(gd, {x: [pick(o.x)], y: [pick(o.y)], z: [grid(o.z)], hovertext: [grid(o.hover)]}, [0]);
+  }
+  // Bars keep a minimum thickness (by screen size): the figure is as wide as its bars need, or as the screen if that is wider,
+  // and the page scrolls sideways.
+  function barsWidth(n) {
+    var w = document.documentElement.clientWidth, px = w < 760 ? C.bars.px[2] : w < 1100 ? C.bars.px[1] : C.bars.px[0];
+    return Math.max(w, Math.round(C.bars.chrome + n * px));
   }
   function redraw(gd) {
     if (C.kind === "matrix") { return redrawMatrix(gd); }
@@ -434,14 +437,14 @@ _FILTER_JS = """<script>
         });
       });
     }
-    if (C.rows) {  // a bar per row at a fixed thickness: the figure (and the iframe holding it) grows with the rows
-      var rows = Math.max.apply(null, Object.keys(keep).map(function (p) { return Object.keys(keep[p]).length; }));
-      var w = document.documentElement.clientWidth, px = w < 760 ? C.rows.px[2] : w < 1100 ? C.rows.px[1] : C.rows.px[0];
-      gd._rbHeight = rel.height = Math.max(C.rows.min, Math.round(C.rows.chrome + rows * px));
-      bucket = px;
+    if (C.bars) {
+      var n = Math.max.apply(null, Object.keys(keep).map(function (p) { return Object.keys(keep[p]).length; }));
+      gd._rbBars = n;
+      var wide = barsWidth(n);
+      rel.width = wide; rel.autosize = false; gd.style.width = wide + "px";
     }
     if (Object.keys(rel).length) { jobs.push(function () { return Plotly.relayout(gd, rel); }); }
-    if (C.rows) { jobs.push(function () { if (window.rbFit) { window.rbFit(gd); } }); }
+    if (C.bars) { jobs.push(function () { if (window.rbFit) { window.rbFit(gd); } }); }
     // Matched category axes keep the categories they have seen (blank rows for models that are gone); a fresh plot drops them.
     if (reset) { jobs.push(function () { return Plotly.newPlot(gd, gd.data, gd.layout, gd._context); }); }
     jobs.reduce(function (p, job) { return p.then(job); }, Promise.resolve());
@@ -450,13 +453,15 @@ _FILTER_JS = """<script>
     var gd = document.querySelector(".plotly-graph-div");
     if (!gd || !window.Plotly || !gd._fullLayout) { setTimeout(ready, 100); return; }
     init(gd);
-    if (C.rows) {  // another screen size means another bar thickness
+    if (C.bars) {  // another screen size means another bar thickness
+      document.body.style.overflowX = "auto";
       var timer = null;
       window.addEventListener("resize", function () {
         clearTimeout(timer);
         timer = setTimeout(function () {
-          var w = document.documentElement.clientWidth;
-          if ((w < 760 ? C.rows.px[2] : w < 1100 ? C.rows.px[1] : C.rows.px[0]) !== bucket) { redraw(gd); }
+          var wide = barsWidth(gd._rbBars);
+          gd.style.width = wide + "px";
+          Plotly.relayout(gd, {width: wide, autosize: false}).then(function () { if (window.rbFit) { window.rbFit(gd); } });
         }, 250);
       });
     }
@@ -466,7 +471,7 @@ _FILTER_JS = """<script>
 </script>"""
 
 _FILTER_CSS = """<style>
-#rb-bar { font: 13px Inter, Arial, sans-serif; color: #333; padding: 8px 12px 4px; }
+#rb-bar { font: 13px Inter, Arial, sans-serif; color: #333; padding: 8px 12px 4px; position: sticky; left: 0; max-width: 100vw; box-sizing: border-box; }
 #rb-bar .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 6px; }
 #rb-bar .label { color: #777; font-size: 12px; margin-right: 2px; }
 #rb-bar button { font: inherit; cursor: pointer; border: 1px solid #ccc; background: #fff; color: #333;
@@ -484,8 +489,7 @@ _FILTER_CSS = """<style>
 </style>"""
 
 #: The model-scope choices of the filter bar's second row: (key in :data:`_FILTER_JS`, label).
-FILTER_MODES = [("all", "Every model"), ("provider", "Best per provider"), ("family", "Best per model line"),
-                ("cat", "Best per category")]
+FILTER_MODES = [("all", "Every model"), ("provider", "Best per provider"), ("cat", "Best per category")]
 
 
 def _filter_bar(cfg: dict) -> str:
@@ -516,7 +520,7 @@ def _filter_bar(cfg: dict) -> str:
 
 def _filterable(fig, kind: str, higher: bool, topk: int | None, boards: list[pd.DataFrame], views: dict | None = None,
                 cat_axis: str = "x", by_elo: bool = False, matrix: list[str] | None = None,
-                rows: dict | None = None) -> None:
+                bars: dict | None = None) -> None:
     """Turn the legend of *fig* into the filter bar written by :func:`write`.
 
     *kind* is ``"bar"`` or ``"scatter"``; *higher* tells which direction of the y values is better;
@@ -525,24 +529,24 @@ def _filterable(fig, kind: str, higher: bool, topk: int | None, boards: list[pd.
     ``meta="record:<x end>"`` is a staircase line that the script recomputes from the points left.
     *views* (``{group: {"label", "order", "yrange"}}``) adds a "Tasks" row that shows one task group at a time:
     see :func:`elo_ranking`. *cat_axis* is the axis (``"x"`` or ``"y"``) whose categories are the model names;
-    *by_elo* picks "the best model" of a provider, model line or category by Elo instead of by the plotted value; *matrix* (the
+    *by_elo* picks "the best model" of a provider or category by Elo instead of by the plotted value; *matrix* (the
     model keys, in the order of the heatmap's rows and columns) makes the filters drop rows and columns of a heatmap.
-    *rows* (``{"px": [wide, medium, narrow screen], "min", "chrome"}``) makes a figure of horizontal bars as tall as
-    ``chrome + rows * px``, with the number of rows the filters leave.
+    *bars* (``{"px": [wide, medium, narrow screen], "chrome"}``) makes a figure of bars as wide as ``chrome + bars * px``
+    (at least the screen), with the number of bars the filters leave, and lets the page scroll sideways.
     """
     models, cats = {}, {}
     for lb in boards:
         for m, row in lb.iterrows():
             cat = model_info.category(m)
             models[m] = {"name": row["display_name"], "cat": cat, "color": model_info.color(m),
-                         "provider": model_info.provider(m), "family": model_info.family(m), "elo": float(row["elo"])}
+                         "provider": model_info.provider(m), "elo": float(row["elo"])}
             cats[cat] = model_info.color(m)
     ordered = sorted(cats, key=model_info.category_rank)
     fig.update_layout(showlegend=False)
     fig.layout.updatemenus = ()  # the chips take over the focus toggle
     fig.layout.meta = {**(fig.layout.meta or {}), "filter": {
         "models": models, "cats": [[c, cats[c]] for c in ordered], "higher": higher, "kind": kind, "topk": topk,
-        "views": views, "cat_axis": cat_axis, "by": "elo" if by_elo else None, "matrix": matrix, "rows": rows}}
+        "views": views, "cat_axis": cat_axis, "by": "elo" if by_elo else None, "matrix": matrix, "bars": bars}}
 
 
 def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -> Path:
@@ -576,11 +580,11 @@ def write(fig, out_dir: Path, stem: str, include_plotlyjs: str | bool = "cdn") -
 
 
 def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str]):
-    """Elo bars with 95% CIs, best on top. One panel; the filter bar's "Tasks" row switches it between the task groups in *groups*.
+    """Elo bars with 95% CIs, best on the left. One panel; the filter bar's "Tasks" row switches it between the task groups in *groups*.
 
-    The bars are horizontal with a fixed thickness: the figure is as tall as the models shown need, so the page scrolls
-    instead of squeezing the bars. Every trace carries ``uid="view:<group>"``; the shapes and annotations that belong to
-    one group (its title, its reference lines) are named the same way, so the script can show one group at a time.
+    The bars keep a minimum width: the figure is as wide as the models shown need, and the page scrolls sideways.
+    Every trace carries ``uid="view:<group>"``; the shapes and annotations that belong to one group (its title, its
+    reference lines) are named the same way, so the script can show one group at a time.
     """
     go = _go()
     fig = go.Figure()
@@ -594,11 +598,11 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
             focused, full = _colors(sub.index, focus[g])
             fig.add_trace(
                 go.Bar(
-                    y=sub["display_name"], x=sub["elo"], orientation="h", name=cat, legendgroup=cat, showlegend=False,
+                    x=sub["display_name"], y=sub["elo"], name=cat, legendgroup=cat, showlegend=False,
                     uid=f"view:{g}", visible=first,
                     marker={"color": focused, "line": {"width": 0},
                             "pattern": {"shape": ["/" if p > 0 else "" for p in sub["imputed_pct"]]}},
-                    error_x={"type": "data", "symmetric": False, "array": sub["elo+"],
+                    error_y={"type": "data", "symmetric": False, "array": sub["elo+"],
                              "arrayminus": sub["elo-"], "color": "#444444", "thickness": 1, "width": 2},
                     hovertext=_hover(sub), hoverinfo="text",
                     customdata=[[m, int(m in focus[g])] for m in sub.index],
@@ -606,25 +610,24 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
             )
         low = (lb["elo"] - lb["elo-"]).min()
         high = max((lb["elo"] + lb["elo+"]).max(), refs["elo"].max() if len(refs) else -np.inf)
-        views[g] = {"label": TASK_TITLES[g], "order": list(lb["display_name"])[::-1],  # a category axis starts at the bottom
+        views[g] = {"label": TASK_TITLES[g], "order": list(lb["display_name"]),
                     "range": [float(max(0, np.floor((low - 50) / 100) * 100)), float(high + 60)]}
         n_before = (len(fig.layout.shapes), len(fig.layout.annotations))
-        _reference_lines(fig, refs, "elo", vertical=True)
+        _reference_lines(fig, refs, "elo")
         fig.add_annotation(text=f"{TASK_TITLES[g]} ({scores[g].n_tasks} tasks)", xref="paper", yref="paper",
-                           x=0, y=1.0, xanchor="left", yanchor="bottom", yshift=36, showarrow=False, font={"size": 16})
+                           x=0.5, y=1.0, yanchor="bottom", showarrow=False, font={"size": 16})
         for shape in fig.layout.shapes[n_before[0]:]:
             shape.name, shape.visible = f"view:{g}", first
         for note in fig.layout.annotations[n_before[1]:]:
             note.name, note.visible = f"view:{g}", first
-    fig.update_yaxes(categoryorder="array", categoryarray=views[groups[0]]["order"], automargin=True)
-    fig.update_xaxes(title_text="Elo", range=views[groups[0]]["range"])
-    fig.add_vline(x=1000, line={"dash": "dash", "color": "#9A9A9A", "width": 1})
+    fig.update_xaxes(categoryorder="array", categoryarray=views[groups[0]]["order"], tickangle=-55)
+    fig.update_yaxes(title_text="Elo", range=views[groups[0]]["range"])
+    fig.add_hline(y=1000, line={"dash": "dash", "color": "#9A9A9A", "width": 1})
     fig.update_layout(bargap=0.2)
-    rows = {"px": [26, 24, 20], "min": 360, "chrome": 180}
-    _layout(fig, "RamanBench Elo ranking (Random Forest = 1000)", rows["chrome"] + len(boards[0]) * rows["px"][0], [], top_k)
-    fig.update_layout(margin_t=120)  # room for the reference labels above the plot
-    _filterable(fig, "bar", True, top_k, boards, views=views, cat_axis="y", by_elo=True, rows=rows)
-    set_mobile(fig, layout={"font.size": 11, "title.font.size": 14, "margin.l": 10, "margin.r": 12})
+    _layout(fig, "RamanBench Elo ranking (Random Forest = 1000)", 560, [], top_k)
+    bars = {"px": [24, 22, 20], "chrome": 100}
+    _filterable(fig, "bar", True, top_k, boards, views=views, by_elo=True, bars=bars)
+    set_mobile(fig, layout={"font.size": 11, "title.font.size": 14, "margin.l": 48, "margin.r": 12})
     return fig
 
 

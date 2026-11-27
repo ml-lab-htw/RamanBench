@@ -215,15 +215,15 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
     cfgs = {stem: _page_filter_config(out / "interactive" / f"{stem}.html")
             for stem in ("elo_ranking", "efficiency_overview", "pairwise_win_rates_all", "elo_vs_time")}
     assert list(cfgs["elo_ranking"]["views"]) == ["all", "classification", "regression"]
-    assert cfgs["elo_ranking"]["cat_axis"] == "y" and cfgs["elo_ranking"]["rows"]["px"][0] > 0  # horizontal bars, as tall as their rows
+    assert cfgs["elo_ranking"]["cat_axis"] == "x" and cfgs["elo_ranking"]["bars"]["px"][0] > 0  # models along the bottom, a minimum bar width
     top = max(cfgs["elo_ranking"]["models"].values(), key=lambda m: m["elo"])["name"].split(" (")[0]
-    assert cfgs["elo_ranking"]["views"]["all"]["order"][-1].startswith(top)  # the axis starts at the bottom: best on top
-    assert 'data-mode="cat"' in elo and "Best per model line" in elo and "Best per category" in elo
+    assert cfgs["elo_ranking"]["views"]["all"]["order"][0].startswith(top)  # best on the left
+    assert 'data-mode="cat"' in elo and "Best per category" in elo and "model line" not in elo
     assert cfgs["efficiency_overview"]["cat_axis"] == "y" and cfgs["efficiency_overview"]["by"] == "elo"
     assert cfgs["pairwise_win_rates_all"]["kind"] == "matrix"
     assert set(cfgs["pairwise_win_rates_all"]["matrix"]) <= set(cfgs["pairwise_win_rates_all"]["models"])
     assert cfgs["elo_vs_time"]["views"] is None and cfgs["elo_vs_time"]["by"] is None
-    assert all(m["elo"] > 0 and m["provider"] and m["family"] for m in cfgs["elo_ranking"]["models"].values())
+    assert all(m["elo"] > 0 and m["provider"] for m in cfgs["elo_ranking"]["models"].values())
     assert not (out / "interactive" / "metrics_vs_time.html").exists()
     assert not (out / "static" / "metrics_vs_time.png").exists()  # dropped: Elo vs. time shows the same trade-off
     for group in ("all", "classification", "regression"):
@@ -231,7 +231,7 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
         assert (out / "static" / f"elo_vs_time_new_{group}.png").exists()
     assert (out / "static" / "elo_vs_time_new.png").exists()
     board = pd.read_csv(out / "leaderboards" / "leaderboard_regression.csv")
-    assert {"provider", "family"} <= set(board.columns) and board["provider"].notna().all()
+    assert "provider" in board.columns and board["provider"].notna().all()
     assert written["index"][0].read_text().count("<section>") >= 6
 
 
@@ -422,9 +422,9 @@ def test_figure_script_sizes_the_iframe_from_the_figure_not_the_body():
     assert "getBoundingClientRect().bottom" in interactive._MOBILE_JS
 
 
-def test_provider_and_family_group_versions_and_default_to_the_model_itself():
+def test_provider_groups_the_variants_of_a_model_and_defaults_to_the_model_itself():
     assert model_info.provider("REALTABPFN-V2") == model_info.provider("TABPFN-V3.5-THINKING") == "Prior Labs"
-    assert model_info.family("REALTABPFN-V2") == model_info.family("TABPFN-V3.5-THINKING") == "TabPFN"
-    assert model_info.family("CAUSILO-1.5-LIGHT") == model_info.family("CAUSILO") == "Causilo"
-    assert model_info.provider("RAMANNET") == "RAMANNET" and model_info.family("RAMANNET") == "RAMANNET"
-    assert model_info.is_closed_api("chakra-tab") and not model_info.is_closed_api("RF")
+    for variants in (("CAUSILO", "CAUSILO-1.5", "CAUSILO-1.5-LIGHT"), ("LATTICE", "LATTICE-TINY"),
+                     ("KUMO-TABULAR", "KUMO-TABULAR-MEDIUM", "KUMO-TABULAR-SMALL"), ("HIVECOTEV2", "ROCKET", "HYDRA")):
+        assert len({model_info.provider(m) for m in variants}) == 1, variants
+    assert model_info.provider("RAMANNET") == "RAMANNET"

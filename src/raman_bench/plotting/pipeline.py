@@ -250,8 +250,7 @@ def write_leaderboards(scores, lb_dir: str | Path) -> list[Path]:
         path = lb_dir / f"leaderboard_{g}.csv"
         cols = [c for c in LEADERBOARD_COLUMNS if c in s.leaderboard.columns]
         board = s.leaderboard[cols].copy()
-        board["provider"] = [model_info.provider(m) for m in board.index]  # for the "best per provider / family" filters
-        board["family"] = [model_info.family(m) for m in board.index]
+        board["provider"] = [model_info.provider(m) for m in board.index]  # for the "best per provider" filter
         board.rename_axis("model").to_csv(path, float_format="%.6g")
         paths.append(path)
     return paths
