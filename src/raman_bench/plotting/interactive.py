@@ -145,10 +145,15 @@ _MOBILE_JS = """<script>
     for (var i = 0; i < parts.length; i++) { if (o == null) return null; o = o[parts[i]]; }
     return o === undefined ? null : JSON.parse(JSON.stringify(o));
   }
+  // The figure's div, and its wrapper: room under the figure for the wrapper's scrollbar when it scrolls sideways.
+  function box(gd, h) {
+    gd.style.height = h + "px";
+    gd.parentElement.style.height = h + (gd._rbBars ? 18 : 0) + "px";
+  }
   function fit(gd) {
     // The div and its wrapper keep their original CSS height; match them to the layout so
     // the page (and the iframe embedding it) grows and shrinks with the figure.
-    gd.style.height = gd.parentElement.style.height = gd._fullLayout.height + "px";
+    box(gd, gd._fullLayout.height);
     // Measured from where the figure ends, not from body.offsetHeight: the body is at least as tall as
     // the iframe, so sizing the iframe from it grew the iframe on every resize event, without end.
     var f = window.frameElement;
@@ -183,7 +188,7 @@ _MOBILE_JS = """<script>
     gd.style.width = gd._rbBars ? gd.style.width : toMobile && M.min_width ? M.min_width + "px" : "100%%";
     // Size the div first: Plotly's resize reads it.
     var h = toMobile ? (M.mobile_height || desk.height) : desk.height;
-    gd.style.height = gd.parentElement.style.height = h + "px";
+    box(gd, h);
     var p = Plotly.relayout(gd, toMobile ? lay : desk.layout);
     if (!toMobile && !M.min_width && !gd._rbBars) { p = p.then(function () { return Plotly.Plots.resize(gd); }); }
     var rs = toMobile ? M.restyle : desk.restyle;
@@ -454,7 +459,7 @@ _FILTER_JS = """<script>
     if (!gd || !window.Plotly || !gd._fullLayout) { setTimeout(ready, 100); return; }
     init(gd);
     if (C.bars) {  // another screen size means another bar thickness
-      document.body.style.overflowX = "auto";
+      gd.parentElement.style.overflowX = "auto";  // only the figure scrolls; the filter bar above stays where it is
       var timer = null;
       window.addEventListener("resize", function () {
         clearTimeout(timer);
@@ -471,7 +476,7 @@ _FILTER_JS = """<script>
 </script>"""
 
 _FILTER_CSS = """<style>
-#rb-bar { font: 13px Inter, Arial, sans-serif; color: #333; padding: 8px 12px 4px; position: sticky; left: 0; max-width: 100vw; box-sizing: border-box; }
+#rb-bar { font: 13px Inter, Arial, sans-serif; color: #333; padding: 8px 12px 4px; }
 #rb-bar .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 6px; }
 #rb-bar .label { color: #777; font-size: 12px; margin-right: 2px; }
 #rb-bar button { font: inherit; cursor: pointer; border: 1px solid #ccc; background: #fff; color: #333;
@@ -625,7 +630,7 @@ def elo_ranking(scores: dict[str, GroupScores], focus, top_k, groups: list[str])
     fig.add_hline(y=1000, line={"dash": "dash", "color": "#9A9A9A", "width": 1})
     fig.update_layout(bargap=0.2)
     _layout(fig, "RamanBench Elo ranking (Random Forest = 1000)", 560, [], top_k)
-    bars = {"px": [24, 22, 20], "chrome": 100}
+    bars = {"px": [40, 36, 32], "chrome": 100}
     _filterable(fig, "bar", True, top_k, boards, views=views, by_elo=True, bars=bars)
     set_mobile(fig, layout={"font.size": 11, "title.font.size": 14, "margin.l": 48, "margin.r": 12})
     return fig
