@@ -115,8 +115,8 @@ def _normalize_preprocessing_params(config):
     ``{"prep_deriv_order": 2, "prep_deriv_wl": 15}``) that overrides a
     step's own hyperparameter values, independently of the ``preprocessing``
     / ``preprocessing_config`` enable/disable restriction. It is threaded
-    through to ``AutoGluonModel`` and merged into each model's
-    hyperparameters in ``model.py::_build_model_hyperparameters`` *after*
+    through to :func:`raman_bench.prep_hyperparameters.build_prep_model_hyperparameters` and merged into each model's
+    hyperparameters *after*
     the restriction enable/disable logic, so it can, e.g., force
     ``prep_deriv_order=2`` for a model whose class default (or the
     restriction) would otherwise leave it at 1 — but it cannot use an

@@ -16,7 +16,7 @@ try:
     from autogluon.common.space import Space
 except ImportError as _ag_err:
     raise ImportError(
-        "raman_bench.model requires autogluon. Install with: pip install 'raman-bench[autogluon]'"
+        "raman_bench.prep_hyperparameters requires autogluon. Install with: pip install 'raman-bench[autogluon]'"
     ) from _ag_err
 from raman_bench.models.custom.base import BaseRamanEstimator as BaseCustomModel
 from raman_bench.preprocessing.mixin import (

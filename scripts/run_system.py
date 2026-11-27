@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Run a self-contained system (``raman_bench.systems.SYSTEMS``) on the v1 protocol.
+"""Run a self-contained system (``raman_bench.systems.SYSTEMS``) on the benchmark protocol.
 
 A system does its own validation and ensembling (e.g. Chakra-Tab, a hosted API), so it is
 fit once per outer fold through TabArena's ``ExternalSystemExperiment`` instead of
-AutoGluon's bagging. Everything else is the v1 protocol: the tasks of ``protocol.json``,
+AutoGluon's bagging. Everything else is the benchmark protocol: the tasks of ``protocol.json``,
 the same data cleaning, row sample and folds as ``run_experiment.py`` (shared
 ``experiment_utils.load_dataframe``/``build_task``), each task's time budget
 (``time_limit`` raised by ``time_limit_overrides``) and the same result cache

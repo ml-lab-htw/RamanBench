@@ -1,6 +1,6 @@
-"""The v1 outer cross-validation folds as plain row indices.
+"""The outer cross-validation folds as plain row indices.
 
-Every v1 leaderboard result was produced on these folds. :func:`export_folds` writes
+Every leaderboard result (v1 and v2) was produced on these folds. :func:`export_folds` writes
 them as one table, so another benchmarking framework can train and test on exactly the
 same rows without TabArena or AutoGluon. A model scored on these folds with each task's
 metric (``protocol.json``: ROC AUC for binary, log loss for multiclass, RMSE for

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Zero-shot LLM decision trees (``llm-trees``) on the v1 protocol folds.
+"""Zero-shot LLM decision trees (``llm-trees``) on the benchmark protocol folds.
 
 The LLM sees no spectra. For each outer fold it gets a text description of the task (dataset name and
 description, and the class names, from raman_data) and of 24 features, the mean min-max normalised

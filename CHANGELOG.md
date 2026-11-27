@@ -61,6 +61,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- Renamed `raman_bench.model` to `raman_bench.prep_hyperparameters` (it only holds `build_prep_model_hyperparameters`), moved
+  `get_seeds` from `raman_bench.seeds` into `raman_bench.seeding` (`raman_bench.get_seeds` is unchanged), and renamed
+  `scripts/plot_v1_results.py` to `scripts/plot_per_model_results.py`.
+- Docstrings and script headers no longer say "v1" where they apply to both benchmark versions, and no longer point at the
+  removed v0.1 pipeline or at plan documents that do not exist.
 - `configs/` has one folder per benchmark version. The loose v0.1 files moved into `configs/v0.1/` (`benchmark_v0.1.json` is now `benchmark.json`; `datasets/` and `models/` came with it), and `configs/v1/quality_exclusions.json` is now `configs/v1/exclusions.json`, the name benchmark v2 uses. `configs/README.md` says what each folder is.
 - Benchmark v2 `configs/v2/datasets/` files are `all.json` and `new.json` (were `v2_all.json`, `v2_only.json`).
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`

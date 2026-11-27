@@ -1,4 +1,4 @@
-"""Trivial-dataset filter for RamanBench v1 results.
+"""Trivial-dataset filter for RamanBench results.
 
 Flags a (dataset, target) *key* as "trivial" -- carrying little discriminative
 signal between models -- using the same two-criterion definition TabArena
@@ -46,7 +46,7 @@ default/tuned/tuned+ensemble variants). This module's functions expect
    one row per independent evaluation, exactly analogous to the old
    per-seed row -- with no extra reconstruction needed. This was confirmed
    by reading the installed ``tabarena`` package directly (not assumed) and
-   independently corroborated by ``scripts/plot_v1_results.py``'s own
+   independently corroborated by ``scripts/plot_per_model_results.py``'s own
    comment: "Each (dataset, method) has one row per (repeat, fold)".
 2. **Model identity.** ``hpo_results`` carries one row per (key, fold) per
    *model*, already recycled into default/tuned/tuned+ensemble; the more
@@ -203,7 +203,7 @@ def compute_trivial_keys(
         Column names, defaulting to ``scripts/aggregate_results.py``'s own
         output schema. ``model_col`` defaults to ``"ta_name"`` (not
         ``"config_type"``) to match the model-identity column
-        ``scripts/plot_v1_results.py`` already groups by, for consistency
+        ``scripts/plot_per_model_results.py`` already groups by, for consistency
         within this codebase; the two columns are equivalent modulo casing.
     exclude_models : Iterable[str]
         Model names to drop before evaluating either criterion (e.g. a

@@ -1,6 +1,6 @@
-"""Turn cached v1 ``results.pkl`` files into TabArena result tables.
+"""Turn cached ``results.pkl`` files into TabArena result tables.
 
-Every v1 runner (``scripts/run_experiment.py``, :func:`raman_bench.evaluate.evaluate_estimator`)
+Every runner (``scripts/run_experiment.py``, :func:`raman_bench.evaluate.evaluate_estimator`)
 caches one ``results.pkl`` per (model config, task, repeat, fold) under
 ``{results_dir}/{experiment_name}/{task_name}/{repeat}_{fold}/``. :func:`aggregate` loads
 them all and calls TabArena's own ``EndToEnd.from_raw`` once to recycle each model's raw

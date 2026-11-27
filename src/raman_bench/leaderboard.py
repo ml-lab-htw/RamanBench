@@ -150,8 +150,7 @@ class Leaderboard:
         Parameters
         ----------
         results_dir : str
-            Path produced by running the benchmark pipeline
-            (``scripts/run_benchmark.py``).
+            Path to a v0.1 results directory (written by the removed v0.1 pipeline, ``v1.1.1`` tag).
 
         Returns
         -------

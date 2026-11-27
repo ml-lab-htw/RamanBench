@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Thin per-config-job cluster runner for RamanBench v1 (TabArena-based).
+"""Thin per-config-job cluster runner for RamanBench (TabArena-based).
 
 One process = one (model, dataset, target, repeat, fold, config-index)
-experiment -- "every single evaluation gets a completely fresh job" (see the
-v1 refactor plan). Mirrors TabArena's own
+experiment -- "every single evaluation gets a completely fresh job".
+Mirrors TabArena's own
 ``tabflow_slurm/run_tabarena_experiment.py`` in spirit -- including its
 ``--repeat``/``--fold`` interface, not just an integer ``--seed``, now that
 splitting uses real repeated k-fold CV (see ``raman_bench.splitting``) rather
@@ -14,7 +14,7 @@ disk, exit.
 This is the only benchmark execution path in this package as of v2.0.0 -- the
 earlier v0.1-era pipeline (``raman_bench.model.AutoGluonModel``,
 ``raman_bench.predictions``, ``scripts/run_benchmark.py``) has been removed;
-see CHANGELOG.md for the v1.x release tag if you need to reproduce that
+check out the ``v1.1.1`` tag if you need to reproduce that
 pipeline's exact behavior.
 
 Job identity and reproducibility
@@ -212,7 +212,7 @@ def run_one(
     *same* schema as the RamanPreprocessing repo's own recipe configs (e.g.
     ``RamanPreprocessing/configs/preprocessing_ablation_dl/snv.json``) -- a top-level
     ``"preprocessing"`` dict/bool and optional ``"preprocessing_params"`` override dict.
-    Applied via :func:`raman_bench.model.build_prep_model_hyperparameters`, the
+    Applied via :func:`raman_bench.prep_hyperparameters.build_prep_model_hyperparameters`, the
     restriction-application code path shared by this script and any other caller
     building ``Prep_*`` hyperparameters from a restriction dict. ``None``
     (the default) means "use the model class's own preprocessing defaults, unrestricted" --
@@ -229,7 +229,7 @@ def run_one(
         load_dataframe,
         run_cached,
     )
-    from raman_bench.model import build_prep_model_hyperparameters
+    from raman_bench.prep_hyperparameters import build_prep_model_hyperparameters
     from raman_bench.models.registry import infer_model_cls
     from raman_bench.preprocessing.mixin import RamanPreprocessingMixin
     from raman_bench.preprocessing.wrapped_models import (
@@ -358,7 +358,7 @@ def run_one(
     # Apply the requested preprocessing recipe (§6.1 of
     # docs/kfold_priority_plan.md in the RamanPreprocessing repo -- this script previously had
     # no way to specify a recipe at all, only --config-index for model hyperparameters).
-    # Uses raman_bench.model.build_prep_model_hyperparameters, the shared
+    # Uses raman_bench.prep_hyperparameters.build_prep_model_hyperparameters, the shared
     # restriction-application code path, so a given recipe file produces
     # identical prep_*_enabled/prep_* hyperparameters regardless of caller. `optimize=False`
     # is hardcoded here: the k-fold plan pins --config-index 0 (default model
@@ -535,7 +535,7 @@ def main():
         "override dict. Only those two keys are read -- every other key (datasets, models, "
         "autogluon_*, subsample, ...) is ignored, so this can point directly at an existing "
         "RamanPreprocessing recipe file. Applied via "
-        "raman_bench.model.build_prep_model_hyperparameters. Default: None (no recipe -- the model "
+        "raman_bench.prep_hyperparameters.build_prep_model_hyperparameters. Default: None (no recipe -- the model "
         "class's own preprocessing defaults, unrestricted; this was the only behaviour "
         "before this argument existed).",
     )

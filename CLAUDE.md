@@ -128,7 +128,7 @@ Tests that download from raw sources (not mirror) carry `@pytest.mark.skip` or c
 1. Implement the fit/transform functions in `src/raman_bench/preprocessing/raman_preprocessing.py`
 2. Add a `_PREP_STEP_DEFINITIONS` entry in `src/raman_bench/preprocessing/mixin.py`
 3. Register in `_ALL_PREPROCESSING_STEPS`
-4. Add HPO search space to `build_prep_model_hyperparameters()` (`src/raman_bench/model.py`)
+4. Add HPO search space to `build_prep_model_hyperparameters()` (`src/raman_bench/prep_hyperparameters.py`)
 5. Add test (especially for shape-changing steps)
 6. Update CHANGELOG.md
 

@@ -1,4 +1,4 @@
-"""More metrics per fold, computed from the test predictions every v1 result stores.
+"""More metrics per fold, computed from the test predictions every result stores.
 
 The leaderboard ranks classification by ROC AUC (binary) or log loss (multiclass) and
 regression by RMSE, TabArena's conventions. Every cached ``results.pkl`` also keeps the

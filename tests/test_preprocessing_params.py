@@ -16,7 +16,7 @@ from raman_bench.config import (  # noqa: E402
     _ALL_PREPROCESSING_STEPS,
     _normalize_preprocessing_params,
 )
-from raman_bench.model import build_prep_model_hyperparameters  # noqa: E402
+from raman_bench.prep_hyperparameters import build_prep_model_hyperparameters  # noqa: E402
 from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS  # noqa: E402
 
 

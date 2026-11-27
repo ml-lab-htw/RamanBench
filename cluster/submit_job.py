@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Generalized cluster submitter for RamanBench v1.
+"""Generalized cluster submitter for RamanBench (benchmark v1 and v2).
 
 One job array task = one (model, dataset, target, repeat, fold, config-index)
-experiment -- "every single evaluation gets a completely fresh job" (see the
-v1 refactor plan). Splitting is real repeated k-fold CV (see
+experiment -- "every single evaluation gets a completely fresh job".
+Splitting is real repeated k-fold CV (see
 ``raman_bench.splitting``, matching TabArena's own documented convention for
 custom datasets), so the full sweep for one (dataset, target, model) fans out
 over every (repeat, fold) pair, not just a list of seeds. Generalizes the

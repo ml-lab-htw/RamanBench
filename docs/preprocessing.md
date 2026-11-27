@@ -124,7 +124,7 @@ Internal (may change without notice):
 
 1. Implement the fit/transform functions in `raman_preprocessing.py`.
 2. Add a `_PREP_STEP_DEFINITIONS` entry in `mixin.py` and register it in `_ALL_PREPROCESSING_STEPS`.
-3. Add its HPO search space to `build_prep_model_hyperparameters()` (`src/raman_bench/model.py`).
+3. Add its HPO search space to `build_prep_model_hyperparameters()` (`src/raman_bench/prep_hyperparameters.py`).
 4. Add a transformer in `transformers.py`, put the step in `STEP_ORDER`, and add tests, in particular
    for steps that change the number of columns.
 5. Update [CHANGELOG.md](../CHANGELOG.md).

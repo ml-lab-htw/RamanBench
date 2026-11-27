@@ -76,7 +76,7 @@ def recipe_params(preprocessing=None, preprocessing_params: dict | None = None) 
     (steps not listed are off), ``True`` for every step of the ``preprocessing: true`` shorthand,
     or ``None``/``False`` for none. ``preprocessing_params`` overrides single parameters
     (``{"prep_deriv_order": 2}``); it may not switch a step that ``preprocessing`` decides.
-    The precedence is that of :func:`raman_bench.model.build_prep_model_hyperparameters`.
+    The precedence is that of :func:`raman_bench.prep_hyperparameters.build_prep_model_hyperparameters`.
     Augmentation is always off (it is not a transform).
     """
     cfg = _normalize_preprocessing_config({"preprocessing": preprocessing or False})["preprocessing_config"]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Plot per-dataset performance from an aggregated v1 results CSV.
+"""Plot per-dataset performance from an aggregated results CSV.
 
 Consumes ``hpo_results.csv`` (written by ``scripts/aggregate_results.py``) and
 produces one bar chart per model, showing ``metric_error`` across every
@@ -8,11 +8,11 @@ than the default config was actually run for that model.
 
 Not a full multi-model leaderboard (Elo/rank/win-rate need >=2 models on the
 same tasks to be meaningful -- see ``bencheval.tabarena.TabArena`` for that,
-once there's more than one model's worth of v1 results to compare). This is
+once there's more than one model's worth of results to compare). This is
 the per-model performance view that's meaningful even for a single model.
 
 Usage:
-    python scripts/plot_v1_results.py --input results/v1/aggregated/hpo_results.csv --output-dir results/v1/plots
+    python scripts/plot_per_model_results.py --input results/v1/aggregated/hpo_results.csv --output-dir results/v1/plots
 """
 
 from __future__ import annotations

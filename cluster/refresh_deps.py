@@ -16,12 +16,8 @@ determines which datasets/DatasetInfo entries (and their ``is_grouped``
 metadata) are visible, so skipping this step is exactly how a newly-released
 dataset gets silently missed by a stale environment.
 
-``raman-bench`` itself doesn't have a released v1 yet (mid-refactor, see the
-v1 plan) -- pass ``--workspace`` to also ``git pull`` its checkout in place
-(the one that supplies ``scripts/``/``cluster/``, which are tooling, not
-shipped in the wheel, so a checkout is required regardless of release status).
-Once a real v1 release exists, add ``raman-bench[full]`` to the upgrade list
-here the same way ``raman-data`` is handled today.
+``raman-bench`` itself is not upgraded from PyPI: pass ``--workspace`` to ``git pull`` its checkout in place
+(the one that supplies ``scripts/``/``cluster/``, which are tooling, not shipped in the wheel).
 
 Usage
 -----

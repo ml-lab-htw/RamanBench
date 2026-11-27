@@ -26,7 +26,7 @@ this also lifts the previous single-split scheme's known limitation that a
 grouped classification split couldn't additionally be class-balanced:
 ``StratifiedGroupKFold`` does both at once.
 
-Confirmed by direct testing (see the Phase 0 spike in the refactor plan):
+Confirmed by direct testing:
 TabArena's ``group_on`` is used only for split/metadata bookkeeping — it is
 **not** stripped from the feature matrix automatically. Fitting a raw
 ``OpenMLTaskWrapper``-wrapped task would leak the group-id column into the

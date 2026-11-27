@@ -19,7 +19,7 @@ threading those checks through this helper would couple it back to
 separate :func:`load_dataframe`.
 
 :func:`load_dataframe`, :func:`bag_experiment_kwargs` and :func:`run_cached` are the rest
-of a v1 run (load, configure the bagged TabArena experiment, run and cache one fold),
+of a run (load, configure the bagged TabArena experiment, run and cache one fold),
 shared by ``run_one`` and :func:`raman_bench.evaluate.evaluate_estimator` so a
 scikit-learn estimator evaluated for comparison runs exactly like a leaderboard model.
 """

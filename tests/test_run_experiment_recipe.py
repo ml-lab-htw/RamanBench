@@ -4,8 +4,7 @@ Before this fix, ``scripts/run_experiment.py::run_one()`` had no way to specify 
 preprocessing recipe a job should use -- only ``--config-index`` for model
 hyperparameters (see ``docs/kfold_priority_plan.md``'s §6.1 in the RamanPreprocessing repo,
 and this fix's own writeup). Adding ``--recipe-config``/``recipe_config`` reuses the exact
-same restriction-application code path Pipeline A's ``AutoGluonModel._build_model_hyperparameters``
-already used, factored out as ``raman_bench.model.build_prep_model_hyperparameters``.
+same restriction-application code path the removed v0.1 pipeline used, factored out as ``raman_bench.prep_hyperparameters.build_prep_model_hyperparameters``.
 
 These tests check three things, mirroring ``tests/test_resource_tuning_fixes.py``'s
 "patch the real, cheap parts; assert on real model-class state" convention:

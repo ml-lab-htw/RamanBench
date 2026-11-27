@@ -200,7 +200,7 @@ def test_imports_and_runs_without_autogluon_or_tabarena():
 @pytest.mark.parametrize("recipe", sorted(RECIPES))
 def test_equals_the_benchmark_models_preprocessing(model_key, recipe):
     pytest.importorskip("autogluon.tabular")
-    from raman_bench.model import build_prep_model_hyperparameters
+    from raman_bench.prep_hyperparameters import build_prep_model_hyperparameters
     from raman_bench.preprocessing.wrapped_models import PREPROCESSED_MODELS
 
     preprocessing, preprocessing_params = RECIPES[recipe]

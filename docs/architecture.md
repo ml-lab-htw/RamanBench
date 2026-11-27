@@ -52,7 +52,7 @@ RamanBench/
 │   ├── experiment_utils.py     # shared task building / experiment running for every v1 runner
 │   ├── leaderboard.py          # v0.1 Leaderboard (bundled v0.1 results)
 │   ├── benchmark.py            # Dataset loading (mirror-first) and cross-validation
-│   ├── model.py                # build_prep_model_hyperparameters (Prep_* hyperparameter builder)
+│   ├── prep_hyperparameters.py # build_prep_model_hyperparameters (Prep_* hyperparameter builder)
 │   ├── config.py               # JSON config loader
 │   ├── splitting.py            # Repeated k-fold CV + TabArena UserTask construction
 │   ├── folds.py                # the v1 outer folds as plain spectrum ids (raman-bench folds)

@@ -1,12 +1,11 @@
 #!/usr/bin/env python
-"""Aggregate cached v1 per-config results into a combined leaderboard-ready table.
+"""Aggregate cached per-config results into a combined leaderboard-ready table.
 
 Scans ``{results_dir}/{experiment_name}/{task_name}/{repeat}_{fold}/results.pkl``
 caches (as written by ``scripts/run_experiment.py``) and calls TabArena's own
 ``EndToEnd.from_raw`` once, across every cached result, to recycle each
 model's raw per-config runs into default/tuned/tuned+ensemble rows -- reusing
-TabArena's machinery directly rather than re-deriving it (see the v1 refactor
-plan's Phase 3).
+TabArena's machinery directly rather than re-deriving it.
 
 Writes two CSVs:
   - ``model_results.csv`` -- one row per (task, fold, raw config), e.g.
