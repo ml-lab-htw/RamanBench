@@ -36,8 +36,8 @@ FIGURES = {
     "overview": "Figure 1: RamanBench overview",
     "raman_examples": "Figure 2: Raman spectra examples",
     "composition": "Figure 3: Benchmark composition",
-    "elo_ranking_combined": "Elo ranking, classification and regression",
-    "elo_ranking": "Elo ranking, all tasks",
+    "elo_ranking_combined": "Elo ranking, classification and regression (static)",
+    "elo_ranking": "Elo ranking",
     "improvability_vs_time": "Improvability vs. time",
     "elo_vs_time": "Elo vs. time",
     "elo_vs_time_all": "Elo vs. time, all tasks",
@@ -215,10 +215,9 @@ def generate_from_results(
 
     if make_interactive:
         it = out_dir / "interactive"
-        groups = [g for g in ("classification", "regression") if g in scores]
         figs = {
-            "elo_ranking_combined": interactive.elo_ranking(scores, everyone, None, groups or ["all"]),
-            "elo_ranking": interactive.elo_ranking(scores, everyone, None, ["all"]),
+            "elo_ranking": interactive.elo_ranking(
+                scores, everyone, None, [g for g in ("all", "classification", "regression") if g in scores]),
             "improvability_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "improvability", strict),
             "elo_vs_time": interactive.tradeoff(scores, focus, focus_top_k, "elo", strict),
             "elo_vs_release_date": interactive.elo_vs_release_date(scores["all"], focus["all"], focus_top_k, strict),
@@ -250,7 +249,10 @@ def write_leaderboards(scores, lb_dir: str | Path) -> list[Path]:
     for g, s in scores.items():
         path = lb_dir / f"leaderboard_{g}.csv"
         cols = [c for c in LEADERBOARD_COLUMNS if c in s.leaderboard.columns]
-        s.leaderboard[cols].rename_axis("model").to_csv(path, float_format="%.6g")
+        board = s.leaderboard[cols].copy()
+        board["provider"] = [model_info.provider(m) for m in board.index]  # for the "best per provider / family" filters
+        board["family"] = [model_info.family(m) for m in board.index]
+        board.rename_axis("model").to_csv(path, float_format="%.6g")
         paths.append(path)
     return paths
 
