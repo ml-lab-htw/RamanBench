@@ -60,6 +60,11 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Changed
 
+- Interactive figures: the Elo ranking is one figure with a "Tasks" switch (all tasks, classification, regression) instead of an all-tasks
+  and a stacked classification/regression version (the static `elo_ranking_combined` stays); the pairwise win-rate matrices and the
+  efficiency figure get the same category and best-per-provider / best-per-family filters as the other figures ("best" by Elo).
+  The critical difference diagrams have no filter bar: their significance bars belong to a fixed set of models.
+- `leaderboard_*.csv` gain `provider` and `family` columns, for the filters of the leaderboard tables on the Space.
 - `configs/` has one folder per benchmark version. The loose v0.1 files moved into `configs/v0.1/` (`benchmark_v0.1.json` is now `benchmark.json`; `datasets/` and `models/` came with it), and `configs/v1/quality_exclusions.json` is now `configs/v1/exclusions.json`, the name benchmark v2 uses. `configs/README.md` says what each folder is.
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
   used `kubectl apply` for the Job and now queues it through `kq`.
