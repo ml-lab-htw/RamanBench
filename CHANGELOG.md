@@ -69,7 +69,7 @@ The full rules are in [RELEASING.md](RELEASING.md).
   one tabular foundation model, one gradient booster, ...). Lattice and Lattice-tiny share a provider, as do the three aeon time series
   classifiers (HIVE-COTE 2, ROCKET, Hydra).
 - Interactive Elo ranking: every model is sorted by Elo (models rated on one task type only used to be appended on the right, out of
-  order, and dropped out of the order after a filter change). The bars keep a minimum width (24, 22 or 20 px by screen width): the figure
+  order, and dropped out of the order after a filter change). The bars keep a minimum width (40, 36 or 32 px by screen width): the figure
   is as wide as the models shown need, and the page scrolls sideways.
 - `configs/` has one folder per benchmark version. The loose v0.1 files moved into `configs/v0.1/` (`benchmark_v0.1.json` is now `benchmark.json`; `datasets/` and `models/` came with it), and `configs/v1/quality_exclusions.json` is now `configs/v1/exclusions.json`, the name benchmark v2 uses. `configs/README.md` says what each folder is.
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
