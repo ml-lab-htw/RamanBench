@@ -1420,6 +1420,74 @@ Prep_LIMIX2 = _make_optional_prep_class(
 )
 
 
+# LimiX-2-1016 (Stable AI, released 2026-11-10): a newer checkpoint of LimiX-2 (``stable-ai/LimiX-2-1016``), reported
+# ahead of LimiX-2 on TabArena. Same network: both checkpoints are ``arch_version`` 2.0 with the same 1496 parameter
+# tensors and shapes (compared directly), so the inference package pinned for LimiX-2 (``LimiX@774aa3e``, see
+# requirements-git-nodeps.txt) loads it and the job runs in the same Python 3.12 image. It REPLACES LimiX-2 on the
+# leaderboard, so it has its own ag_key and ag_name: a shared results folder would let ``run_cached`` hand back the old
+# checkpoint's folds. Only ``prefetch_weights`` differs from ``LimiX2Model`` (``_fit`` calls it when no ``model_path`` is
+# given); the revision is pinned like TabArena pins LimiX-2's.
+_LIMIX2_1016_REPO = "stable-ai/LimiX-2-1016"
+_LIMIX2_1016_FILE = "LimiX-2-1016.ckpt"
+_LIMIX2_1016_REVISION = "276f3d3266d2c7b360ddecb04ada1552c6f15b4e"
+
+
+def _hf_checkpoint(repo: str, filename: str, revision: str) -> str:
+    """Local path of a pinned Hugging Face checkpoint: the cache first (no network round trip on an offline node)."""
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    try:
+        return hf_hub_download(repo_id=repo, filename=filename, revision=revision, local_files_only=True)
+    except LocalEntryNotFoundError:
+        return hf_hub_download(repo_id=repo, filename=filename, revision=revision)
+
+
+def _limix2_1016_prefetch_weights(cls) -> str:
+    return _hf_checkpoint(_LIMIX2_1016_REPO, _LIMIX2_1016_FILE, _LIMIX2_1016_REVISION)
+
+
+Prep_LIMIX2_1016 = _make_optional_prep_class(
+    "Prep_LIMIX2_1016",
+    LimiX2Model,
+    ag_key="LIMIX2-1016",
+    ag_name="RamanBench-LimiX2-1016",
+    prefetch_weights=classmethod(_limix2_1016_prefetch_weights),
+    _default_auxiliary_params_extra=_NO_FOUNDATION_MODEL_FEATURE_CAP,
+    _convert_proba_to_unified_form=_limix2_convert_proba_to_unified_form,
+)
+
+# LimiX-2M (Stable AI, 2M parameters, classification and regression): the small LimiX with the retrieval mechanism.
+# TabArena's vendored ``LimiXModel`` already ships its inference configs (``cls/reg_default_2M_retrieval.json``); only
+# the checkpoint (``stable-ai/LimiX-1_2M``) and those configs differ from LimiX (16M), so this subclasses ``Prep_LIMIX``
+# (which lifts the class cap) and fills in the two defaults ``LimiXModel._fit`` reads from the hyperparameters.
+if Prep_LIMIX is None:
+    Prep_LIMIX_2M = None
+else:
+    from tabarena.models.limix.model import _load_bundled_config as _limix_bundled_config
+
+    class Prep_LIMIX_2M(Prep_LIMIX):  # noqa: N801
+        """LimiX-2M: ``Prep_LIMIX`` with the 2M checkpoint and its retrieval configs."""
+
+        ag_key = "LIMIX-2M"
+        ag_name = "RamanBench-LimiX-2M"
+        _REPO = "stable-ai/LimiX-1_2M"
+        _FILE = "LimiX-1_2M.ckpt"
+        _REVISION = "94d0cac52006ed11313c5886f60269cc617ebe4f"
+
+        @classmethod
+        def prefetch_weights(cls) -> str:
+            return _hf_checkpoint(cls._REPO, cls._FILE, cls._REVISION)
+
+        def _get_model_params(self, *args, **kwargs) -> dict:
+            params = super()._get_model_params(*args, **kwargs)
+            params.setdefault("model_path", self.prefetch_weights())
+            if "inference_config" not in params:
+                task = "cls" if self.problem_type in ("binary", "multiclass") else "reg"
+                params["inference_config"] = _limix_bundled_config(f"{task}_default_2M_retrieval.json")
+            return params
+
+
 class Prep_KNN(_NoAugBase, KNNModel):  # noqa: N801
     """SNV normalises intensity scale so Euclidean distances reflect spectral shape."""
 
@@ -1496,6 +1564,8 @@ PREPROCESSED_MODELS = {
     "ILTM": Prep_ILTM,
     "LIMIX": Prep_LIMIX,
     "LIMIX2": Prep_LIMIX2,
+    "LIMIX2-1016": Prep_LIMIX2_1016,
+    "LIMIX-2M": Prep_LIMIX_2M,
     "APLR": Prep_APLR,
     "CTBOOST": Prep_CTBOOST,
     "TABLDM": Prep_TABLDM,

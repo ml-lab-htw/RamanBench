@@ -33,6 +33,7 @@
         "ORIONMSP",
         "ILTM",
         "LIMIX",
+        "LIMIX-2M",
         "COATNET",
         "DEEPCNN",
         "FCRESNEXT",
@@ -60,7 +61,8 @@
         "TABDPT-V1.3",
         "TABPFN-WIDE",
         "REALTABPFN-V2.6",
-        "LIMIX2",
+        "LIMIX2-1016",
+        "FTFM",
         "LIGHTPFN",
         "PRISMBOOST",
         "TABFM-PLUS",
@@ -191,7 +193,8 @@
             "rruff_mineral_raw": 7200
         },
         "LIMIX": 800000,
-        "LIMIX2": 800000,
+        "LIMIX-2M": 800000,
+        "LIMIX2-1016": 800000,
         "PERPETUAL_BOOSTER": {
             "bacteria_identification": 5400,
             "marine_pathogens": 5400,

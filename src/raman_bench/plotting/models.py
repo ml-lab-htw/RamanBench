@@ -140,6 +140,9 @@ _MODELS: dict[str, tuple[str, str, float | None]] = {
     "CAUSILO-1.5-LIGHT": ("Causilo 1.5 (Light)", "Tabular Foundation", 2026 + 10 / 12),
     "TABDPT-V1.3": ("TabDPT-1.3", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-08
     "LIMIX2": ("LimiX-2", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-15
+    "LIMIX2-1016": ("LimiX-2-1016", "Tabular Foundation", 2026 + 10 / 12),  # 2026-11-10, replaces LimiX-2 on the leaderboard
+    "LIMIX-2M": ("LimiX-2M", "Tabular Foundation", 2025 + 10 / 12),  # 2025-11-10
+    "FTFM": ("FTFM", "Tabular Foundation", 2026 + 9 / 12),  # arXiv 2026-10
     "TABPFN-V3.5": ("TabPFN v3.5", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-15
     "TABPFN-V3.5-FAST": ("TabPFN v3.5 Fast", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-15
     "KUMO-TABULAR": ("Kumo-Tabular", "Tabular Foundation", 2026 + 8 / 12),  # 2026-09-25
@@ -301,6 +304,8 @@ ORGANIZATION = {
     "TABFM": "Google Research", "TABFM-PLUS": "Google Research",
     "SELDON": "Neuralk-AI", "SELDON-MINI": "Neuralk-AI",
     "LIMIX": "Stable AI & Tsinghua University", "LIMIX2": "Stable AI & Tsinghua University",
+    "LIMIX2-1016": "Stable AI & Tsinghua University", "LIMIX-2M": "Stable AI & Tsinghua University",
+    "FTFM": "University of Technology Nuremberg",
     "NORI": "Synthefy",
     "TABPFN-V3": "Prior Labs", "TABPFN-V3.5": "Prior Labs", "TABPFN-V3.5-FAST": "Prior Labs",
     "TABPFN-V3.5-THINKING": "Prior Labs", "TABPFN-V3.5-THINKING-MAX": "Prior Labs",
