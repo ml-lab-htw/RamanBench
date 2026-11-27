@@ -31,6 +31,12 @@ export CHAKRA_TAB_KEY=...        # hosted API: every fold's data is sent to the 
 python scripts/run_system.py --system CHAKRA-TAB --workers 4
 ```
 
+## Benchmark v2
+
+On the `v2` branch, `cluster/submit_v2_sweep.py` submits the full v2 sweep from `configs/v2/scope_default.json`, and
+`Dockerfile.v2` at the repository root builds the Python 3.12 image it runs on.
+Results go to `results/v2/`. The files and the protocol are described in [configs/v2/README.md](../configs/v2/README.md).
+
 ## Leaderboard figures
 
 Once results exist, aggregate them and draw the leaderboard figures (needs

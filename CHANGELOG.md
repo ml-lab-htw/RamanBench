@@ -100,6 +100,8 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Removed
 
+- `scripts/invalidate_v2_results.py` (one-off, nothing used it) and `tests/test_v2_config.py`, whose tests moved into
+  `tests/test_configs_v2.py`.
 - Benchmark v2 runs every model, LimiX-2 included, from one image: `Dockerfile.v2` (Python 3.12; `requirements-git-nodeps.txt` installs LimiX-2 without its `torch==2.9.1` pin). The separate `:py312` LimiX-2 image, its `image_overrides` entry and the special case for it in `cluster/model_progress_report.py` are gone from the code and docs.
 - `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
   section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.

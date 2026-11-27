@@ -39,6 +39,10 @@ requirements and the full install are in [docs/installation.md](docs/installatio
 package's major version is the benchmark version: every `raman-bench 1.x` release scores
 benchmark v1.
 
+This branch (`v2`) is benchmark v2: the v1 tasks plus the targets of newer datasets, under one
+protocol and one row cap for every model. Its files and how it is run are in
+[configs/v2/README.md](configs/v2/README.md).
+
 ## Quick start
 
 Load a dataset:
@@ -103,7 +107,7 @@ The interface, the recipes and how to add a step are documented in
 | [Compare your model](docs/compare-your-model.md) | Score a model against the leaderboard, other metrics, the v1 folds |
 | [Preprocessing interface](docs/preprocessing.md) | Transformers and 26 named recipes |
 | [Models](docs/models.md) | The leaderboard models and the standalone scikit-learn wrappers |
-| [Protocol](docs/protocol.md) | Datasets, ranking protocol, departures from it |
+| [Protocol](docs/protocol.md) | Datasets, ranking protocol, departures from it, benchmark v2 |
 | [Architecture](docs/architecture.md) | How v1 is built on TabArena, repository structure |
 | [Running the benchmark](docs/running-the-benchmark.md) | Experiments, systems, cluster sweeps, figures |
 | [Contributor agents](docs/contributor-agents.md) | The Claude Code agents for model, dataset and cluster work |
