@@ -1,9 +1,0 @@
-# LimiX-2 (Prep_LIMIX2). Its inference package pins torch==2.9.1, which would replace the torch
-# the rest of the image runs on, so install it without its dependency tree:
-#
-#     pip install --no-deps -r requirements-limix2-git.txt
-#     pip install nvtx
-#
-# The commit is the one tabarena's LimiX-2 wrapper was written against (see
-# tabarena.models.limix_2.info.ModelInfo.pip_extra). Bump it deliberately.
-LimiX @ git+https://github.com/limix-ldm-ai/LimiX.git@774aa3e1a994cbe38f33758e3d663e9951855554

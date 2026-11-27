@@ -66,6 +66,21 @@ The full rules are in [RELEASING.md](RELEASING.md).
   `scripts/plot_v1_results.py` to `scripts/plot_per_model_results.py`.
 - Docstrings and script headers no longer say "v1" where they apply to both benchmark versions, and no longer point at the
   removed v0.1 pipeline or at plan documents that do not exist.
+- Interactive figures: the Elo ranking is one figure with a "Tasks" switch (all tasks, classification, regression) instead of an all-tasks
+  and a stacked classification/regression version (the static `elo_ranking_combined` stays); the pairwise win-rate matrices and the
+  efficiency figure get the same category and best-per-provider / best-per-category filters as the other figures ("best" by Elo).
+  The critical difference diagrams have no filter bar: their significance bars belong to a fixed set of models.
+- `leaderboard_*.csv` gain a `provider` column, for the filters of the leaderboard tables on the Space.
+- Interactive figures: every figure with a filter bar (Elo ranking, Elo and improvability vs. time, Elo vs. release date, efficiency, both
+  pairwise win-rate matrices) has a "Tasks" row: all tasks, classification or regression. They are single-panel figures now (the two-panel
+  classification / regression layout of the trade-off figures is gone), and "best per provider / category" uses the Elo of the chosen
+  task group. The critical difference diagrams stay as they are.
+- Interactive figures: the model filter has "Every model", "Best per provider" and "Best per category" (the best model of each category:
+  one tabular foundation model, one gradient booster, ...). Lattice and Lattice-tiny share a provider, as do the three aeon time series
+  classifiers (HIVE-COTE 2, ROCKET, Hydra).
+- Interactive Elo ranking: every model is sorted by Elo (models rated on one task type only used to be appended on the right, out of
+  order, and dropped out of the order after a filter change). The bars keep a minimum width (40, 36 or 32 px by screen width): the figure
+  is as wide as the models shown need, and the page scrolls sideways.
 - `configs/` has one folder per benchmark version. The loose v0.1 files moved into `configs/v0.1/` (`benchmark_v0.1.json` is now `benchmark.json`; `datasets/` and `models/` came with it), and `configs/v1/quality_exclusions.json` is now `configs/v1/exclusions.json`, the name benchmark v2 uses. `configs/README.md` says what each folder is.
 - Benchmark v2 `configs/v2/datasets/` files are `all.json` and `new.json` (were `v2_all.json`, `v2_only.json`).
 - The k8s submit scripts share one `submit_job.submit_k8s_job` (ConfigMap, then `kq submit`). `submit_dataset_sweep.py`
@@ -108,6 +123,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 - `scripts/invalidate_v2_results.py` (one-off, nothing used it) and `tests/test_v2_config.py`, whose tests moved into
   `tests/test_configs_v2.py`.
 - Benchmark v2 runs every model, LimiX-2 included, from one image: `Dockerfile.v2` (Python 3.12; `requirements-git-nodeps.txt` installs LimiX-2 without its `torch==2.9.1` pin). The separate `:py312` LimiX-2 image, its `image_overrides` entry and the special case for it in `cluster/model_progress_report.py` are gone from the code and docs.
+- `requirements-{lattice,limix2,models,tabarena,tabomics}-git.txt`: every pin in them is already in `requirements-git.txt` or
+  `requirements-git-nodeps.txt`, which the Dockerfile and CI install; no build used the five files.
+- `cluster/run_autogluon_baseline.sbatch` (unused SLURM script) and `docs/PLAN_feat-tabarena-models-2026-11.md` (finished plan).
 - `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
   section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.
 - Seven one-off cluster scripts (`resubmit_limix2_*`, `resubmit_tabpfn_wide_b200`, `submit_autogluon_1h_*`,

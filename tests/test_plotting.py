@@ -181,6 +181,13 @@ def test_every_scope_model_has_metadata():
     assert [m for m in unknown if not m.startswith("AUTOGLUON")] == []
 
 
+def _page_filter_config(path):
+    """The ``var C = {...}`` configuration the filter script of a figure page carries."""
+    page = path.read_text(encoding="utf-8")
+    start = page.index("var C = ") + len("var C = ")
+    return json.JSONDecoder().raw_decode(page[start:])[0]
+
+
 def test_generate_all_writes_static_interactive_and_index(tmp_path):
     pytest.importorskip("plotly")
     from raman_bench.plotting import generate_all
@@ -194,18 +201,41 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
                  "elo_vs_release_date", "pairwise_win_rates", "efficiency_overview", "critical_difference"):
         assert (out / "static" / f"{stem}.png").exists()
         assert (out / "static" / f"{stem}.pdf").exists()
+    for stem in ("elo_ranking", "improvability_vs_time",
+                 "elo_vs_release_date", "pairwise_win_rates", "efficiency_overview", "critical_difference"):
         assert (out / "interactive" / f"{stem}.html").exists()
-    for stem in ("elo_ranking_combined", "elo_ranking", "improvability_vs_time", "elo_vs_time", "elo_vs_release_date"):
+    assert not (out / "interactive" / "elo_ranking_combined.html").exists()  # one Elo figure, with a Tasks switch
+    for stem in ("elo_ranking", "improvability_vs_time", "elo_vs_time", "elo_vs_release_date"):
         page = (out / "interactive" / f"{stem}.html").read_text(encoding="utf-8")
         assert 'id="rb-bar"' in page and "data-mode=\"provider\"" in page, stem  # the filter bar replaced the legend
-    assert 'id="rb-bar"' not in (out / "interactive" / "efficiency_overview.html").read_text(encoding="utf-8")
+    elo = (out / "interactive" / "elo_ranking.html").read_text(encoding="utf-8")
+    for stem in ("elo_ranking", "improvability_vs_time", "elo_vs_time", "elo_vs_release_date", "efficiency_overview",
+                 "pairwise_win_rates", "pairwise_win_rates_all"):  # every filterable figure has the Tasks row
+        page = (out / "interactive" / f"{stem}.html").read_text(encoding="utf-8")
+        assert all(f'data-view="{g}"' in page for g in ("all", "classification", "regression")), stem
+    assert 'id="rb-bar"' not in (out / "interactive" / "critical_difference.html").read_text(encoding="utf-8")  # fixed model set
+    cfgs = {stem: _page_filter_config(out / "interactive" / f"{stem}.html")
+            for stem in ("elo_ranking", "efficiency_overview", "pairwise_win_rates_all", "elo_vs_time")}
+    assert all(list(c["views"]) == ["all", "classification", "regression"] for c in cfgs.values())
+    assert list(cfgs["elo_ranking"]["views"]) == ["all", "classification", "regression"]
+    assert cfgs["elo_ranking"]["cat_axis"] == "x" and cfgs["elo_ranking"]["bars"]["px"][0] > 0  # models along the bottom, a minimum bar width
+    top = max(cfgs["elo_ranking"]["models"].values(), key=lambda m: m["elo"]["all"])["name"].split(" (")[0]
+    assert cfgs["elo_ranking"]["views"]["all"]["order"][0].startswith(top)  # best on the left
+    assert 'data-mode="cat"' in elo and "Best per category" in elo and "model line" not in elo
+    assert cfgs["efficiency_overview"]["cat_axis"] == "y" and cfgs["efficiency_overview"]["by"] == "elo"
+    assert cfgs["pairwise_win_rates_all"]["kind"] == "matrix"
+    for group, view in cfgs["pairwise_win_rates_all"]["views"].items():  # one matrix and one header per task group
+        assert set(view["matrix"]) <= set(cfgs["pairwise_win_rates_all"]["models"]) and group in view["header"].lower()
+    assert cfgs["elo_vs_time"]["by"] is None
+    assert all(e > 0 and m["provider"] for m in cfgs["elo_ranking"]["models"].values() for e in m["elo"].values())
     assert not (out / "interactive" / "metrics_vs_time.html").exists()
     assert not (out / "static" / "metrics_vs_time.png").exists()  # dropped: Elo vs. time shows the same trade-off
     for group in ("all", "classification", "regression"):
         assert (out / "static" / f"elo_vs_time_{group}.png").exists()
         assert (out / "static" / f"elo_vs_time_new_{group}.png").exists()
     assert (out / "static" / "elo_vs_time_new.png").exists()
-    assert (out / "leaderboards" / "leaderboard_regression.csv").exists()
+    board = pd.read_csv(out / "leaderboards" / "leaderboard_regression.csv")
+    assert "provider" in board.columns and board["provider"].notna().all()
     assert written["index"][0].read_text().count("<section>") >= 6
 
 
@@ -396,9 +426,9 @@ def test_figure_script_sizes_the_iframe_from_the_figure_not_the_body():
     assert "getBoundingClientRect().bottom" in interactive._MOBILE_JS
 
 
-def test_provider_and_family_group_versions_and_default_to_the_model_itself():
+def test_provider_groups_the_variants_of_a_model_and_defaults_to_the_model_itself():
     assert model_info.provider("REALTABPFN-V2") == model_info.provider("TABPFN-V3.5-THINKING") == "Prior Labs"
-    assert model_info.family("REALTABPFN-V2") == model_info.family("TABPFN-V3.5-THINKING") == "TabPFN"
-    assert model_info.family("CAUSILO-1.5-LIGHT") == model_info.family("CAUSILO") == "Causilo"
-    assert model_info.provider("RAMANNET") == "RAMANNET" and model_info.family("RAMANNET") == "RAMANNET"
-    assert model_info.is_closed_api("chakra-tab") and not model_info.is_closed_api("RF")
+    for variants in (("CAUSILO", "CAUSILO-1.5", "CAUSILO-1.5-LIGHT"), ("LATTICE", "LATTICE-TINY"),
+                     ("KUMO-TABULAR", "KUMO-TABULAR-MEDIUM", "KUMO-TABULAR-SMALL"), ("HIVECOTEV2", "ROCKET", "HYDRA")):
+        assert len({model_info.provider(m) for m in variants}) == 1, variants
+    assert model_info.provider("RAMANNET") == "RAMANNET"

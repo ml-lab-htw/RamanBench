@@ -316,26 +316,9 @@ ORGANIZATION = {
     "MLP-A": "Yandex Research", "TABM": "Yandex Research", "TABM-A": "Yandex Research", "CAT": "Yandex",
     "EBM": "Microsoft", "XGB": "University of Washington", "XRFM": "UC San Diego",
     "PERPETUAL_BOOSTER": "Perpetual ML", "ORIONMSP": "Lexsi Labs",
-    "LR": "scikit-learn", "KNN": "scikit-learn", "RF": "scikit-learn", "XT": "scikit-learn", "PLS": "scikit-learn",
-}
-
-#: Versions and variants of one model line, for the "best per family" filter. A model that is missing here is
-#: its own family.
-FAMILY = {
-    "REALTABPFN-V2": "TabPFN", "REALTABPFN-V2.5": "TabPFN", "REALTABPFN-V2.6": "TabPFN", "TABPFN-V3": "TabPFN",
-    "TABPFN-V3.5": "TabPFN", "TABPFN-V3.5-FAST": "TabPFN", "TABPFN-V3.5-THINKING": "TabPFN",
-    "TABPFN-V3.5-THINKING-MAX": "TabPFN", "TABPFN-WIDE": "TabPFN", "TA-TABPFN-3": "TabPFN",
-    "CAUSILO": "Causilo", "CAUSILO-1.5": "Causilo", "CAUSILO-1.5-LIGHT": "Causilo",
-    "KUMO-TABULAR": "Kumo-Tabular", "KUMO-TABULAR-MEDIUM": "Kumo-Tabular", "KUMO-TABULAR-SMALL": "Kumo-Tabular",
-    "LIMIX": "LimiX", "LIMIX2": "LimiX",
-    "MITRA": "Mitra", "TA-MITRA-V2": "Mitra",
-    "TABDPT": "TabDPT", "TABDPT-V1.3": "TabDPT",
-    "TABFM": "TabFM", "TABFM-PLUS": "TabFM",
-    "TABM": "TabM", "TABM-A": "TabM",
-    "CHAKRA-TAB": "Chakra-Tab", "CHAKRA-TAB-FULL": "Chakra-Tab",
-    "SELDON": "Seldon", "SELDON-MINI": "Seldon",
     "LATTICE": "Lattice", "LATTICE-TINY": "Lattice",
-    "TABICL": "TabICL", "TABICLV2": "TabICL",
+    "HIVECOTEV2": "aeon", "ROCKET": "aeon", "HYDRA": "aeon",  # as the leaderboard's logos: the time series classifiers run through aeon
+    "LR": "scikit-learn", "KNN": "scikit-learn", "RF": "scikit-learn", "XT": "scikit-learn", "PLS": "scikit-learn",
 }
 
 
@@ -343,7 +326,3 @@ def provider(model: str) -> str:
     """Organization behind *model*; the model's own key when none is recorded."""
     return ORGANIZATION.get(model.upper(), model)
 
-
-def family(model: str) -> str:
-    """Model line *model* belongs to (see :data:`FAMILY`); the model's own key when it has none."""
-    return FAMILY.get(model.upper(), model)
