@@ -97,6 +97,9 @@ The full rules are in [RELEASING.md](RELEASING.md).
 
 ### Removed
 
+- `requirements-{lattice,limix2,models,tabarena,tabomics}-git.txt`: every pin in them is already in `requirements-git.txt` or
+  `requirements-git-nodeps.txt`, which the Dockerfile and CI install; no build used the five files.
+- `cluster/run_autogluon_baseline.sbatch` (unused SLURM script) and `docs/PLAN_feat-tabarena-models-2026-11.md` (finished plan).
 - `cluster/opportunistic_scheduler.py` (SLURM backlog scheduler), its tests, `cluster/scope.example.json`, and the scheduler
   section of the cluster-agent definitions. Submit with `cluster/submit_job.py` or `cluster/submit_full_benchmark.py`.
 - Seven one-off cluster scripts (`resubmit_limix2_*`, `resubmit_tabpfn_wide_b200`, `submit_autogluon_1h_*`,
