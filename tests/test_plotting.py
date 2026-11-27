@@ -215,6 +215,10 @@ def test_generate_all_writes_static_interactive_and_index(tmp_path):
     cfgs = {stem: _page_filter_config(out / "interactive" / f"{stem}.html")
             for stem in ("elo_ranking", "efficiency_overview", "pairwise_win_rates_all", "elo_vs_time")}
     assert list(cfgs["elo_ranking"]["views"]) == ["all", "classification", "regression"]
+    assert cfgs["elo_ranking"]["cat_axis"] == "y" and cfgs["elo_ranking"]["rows"]["px"][0] > 0  # horizontal bars, as tall as their rows
+    top = max(cfgs["elo_ranking"]["models"].values(), key=lambda m: m["elo"])["name"].split(" (")[0]
+    assert cfgs["elo_ranking"]["views"]["all"]["order"][-1].startswith(top)  # the axis starts at the bottom: best on top
+    assert 'data-mode="cat"' in elo and "Best per model line" in elo and "Best per category" in elo
     assert cfgs["efficiency_overview"]["cat_axis"] == "y" and cfgs["efficiency_overview"]["by"] == "elo"
     assert cfgs["pairwise_win_rates_all"]["kind"] == "matrix"
     assert set(cfgs["pairwise_win_rates_all"]["matrix"]) <= set(cfgs["pairwise_win_rates_all"]["models"])
